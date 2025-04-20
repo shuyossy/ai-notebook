@@ -1,10 +1,10 @@
 import { Agent } from '@mastra/core/agent';
-import { sourceListTool, querySourceTool } from '@/mastra/tools/sourcesTools';
+import { Memory } from '@mastra/memory';
+import { LibSQLStore } from '@mastra/core/storage/libsql';
+import { URL } from 'url';
 import { ORCHESTRATOR_SYSTEM_PROMPT } from './prompts';
-import openAICompatibleModel from './model/openAICompatible'
-import { Memory } from "@mastra/memory";
-import { LibSQLStore } from "@mastra/core/storage/libsql";
-import { URL } from 'url'
+import openAICompatibleModel from './model/openAICompatible';
+import { sourceListTool, querySourceTool } from '../tools/sourcesTools';
 
 // データベースURLが設定されていなければエラー
 if (!process.env.DATABASE_DIR) {
@@ -18,8 +18,8 @@ const memory = new Memory({
   },
   storage: new LibSQLStore({
     config: {
-      url: new URL('memory.db', process.env.DATABASE_DIR).href
-    }
+      url: new URL('memory.db', process.env.DATABASE_DIR).href,
+    },
   }),
 });
 
@@ -32,6 +32,7 @@ export const orchestrator = new Agent({
     querySourceTool,
   },
   model: openAICompatibleModel,
+  memory,
 });
 
 export default orchestrator;

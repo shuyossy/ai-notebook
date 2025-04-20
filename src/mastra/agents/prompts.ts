@@ -49,7 +49,7 @@ export const ORCHESTRATOR_SYSTEM_PROMPT = `
 /**
  * ソースの内容に基づいて質問に回答するためのシステムプロンプト
  */
-export const get_SOURCE_QUERY_SYSTEM_PROMPT = (content) => `
+export const getSourceQuerySystemPrompt = (content: string) => `
 あなたは以下のドキュメントの内容に詳しいアシスタントです。
 質問に対して、ドキュメントの内容に基づいて正確に回答してください。
 ドキュメントに記載されていない情報については、「その情報はドキュメントに記載されていません」と回答してください。

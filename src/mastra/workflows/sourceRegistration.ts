@@ -1,15 +1,16 @@
+/* eslint-disable import/prefer-default-export */
 import { Step, Workflow } from '@mastra/core/workflows';
 import { z } from 'zod';
 import { Agent } from '@mastra/core/agent';
-import { db } from '@/db';
-import { sources, topics as db_topics } from '@/db/schema';
+import { eq } from 'drizzle-orm';
+import { db } from '../../db';
+import { sources, topics as dbTopics } from '../../db/schema';
 import {
   SOURCE_ANALYSIS_SYSTEM_PROMPT,
   TOPIC_EXTRACTION_SYSTEM_PROMPT,
   TOPIC_SUMMARY_SYSTEM_PROMPT,
-} from '@/mastra/agents/prompts.js';
-import { eq } from 'drizzle-orm';
-import openAICompatibleModel from '@/mastra/agents/model/openAICompatible';
+} from '../agents/prompts';
+import openAICompatibleModel from '../agents/model/openAICompatible';
 
 // ファイルパスを入力とするスキーマ
 const triggerSchema = z.object({
@@ -42,7 +43,9 @@ const analyzeSourceStep = new Step({
         summary: z.string(),
       });
 
-      const analysisResult = await summarizeSourceAgent.generate(content, {output: outputSchema});
+      const analysisResult = await summarizeSourceAgent.generate(content, {
+        output: outputSchema,
+      });
 
       return {
         title: analysisResult.object.title,
@@ -62,7 +65,7 @@ const registerSourceStep = new Step({
     sourceId: z.number(),
   }),
   execute: async ({ context }) => {
-    const { filePath, content } = context.triggerData;
+    const { filePath } = context.triggerData;
     const { title, summary } = context.getStepResult('analyzeSource')!;
 
     try {
@@ -82,10 +85,10 @@ const registerSourceStep = new Step({
         })
         .returning({ id: sources.id });
 
-      const  sourceId = insertResult[0].id;
+      const sourceId = insertResult[0].id;
 
       return {
-        sourceId
+        sourceId,
       };
     } catch (error) {
       throw new Error(`ソース登録に失敗しました: ${(error as Error).message}`);
@@ -114,17 +117,21 @@ const extractTopicsStep = new Step({
       });
 
       const outputSchema = z.object({
-        topics: z.array(z.string())
+        topics: z.array(z.string()),
       });
 
-      const extractResult = await extractTopicAgent.generate(content, {output: outputSchema});
+      const extractResult = await extractTopicAgent.generate(content, {
+        output: outputSchema,
+      });
 
       return {
         sourceId,
         topics: extractResult.object.topics,
       };
     } catch (error) {
-      throw new Error(`トピック抽出に失敗しました: ${(error as Error).message}`);
+      throw new Error(
+        `トピック抽出に失敗しました: ${(error as Error).message}`,
+      );
     }
   },
 });
@@ -137,47 +144,42 @@ const generateTopicSummariesStep = new Step({
   execute: async ({ context }) => {
     const { content } = context.triggerData;
     const { sourceId, topics } = context.getStepResult('extractTopics')!;
-    const topicSummaries: { topicName: string; summary: string }[] = [];
 
     try {
       // 既存のトピックを削除
-      await db.delete(db_topics).where(eq(db_topics.sourceId, sourceId));
+      await db.delete(dbTopics).where(eq(dbTopics.sourceId, sourceId));
 
       // 各トピックの要約を生成して登録
-      for (const topicName of topics) {
-        // LLMを使用してトピックを抽出
-        const summarizeTopicAgent = new Agent({
-          name: 'summarizeTopicAgent',
-          instructions: TOPIC_SUMMARY_SYSTEM_PROMPT,
-          model: openAICompatibleModel,
-        });
+      const summaries = await Promise.all(
+        topics.map(async (topicName: string) => {
+          // LLMを使用してトピックを抽出
+          const summarizeTopicAgent = new Agent({
+            name: 'summarizeTopicAgent',
+            instructions: TOPIC_SUMMARY_SYSTEM_PROMPT,
+            model: openAICompatibleModel,
+          });
 
-        const topicPrompt = `以下の文書から「${topicName}」というトピックに関連する情報を抽出し、要約してください。\n\n${content}`;
+          const topicPrompt = `以下の文書から「${topicName}」というトピックに関連する情報を抽出し、要約してください。\n\n${content}`;
 
-        // LLMを使用してトピックの要約を生成
-        const topicSummaryResult = await summarizeTopicAgent.generate(
-          topicPrompt
-        );
+          // LLMを使用してトピックの要約を生成
+          const topicSummaryResult =
+            await summarizeTopicAgent.generate(topicPrompt);
 
-        // トピックをデータベースに登録
-        await db.insert(db_topics).values({
-          sourceId,
-          name: topicName,
-          summary: topicSummaryResult.text,
-        });
-
-        // 結果を配列に追加
-        topicSummaries.push({
-          topicName,
-          summary: topicSummaryResult.text,
-        });
-
-      }
-      
+          return {
+            sourceId,
+            name: topicName,
+            summary: topicSummaryResult.text,
+          };
+        }),
+      );
+      // トピックをデータベースに登録
+      await db.insert(dbTopics).values(summaries);
+      console.log(`トピック要約を登録しました: ${sourceId}`);
       return {};
-
     } catch (error) {
-      throw new Error(`トピック要約の生成に失敗しました: ${(error as Error).message}`);
+      throw new Error(
+        `トピック要約の生成に失敗しました: ${(error as Error).message}`,
+      );
     }
   },
 });
@@ -195,3 +197,4 @@ sourceRegistrationWorkflow
   .then(extractTopicsStep)
   .then(generateTopicSummariesStep)
   .commit();
+

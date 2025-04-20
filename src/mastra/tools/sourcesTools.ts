@@ -1,12 +1,12 @@
 import { z } from 'zod';
-import { db } from '../../db/index.js';
 import { Agent } from '@mastra/core/agent';
-import { sources, topics } from '../../db/schema.js';
+import { createTool } from '@mastra/core/tools';
 import { eq } from 'drizzle-orm';
-import { createTool } from "@mastra/core/tools";
-import { FileExtractor } from '@/mastra/utils/fileExtractor';
-import { get_SOURCE_QUERY_SYSTEM_PROMPT } from '@/mastra/agents/prompts';
-import openAICompatibleModel from '@/mastra/agents/model/openAICompatible.js';
+import { sources, topics } from '../../db/schema.js';
+import { db } from '../../db/index.js';
+import FileExtractor from '../utils/fileExtractor.js';
+import { getSourceQuerySystemPrompt } from '../agents/prompts.js';
+import openAICompatibleModel from '../agents/model/openAICompatible.js';
 
 /**
  * ソース一覧表示ツール
@@ -26,49 +26,47 @@ export const sourceListTool = createTool({
           z.object({
             name: z.string(),
             summary: z.string(),
-          })
+          }),
         ),
-      })
+      }),
     ),
   }),
   execute: async () => {
     try {
       // ソースの一覧を取得
-      const sourcesList = await db.select().from(sources).orderBy(sources.title);
+      const sourcesList = await db
+        .select()
+        .from(sources)
+        .orderBy(sources.title);
 
       // 各ソースのトピックを取得して結果を整形
-      const result: {
-        id: number;
-        title: string;
-        summary: string;
-        topics: {
-          name: string;
-          summary: string;
-        }[];
-      }[] = [];
-      for (const source of sourcesList) {
-        const topicsList = await db
-          .select()
-          .from(topics)
-          .where(eq(topics.sourceId, source.id))
-          .orderBy(topics.name);
+      const result = await Promise.all(
+        sourcesList.map(async (source) => {
+          const topicsList = await db
+            .select()
+            .from(topics)
+            .where(eq(topics.sourceId, source.id))
+            .orderBy(topics.name);
 
-        result.push({
-          id: source.id,
-          title: source.title,
-          summary: source.summary,
-          topics: topicsList.map((topic) => ({
-            name: topic.name,
-            summary: topic.summary,
-          })),
-        });
-      }
+          return {
+            id: source.id,
+            title: source.title,
+            summary: source.summary,
+            topics: topicsList.map((topic) => ({
+              name: topic.name,
+              summary: topic.summary,
+            })),
+          };
+        }),
+      );
 
       return {
         sources: result,
       };
     } catch (error) {
-      throw new Error(`ソース一覧の取得に失敗しました: ${(error as Error).message}`);
+      throw new Error(
+        `ソース一覧の取得に失敗しました: ${(error as Error).message}`,
+      );
     }
   },
 });
@@ -87,13 +85,18 @@ export const querySourceTool = createTool({
   outputSchema: z.object({
     answer: z.string(),
   }),
-  execute: async ({ context: {sourceId, query} }) => {
+  execute: async ({ context: { sourceId, query } }) => {
     try {
       // ソース情報を取得
-      const sourceData = await db.select().from(sources).where(eq(sources.id, sourceId));
+      const sourceData = await db
+        .select()
+        .from(sources)
+        .where(eq(sources.id, sourceId));
 
       if (sourceData.length === 0) {
-        throw new Error(`指定されたID ${sourceId} のソースは見つかりませんでした`);
+        throw new Error(
+          `指定されたID ${sourceId} のソースは見つかりませんでした`,
+        );
       }
 
       const source = sourceData[0];
@@ -104,14 +107,14 @@ export const querySourceTool = createTool({
 
       const sourceExpertAgent = new Agent({
         name: 'sourceExpertAgent',
-        instructions: get_SOURCE_QUERY_SYSTEM_PROMPT(content),
+        instructions: getSourceQuerySystemPrompt(content),
         model: openAICompatibleModel,
       });
 
       const answer = (await sourceExpertAgent.generate(query)).text;
 
       return {
-        answer
+        answer,
       };
     } catch (error) {
       throw new Error(`ソース検索に失敗しました: ${(error as Error).message}`);

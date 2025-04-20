@@ -12,6 +12,7 @@ import path from 'path';
 import { app, BrowserWindow, shell, ipcMain } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import log from 'electron-log';
+import { SourceRegistrationManager } from '../mastra/workflows/sourceRegistrationManager';
 import MenuBuilder from './menu';
 import { resolveHtmlPath } from './util';
 
@@ -22,6 +23,12 @@ class AppUpdater {
     autoUpdater.checkForUpdatesAndNotify();
   }
 }
+
+// ソース登録処理の実行
+console.log('ソースファイルの登録を開始します...');
+const registrationManager = SourceRegistrationManager.getInstance();
+await (async () => registrationManager.registerAllFiles())();
+console.log('ソースファイルの登録が完了しました');
 
 let mainWindow: BrowserWindow | null = null;
 

@@ -14,6 +14,28 @@ const configuration: webpack.Configuration = {
 
   module: {
     rules: [
+      // ─── 追加ルール: 型定義ファイルはビルド対象から除外 ───
+      {
+        test: /\.d\.ts$/,
+        loader: 'ignore-loader',
+      },
+      // ─── 追加ルール: Markdown は文字列として読み込む ───
+      {
+        test: /\.md$/,
+        use: 'raw-loader',
+      },
+      // ─── 追加ルール: ネイティブモジュール (.node) を取り込む ───
+      {
+        test: /\.node$/,
+        use: 'node-loader',
+      },
+      // ─── 追加ルール: License ファイルを無視 ───
+      {
+        test: /LICENSE$/,
+        loader: 'ignore-loader',
+      },
+      // ────────────────────────────────────────────────────
+
       {
         test: /\.[jt]sx?$/,
         exclude: /node_modules/,
@@ -42,13 +64,16 @@ const configuration: webpack.Configuration = {
    * Determine the array of extensions that should be used to resolve modules.
    */
   resolve: {
+    // .d.ts を外してエラーの原因ファイルを候補から除外
     extensions: ['.js', '.jsx', '.json', '.ts', '.tsx'],
     modules: [webpackPaths.srcPath, 'node_modules'],
-    // There is no need to add aliases here, the paths in tsconfig get mirrored
+    // パスエイリアスは tsconfig から自動で解決
     plugins: [new TsconfigPathsPlugins()],
   },
 
-  plugins: [new webpack.EnvironmentPlugin({ NODE_ENV: 'production' })],
+  plugins: [
+    new webpack.EnvironmentPlugin({ NODE_ENV: 'production' }),
+  ],
 };
 
 export default configuration;

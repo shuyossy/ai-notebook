@@ -4,7 +4,7 @@ import path from 'path';
 /**
  * 多様なファイル形式からテキストを抽出するユーティリティクラス
  */
-export class FileExtractor {
+export default class FileExtractor {
   /**
    * ファイル形式に基づいてテキストを抽出する
    * @param filePath ファイルパス
@@ -40,7 +40,9 @@ export class FileExtractor {
       const content = await fs.readFile(filePath, 'utf-8');
       return content;
     } catch (error) {
-      throw new Error(`テキストファイルの読み込みに失敗しました: ${(error as Error).message}`);
+      throw new Error(
+        `テキストファイルの読み込みに失敗しました: ${(error as Error).message}`,
+      );
     }
   }
 
