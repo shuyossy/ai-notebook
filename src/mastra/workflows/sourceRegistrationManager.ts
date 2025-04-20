@@ -83,26 +83,53 @@ export default class SourceRegistrationManager {
         );
       }
 
-      // 各ファイルを並列に登録
-      const registrationResults = await Promise.all(
-        files.map(async (filePath) => {
-          try {
-            // ファイルからテキストを抽出
-            const content = await FileExtractor.extractText(filePath);
-            const run = sourceRegistrationWorkflow.createRun();
-            await run.start({ triggerData: { filePath, content } });
-            return { success: true, filePath };
-          } catch (error) {
-            // エラーをキャプチャして処理を続行
-            return { success: false, filePath, error };
-          }
-        }),
-      );
-      // すべてのファイルの登録が完了
-      const successCount = registrationResults.filter(
-        (result) => result.success,
-      ).length;
+      // files配列を reduce でたたみ込み、逐次処理を実現する
+      const registrationResults = await files.reduce<
+        Promise<{ success: boolean; filePath: string; error?: unknown }[]>
+      >(
+        // previousPromise: これまでの処理結果を含む Promise
+        // filePath: 現在処理するファイルパス
+        (previousPromise, filePath) => {
+          return previousPromise.then(async (resultList) => {
+            try {
+              // ファイルからテキストを抽出
+              const content = await FileExtractor.extractText(filePath);
 
+              // ワークフローを開始
+              let status = 'success';
+              const run = sourceRegistrationWorkflow.createRun();
+              run.watch(async ({ results }) => {
+                // 失敗したステップがあるか確認
+                const failedSteps = Object.entries(results)
+                  .filter(([_, step]) => step.status === 'failed')
+                  .map(([stepId]) => stepId);
+
+                if (failedSteps.length > 0) {
+                  console.error(
+                    `ワークフローに失敗したステップがあります: ${failedSteps.join(', ')}`,
+                  );
+                  // アラートやログ記録などの是正措置を取る
+                  status = 'failed';
+                }
+              });
+              await run.start({ triggerData: { filePath, content } });
+
+              // 成功結果を配列に追加
+              resultList.push({ success: status === 'success', filePath });
+            } catch (error) {
+              // 失敗結果を配列に追加（エラー情報も保持）
+              resultList.push({ success: false, filePath, error });
+            }
+            // 次のイテレーションに結果配列を渡す
+            return resultList;
+          });
+        },
+        // 初期値：空の配列を返す Promise
+        Promise.resolve([]),
+      );
+
+      // 成功件数をカウント
+      const successCount = registrationResults.filter((r) => r.success).length;
       console.log(`${successCount}件のファイルの登録が完了しました`);
     } catch (error) {
       console.error('ファイル登録処理に失敗しました', error);
