@@ -3,7 +3,7 @@ import { Step, Workflow } from '@mastra/core/workflows';
 import { z } from 'zod';
 import { Agent } from '@mastra/core/agent';
 import { eq } from 'drizzle-orm';
-import { db } from '../../db';
+import getDb from '../../db';
 import { sources, topics as dbTopics } from '../../db/schema';
 import {
   SOURCE_ANALYSIS_SYSTEM_PROMPT,
@@ -43,15 +43,17 @@ const analyzeSourceStep = new Step({
         summary: z.string(),
       });
 
+      console.log('ソース分析を開始します');
       const analysisResult = await summarizeSourceAgent.generate(content, {
         output: outputSchema,
       });
-
+      console.log('ソース分析が完了しました');
       return {
         title: analysisResult.object.title,
         summary: analysisResult.object.summary,
       };
     } catch (error) {
+      console.error('ソース分析に失敗しました', error);
       throw new Error(`ソース分析に失敗しました: ${(error as Error).message}`);
     }
   },
@@ -69,6 +71,7 @@ const registerSourceStep = new Step({
     const { title, summary } = context.getStepResult('analyzeSource')!;
 
     try {
+      const db = await getDb();
       const insertResult = await db
         .insert(sources)
         .values({
@@ -91,6 +94,7 @@ const registerSourceStep = new Step({
         sourceId,
       };
     } catch (error) {
+      console.error('ソース登録に失敗しました', error);
       throw new Error(`ソース登録に失敗しました: ${(error as Error).message}`);
     }
   },
@@ -129,6 +133,7 @@ const extractTopicsStep = new Step({
         topics: extractResult.object.topics,
       };
     } catch (error) {
+      console.error('トピック抽出に失敗しました', error);
       throw new Error(
         `トピック抽出に失敗しました: ${(error as Error).message}`,
       );
@@ -147,6 +152,7 @@ const generateTopicSummariesStep = new Step({
 
     try {
       // 既存のトピックを削除
+      const db = await getDb();
       await db.delete(dbTopics).where(eq(dbTopics.sourceId, sourceId));
 
       // 各トピックの要約を生成して登録
@@ -177,6 +183,7 @@ const generateTopicSummariesStep = new Step({
       console.log(`トピック要約を登録しました: ${sourceId}`);
       return {};
     } catch (error) {
+      console.error('トピック要約の生成に失敗しました', error);
       throw new Error(
         `トピック要約の生成に失敗しました: ${(error as Error).message}`,
       );
@@ -197,4 +204,3 @@ sourceRegistrationWorkflow
   .then(extractTopicsStep)
   .then(generateTopicSummariesStep)
   .commit();
-

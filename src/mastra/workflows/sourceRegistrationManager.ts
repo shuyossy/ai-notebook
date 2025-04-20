@@ -3,7 +3,7 @@ import path from 'path';
 import 'dotenv/config';
 import { eq } from 'drizzle-orm';
 import { sourceRegistrationWorkflow } from './sourceRegistration';
-import { db } from '../../db';
+import getDb from '../../db';
 import { sources } from '../../db/schema';
 import FileExtractor from '../utils/fileExtractor';
 
@@ -70,6 +70,7 @@ export default class SourceRegistrationManager {
       if (excludeRegisteredFile) {
         files = await Promise.all(
           files.map(async (filePath) => {
+            const db = await getDb();
             const existingSource = await db
               .select()
               .from(sources)
@@ -102,7 +103,7 @@ export default class SourceRegistrationManager {
         (result) => result.success,
       ).length;
 
-      console.log(`${successCount}剣のファイルの登録が完了しました`);
+      console.log(`${successCount}件のファイルの登録が完了しました`);
     } catch (error) {
       console.error('ファイル登録処理に失敗しました', error);
       throw error;

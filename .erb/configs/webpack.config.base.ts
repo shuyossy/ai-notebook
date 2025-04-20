@@ -8,7 +8,18 @@ import webpackPaths from './webpack.paths';
 import { dependencies as externals } from '../../release/app/package.json';
 
 const configuration: webpack.Configuration = {
-  externals: [...Object.keys(externals || {})],
+  externals: [
+    ...Object.keys(externals || {}),
+    // Native modulesを完全に除外
+    '@libsql/client',
+    'libsql',
+    // Node.js modulesも除外
+    'path',
+    'fs',
+    'crypto',
+    'stream',
+    'url',
+  ],
 
   stats: 'errors-only',
 

@@ -12,7 +12,8 @@ import path from 'path';
 import { app, BrowserWindow, shell, ipcMain } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import log from 'electron-log';
-import { SourceRegistrationManager } from '../mastra/workflows/sourceRegistrationManager';
+import { initializeDb } from '../db';
+import SourceRegistrationManager from '../mastra/workflows/sourceRegistrationManager';
 import MenuBuilder from './menu';
 import { resolveHtmlPath } from './util';
 
@@ -24,11 +25,13 @@ class AppUpdater {
   }
 }
 
-// ソース登録処理の実行
-console.log('ソースファイルの登録を開始します...');
-const registrationManager = SourceRegistrationManager.getInstance();
-await (async () => registrationManager.registerAllFiles())();
-console.log('ソースファイルの登録が完了しました');
+// // ソース登録処理の実行
+const initializeSourceRegistration = async () => {
+  console.log('ソースファイルの登録を開始します...');
+  const registrationManager = SourceRegistrationManager.getInstance();
+  await registrationManager.registerAllFiles();
+  console.log('ソースファイルの登録が完了しました');
+};
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -133,7 +136,9 @@ app.on('window-all-closed', () => {
 
 app
   .whenReady()
-  .then(() => {
+  .then(async () => {
+    await initializeDb();
+    await initializeSourceRegistration();
     createWindow();
     app.on('activate', () => {
       // On macOS it's common to re-create a window in the app when the
