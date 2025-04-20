@@ -18,6 +18,8 @@ const triggerSchema = z.object({
   content: z.string().describe('登録するソースの内容'),
 });
 
+type stepStatus = 'success' | 'failed';
+
 // ソース分析のステップ
 const analyzeSourceStep = new Step({
   id: 'analyzeSource',
@@ -25,10 +27,16 @@ const analyzeSourceStep = new Step({
   outputSchema: z.object({
     title: z.string(),
     summary: z.string(),
+    status: z.enum(['success', 'failed']),
   }),
   execute: async ({ context }) => {
     // トリガーから変数を取得
     const { content } = context.triggerData;
+
+    // 結果の初期値
+    let status: stepStatus = 'failed';
+    let title = '';
+    let summary = '';
 
     try {
       // LLMを使用してタイトルと要約を生成
@@ -43,19 +51,21 @@ const analyzeSourceStep = new Step({
         summary: z.string(),
       });
 
-      console.log('ソース分析を開始します');
       const analysisResult = await summarizeSourceAgent.generate(content, {
         output: outputSchema,
       });
-      console.log('ソース分析が完了しました');
-      return {
-        title: analysisResult.object.title,
-        summary: analysisResult.object.summary,
-      };
+
+      status = 'success';
+      title = analysisResult.object.title;
+      summary = analysisResult.object.summary;
     } catch (error) {
       console.error('ソース分析に失敗しました', error);
-      throw new Error(`ソース分析に失敗しました: ${(error as Error).message}`);
     }
+    return {
+      title,
+      summary,
+      status,
+    };
   },
 });
 
@@ -65,10 +75,15 @@ const registerSourceStep = new Step({
   description: 'ソース情報をデータベースに登録する',
   outputSchema: z.object({
     sourceId: z.number(),
+    status: z.enum(['success', 'failed']),
   }),
   execute: async ({ context }) => {
     const { filePath } = context.triggerData;
     const { title, summary } = context.getStepResult('analyzeSource')!;
+
+    // 結果の初期値
+    let status: stepStatus = 'failed';
+    let sourceId = -1;
 
     try {
       const db = await getDb();
@@ -88,15 +103,15 @@ const registerSourceStep = new Step({
         })
         .returning({ id: sources.id });
 
-      const sourceId = insertResult[0].id;
-
-      return {
-        sourceId,
-      };
+      sourceId = insertResult[0].id;
+      status = 'success';
     } catch (error) {
       console.error('ソース登録に失敗しました', error);
-      throw new Error(`ソース登録に失敗しました: ${(error as Error).message}`);
     }
+    return {
+      sourceId,
+      status,
+    };
   },
 });
 
@@ -107,10 +122,15 @@ const extractTopicsStep = new Step({
   outputSchema: z.object({
     sourceId: z.number(),
     topics: z.array(z.string()),
+    status: z.enum(['success', 'failed']),
   }),
   execute: async ({ context }) => {
     const { content } = context.triggerData;
     const { sourceId } = context.getStepResult('registerSource')!;
+
+    // 結果の初期値
+    let status: stepStatus = 'failed';
+    let topics: string[] = [];
 
     try {
       // LLMを使用してトピックを抽出
@@ -127,17 +147,16 @@ const extractTopicsStep = new Step({
       const extractResult = await extractTopicAgent.generate(content, {
         output: outputSchema,
       });
-
-      return {
-        sourceId,
-        topics: extractResult.object.topics,
-      };
+      topics = extractResult.object.topics;
+      status = 'success';
     } catch (error) {
       console.error('トピック抽出に失敗しました', error);
-      throw new Error(
-        `トピック抽出に失敗しました: ${(error as Error).message}`,
-      );
     }
+    return {
+      sourceId,
+      topics,
+      status,
+    };
   },
 });
 
@@ -145,10 +164,15 @@ const extractTopicsStep = new Step({
 const generateTopicSummariesStep = new Step({
   id: 'generateTopicSummaries',
   description: '各トピックの要約を生成してデータベースに登録する',
-  outputSchema: z.object({}),
+  outputSchema: z.object({
+    status: z.enum(['success', 'failed']),
+  }),
   execute: async ({ context }) => {
     const { content } = context.triggerData;
     const { sourceId, topics } = context.getStepResult('extractTopics')!;
+
+    // 結果の初期値
+    let status: stepStatus = 'failed';
 
     try {
       // 既存のトピックを削除
@@ -180,14 +204,13 @@ const generateTopicSummariesStep = new Step({
       );
       // トピックをデータベースに登録
       await db.insert(dbTopics).values(summaries);
-      console.log(`トピック要約を登録しました: ${sourceId}`);
-      return {};
+      status = 'success';
     } catch (error) {
       console.error('トピック要約の生成に失敗しました', error);
-      throw new Error(
-        `トピック要約の生成に失敗しました: ${(error as Error).message}`,
-      );
     }
+    return {
+      status,
+    };
   },
 });
 

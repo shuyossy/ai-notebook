@@ -8,18 +8,7 @@ import webpackPaths from './webpack.paths';
 import { dependencies as externals } from '../../release/app/package.json';
 
 const configuration: webpack.Configuration = {
-  externals: [
-    ...Object.keys(externals || {}),
-    // Native modulesを完全に除外
-    '@libsql/client',
-    'libsql',
-    // Node.js modulesも除外
-    'path',
-    'fs',
-    'crypto',
-    'stream',
-    'url',
-  ],
+  externals: [...Object.keys(externals || {}), '@libsql/client', 'libsql'],
 
   stats: 'errors-only',
 
@@ -46,7 +35,6 @@ const configuration: webpack.Configuration = {
         loader: 'ignore-loader',
       },
       // ────────────────────────────────────────────────────
-
       {
         test: /\.[jt]sx?$/,
         exclude: /node_modules/,
@@ -75,16 +63,13 @@ const configuration: webpack.Configuration = {
    * Determine the array of extensions that should be used to resolve modules.
    */
   resolve: {
-    // .d.ts を外してエラーの原因ファイルを候補から除外
     extensions: ['.js', '.jsx', '.json', '.ts', '.tsx'],
     modules: [webpackPaths.srcPath, 'node_modules'],
-    // パスエイリアスは tsconfig から自動で解決
+    // There is no need to add aliases here, the paths in tsconfig get mirrored
     plugins: [new TsconfigPathsPlugins()],
   },
 
-  plugins: [
-    new webpack.EnvironmentPlugin({ NODE_ENV: 'production' }),
-  ],
+  plugins: [new webpack.EnvironmentPlugin({ NODE_ENV: 'production' })],
 };
 
 export default configuration;
