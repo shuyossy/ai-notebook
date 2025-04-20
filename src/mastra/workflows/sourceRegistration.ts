@@ -22,7 +22,7 @@ type stepStatus = 'success' | 'failed';
 
 // ソース分析のステップ
 const analyzeSourceStep = new Step({
-  id: 'analyzeSource',
+  id: 'analyzeSourceStep',
   description: 'ソース文書を分析し、タイトルと要約を生成する',
   outputSchema: z.object({
     title: z.string(),
@@ -71,7 +71,7 @@ const analyzeSourceStep = new Step({
 
 // ソース情報をデータベースに登録するステップ
 const registerSourceStep = new Step({
-  id: 'registerSource',
+  id: 'registerSourceStep',
   description: 'ソース情報をデータベースに登録する',
   outputSchema: z.object({
     sourceId: z.number(),
@@ -117,7 +117,7 @@ const registerSourceStep = new Step({
 
 // トピックを抽出するステップ
 const extractTopicsStep = new Step({
-  id: 'extractTopics',
+  id: 'extractTopicsStep',
   description: 'ソースからトピックを抽出する',
   outputSchema: z.object({
     sourceId: z.number(),
@@ -162,7 +162,7 @@ const extractTopicsStep = new Step({
 
 // 各トピックの要約を生成するステップ
 const generateTopicSummariesStep = new Step({
-  id: 'generateTopicSummaries',
+  id: 'generateTopicSummariesStep',
   description: '各トピックの要約を生成してデータベースに登録する',
   outputSchema: z.object({
     status: z.enum(['success', 'failed']),
@@ -223,7 +223,16 @@ export const sourceRegistrationWorkflow = new Workflow({
 // ワークフローを構築
 sourceRegistrationWorkflow
   .step(analyzeSourceStep)
-  .then(registerSourceStep)
-  .then(extractTopicsStep)
-  .then(generateTopicSummariesStep)
+  .then(registerSourceStep, {
+    when: ({ context }) =>
+      context.steps.analyzeSourceStep?.status === 'success',
+  })
+  .then(extractTopicsStep, {
+    when: ({ context }) =>
+      context.steps.registerSourceStep?.status === 'success',
+  })
+  .then(generateTopicSummariesStep, {
+    when: ({ context }) =>
+      context.steps.extractTopicsStep?.status === 'success',
+  })
   .commit();
