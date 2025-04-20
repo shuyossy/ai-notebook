@@ -27,3 +27,15 @@ npm-debug.log.*
 *.css.d.ts
 *.sass.d.ts
 *.scss.d.ts
+
+# from mastra project
+output.txt
+node_modules
+dist
+.mastra
+.env.development
+.env
+*.db
+*.db-*
+source
+

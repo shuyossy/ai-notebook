@@ -1,0 +1,30 @@
+import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { sql } from 'drizzle-orm';
+
+// ソース情報を格納するテーブル
+export const sources = sqliteTable('sources', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  path: text('path').notNull().unique(),
+  title: text('title').notNull(),
+  summary: text('summary').notNull(),
+  createdAt: text('created_at').notNull().default(sql`(current_timestamp)`),
+  updatedAt: text('updated_at').notNull().default(sql`(current_timestamp)`).$onUpdate(() => sql`(current_timestamp)`),
+});
+
+// トピックを格納するテーブル
+export const topics = sqliteTable('topics', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  sourceId: integer('source_id')
+    .notNull()
+    .references(() => sources.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  summary: text('summary').notNull(),
+  createdAt: text('created_at').notNull().default(sql`(current_timestamp)`),
+  updatedAt: text('updated_at').notNull().default(sql`(current_timestamp)`).$onUpdate(() => sql`(current_timestamp)`),
+});
+
+// ソースとトピックの関係性を定義
+export type Source = typeof sources.$inferSelect;
+export type InsertSource = typeof sources.$inferInsert;
+export type Topic = typeof topics.$inferSelect;
+export type InsertTopic = typeof topics.$inferInsert;
