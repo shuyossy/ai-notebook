@@ -3,17 +3,14 @@ import {
   List,
   ListItem,
   ListItemButton,
-  ListItemIcon,
   ListItemText,
   IconButton,
   Typography,
   Box,
   CircularProgress,
+  Tooltip,
 } from '@mui/material';
-import {
-  ChatBubbleOutline as ChatIcon,
-  MoreVert as MoreIcon,
-} from '@mui/icons-material';
+import { MoreVert as MoreIcon } from '@mui/icons-material';
 import type { ChatRoom } from '../../types/schema';
 
 interface ChatRoomListProps {
@@ -70,16 +67,18 @@ function ChatRoomList({
             onClick={() => onRoomSelect(room.id)}
             sx={{ pr: 6 }}
           >
-            <ListItemIcon sx={{ minWidth: 40 }}>
-              <ChatIcon />
-            </ListItemIcon>
-            <ListItemText
-              primary={room.title}
-              primaryTypographyProps={{
-                noWrap: true,
-                title: room.title,
-              }}
-            />
+            <Tooltip title={room.title} placement="right">
+              <ListItemText
+                primary={room.title}
+                primaryTypographyProps={{
+                  noWrap: true,
+                  sx: {
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  },
+                }}
+              />
+            </Tooltip>
           </ListItemButton>
         </ListItem>
       ))}

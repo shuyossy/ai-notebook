@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Box, Menu, MenuItem, Divider } from '@mui/material';
 import { ChatRoom } from '../../types/schema';
 import { chatService } from '../../services/chatService';
@@ -28,7 +28,7 @@ function Sidebar({
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
 
   // チャットルーム一覧を取得
-  const fetchChatRooms = async () => {
+  const fetchChatRooms = useCallback(async () => {
     setLoading(true);
     try {
       const rooms = await chatService.getChatRooms();
@@ -38,12 +38,12 @@ function Sidebar({
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   // 初期データ読み込み
   useEffect(() => {
     fetchChatRooms();
-  }, []);
+  }, [fetchChatRooms]);
 
   // メニュー操作
   const handleMenuOpen = (
@@ -66,18 +66,30 @@ function Sidebar({
 
     try {
       await chatService.deleteChatRoom(activeRoomId);
-      // 一覧を更新
-      setChatRooms(chatRooms.filter((room) => room.id !== activeRoomId));
       // 削除したルームが選択中だった場合は選択を解除
       if (selectedRoomId === activeRoomId) {
         onRoomSelect('');
       }
+
+      // 一覧を再取得して最新状態を反映
+      fetchChatRooms();
     } catch (error) {
       console.error(formatError(error));
     } finally {
       handleMenuClose();
     }
   };
+
+  // チャットルーム一覧の更新をトリガーする関数
+  const refreshChatRooms = useCallback(() => {
+    fetchChatRooms();
+  }, [fetchChatRooms]);
+
+  // チャットルーム一覧の定期更新
+  useEffect(() => {
+    const interval = setInterval(refreshChatRooms, 1000);
+    return () => clearInterval(interval);
+  }, [refreshChatRooms]);
 
   return (
     <Box

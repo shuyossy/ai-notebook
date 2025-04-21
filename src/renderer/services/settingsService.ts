@@ -1,5 +1,4 @@
 import { Settings, SettingsSchema } from '../types';
-import useElectronStore from '../hooks/useElectronStore';
 
 // 設定の管理サービス
 export const settingsService = {
@@ -9,23 +8,27 @@ export const settingsService = {
    */
   getSettings: async (): Promise<Settings> => {
     try {
-      // 実際にはIPC通信を使用してメインプロセスから取得する
-      // ここではモックデータを返す
-      const mockSettings: Settings = {
-        database: {
-          dir: '/path/to/database',
-        },
-        source: {
-          registerDir: '/path/to/source',
-        },
-        api: {
-          key: 'sample-api-key',
-          url: 'https://api.example.com',
-          model: 'gpt-4',
-        },
-      };
-
-      return mockSettings;
+      const settings = (await window.electron.store.get(
+        'settings',
+      )) as Settings;
+      if (!settings) {
+        // デフォルト設定を返す
+        const defaultSettings: Settings = {
+          database: {
+            dir: '',
+          },
+          source: {
+            registerDir: './source',
+          },
+          api: {
+            key: '',
+            url: '',
+            model: '',
+          },
+        };
+        return defaultSettings;
+      }
+      return settings;
     } catch (error) {
       throw new Error(`設定の取得に失敗しました: ${(error as Error).message}`);
     }
@@ -43,8 +46,8 @@ export const settingsService = {
       // 設定の検証
       const validatedSettings = SettingsSchema.parse(settings);
 
-      // 実際にはIPC通信を使用してメインプロセスに設定を送信する
-      // ここではモックとして成功レスポンスを返す
+      // electron-storeに保存
+      await window.electron.store.set('settings', validatedSettings);
       return {
         success: true,
         message: '設定が正常に更新されました',
