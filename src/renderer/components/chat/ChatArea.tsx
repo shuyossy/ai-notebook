@@ -3,28 +3,18 @@ import { Box, Typography, Divider } from '@mui/material';
 import MessageList from './MessageList';
 import MessageInput from './MessageInput';
 import { ChatMessage, ChatRoom } from '../../types';
-import chatService from '../../services/chatService';
+import { chatService } from '../../services/chatService';
 
 interface ChatAreaProps {
   selectedRoomId: string | null;
 }
 
-const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
+function ChatArea({ selectedRoomId }: ChatAreaProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [streamingMessage, setStreamingMessage] = useState<string | null>(null);
   const [currentRoom, setCurrentRoom] = useState<ChatRoom | null>(null);
-
-  // チャットルームが選択されたらそのメッセージを取得
-  useEffect(() => {
-    if (selectedRoomId) {
-      fetchMessages(selectedRoomId);
-    } else {
-      setMessages([]);
-      setCurrentRoom(null);
-    }
-  }, [selectedRoomId]);
 
   // メッセージを取得
   const fetchMessages = async (roomId: string) => {
@@ -45,6 +35,16 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
       setLoading(false);
     }
   };
+
+  // チャットルームが選択されたらそのメッセージを取得
+  useEffect(() => {
+    if (selectedRoomId) {
+      fetchMessages(selectedRoomId);
+    } else {
+      setMessages([]);
+      setCurrentRoom(null);
+    }
+  }, [selectedRoomId]);
 
   // メッセージを送信
   const handleSendMessage = async (content: string) => {
@@ -85,11 +85,15 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
   return (
     <Box
       sx={{
-        flexGrow: 1,
+        width: 'calc(100% - 280px)',
         height: '100%',
         display: 'flex',
         flexDirection: 'column',
         bgcolor: 'background.default',
+        position: 'fixed',
+        right: 0,
+        top: 0,
+        bottom: 0,
       }}
     >
       {selectedRoomId ? (
@@ -143,6 +147,6 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
       )}
     </Box>
   );
-};
+}
 
 export default ChatArea;

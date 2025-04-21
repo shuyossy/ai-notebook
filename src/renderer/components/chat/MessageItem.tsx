@@ -1,7 +1,6 @@
-import React, { forwardRef } from 'react';
+import React, { forwardRef, memo } from 'react';
 import { Box, Typography, Paper, Avatar, Tooltip } from '@mui/material';
 import { Person as PersonIcon, SmartToy as BotIcon } from '@mui/icons-material';
-import ReactMarkdown from 'react-markdown';
 import { ChatMessage } from '../../types';
 
 interface MessageProps {
@@ -52,7 +51,14 @@ const MessageItem = forwardRef<HTMLDivElement, MessageProps>(
               borderRadius: 2,
             }}
           >
-            <ReactMarkdown>{message.content}</ReactMarkdown>
+            <Typography
+              sx={{
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-word',
+              }}
+            >
+              {message.content}
+            </Typography>
           </Paper>
           <Typography
             variant="caption"
@@ -69,4 +75,4 @@ const MessageItem = forwardRef<HTMLDivElement, MessageProps>(
 
 MessageItem.displayName = 'MessageItem';
 
-export default MessageItem;
+export default memo(MessageItem);

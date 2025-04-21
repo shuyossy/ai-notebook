@@ -8,27 +8,15 @@ export const settingsService = {
    */
   getSettings: async (): Promise<Settings> => {
     try {
-      const settings = (await window.electron.store.get(
-        'settings',
-      )) as Settings;
-      if (!settings) {
-        // デフォルト設定を返す
-        const defaultSettings: Settings = {
-          database: {
-            dir: '',
-          },
-          source: {
-            registerDir: './source',
-          },
-          api: {
-            key: '',
-            url: '',
-            model: '',
-          },
-        };
-        return defaultSettings;
-      }
-      return settings;
+      const database = await window.electron.store.get('database');
+      const source = await window.electron.store.get('source');
+      const api = await window.electron.store.get('api');
+
+      return {
+        database,
+        source,
+        api,
+      };
     } catch (error) {
       throw new Error(`設定の取得に失敗しました: ${(error as Error).message}`);
     }
@@ -47,7 +35,10 @@ export const settingsService = {
       const validatedSettings = SettingsSchema.parse(settings);
 
       // electron-storeに保存
-      await window.electron.store.set('settings', validatedSettings);
+      // 各セクションを個別に保存
+      await window.electron.store.set('database', validatedSettings.database);
+      await window.electron.store.set('source', validatedSettings.source);
+      await window.electron.store.set('api', validatedSettings.api);
       return {
         success: true,
         message: '設定が正常に更新されました',
