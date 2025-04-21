@@ -1,7 +1,7 @@
-const { notarize } = require('@electron/notarize');
 const { build } = require('../../package.json');
 
-exports.default = async function notarizeMacos(context) {
+const notarizeMacos = async (context) => {
+  const { notarize } = await import('@electron/notarize');
   const { electronPlatformName, appOutDir } = context;
   if (electronPlatformName !== 'darwin') {
     return;
@@ -36,3 +36,5 @@ exports.default = async function notarizeMacos(context) {
     teamId: process.env.APPLE_TEAM_ID,
   });
 };
+
+exports.default = notarizeMacos;
