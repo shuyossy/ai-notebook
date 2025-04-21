@@ -16,6 +16,7 @@ import { initializeDb } from '../db';
 import SourceRegistrationManager from '../mastra/workflows/sourceRegistrationManager';
 import MenuBuilder from './menu';
 import { resolveHtmlPath } from './util';
+import { initStore, getStore } from './store';
 
 class AppUpdater {
   constructor() {
@@ -25,7 +26,21 @@ class AppUpdater {
   }
 }
 
-// // ソース登録処理の実行
+// ストアのIPC通信ハンドラーを設定
+const setupStoreHandlers = () => {
+  ipcMain.handle('get-store-value', async (_, key: string) => {
+    const store = getStore();
+    return store.get(key);
+  });
+
+  ipcMain.handle('set-store-value', async (_, key: string, value: unknown) => {
+    const store = getStore();
+    store.set(key, value);
+    return true;
+  });
+};
+
+// ソース登録処理の実行
 const initializeSourceRegistration = async () => {
   console.log('ソースファイルの登録を開始します...');
   const registrationManager = SourceRegistrationManager.getInstance();
@@ -137,9 +152,14 @@ app.on('window-all-closed', () => {
 app
   .whenReady()
   .then(async () => {
+    // ストアの初期化
+    await initStore();
+    // IPC通信ハンドラーの設定
+    setupStoreHandlers();
+    // データベースの初期化
     await initializeDb();
-    await initializeSourceRegistration();
     createWindow();
+    await initializeSourceRegistration();
     app.on('activate', () => {
       // On macOS it's common to re-create a window in the app when the
       // dock icon is clicked and there are no other windows open.

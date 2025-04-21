@@ -1,7 +1,7 @@
 import fs from 'fs/promises';
 import path from 'path';
-import 'dotenv/config';
 import { eq } from 'drizzle-orm';
+import { getStore } from '../../main/store';
 import { sourceRegistrationWorkflow } from './sourceRegistration';
 import getDb from '../../db';
 import { sources } from '../../db/schema';
@@ -30,12 +30,8 @@ export default class SourceRegistrationManager {
    * 環境変数から設定を読み込む非公開コンストラクタ
    */
   private constructor() {
-    // 登録ディレクトリの確認
-    if (!process.env.REGISTER_FILE_DIR) {
-      throw new Error('REGISTER_FILE_DIR環境変数が設定されていません');
-    }
-
-    this.registerDir = process.env.REGISTER_FILE_DIR;
+    const store = getStore();
+    this.registerDir = store.get('source.registerDir');
   }
 
   /**

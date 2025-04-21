@@ -43,7 +43,7 @@ const analyzeSourceStep = new Step({
       const summarizeSourceAgent = new Agent({
         name: 'summarizeSourceAgent',
         instructions: SOURCE_ANALYSIS_SYSTEM_PROMPT,
-        model: openAICompatibleModel,
+        model: openAICompatibleModel(),
       });
 
       const outputSchema = z.object({
@@ -137,7 +137,7 @@ const extractTopicsStep = new Step({
       const extractTopicAgent = new Agent({
         name: 'extractTopicAgent',
         instructions: TOPIC_EXTRACTION_SYSTEM_PROMPT,
-        model: openAICompatibleModel,
+        model: openAICompatibleModel(),
       });
 
       const outputSchema = z.object({
@@ -186,7 +186,7 @@ const generateTopicSummariesStep = new Step({
           const summarizeTopicAgent = new Agent({
             name: 'summarizeTopicAgent',
             instructions: TOPIC_SUMMARY_SYSTEM_PROMPT,
-            model: openAICompatibleModel,
+            model: openAICompatibleModel(),
           });
 
           const topicPrompt = `以下の文書から「${topicName}」というトピックに関連する情報を抽出し、要約してください。\n\n${content}`;

@@ -7,8 +7,13 @@ export const sources = sqliteTable('sources', {
   path: text('path').notNull().unique(),
   title: text('title').notNull(),
   summary: text('summary').notNull(),
-  createdAt: text('created_at').notNull().default(sql`(current_timestamp)`),
-  updatedAt: text('updated_at').notNull().default(sql`(current_timestamp)`).$onUpdate(() => sql`(current_timestamp)`),
+  createdAt: text('created_at')
+    .notNull()
+    .default(sql`(current_timestamp)`),
+  updatedAt: text('updated_at')
+    .notNull()
+    .default(sql`(current_timestamp)`)
+    .$onUpdate(() => sql`(current_timestamp)`),
 });
 
 // トピックを格納するテーブル
@@ -19,8 +24,13 @@ export const topics = sqliteTable('topics', {
     .references(() => sources.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
   summary: text('summary').notNull(),
-  createdAt: text('created_at').notNull().default(sql`(current_timestamp)`),
-  updatedAt: text('updated_at').notNull().default(sql`(current_timestamp)`).$onUpdate(() => sql`(current_timestamp)`),
+  createdAt: text('created_at')
+    .notNull()
+    .default(sql`(current_timestamp)`),
+  updatedAt: text('updated_at')
+    .notNull()
+    .default(sql`(current_timestamp)`)
+    .$onUpdate(() => sql`(current_timestamp)`),
 });
 
 // ソースとトピックの関係性を定義

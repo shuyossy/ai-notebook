@@ -2,9 +2,17 @@
 /* eslint no-unused-vars: off */
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
 
-export type Channels = 'ipc-example';
+export type Channels = 'ipc-example' | 'get-store-value' | 'set-store-value';
 
 const electronHandler = {
+  store: {
+    get: async (key: string) => {
+      return ipcRenderer.invoke('get-store-value', key);
+    },
+    set: async (key: string, value: unknown) => {
+      return ipcRenderer.invoke('set-store-value', key, value);
+    },
+  },
   ipcRenderer: {
     sendMessage(channel: Channels, ...args: unknown[]) {
       ipcRenderer.send(channel, ...args);

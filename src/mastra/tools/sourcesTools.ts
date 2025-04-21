@@ -110,7 +110,7 @@ export const querySourceTool = createTool({
       const sourceExpertAgent = new Agent({
         name: 'sourceExpertAgent',
         instructions: getSourceQuerySystemPrompt(content),
-        model: openAICompatibleModel,
+        model: openAICompatibleModel(),
       });
 
       const answer = (await sourceExpertAgent.generate(query)).text;

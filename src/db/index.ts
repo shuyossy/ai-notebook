@@ -1,23 +1,21 @@
-import { URL } from 'url';
 import { ipcMain } from 'electron';
 import { drizzle, type LibSQLDatabase } from 'drizzle-orm/libsql';
-import 'dotenv/config';
 import * as schema from './schema';
+import { getStore } from '../main/store';
 
 // データベースの型定義
 type Database = LibSQLDatabase<typeof schema>;
 
 // データベース接続とORMインスタンスの作成
 const initializeDatabase = async () => {
-  // データベースURLが設定されていなければエラー
-  if (!process.env.DATABASE_DIR) {
-    throw new Error('DATABASE_DIR環境変数が設定されていません');
-  }
+  // ストアからデータベースの設定を取得
+  const store = getStore();
 
   // データベース接続クライアントを作成
   const { createClient } = await import('@libsql/client');
+
   const client = createClient({
-    url: new URL('source.db', process.env.DATABASE_DIR).href,
+    url: new URL('source.db', store.get('database.dir')).href,
   });
 
   // Drizzle ORMインスタンスを作成
