@@ -1,6 +1,6 @@
 import fs from 'fs/promises';
 import path from 'path';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { getStore } from '../../main/store';
 import { sourceRegistrationWorkflow } from './sourceRegistration';
 import getDb from '../../db';
@@ -15,6 +15,58 @@ export default class SourceRegistrationManager {
   private static instance: SourceRegistrationManager | null = null;
 
   private readonly registerDir: string;
+
+  /**
+   * ソースのステータスを更新するメソッド
+   */
+  private async updateSourceStatus(
+    filePath: string,
+    status: 'idle' | 'processing' | 'completed' | 'failed',
+    error?: string,
+  ): Promise<void> {
+    if (!this.registerDir) {
+      throw new Error('Register directory is not initialized');
+    }
+    const db = await getDb();
+    await db
+      .update(sources)
+      .set({ status, error: error || null })
+      .where(eq(sources.path, filePath));
+  }
+
+  /**
+   * 処理結果をストアに保存するメソッド
+   */
+  private async saveProcessingResult(
+    filePath: string,
+    success: boolean,
+    error?: string,
+  ): Promise<void> {
+    if (!this.registerDir) {
+      throw new Error('Register directory is not initialized');
+    }
+    const store = getStore();
+    const currentResults = (store.get('source.processingResults') ||
+      []) as Array<{
+      filePath: string;
+      success: boolean;
+      error?: string;
+      timestamp: string;
+    }>;
+
+    const newResults = [
+      ...currentResults,
+      {
+        filePath,
+        success,
+        error,
+        timestamp: new Date().toISOString(),
+      },
+    ];
+
+    store.set('source.processingResults', newResults);
+    store.set('source.lastProcessedAt', new Date().toISOString());
+  }
 
   /**
    * シングルトンインスタンスを取得するメソッド
@@ -42,15 +94,43 @@ export default class SourceRegistrationManager {
       // ファイルの存在確認
       await fs.access(filePath);
 
+      // ステータスを更新中に設定
+      const manager = SourceRegistrationManager.getInstance();
+      await manager.updateSourceStatus(filePath, 'processing');
+
       // ファイルからテキストを抽出
       const content = await FileExtractor.extractText(filePath);
 
       // ワークフローを開始
       const run = sourceRegistrationWorkflow.createRun();
-      await run.start({ triggerData: { filePath, content } });
+      const result = await run.start({ triggerData: { filePath, content } });
 
-      console.log(`ファイルを登録しました: ${filePath}`);
+      // 失敗したステップがあるか確認
+      const failedSteps = Object.entries(result.results).filter(
+        ([, value]) =>
+          value.status === 'failed' ||
+          // @ts-ignore
+          value.output?.status === 'failed',
+      );
+
+      if (failedSteps.length > 0) {
+        const error = `ワークフローに失敗したステップがあります: ${failedSteps.join(
+          ', ',
+        )}`;
+        await manager.updateSourceStatus(filePath, 'failed', error);
+        await manager.saveProcessingResult(filePath, false, error);
+        console.error(error);
+      } else {
+        await manager.updateSourceStatus(filePath, 'completed');
+        await manager.saveProcessingResult(filePath, true);
+        console.log(`ファイルを登録しました: ${filePath}`);
+      }
     } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error occurred';
+      const manager = SourceRegistrationManager.getInstance();
+      await manager.updateSourceStatus(filePath, 'failed', errorMessage);
+      await manager.saveProcessingResult(filePath, false, errorMessage);
       console.error(`ファイル登録に失敗しました: ${filePath}`, error);
     }
   }
@@ -71,8 +151,13 @@ export default class SourceRegistrationManager {
             const existingSource = await db
               .select()
               .from(sources)
-              .where(eq(sources.path, filePath));
-            // 登録数
+              .where(
+                and(
+                  eq(sources.path, filePath),
+                  eq(sources.status, 'completed'),
+                ),
+              );
+            // 登録済みかつ完了状態のファイルは除外
             return existingSource.length === 0 ? filePath : null;
           }),
         ).then((results) =>
@@ -80,9 +165,40 @@ export default class SourceRegistrationManager {
         );
       }
 
+      // 各ファイルのステータスを更新中に設定
+      const db = await getDb();
+      // 既存のソースのステータスを更新
+      await Promise.all(
+        files.map((filePath) =>
+          db
+            .update(sources)
+            .set({ status: 'processing', error: null })
+            .where(eq(sources.path, filePath)),
+        ),
+      );
+
+      // 新規ソースを登録
+      await Promise.all(
+        files.map(async (filePath) => {
+          const existingSource = await db
+            .select()
+            .from(sources)
+            .where(eq(sources.path, filePath));
+
+          if (existingSource.length === 0) {
+            await db.insert(sources).values({
+              path: filePath,
+              title: path.basename(filePath),
+              summary: '',
+              status: 'processing',
+            });
+          }
+        }),
+      );
+
       // files配列を reduce でたたみ込み、逐次処理を実現する
       const registrationResults = await files.reduce<
-        Promise<{ success: boolean; filePath: string; error?: unknown }[]>
+        Promise<{ success: boolean; filePath: string; error?: string }[]>
       >(
         // previousPromise: これまでの処理結果を含む Promise
         // filePath: 現在処理するファイルパス
@@ -108,17 +224,29 @@ export default class SourceRegistrationManager {
               );
 
               if (failedSteps.length > 0) {
-                console.error(
-                  `ワークフローに失敗したステップがあります: ${failedSteps.join(', ')}`,
-                );
-                resultList.push({ success: false, filePath });
+                const error = `ワークフローに失敗したステップがあります: ${failedSteps.join(
+                  ', ',
+                )}`;
+                await this.updateSourceStatus(filePath, 'failed', error);
+                resultList.push({ success: false, filePath, error });
                 return resultList;
               }
+
+              await this.updateSourceStatus(filePath, 'completed');
               resultList.push({ success: true, filePath });
             } catch (error) {
               // 失敗結果を配列に追加（エラー情報も保持）
+              const errorMessage =
+                error instanceof Error
+                  ? error.message
+                  : 'Unknown error occurred';
+              await this.updateSourceStatus(filePath, 'failed', errorMessage);
               console.error(error);
-              resultList.push({ success: false, filePath, error });
+              resultList.push({
+                success: false,
+                filePath,
+                error: errorMessage,
+              });
             }
             // 次のイテレーションに結果配列を渡す
             return resultList;
@@ -127,6 +255,17 @@ export default class SourceRegistrationManager {
         // 初期値：空の配列を返す Promise
         Promise.resolve([]),
       );
+
+      // 処理結果をストアに保存
+      const store = getStore();
+      store.set(
+        'source.processingResults',
+        registrationResults.map((result) => ({
+          ...result,
+          timestamp: new Date().toISOString(),
+        })),
+      );
+      store.set('source.lastProcessedAt', new Date().toISOString());
 
       // 成功件数をカウント
       const successCount = registrationResults.filter((r) => r.success).length;

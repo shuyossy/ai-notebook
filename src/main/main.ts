@@ -12,7 +12,9 @@ import path from 'path';
 import { app, BrowserWindow, shell, ipcMain } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import log from 'electron-log';
-import { initializeDb } from '../db';
+import { type Source } from '../db/schema';
+import { sources } from '../db/schema';
+import getDb, { initializeDb } from '../db';
 import SourceRegistrationManager from '../mastra/workflows/sourceRegistrationManager';
 import { getOrchestrator } from '../mastra/agents/orchestrator';
 import MenuBuilder from './menu';
@@ -107,50 +109,15 @@ const setupSourceHandlers = () => {
   // ソース一覧取得ハンドラ
   ipcMain.handle('source-get-all', async () => {
     try {
-      // ソース一覧を取得するロジックを実装
-      // 例: データベースからソース情報を取得
-      // 今はとりあえずモックデータを返す
-      return [
-        {
-          id: 1,
-          title: 'AIの基礎知識',
-          summary:
-            '人工知能の基本的な概念と歴史、現在の技術動向について解説したドキュメント',
-          topics: [
-            {
-              name: '機械学習',
-              summary: '機械学習の基本的な概念と手法',
-            },
-            {
-              name: 'ディープラーニング',
-              summary: 'ニューラルネットワークと深層学習の仕組み',
-            },
-            {
-              name: '自然言語処理',
-              summary: 'テキスト処理と言語理解の技術',
-            },
-          ],
-        },
-        {
-          id: 2,
-          title: 'プログラミング入門',
-          summary: 'プログラミングの基本概念と主要な言語の特徴を解説したガイド',
-          topics: [
-            {
-              name: 'JavaScript',
-              summary: 'Webフロントエンド開発のための言語',
-            },
-            {
-              name: 'Python',
-              summary: 'データ分析やAI開発によく使われる言語',
-            },
-            {
-              name: 'TypeScript',
-              summary: '型安全なJavaScriptの拡張言語',
-            },
-          ],
-        },
-      ];
+      const db = await getDb();
+      const sourcesList = await db.select().from(sources);
+      return sourcesList.map((source: Source) => ({
+        ...source,
+        // ISO 8601形式の日時文字列をDateオブジェクトに変換してから文字列に戻す
+        // これにより、フロントエンドで一貫した日時表示が可能になる
+        createdAt: new Date(source.createdAt).toISOString(),
+        updatedAt: new Date(source.updatedAt).toISOString(),
+      }));
     } catch (error) {
       console.error('ソース一覧の取得中にエラーが発生:', error);
       return {
@@ -165,6 +132,12 @@ const setupSourceHandlers = () => {
 const initializeSourceRegistration = async () => {
   console.log('ソースファイルの登録を開始します...');
   const registrationManager = SourceRegistrationManager.getInstance();
+  const db = await getDb();
+
+  // 既存のソースをすべて'idle'状態にリセット
+  await db.update(sources).set({ status: 'idle', error: null });
+
+  // ソース登録を実行
   await registrationManager.registerAllFiles();
   console.log('ソースファイルの登録が完了しました');
 };

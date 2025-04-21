@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Box, Menu, MenuItem, Divider } from '@mui/material';
+import SourceListModal from '../common/SourceListModal';
 import { ChatRoom } from '../../types/schema';
 import { chatService } from '../../services/chatService';
 import { formatError } from '../../../utils/errors';
@@ -22,6 +23,7 @@ function Sidebar({
   onSettingsClick,
   onReloadSources,
 }: SidebarProps) {
+  const [isSourceListOpen, setIsSourceListOpen] = useState(false);
   const [chatRooms, setChatRooms] = useState<ChatRoom[]>([]);
   const [loading, setLoading] = useState(false);
   const [menuAnchorEl, setMenuAnchorEl] = useState<null | HTMLElement>(null);
@@ -132,6 +134,13 @@ function Sidebar({
 
       <SidebarFooter
         onSettingsClick={onSettingsClick}
+        onReloadSources={() => setIsSourceListOpen(true)}
+      />
+
+      {/* ソース一覧モーダル */}
+      <SourceListModal
+        open={isSourceListOpen}
+        onClose={() => setIsSourceListOpen(false)}
         onReloadSources={onReloadSources}
       />
 

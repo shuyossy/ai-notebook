@@ -48,6 +48,15 @@ export const SettingsSchema = z.object({
   }),
   source: z.object({
     registerDir: z.string(),
+    lastProcessedAt: z.string().optional(),
+    processingResults: z.array(
+      z.object({
+        filePath: z.string(),
+        success: z.boolean(),
+        error: z.string().optional(),
+        timestamp: z.string(),
+      }),
+    ),
   }),
   api: z.object({
     key: z.string(),

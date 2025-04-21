@@ -1,5 +1,20 @@
-import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import {
+  integer,
+  sqliteTable,
+  text,
+  customType,
+} from 'drizzle-orm/sqlite-core';
 import { sql } from 'drizzle-orm';
+
+// ソースステータスの定義
+export type SourceStatus = 'idle' | 'processing' | 'completed' | 'failed';
+
+// カスタム型定義
+const sourceStatusType = customType<{ data: SourceStatus }>({
+  dataType() {
+    return 'text';
+  },
+});
 
 // ソース情報を格納するテーブル
 export const sources = sqliteTable('sources', {
@@ -14,6 +29,8 @@ export const sources = sqliteTable('sources', {
     .notNull()
     .default(sql`(current_timestamp)`)
     .$onUpdate(() => sql`(current_timestamp)`),
+  status: sourceStatusType('status').notNull().default('idle'),
+  error: text('error'),
 });
 
 // トピックを格納するテーブル
