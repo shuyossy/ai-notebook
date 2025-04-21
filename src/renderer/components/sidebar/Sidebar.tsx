@@ -1,30 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import {
-  Box,
-  List,
-  ListItem,
-  ListItemButton,
-  ListItemIcon,
-  ListItemText,
-  Divider,
-  IconButton,
-  Typography,
-  Button,
-  CircularProgress,
-  Tooltip,
-  Menu,
-  MenuItem,
-} from '@mui/material';
-import {
-  Add as AddIcon,
-  ChatBubbleOutline as ChatIcon,
-  MoreVert as MoreIcon,
-  Settings as SettingsIcon,
-  Refresh as RefreshIcon,
-} from '@mui/icons-material';
-import { ChatRoom } from '../../types';
-import chatService from '../../services/chatService';
-import sourceService from '../../services/sourceService';
+import { Box, Menu, MenuItem, Divider } from '@mui/material';
+import { ChatRoom } from '../../types/schema';
+import { chatService } from '../../services/chatService';
+import { formatError } from '../../../utils/errors';
+import SidebarHeader from './SidebarHeader';
+import ChatRoomList from './ChatRoomList';
+import SidebarFooter from './SidebarFooter';
 
 interface SidebarProps {
   selectedRoomId: string | null;
@@ -34,13 +15,13 @@ interface SidebarProps {
   onReloadSources: () => void;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({
+function Sidebar({
   selectedRoomId,
   onRoomSelect,
   onCreateRoom,
   onSettingsClick,
   onReloadSources,
-}) => {
+}: SidebarProps) {
   const [chatRooms, setChatRooms] = useState<ChatRoom[]>([]);
   const [loading, setLoading] = useState(false);
   const [menuAnchorEl, setMenuAnchorEl] = useState<null | HTMLElement>(null);
@@ -53,7 +34,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       const rooms = await chatService.getChatRooms();
       setChatRooms(rooms);
     } catch (error) {
-      console.error('チャットルームの取得に失敗しました:', error);
+      console.error(formatError(error));
     } finally {
       setLoading(false);
     }
@@ -92,7 +73,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         onRoomSelect('');
       }
     } catch (error) {
-      console.error('チャットルームの削除に失敗しました:', error);
+      console.error(formatError(error));
     } finally {
       handleMenuClose();
     }
@@ -110,25 +91,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         borderColor: 'divider',
       }}
     >
-      {/* ヘッダー */}
-      <Box sx={{ p: 2 }}>
-        <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
-          MyPedia
-        </Typography>
-      </Box>
-
-      {/* 新規チャットボタン */}
-      <Box sx={{ px: 2, mb: 2 }}>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={onCreateRoom}
-          fullWidth
-        >
-          新規チャット
-        </Button>
-      </Box>
-
+      <SidebarHeader onCreateRoom={onCreateRoom} />
       <Divider />
 
       {/* チャットルーム一覧 */}
@@ -146,69 +109,19 @@ const Sidebar: React.FC<SidebarProps> = ({
         }}
         className="hidden-scrollbar"
       >
-        {loading ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
-            <CircularProgress size={24} />
-          </Box>
-        ) : chatRooms.length > 0 ? (
-          <List disablePadding>
-            {chatRooms.map((room) => (
-              <ListItem
-                key={room.id}
-                disablePadding
-                secondaryAction={
-                  <IconButton
-                    edge="end"
-                    aria-label="more"
-                    onClick={(e) => handleMenuOpen(e, room.id)}
-                  >
-                    <MoreIcon />
-                  </IconButton>
-                }
-              >
-                <ListItemButton
-                  selected={selectedRoomId === room.id}
-                  onClick={() => onRoomSelect(room.id)}
-                  sx={{ pr: 6 }}
-                >
-                  <ListItemIcon sx={{ minWidth: 40 }}>
-                    <ChatIcon />
-                  </ListItemIcon>
-                  <ListItemText
-                    primary={room.title}
-                    primaryTypographyProps={{
-                      noWrap: true,
-                      title: room.title,
-                    }}
-                  />
-                </ListItemButton>
-              </ListItem>
-            ))}
-          </List>
-        ) : (
-          <Box sx={{ p: 3, textAlign: 'center' }}>
-            <Typography variant="body2" color="text.secondary">
-              チャットがありません
-            </Typography>
-          </Box>
-        )}
+        <ChatRoomList
+          rooms={chatRooms}
+          selectedRoomId={selectedRoomId}
+          loading={loading}
+          onRoomSelect={onRoomSelect}
+          onMenuOpen={handleMenuOpen}
+        />
       </Box>
 
-      {/* フッターボタン */}
-      <Box sx={{ p: 1, borderTop: 1, borderColor: 'divider' }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-          <Tooltip title="ソースを再読み込み">
-            <IconButton onClick={onReloadSources}>
-              <RefreshIcon />
-            </IconButton>
-          </Tooltip>
-          <Tooltip title="設定">
-            <IconButton onClick={onSettingsClick}>
-              <SettingsIcon />
-            </IconButton>
-          </Tooltip>
-        </Box>
-      </Box>
+      <SidebarFooter
+        onSettingsClick={onSettingsClick}
+        onReloadSources={onReloadSources}
+      />
 
       {/* チャットルームメニュー */}
       <Menu
@@ -220,6 +133,6 @@ const Sidebar: React.FC<SidebarProps> = ({
       </Menu>
     </Box>
   );
-};
+}
 
-export default Sidebar;
+export default React.memo(Sidebar);
