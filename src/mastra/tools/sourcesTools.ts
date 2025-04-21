@@ -3,7 +3,7 @@ import { Agent } from '@mastra/core/agent';
 import { createTool } from '@mastra/core/tools';
 import { eq } from 'drizzle-orm';
 import { sources, topics } from '../../db/schema.js';
-import { db } from '../../db/index.js';
+import getDb from '../../db/index.js';
 import FileExtractor from '../utils/fileExtractor.js';
 import { getSourceQuerySystemPrompt } from '../agents/prompts.js';
 import openAICompatibleModel from '../agents/model/openAICompatible.js';
@@ -33,6 +33,7 @@ export const sourceListTool = createTool({
   }),
   execute: async () => {
     try {
+      const db = await getDb();
       // ソースの一覧を取得
       const sourcesList = await db
         .select()
@@ -87,6 +88,7 @@ export const querySourceTool = createTool({
   }),
   execute: async ({ context: { sourceId, query } }) => {
     try {
+      const db = await getDb();
       // ソース情報を取得
       const sourceData = await db
         .select()

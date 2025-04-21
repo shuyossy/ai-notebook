@@ -221,6 +221,7 @@ export const sourceRegistrationWorkflow = new Workflow({
 });
 
 // ワークフローを構築
+// eslint-disable-next-line
 sourceRegistrationWorkflow
   .step(analyzeSourceStep)
   .then(registerSourceStep, {

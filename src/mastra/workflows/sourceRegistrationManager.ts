@@ -11,6 +11,7 @@ import FileExtractor from '../utils/fileExtractor';
  * ディレクトリ内の全てのファイルを登録するワークフロー
  */
 export default class SourceRegistrationManager {
+  // eslint-disable-next-line
   private static instance: SourceRegistrationManager | null = null;
 
   private readonly registerDir: string;
@@ -96,28 +97,31 @@ export default class SourceRegistrationManager {
               const content = await FileExtractor.extractText(filePath);
 
               // ワークフローを開始
-              let status = 'success';
               const run = sourceRegistrationWorkflow.createRun();
-              run.watch(async ({ results }) => {
-                // 失敗したステップがあるか確認
-                const failedSteps = Object.entries(results)
-                  .filter(([_, step]) => step.status === 'failed')
-                  .map(([stepId]) => stepId);
-
-                if (failedSteps.length > 0) {
-                  console.error(
-                    `ワークフローに失敗したステップがあります: ${failedSteps.join(', ')}`,
-                  );
-                  // アラートやログ記録などの是正措置を取る
-                  status = 'failed';
-                }
+              const result = await run.start({
+                triggerData: { filePath, content },
               });
-              await run.start({ triggerData: { filePath, content } });
 
-              // 成功結果を配列に追加
-              resultList.push({ success: status === 'success', filePath });
+              // 失敗したステップがあるか確認
+              const failedSteps = Object.entries(result.results).filter(
+                // eslint-disable-next-line
+                ([_, value]) =>
+                  value.status === 'failed' ||
+                  // @ts-ignore
+                  value.output?.status === 'failed',
+              );
+
+              if (failedSteps.length > 0) {
+                console.error(
+                  `ワークフローに失敗したステップがあります: ${failedSteps.join(', ')}`,
+                );
+                resultList.push({ success: false, filePath });
+                return resultList;
+              }
+              resultList.push({ success: true, filePath });
             } catch (error) {
               // 失敗結果を配列に追加（エラー情報も保持）
+              console.error(error);
               resultList.push({ success: false, filePath, error });
             }
             // 次のイテレーションに結果配列を渡す
@@ -151,9 +155,8 @@ export default class SourceRegistrationManager {
         const fullPath = path.join(dirPath, item.name);
         if (item.isDirectory()) {
           return this.readDirectoryRecursively(fullPath);
-        } else {
-          return [fullPath];
         }
+        return [fullPath];
       }),
     );
 
