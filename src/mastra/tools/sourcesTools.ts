@@ -2,11 +2,11 @@ import { z } from 'zod';
 import { Agent } from '@mastra/core/agent';
 import { createTool } from '@mastra/core/tools';
 import { eq } from 'drizzle-orm';
-import { sources, topics } from '../../db/schema.js';
-import getDb from '../../db/index.js';
-import FileExtractor from '../utils/fileExtractor.js';
-import { getSourceQuerySystemPrompt } from '../agents/prompts.js';
-import openAICompatibleModel from '../agents/model/openAICompatible.js';
+import { sources, topics } from '../../db/schema';
+import getDb from '../../db/index';
+import FileExtractor from '../utils/fileExtractor';
+import { getSourceQuerySystemPrompt } from '../agents/prompts';
+import openAICompatibleModel from '../agents/model/openAICompatible';
 
 /**
  * ソース一覧表示ツール
