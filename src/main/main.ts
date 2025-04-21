@@ -14,6 +14,7 @@ import { autoUpdater } from 'electron-updater';
 import log from 'electron-log';
 import { initializeDb } from '../db';
 import SourceRegistrationManager from '../mastra/workflows/sourceRegistrationManager';
+import { getOrchestrator } from '../mastra/agents/orchestrator';
 import MenuBuilder from './menu';
 import { resolveHtmlPath } from './util';
 import { initStore, getStore } from './store';
@@ -37,6 +38,126 @@ const setupStoreHandlers = () => {
     const store = getStore();
     store.set(key, value);
     return true;
+  });
+};
+
+// チャット関連のIPCハンドラー
+const setupChatHandlers = () => {
+  // メッセージ送信ハンドラ
+  ipcMain.handle('chat-send-message', async (event, { roomId, message }) => {
+    try {
+      // AIエージェントにメッセージを送信
+      const orchInstance = getOrchestrator();
+      const stream = await orchInstance.stream(message, {
+        resourceId: 'user', // 実際の実装ではユーザーIDを使用
+        threadId: roomId, // チャットルームIDをスレッドIDとして使用
+        maxSteps: 5, // 最大5ステップまでツールを使用可能
+        onStepFinish: ({
+          text,
+          toolCalls,
+        }: {
+          text: string;
+          toolCalls: any[];
+        }) => {
+          // ステップ完了ごとにフロントエンドに進捗を通知
+          event.sender.send('chat-step', { text, toolCalls });
+        },
+      });
+
+      // ストリーミング処理は可能な限りシンプルに実装
+      try {
+        event.sender.send('chat-stream', await stream.text);
+      } catch (streamError) {
+        console.error('ストリーミング処理中にエラーが発生:', streamError);
+      }
+
+      // 完了通知
+      event.sender.send('chat-complete', {
+        text: await stream.text,
+      });
+
+      return { success: true };
+    } catch (error) {
+      console.error('AIエージェントとの通信中にエラーが発生:', error);
+      event.sender.send('chat-error', {
+        message: `エラーが発生しました: ${(error as Error).message}`,
+      });
+      return { success: false, error: (error as Error).message };
+    }
+  });
+};
+
+// ソース関連のIPCハンドラー
+const setupSourceHandlers = () => {
+  // ソース再読み込みハンドラ
+  ipcMain.handle('source-reload', async () => {
+    try {
+      const registrationManager = SourceRegistrationManager.getInstance();
+      await registrationManager.registerAllFiles();
+      return { success: true, message: 'ソースの再読み込みが完了しました' };
+    } catch (error) {
+      console.error('ソースの再読み込み中にエラーが発生:', error);
+      return {
+        success: false,
+        message: `エラーが発生しました: ${(error as Error).message}`,
+      };
+    }
+  });
+
+  // ソース一覧取得ハンドラ
+  ipcMain.handle('source-get-all', async () => {
+    try {
+      // ソース一覧を取得するロジックを実装
+      // 例: データベースからソース情報を取得
+      // 今はとりあえずモックデータを返す
+      return [
+        {
+          id: 1,
+          title: 'AIの基礎知識',
+          summary:
+            '人工知能の基本的な概念と歴史、現在の技術動向について解説したドキュメント',
+          topics: [
+            {
+              name: '機械学習',
+              summary: '機械学習の基本的な概念と手法',
+            },
+            {
+              name: 'ディープラーニング',
+              summary: 'ニューラルネットワークと深層学習の仕組み',
+            },
+            {
+              name: '自然言語処理',
+              summary: 'テキスト処理と言語理解の技術',
+            },
+          ],
+        },
+        {
+          id: 2,
+          title: 'プログラミング入門',
+          summary: 'プログラミングの基本概念と主要な言語の特徴を解説したガイド',
+          topics: [
+            {
+              name: 'JavaScript',
+              summary: 'Webフロントエンド開発のための言語',
+            },
+            {
+              name: 'Python',
+              summary: 'データ分析やAI開発によく使われる言語',
+            },
+            {
+              name: 'TypeScript',
+              summary: '型安全なJavaScriptの拡張言語',
+            },
+          ],
+        },
+      ];
+    } catch (error) {
+      console.error('ソース一覧の取得中にエラーが発生:', error);
+      return {
+        success: false,
+        error: (error as Error).message,
+      };
+    }
   });
 };
 
@@ -96,8 +217,8 @@ const createWindow = async () => {
 
   mainWindow = new BrowserWindow({
     show: false,
-    width: 1024,
-    height: 728,
+    width: 1280,
+    height: 800,
     icon: getAssetPath('icon.png'),
     webPreferences: {
       preload: app.isPackaged
@@ -149,21 +270,18 @@ app.on('window-all-closed', () => {
   }
 });
 
-app
-  .whenReady()
-  .then(async () => {
-    // ストアの初期化
-    await initStore();
-    // IPC通信ハンドラーの設定
-    setupStoreHandlers();
-    // データベースの初期化
-    await initializeDb();
-    createWindow();
-    await initializeSourceRegistration();
-    app.on('activate', () => {
-      // On macOS it's common to re-create a window in the app when the
-      // dock icon is clicked and there are no other windows open.
-      if (mainWindow === null) createWindow();
-    });
-  })
-  .catch(console.log);
+const initialize = async () => {
+  await initStore();
+  setupStoreHandlers();
+  setupChatHandlers();
+  setupSourceHandlers();
+  await initializeDb();
+  createWindow();
+  await initializeSourceRegistration();
+};
+
+app.whenReady().then(initialize).catch(console.error);
+
+app.on('activate', () => {
+  if (mainWindow === null) createWindow();
+});

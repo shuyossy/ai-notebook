@@ -71,7 +71,9 @@ export default class FileExtractor {
    * @param filePath ファイルパス
    * @returns 抽出されたテキスト
    */
-  private static async extractFromPowerPoint(_filePath: string): Promise<string> {
+  private static async extractFromPowerPoint(
+    _filePath: string,
+  ): Promise<string> {
     // 注: 実際の実装ではpptxgenjs-to-textなどのライブラリを使用
     return 'PowerPointファイルからのテキスト抽出はモック実装です。';
   }

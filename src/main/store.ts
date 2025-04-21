@@ -68,7 +68,7 @@ export async function createStore() {
     cwd: path.join(app.getPath('userData'), 'config'),
   });
 
-  console.log("storeのインスタンス化に成功しました: ", store.store)
+  console.log('storeのインスタンス化に成功しました: ', store.store);
 
   return store;
 }

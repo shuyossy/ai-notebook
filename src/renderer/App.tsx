@@ -1,50 +1,190 @@
+import React, { useState, useEffect } from 'react';
 import { MemoryRouter as Router, Routes, Route } from 'react-router-dom';
-import icon from '../../assets/icon.svg';
+import {
+  ThemeProvider,
+  createTheme,
+  CssBaseline,
+  Box,
+  AlertColor,
+} from '@mui/material';
 import './App.css';
+import Sidebar from './components/sidebar/Sidebar';
+import ChatArea from './components/chat/ChatArea';
+import SettingsModal from './components/common/SettingsModal';
+import SnackbarNotification from './components/common/SnackbarNotification';
+import CreateChatRoomModal from './components/chat/CreateChatRoomModal';
+import { ChatRoom, Settings } from './types';
+import { sourceService } from './services/sourceService';
 
-function Hello() {
+// テーマの設定
+const theme = createTheme({
+  palette: {
+    primary: {
+      main: '#3f51b5',
+      lighter: '#e8eaf6',
+    },
+    secondary: {
+      main: '#f50057',
+    },
+    background: {
+      default: '#f5f5f5',
+    },
+  },
+  typography: {
+    fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
+  },
+  components: {
+    MuiCssBaseline: {
+      styleOverrides: {
+        body: {
+          scrollbarWidth: 'thin',
+          '&::-webkit-scrollbar': {
+            width: '8px',
+            height: '8px',
+          },
+          '&::-webkit-scrollbar-thumb': {
+            backgroundColor: 'rgba(0, 0, 0, 0.2)',
+            borderRadius: '4px',
+          },
+          '&::-webkit-scrollbar-track': {
+            backgroundColor: 'rgba(0, 0, 0, 0.05)',
+          },
+        },
+      },
+    },
+  },
+});
+
+function App() {
+  const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [isCreateRoomModalOpen, setIsCreateRoomModalOpen] = useState(false);
+  const [snackbar, setSnackbar] = useState<{
+    open: boolean;
+    message: string;
+    severity: AlertColor;
+  }>({
+    open: false,
+    message: '',
+    severity: 'info',
+  });
+
+  // チャットルーム選択ハンドラ
+  const handleRoomSelect = (roomId: string) => {
+    setSelectedRoomId(roomId);
+  };
+
+  // チャットルーム作成ハンドラ
+  const handleCreateRoom = () => {
+    setIsCreateRoomModalOpen(true);
+  };
+
+  // 設定ボタンクリックハンドラ
+  const handleSettingsClick = () => {
+    setIsSettingsModalOpen(true);
+  };
+
+  // ソース再読み込みハンドラ
+  const handleReloadSources = async () => {
+    try {
+      const result = await sourceService.reloadSources();
+      if (result.success) {
+        showSnackbar(
+          result.message || 'ソースの再読み込みが完了しました',
+          'success',
+        );
+      } else {
+        showSnackbar(
+          result.message || 'ソースの再読み込みに失敗しました',
+          'error',
+        );
+      }
+    } catch (error) {
+      showSnackbar(
+        `ソースの再読み込みに失敗しました: ${(error as Error).message}`,
+        'error',
+      );
+    }
+  };
+
+  // チャットルーム作成完了ハンドラ
+  const handleRoomCreated = (room: ChatRoom) => {
+    setSelectedRoomId(room.id);
+    showSnackbar('チャットルームを作成しました', 'success');
+  };
+
+  // 設定更新完了ハンドラ
+  const handleSettingsUpdated = (settings: Settings) => {
+    showSnackbar('設定を更新しました', 'success');
+  };
+
+  // スナックバー表示ヘルパー
+  const showSnackbar = (message: string, severity: AlertColor) => {
+    setSnackbar({
+      open: true,
+      message,
+      severity,
+    });
+  };
+
+  // スナックバーを閉じる
+  const handleCloseSnackbar = () => {
+    setSnackbar((prev) => ({ ...prev, open: false }));
+  };
+
   return (
-    <div>
-      <div className="Hello">
-        <img width="200" alt="icon" src={icon} />
-      </div>
-      <h1>electron-react-boilerplate</h1>
-      <div className="Hello">
-        <a
-          href="https://electron-react-boilerplate.js.org/"
-          target="_blank"
-          rel="noreferrer"
-        >
-          <button type="button">
-            <span role="img" aria-label="books">
-              📚
-            </span>
-            Read our docs
-          </button>
-        </a>
-        <a
-          href="https://github.com/sponsors/electron-react-boilerplate"
-          target="_blank"
-          rel="noreferrer"
-        >
-          <button type="button">
-            <span role="img" aria-label="folded hands">
-              🙏
-            </span>
-            Donate
-          </button>
-        </a>
-      </div>
-    </div>
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
+      <Router>
+        <Routes>
+          <Route
+            path="/"
+            element={
+              <Box
+                sx={{
+                  display: 'flex',
+                  height: '100vh',
+                }}
+              >
+                {/* サイドバー */}
+                <Sidebar
+                  selectedRoomId={selectedRoomId}
+                  onRoomSelect={handleRoomSelect}
+                  onCreateRoom={handleCreateRoom}
+                  onSettingsClick={handleSettingsClick}
+                  onReloadSources={handleReloadSources}
+                />
+
+                {/* メインコンテンツ */}
+                <ChatArea selectedRoomId={selectedRoomId} />
+
+                {/* モーダル */}
+                <SettingsModal
+                  open={isSettingsModalOpen}
+                  onClose={() => setIsSettingsModalOpen(false)}
+                  onSettingsUpdated={handleSettingsUpdated}
+                />
+
+                <CreateChatRoomModal
+                  open={isCreateRoomModalOpen}
+                  onClose={() => setIsCreateRoomModalOpen(false)}
+                  onRoomCreated={handleRoomCreated}
+                />
+
+                {/* 通知 */}
+                <SnackbarNotification
+                  open={snackbar.open}
+                  message={snackbar.message}
+                  severity={snackbar.severity}
+                  onClose={handleCloseSnackbar}
+                />
+              </Box>
+            }
+          />
+        </Routes>
+      </Router>
+    </ThemeProvider>
   );
 }
 
-export default function App() {
-  return (
-    <Router>
-      <Routes>
-        <Route path="/" element={<Hello />} />
-      </Routes>
-    </Router>
-  );
-}
+export default App;
