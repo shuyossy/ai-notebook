@@ -79,7 +79,7 @@ const registerSourceStep = new Step({
   }),
   execute: async ({ context }) => {
     const { filePath } = context.triggerData;
-    const { title, summary } = context.getStepResult('analyzeSource')!;
+    const { title, summary } = context.getStepResult('analyzeSourceStep')!;
 
     // 結果の初期値
     let status: stepStatus = 'failed';
@@ -126,7 +126,7 @@ const extractTopicsStep = new Step({
   }),
   execute: async ({ context }) => {
     const { content } = context.triggerData;
-    const { sourceId } = context.getStepResult('registerSource')!;
+    const { sourceId } = context.getStepResult('registerSourceStep')!;
 
     // 結果の初期値
     let status: stepStatus = 'failed';
@@ -169,7 +169,7 @@ const generateTopicSummariesStep = new Step({
   }),
   execute: async ({ context }) => {
     const { content } = context.triggerData;
-    const { sourceId, topics } = context.getStepResult('extractTopics')!;
+    const { sourceId, topics } = context.getStepResult('extractTopicsStep')!;
 
     // 結果の初期値
     let status: stepStatus = 'failed';
@@ -224,36 +224,18 @@ export const sourceRegistrationWorkflow = new Workflow({
 sourceRegistrationWorkflow
   .step(analyzeSourceStep)
   .then(registerSourceStep, {
-    when: async ({ context }) => {
-      try {
-        const status = context.steps.analyzeSourceStep?.status;
-        const result = !!status && status === 'success';
-        return result;
-      } catch {
-        return false;
-      }
+    when: {
+      'analyzeSourceStep.status': 'success',
     },
   })
   .then(extractTopicsStep, {
-    when: async ({ context }) => {
-      try {
-        const status = context.steps.registerSourceStep?.status;
-        const result = !!status && status === 'success';
-        return result;
-      } catch {
-        return false;
-      }
+    when: {
+      'registerSourceStep.status': 'success',
     },
   })
   .then(generateTopicSummariesStep, {
-    when: async ({ context }) => {
-      try {
-        const status = context.steps.extractTopicsStep?.status;
-        const result = !!status && status === 'success';
-        return result;
-      } catch {
-        return false;
-      }
+    when: {
+      'extractTopicsStep.status': 'success',
     },
   })
   .commit();
