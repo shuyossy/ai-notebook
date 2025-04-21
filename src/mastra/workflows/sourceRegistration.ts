@@ -224,15 +224,36 @@ export const sourceRegistrationWorkflow = new Workflow({
 sourceRegistrationWorkflow
   .step(analyzeSourceStep)
   .then(registerSourceStep, {
-    when: ({ context }) =>
-      context.steps.analyzeSourceStep?.status === 'success',
+    when: async ({ context }) => {
+      try {
+        const status = context.steps.analyzeSourceStep?.status;
+        const result = !!status && status === 'success';
+        return result;
+      } catch {
+        return false;
+      }
+    },
   })
   .then(extractTopicsStep, {
-    when: ({ context }) =>
-      context.steps.registerSourceStep?.status === 'success',
+    when: async ({ context }) => {
+      try {
+        const status = context.steps.registerSourceStep?.status;
+        const result = !!status && status === 'success';
+        return result;
+      } catch {
+        return false;
+      }
+    },
   })
   .then(generateTopicSummariesStep, {
-    when: ({ context }) =>
-      context.steps.extractTopicsStep?.status === 'success',
+    when: async ({ context }) => {
+      try {
+        const status = context.steps.extractTopicsStep?.status;
+        const result = !!status && status === 'success';
+        return result;
+      } catch {
+        return false;
+      }
+    },
   })
   .commit();
