@@ -32,7 +32,23 @@ function CodeBlock({ children }: MarkdownComponentProps) {
   );
 }
 
-function MarkdownParagraph({ children }: MarkdownComponentProps) {
+function UserParagraph({ children }: MarkdownComponentProps) {
+  return (
+    <Typography
+      variant="body1"
+      component="p"
+      sx={{
+        margin: 0,
+        whiteSpace: 'pre-wrap',
+        overflowWrap: 'break-word',
+      }}
+    >
+      {children}
+    </Typography>
+  );
+}
+
+function AIParagraph({ children }: MarkdownComponentProps) {
   return (
     <Typography variant="body1" component="p" sx={{ margin: 0 }}>
       {children}
@@ -48,6 +64,8 @@ const MessageItem = forwardRef<HTMLDivElement, MessageProps>(
       hour: '2-digit',
       minute: '2-digit',
     });
+
+    const ParagraphComponent = isUser ? UserParagraph : AIParagraph;
 
     return (
       <Box
@@ -141,7 +159,7 @@ const MessageItem = forwardRef<HTMLDivElement, MessageProps>(
             >
               <Markdown
                 components={{
-                  p: MarkdownParagraph as any,
+                  p: ParagraphComponent as any,
                   code: CodeBlock as any,
                 }}
               >
