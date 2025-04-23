@@ -35,40 +35,6 @@ export default class SourceRegistrationManager {
   }
 
   /**
-   * 処理結果をストアに保存するメソッド
-   */
-  private async saveProcessingResult(
-    filePath: string,
-    success: boolean,
-    error?: string,
-  ): Promise<void> {
-    if (!this.registerDir) {
-      throw new Error('Register directory is not initialized');
-    }
-    const store = getStore();
-    const currentResults = (store.get('source.processingResults') ||
-      []) as Array<{
-      filePath: string;
-      success: boolean;
-      error?: string;
-      timestamp: string;
-    }>;
-
-    const newResults = [
-      ...currentResults,
-      {
-        filePath,
-        success,
-        error,
-        timestamp: new Date().toISOString(),
-      },
-    ];
-
-    store.set('source.processingResults', newResults);
-    store.set('source.lastProcessedAt', new Date().toISOString());
-  }
-
-  /**
    * シングルトンインスタンスを取得するメソッド
    */
   public static getInstance(): SourceRegistrationManager {
@@ -226,17 +192,6 @@ export default class SourceRegistrationManager {
         // 初期値：空の配列を返す Promise
         Promise.resolve([]),
       );
-
-      // 処理結果をストアに保存
-      const store = getStore();
-      store.set(
-        'source.processingResults',
-        registrationResults.map((result) => ({
-          ...result,
-          timestamp: new Date().toISOString(),
-        })),
-      );
-      store.set('source.lastProcessedAt', new Date().toISOString());
 
       // 成功件数をカウント
       const successCount = registrationResults.filter((r) => r.success).length;

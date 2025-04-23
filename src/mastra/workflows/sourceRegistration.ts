@@ -37,7 +37,7 @@ const analyzeSourceStep = new Step({
   }),
   execute: async ({ context }) => {
     // トリガーから変数を取得
-    const { content } = context.triggerData;
+    const { content, filePath } = context.triggerData;
 
     // 結果の初期値
     let status: stepStatus = 'failed';
@@ -70,6 +70,13 @@ const analyzeSourceStep = new Step({
         error instanceof Error ? error.message : '不明なエラー';
       errorMessage = `ソース分析でエラーが発生しました: ${errorDetail}`;
       console.error(errorMessage);
+
+      // DBにエラー情報を更新
+      const db = await getDb();
+      await db
+        .update(sources)
+        .set({ status: 'failed', error: errorMessage })
+        .where(eq(sources.path, filePath));
     }
 
     return {
@@ -122,6 +129,13 @@ const registerSourceStep = new Step({
         error instanceof Error ? error.message : '不明なエラー';
       errorMessage = `ソース登録でエラーが発生しました: ${errorDetail}`;
       console.error(errorMessage);
+
+      // DBにエラー情報を更新
+      const db = await getDb();
+      await db
+        .update(sources)
+        .set({ status: 'failed', error: errorMessage })
+        .where(eq(sources.path, filePath));
     }
 
     return {
@@ -171,6 +185,13 @@ const extractTopicsStep = new Step({
         error instanceof Error ? error.message : '不明なエラー';
       errorMessage = `トピック抽出でエラーが発生しました: ${errorDetail}`;
       console.error(errorMessage);
+
+      // DBにエラー情報を更新
+      const db = await getDb();
+      await db
+        .update(sources)
+        .set({ status: 'failed', error: errorMessage })
+        .where(eq(sources.path, sourceId));
     }
 
     return {
@@ -233,6 +254,13 @@ const generateTopicSummariesStep = new Step({
         error instanceof Error ? error.message : '不明なエラー';
       errorMessage = `トピック要約の生成でエラーが発生しました: ${errorDetail}`;
       console.error(errorMessage);
+
+      // DBにエラー情報を更新
+      const db = await getDb();
+      await db
+        .update(sources)
+        .set({ status: 'failed', error: errorMessage })
+        .where(eq(sources.path, sourceId));
     }
 
     return {

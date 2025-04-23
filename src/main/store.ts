@@ -1,14 +1,6 @@
 import path from 'path';
 import { app } from 'electron';
 
-// ソース処理結果の型定義
-export interface SourceProcessResult {
-  filePath: string;
-  success: boolean;
-  error?: string;
-  timestamp: string;
-}
-
 // 設定の型定義
 export interface StoreSchema {
   database: {
@@ -16,8 +8,6 @@ export interface StoreSchema {
   };
   source: {
     registerDir: string;
-    lastProcessedAt?: string;
-    processingResults: SourceProcessResult[];
   };
   api: {
     key: string;
@@ -39,22 +29,8 @@ const schema = {
     type: 'object',
     properties: {
       registerDir: { type: 'string' },
-      lastProcessedAt: { type: 'string' },
-      processingResults: {
-        type: 'array',
-        items: {
-          type: 'object',
-          properties: {
-            filePath: { type: 'string' },
-            success: { type: 'boolean' },
-            error: { type: 'string' },
-            timestamp: { type: 'string' },
-          },
-          required: ['filePath', 'success', 'timestamp'],
-        },
-      },
     },
-    required: ['registerDir', 'processingResults'],
+    required: ['registerDir'],
   },
   api: {
     type: 'object',
@@ -74,7 +50,6 @@ const defaults: StoreSchema = {
   },
   source: {
     registerDir: './source',
-    processingResults: [],
   },
   api: {
     key: '',

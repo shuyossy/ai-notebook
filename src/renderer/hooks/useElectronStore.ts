@@ -6,29 +6,25 @@ import { useState, useEffect, useCallback } from 'react';
  * @param defaultValue デフォルト値
  * @returns [値, セッター関数]
  */
-export function useElectronStore<T>(
+export function useElectronStore<T extends Record<string, unknown>>(
   key: string,
-  defaultValue: T,
 ): [T, (value: T) => Promise<void>] {
-  const [value, setValue] = useState<T>(defaultValue);
-  const [isInitialized, setIsInitialized] = useState(false);
+  const [value, setValue] = useState<T>({} as T);
 
-  // 初期値の取得
+  // 値の取得
   useEffect(() => {
-    const fetchInitialValue = async () => {
+    const fetchValue = async () => {
       try {
         const storedValue = await window.electron.store.get(key);
         if (storedValue !== undefined) {
           setValue(storedValue as T);
         }
-        setIsInitialized(true);
       } catch (error) {
         console.error(`Failed to get value for key "${key}":`, error);
-        setIsInitialized(true);
       }
     };
 
-    fetchInitialValue();
+    fetchValue();
   }, [key]);
 
   // 値の設定

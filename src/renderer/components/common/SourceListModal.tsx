@@ -22,7 +22,6 @@ import {
   HourglassEmpty as ProcessingIcon,
   Help as UnknownIcon,
 } from '@mui/icons-material';
-import { useElectronStore } from '../../hooks/useElectronStore';
 
 export interface Source {
   id: number;
@@ -31,13 +30,6 @@ export interface Source {
   status: 'idle' | 'processing' | 'completed' | 'failed';
   error?: string | null;
   updatedAt: string;
-}
-
-interface ProcessingResult {
-  filePath: string;
-  success: boolean;
-  error?: string;
-  timestamp: string;
 }
 
 interface SourceListModalProps {
@@ -53,20 +45,6 @@ function SourceListModal({
 }: SourceListModalProps): React.ReactElement {
   const [sources, setSources] = useState<Source[]>([]);
   const [processing, setProcessing] = useState(false);
-  const [processingResults, setProcessingResults] = useState<
-    ProcessingResult[]
-  >([]);
-  const [lastProcessedAt, setLastProcessedAt] = useState<string | null>(null);
-
-  // electron-storeからデータを取得
-  const [storeResults] = useElectronStore<ProcessingResult[]>(
-    'source.processingResults',
-    [],
-  );
-  const [lastProcessed] = useElectronStore<string | null>(
-    'source.lastProcessedAt',
-    null,
-  );
 
   // ソースデータの定期更新（processingステータスがある場合のみ）
   useEffect(() => {
@@ -98,14 +76,6 @@ function SourceListModal({
       }
     };
   }, [open, processing]);
-
-  // electron-storeの処理結果を同期
-  useEffect(() => {
-    if (open) {
-      setProcessingResults(storeResults);
-      setLastProcessedAt(lastProcessed);
-    }
-  }, [open, storeResults, lastProcessed]);
 
   const handleReloadClick = () => {
     onReloadSources();
@@ -188,14 +158,7 @@ function SourceListModal({
           ソース一覧
         </Typography>
 
-        <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between' }}>
-          <Box>
-            {lastProcessedAt && (
-              <Typography variant="body2" color="text.secondary">
-                最終更新: {new Date(lastProcessedAt).toLocaleString()}
-              </Typography>
-            )}
-          </Box>
+        <Box sx={{ mb: 2, display: 'flex', justifyContent: 'flex-end' }}>
           <Tooltip title="設定したソースディレクトリからソースを読み取ります">
             <Button
               variant="contained"
@@ -207,7 +170,7 @@ function SourceListModal({
           </Tooltip>
         </Box>
 
-        <TableContainer component={Paper} sx={{ mb: 2 }}>
+        <TableContainer component={Paper}>
           <Table>
             <TableHead>
               <TableRow>
@@ -247,68 +210,6 @@ function SourceListModal({
             </TableBody>
           </Table>
         </TableContainer>
-
-        {processingResults.length > 0 && (
-          <>
-            <Typography variant="subtitle1" gutterBottom>
-              処理結果
-            </Typography>
-            <TableContainer component={Paper}>
-              <Table>
-                <TableHead>
-                  <TableRow>
-                    <TableCell>ファイル</TableCell>
-                    <TableCell>結果</TableCell>
-                    <TableCell>日時</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {processingResults.map((result) => (
-                    <TableRow
-                      key={`${result.filePath}-${result.timestamp}`}
-                      sx={{
-                        backgroundColor: result.success
-                          ? 'success.lighter'
-                          : 'error.lighter',
-                      }}
-                    >
-                      <TableCell>{result.filePath}</TableCell>
-                      <TableCell>
-                        {result.success ? (
-                          <Chip
-                            icon={<CheckIcon />}
-                            label="成功"
-                            color="success"
-                            size="small"
-                          />
-                        ) : (
-                          <>
-                            <Chip
-                              icon={<ErrorIcon />}
-                              label="失敗"
-                              color="error"
-                              size="small"
-                            />
-                            {result.error && (
-                              <Tooltip title={result.error}>
-                                <IconButton size="small" color="error">
-                                  <ErrorIcon fontSize="small" />
-                                </IconButton>
-                              </Tooltip>
-                            )}
-                          </>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {new Date(result.timestamp).toLocaleString()}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </>
-        )}
       </Box>
     </Modal>
   );

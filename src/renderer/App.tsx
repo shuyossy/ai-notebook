@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { MemoryRouter as Router, Routes, Route } from 'react-router-dom';
 import {
   ThemeProvider,
@@ -84,6 +84,15 @@ function App() {
     setIsSettingsModalOpen(true);
   };
 
+  // スナックバー表示ヘルパー
+  const showSnackbar = (message: string, severity: AlertColor) => {
+    setSnackbar({
+      open: true,
+      message,
+      severity,
+    });
+  };
+
   // ソース再読み込みハンドラ
   const handleReloadSources = async () => {
     try {
@@ -116,15 +125,6 @@ function App() {
   // 設定更新完了ハンドラ
   const handleSettingsUpdated = (settings: Settings) => {
     showSnackbar('設定を更新しました', 'success');
-  };
-
-  // スナックバー表示ヘルパー
-  const showSnackbar = (message: string, severity: AlertColor) => {
-    setSnackbar({
-      open: true,
-      message,
-      severity,
-    });
   };
 
   // スナックバーを閉じる
