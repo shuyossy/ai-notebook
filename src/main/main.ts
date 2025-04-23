@@ -130,25 +130,21 @@ const setupSourceHandlers = () => {
 
 // ソース登録処理の実行
 const initializeSourceRegistration = async () => {
-  console.log('ソースファイルの登録を開始します...');
+  console.log('ソースファイルの初期登録を開始します...');
   const registrationManager = SourceRegistrationManager.getInstance();
-  const db = await getDb();
-
-  // 既存のソースをすべて'idle'状態にリセット
-  await db.update(sources).set({ status: 'idle', error: null });
 
   // ソース登録を実行
   await registrationManager.registerAllFiles();
-  console.log('ソースファイルの登録が完了しました');
+  console.log('ソースファイルの初期登録が完了しました');
 };
 
 let mainWindow: BrowserWindow | null = null;
 
-ipcMain.on('ipc-example', async (event, arg) => {
-  const msgTemplate = (pingPong: string) => `IPC test: ${pingPong}`;
-  console.log(msgTemplate(arg));
-  event.reply('ipc-example', msgTemplate('pong'));
-});
+// ipcMain.on('ipc-example', async (event, arg) => {
+//   const msgTemplate = (pingPong: string) => `IPC test: ${pingPong}`;
+//   console.log(msgTemplate(arg));
+//   event.reply('ipc-example', msgTemplate('pong'));
+// });
 
 if (process.env.NODE_ENV === 'production') {
   const sourceMapSupport = require('source-map-support');
@@ -244,12 +240,12 @@ app.on('window-all-closed', () => {
 });
 
 const initialize = async () => {
+  createWindow();
   await initStore();
   setupStoreHandlers();
   setupChatHandlers();
   setupSourceHandlers();
   await initializeDb();
-  createWindow();
   await initializeSourceRegistration();
 };
 

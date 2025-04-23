@@ -1,6 +1,6 @@
 import fs from 'fs/promises';
 import path from 'path';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { getStore } from '../../main/store';
 import { sourceRegistrationWorkflow } from './sourceRegistration';
 import getDb from '../../db';
@@ -15,24 +15,6 @@ export default class SourceRegistrationManager {
   private static instance: SourceRegistrationManager | null = null;
 
   private readonly registerDir: string;
-
-  /**
-   * ソースのステータスを更新するメソッド
-   */
-  private async updateSourceStatus(
-    filePath: string,
-    status: 'idle' | 'processing' | 'completed' | 'failed',
-    error?: string,
-  ): Promise<void> {
-    if (!this.registerDir) {
-      throw new Error('Register directory is not initialized');
-    }
-    const db = await getDb();
-    await db
-      .update(sources)
-      .set({ status, error: error || null })
-      .where(eq(sources.path, filePath));
-  }
 
   /**
    * シングルトンインスタンスを取得するメソッド
@@ -60,6 +42,12 @@ export default class SourceRegistrationManager {
       // ディレクトリ内のファイル一覧を取得
       let files = await this.readDirectoryRecursively(this.registerDir);
 
+      // ファイルが存在しない場合は早期リターン
+      if (files.length === 0) {
+        console.log('登録するファイルが見つかりませんでした');
+        return;
+      }
+
       // 登録対象のファイルをフィルタリング
       if (excludeRegisteredFile) {
         files = await Promise.all(
@@ -82,40 +70,31 @@ export default class SourceRegistrationManager {
         );
       }
 
-      // 各ファイルのステータスを更新中に設定
+      // 登録対象のファイルが存在しない場合は早期リターン
+      if (files.length === 0) {
+        console.log('登録するファイルが見つかりませんでした');
+        return;
+      }
+
+      // 登録済みかつ完了状態ではないファイルについてはDBから全削除
+      // 処理中のtopicsテーブルも削除
       const db = await getDb();
-      // 既存のソースのステータスを更新
-      await Promise.all(
-        files.map((filePath) =>
-          db
-            .update(sources)
-            .set({ status: 'processing', error: null })
-            .where(eq(sources.path, filePath)),
-        ),
+      await db.delete(sources).where(
+        inArray(sources.path, files), // path が files のいずれか
       );
 
-      // 新規ソースを登録
-      await Promise.all(
-        files.map(async (filePath) => {
-          const existingSource = await db
-            .select()
-            .from(sources)
-            .where(eq(sources.path, filePath));
-
-          if (existingSource.length === 0) {
-            await db.insert(sources).values({
-              path: filePath,
-              title: path.basename(filePath),
-              summary: '',
-              status: 'processing',
-            });
-          }
-        }),
-      );
+      // ソースをDBに登録
+      const rows = files.map((filePath) => ({
+        path: filePath,
+        title: path.basename(filePath),
+        summary: '',
+        status: 'idle' as const,
+      }));
+      await db.insert(sources).values(rows);
 
       // files配列を reduce でたたみ込み、逐次処理を実現する
       const registrationResults = await files.reduce<
-        Promise<{ success: boolean; filePath: string; error?: string }[]>
+        Promise<{ success: boolean; filePath: string }[]>
       >(
         // previousPromise: これまでの処理結果を含む Promise
         // filePath: 現在処理するファイルパス
@@ -149,40 +128,19 @@ export default class SourceRegistrationManager {
                 });
 
               if (failedSteps.length > 0) {
-                const errorMessages = failedSteps
-                  .filter((step) => step.stepStatus === 'success')
-                  .map(
-                    (step) =>
-                      `${step.step}: ${step.errorMessage || '不明なエラー'}`,
-                  )
-                  .join('\n\n');
-                await this.updateSourceStatus(
-                  filePath,
-                  'failed',
-                  errorMessages,
-                );
                 resultList.push({
                   success: false,
                   filePath,
-                  error: errorMessages,
                 });
                 return resultList;
               }
 
-              await this.updateSourceStatus(filePath, 'completed');
               resultList.push({ success: true, filePath });
             } catch (error) {
-              // 失敗結果を配列に追加（エラー情報も保持）
-              const errorMessage =
-                error instanceof Error
-                  ? error.message
-                  : 'Unknown error occurred';
-              await this.updateSourceStatus(filePath, 'failed', errorMessage);
               console.error(error);
               resultList.push({
                 success: false,
                 filePath,
-                error: errorMessage,
               });
             }
             // 次のイテレーションに結果配列を渡す
