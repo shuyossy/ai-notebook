@@ -13,6 +13,15 @@ module.exports = {
     '@typescript-eslint/no-shadow': 'error',
     'no-unused-vars': 'off',
     '@typescript-eslint/no-unused-vars': 'error',
+    'react/function-component-definition': [
+      'error',
+      {
+        // 名前付きコンポーネント（export const Foo = ...）は arrow-function を許可
+        namedComponents: ['arrow-function', 'function-declaration'],
+        // 無名コンポーネント（props => …）も arrow-function を許可
+        unnamedComponents: ['arrow-function', 'function-expression'],
+      },
+    ],
   },
   parserOptions: {
     ecmaVersion: 2022,
