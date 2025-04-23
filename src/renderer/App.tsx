@@ -13,7 +13,7 @@ import ChatArea from './components/chat/ChatArea';
 import SettingsModal from './components/common/SettingsModal';
 import SnackbarNotification from './components/common/SnackbarNotification';
 import CreateChatRoomModal from './components/chat/CreateChatRoomModal';
-import { ChatRoom, Settings } from './types';
+import { ChatRoom } from './types';
 import { sourceService } from './services/sourceService';
 
 // テーマの設定
@@ -123,7 +123,7 @@ function App() {
   };
 
   // 設定更新完了ハンドラ
-  const handleSettingsUpdated = (_settings: Settings) => {
+  const handleSettingsUpdated = () => {
     showSnackbar('設定を更新しました', 'success');
   };
 

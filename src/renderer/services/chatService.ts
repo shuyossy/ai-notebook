@@ -114,11 +114,15 @@ export const chatService = {
       let accumulated = '';
       const words = fullResponse.split(' ');
 
-      for (const word of words) {
-        accumulated += word + ' ';
+      // for...of ループの代わりに従来のforループを使用
+      for (let i = 0; i < words.length; i += 1) {
+        accumulated = `${accumulated}${words[i]} `;
         callbacks.onMessage(accumulated);
         // 単語ごとに少し待機してストリーミングを模倣
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        // eslint-disable-next-line no-await-in-loop
+        await new Promise((resolve) => {
+          setTimeout(resolve, 100);
+        });
       }
 
       // 完了時にメッセージを保存

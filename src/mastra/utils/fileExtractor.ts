@@ -51,6 +51,7 @@ export default class FileExtractor {
    * @param filePath ファイルパス
    * @returns 抽出されたテキスト
    */
+  // eslint-disable-next-line
   private static async extractFromDoc(_filePath: string): Promise<string> {
     // 注: 実際の実装ではdocx-parserなどのライブラリを使用
     return 'Word文書からのテキスト抽出はモック実装です。';
@@ -61,6 +62,7 @@ export default class FileExtractor {
    * @param filePath ファイルパス
    * @returns 抽出されたテキスト
    */
+  // eslint-disable-next-line
   private static async extractFromExcel(_filePath: string): Promise<string> {
     // 注: 実際の実装ではxlsx-populateなどのライブラリを使用
     return 'Excelファイルからのテキスト抽出はモック実装です。';
@@ -71,7 +73,9 @@ export default class FileExtractor {
    * @param filePath ファイルパス
    * @returns 抽出されたテキスト
    */
+
   private static async extractFromPowerPoint(
+    // eslint-disable-next-line
     _filePath: string,
   ): Promise<string> {
     // 注: 実際の実装ではpptxgenjs-to-textなどのライブラリを使用
@@ -83,6 +87,7 @@ export default class FileExtractor {
    * @param filePath ファイルパス
    * @returns 抽出されたテキスト
    */
+  // eslint-disable-next-line
   private static async extractFromPdf(_filePath: string): Promise<string> {
     // 注: 実際の実装ではpdf-parse-jsなどのライブラリを使用
     return 'PDFファイルからのテキスト抽出はモック実装です。';

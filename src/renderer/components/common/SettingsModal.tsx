@@ -14,7 +14,7 @@ import { useElectronStore } from '../../hooks/useElectronStore';
 interface SettingsModalProps {
   open: boolean;
   onClose: () => void;
-  onSettingsUpdated: (settings: Settings) => void;
+  onSettingsUpdated: () => void;
 }
 
 function SettingsModal({
@@ -56,7 +56,7 @@ function SettingsModal({
         setSource(settings.source),
         setApi(settings.api),
       ]);
-      onSettingsUpdated(settings);
+      onSettingsUpdated();
       onClose();
     } catch (err) {
       setError(`設定の更新に失敗しました: ${(err as Error).message}`);
