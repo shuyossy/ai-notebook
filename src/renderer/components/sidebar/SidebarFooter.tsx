@@ -2,24 +2,24 @@ import React from 'react';
 import { Box, IconButton, Tooltip } from '@mui/material';
 import {
   Settings as SettingsIcon,
-  Refresh as RefreshIcon,
+  FormatListBulleted as FormatListBulletedIcon,
 } from '@mui/icons-material';
 
 interface SidebarFooterProps {
   onSettingsClick: () => void;
-  onReloadSources: () => void;
+  onOpenSourceList: () => void;
 }
 
 function SidebarFooter({
   onSettingsClick,
-  onReloadSources,
+  onOpenSourceList,
 }: SidebarFooterProps) {
   return (
     <Box sx={{ p: 1, borderTop: 1, borderColor: 'divider' }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-        <Tooltip title="ソースを再読み込み">
-          <IconButton onClick={onReloadSources}>
-            <RefreshIcon />
+        <Tooltip title="ソース一覧を表示">
+          <IconButton onClick={onOpenSourceList}>
+            <FormatListBulletedIcon />
           </IconButton>
         </Tooltip>
         <Tooltip title="設定">

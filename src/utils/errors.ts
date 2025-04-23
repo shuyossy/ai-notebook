@@ -42,7 +42,8 @@ export const ErrorMessages = {
   [ErrorCodes.SOURCE.RELOAD_FAILED]: 'ソースの再読み込みに失敗しました',
   [ErrorCodes.SETTINGS.LOAD_FAILED]: '設定の読み込みに失敗しました',
   [ErrorCodes.SETTINGS.SAVE_FAILED]: '設定の保存に失敗しました',
-  [ErrorCodes.AGENT.INITIALIZATION_FAILED]: 'エージェントの初期化に失敗しました',
+  [ErrorCodes.AGENT.INITIALIZATION_FAILED]:
+    'エージェントの初期化に失敗しました',
   [ErrorCodes.AGENT.EXECUTION_FAILED]: 'エージェントの実行に失敗しました',
 } as const;
 

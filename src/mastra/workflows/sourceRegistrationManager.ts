@@ -87,55 +87,6 @@ export default class SourceRegistrationManager {
   }
 
   /**
-   * 指定したファイルのみを登録する
-   */
-  public static async registerFile(filePath: string): Promise<void> {
-    try {
-      // ファイルの存在確認
-      await fs.access(filePath);
-
-      // ステータスを更新中に設定
-      const manager = SourceRegistrationManager.getInstance();
-      await manager.updateSourceStatus(filePath, 'processing');
-
-      // ファイルからテキストを抽出
-      const content = await FileExtractor.extractText(filePath);
-
-      // ワークフローを開始
-      const run = sourceRegistrationWorkflow.createRun();
-      const result = await run.start({ triggerData: { filePath, content } });
-
-      // 失敗したステップがあるか確認
-      const failedSteps = Object.entries(result.results).filter(
-        ([, value]) =>
-          value.status === 'failed' ||
-          // @ts-ignore
-          value.output?.status === 'failed',
-      );
-
-      if (failedSteps.length > 0) {
-        const error = `ワークフローに失敗したステップがあります: ${failedSteps.join(
-          ', ',
-        )}`;
-        await manager.updateSourceStatus(filePath, 'failed', error);
-        await manager.saveProcessingResult(filePath, false, error);
-        console.error(error);
-      } else {
-        await manager.updateSourceStatus(filePath, 'completed');
-        await manager.saveProcessingResult(filePath, true);
-        console.log(`ファイルを登録しました: ${filePath}`);
-      }
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : 'Unknown error occurred';
-      const manager = SourceRegistrationManager.getInstance();
-      await manager.updateSourceStatus(filePath, 'failed', errorMessage);
-      await manager.saveProcessingResult(filePath, false, errorMessage);
-      console.error(`ファイル登録に失敗しました: ${filePath}`, error);
-    }
-  }
-
-  /**
    * ディレクトリ内の全てのファイルを登録
    */
   public async registerAllFiles(excludeRegisteredFile = true): Promise<void> {
@@ -214,21 +165,41 @@ export default class SourceRegistrationManager {
                 triggerData: { filePath, content },
               });
 
-              // 失敗したステップがあるか確認
-              const failedSteps = Object.entries(result.results).filter(
-                // eslint-disable-next-line
-                ([_, value]) =>
-                  value.status === 'failed' ||
-                  // @ts-ignore
-                  value.output?.status === 'failed',
-              );
+              // 失敗したステップを収集
+              const failedSteps = Object.entries(result.results)
+                .filter(
+                  ([, value]) =>
+                    value.status === 'failed' ||
+                    // @ts-ignore
+                    value.output?.status === 'failed',
+                )
+                .map(([step, outputObj]) => {
+                  return {
+                    step,
+                    stepStatus: outputObj.status,
+                    // @ts-ignore
+                    errorMessage: outputObj.output?.errorMessage,
+                  };
+                });
 
               if (failedSteps.length > 0) {
-                const error = `ワークフローに失敗したステップがあります: ${failedSteps.join(
-                  ', ',
-                )}`;
-                await this.updateSourceStatus(filePath, 'failed', error);
-                resultList.push({ success: false, filePath, error });
+                const errorMessages = failedSteps
+                  .filter((step) => step.stepStatus === 'success')
+                  .map(
+                    (step) =>
+                      `${step.step}: ${step.errorMessage || '不明なエラー'}`,
+                  )
+                  .join('\n\n');
+                await this.updateSourceStatus(
+                  filePath,
+                  'failed',
+                  errorMessages,
+                );
+                resultList.push({
+                  success: false,
+                  filePath,
+                  error: errorMessages,
+                });
                 return resultList;
               }
 

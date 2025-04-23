@@ -13,7 +13,7 @@ interface SidebarProps {
   onRoomSelect: (roomId: string) => void;
   onCreateRoom: () => void;
   onSettingsClick: () => void;
-  onReloadSources: () => void;
+  onReloadSources: () => void; // ソース読み込み処理を実行する関数
 }
 
 function Sidebar({
@@ -134,7 +134,7 @@ function Sidebar({
 
       <SidebarFooter
         onSettingsClick={onSettingsClick}
-        onReloadSources={() => setIsSourceListOpen(true)}
+        onOpenSourceList={() => setIsSourceListOpen(true)}
       />
 
       {/* ソース一覧モーダル */}

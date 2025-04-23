@@ -126,7 +126,9 @@ function SettingsModal({
                 fullWidth
                 label="データベースパス"
                 value={settings.database.dir}
-                onChange={(e) => handleChange('database', 'dir', e.target.value)}
+                onChange={(e) =>
+                  handleChange('database', 'dir', e.target.value)
+                }
                 margin="normal"
                 variant="outlined"
               />
