@@ -27,11 +27,12 @@ const baseStepOutputSchema = z.object({
   errorMessage: z.string().optional(),
 });
 
-// ソース分析のステップ
+// ソース分析と登録のステップ
 const analyzeSourceStep = new Step({
   id: 'analyzeSourceStep',
-  description: 'ソース文書を分析し、タイトルと要約を生成する',
+  description: 'ソース文書を分析し、タイトルと要約を生成してDBに登録する',
   outputSchema: baseStepOutputSchema.extend({
+    sourceId: z.number(),
     title: z.string(),
     summary: z.string(),
   }),
@@ -41,11 +42,34 @@ const analyzeSourceStep = new Step({
 
     // 結果の初期値
     let status: stepStatus = 'failed';
+    let sourceId = -1;
     let title = '';
     let summary = '';
     let errorMessage: string | undefined;
 
+    const db = await getDb();
+
     try {
+      // まず初期レコードを作成
+      const insertResult = await db
+        .insert(sources)
+        .values({
+          path: filePath,
+          title: '', // 一時的な空の値
+          summary: '', // 一時的な空の値
+          status: 'processing' as const,
+        })
+        .onConflictDoUpdate({
+          target: sources.path,
+          set: {
+            status: 'processing' as const,
+            error: null,
+          },
+        })
+        .returning({ id: sources.id });
+
+      sourceId = insertResult[0].id;
+
       // LLMを使用してタイトルと要約を生成
       const summarizeSourceAgent = new Agent({
         name: 'summarizeSourceAgent',
@@ -62,9 +86,20 @@ const analyzeSourceStep = new Step({
         output: outputSchema,
       });
 
-      status = 'success';
       title = analysisResult.object.title;
       summary = analysisResult.object.summary;
+
+      // 成功時の更新
+      await db
+        .update(sources)
+        .set({
+          title,
+          summary,
+          error: null,
+        })
+        .where(eq(sources.id, sourceId));
+
+      status = 'success';
     } catch (error) {
       const errorDetail =
         error instanceof Error ? error.message : '不明なエラー';
@@ -72,74 +107,16 @@ const analyzeSourceStep = new Step({
       console.error(errorMessage);
 
       // DBにエラー情報を更新
-      const db = await getDb();
       await db
         .update(sources)
-        .set({ status: 'failed', error: errorMessage })
-        .where(eq(sources.path, filePath));
-    }
-
-    return {
-      title,
-      summary,
-      status,
-      errorMessage,
-    };
-  },
-});
-
-// ソース情報をデータベースに登録するステップ
-const registerSourceStep = new Step({
-  id: 'registerSourceStep',
-  description: 'ソース情報をデータベースに登録する',
-  outputSchema: baseStepOutputSchema.extend({
-    sourceId: z.number(),
-  }),
-  execute: async ({ context }) => {
-    const { filePath } = context.triggerData;
-    const { title, summary } = context.getStepResult('analyzeSourceStep')!;
-
-    // 結果の初期値
-    let status: stepStatus = 'failed';
-    let sourceId = -1;
-    let errorMessage: string | undefined;
-
-    try {
-      const db = await getDb();
-      const insertResult = await db
-        .insert(sources)
-        .values({
-          path: filePath,
-          title,
-          summary,
-        })
-        .onConflictDoUpdate({
-          target: sources.path,
-          set: {
-            title,
-            summary,
-          },
-        })
-        .returning({ id: sources.id });
-
-      sourceId = insertResult[0].id;
-      status = 'success';
-    } catch (error) {
-      const errorDetail =
-        error instanceof Error ? error.message : '不明なエラー';
-      errorMessage = `ソース登録でエラーが発生しました: ${errorDetail}`;
-      console.error(errorMessage);
-
-      // DBにエラー情報を更新
-      const db = await getDb();
-      await db
-        .update(sources)
-        .set({ status: 'failed', error: errorMessage })
-        .where(eq(sources.path, filePath));
+        .set({ status: 'failed' as const, error: errorMessage })
+        .where(eq(sources.id, sourceId));
     }
 
     return {
       sourceId,
+      title,
+      summary,
       status,
       errorMessage,
     };
@@ -156,7 +133,7 @@ const extractTopicsStep = new Step({
   }),
   execute: async ({ context }) => {
     const { content } = context.triggerData;
-    const { sourceId } = context.getStepResult('registerSourceStep')!;
+    const { sourceId } = context.getStepResult('analyzeSourceStep')!;
 
     // 結果の初期値
     let status: stepStatus = 'failed';
@@ -190,8 +167,11 @@ const extractTopicsStep = new Step({
       const db = await getDb();
       await db
         .update(sources)
-        .set({ status: 'failed', error: errorMessage })
-        .where(eq(sources.path, sourceId));
+        .set({
+          status: 'failed' as const,
+          error: errorMessage,
+        })
+        .where(eq(sources.id, sourceId));
     }
 
     return {
@@ -248,6 +228,15 @@ const generateTopicSummariesStep = new Step({
       );
       // トピックをデータベースに登録
       await db.insert(dbTopics).values(summaries);
+
+      // 成功時の更新
+      await db
+        .update(sources)
+        .set({
+          status: 'completed' as const,
+          error: null,
+        })
+        .where(eq(sources.id, sourceId));
       status = 'success';
     } catch (error) {
       const errorDetail =
@@ -259,7 +248,10 @@ const generateTopicSummariesStep = new Step({
       const db = await getDb();
       await db
         .update(sources)
-        .set({ status: 'failed', error: errorMessage })
+        .set({
+          status: 'failed' as const,
+          error: errorMessage,
+        })
         .where(eq(sources.path, sourceId));
     }
 
@@ -280,14 +272,9 @@ export const sourceRegistrationWorkflow = new Workflow({
 // eslint-disable-next-line
 sourceRegistrationWorkflow
   .step(analyzeSourceStep)
-  .then(registerSourceStep, {
-    when: {
-      'analyzeSourceStep.status': 'success',
-    },
-  })
   .then(extractTopicsStep, {
     when: {
-      'registerSourceStep.status': 'success',
+      'analyzeSourceStep.status': 'success',
     },
   })
   .then(generateTopicSummariesStep, {

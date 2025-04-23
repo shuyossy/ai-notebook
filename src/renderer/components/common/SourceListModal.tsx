@@ -174,8 +174,8 @@ function SourceListModal({
           <Table>
             <TableHead>
               <TableRow>
+                <TableCell>ファイルパス</TableCell>
                 <TableCell>タイトル</TableCell>
-                <TableCell>パス</TableCell>
                 <TableCell>ステータス</TableCell>
                 <TableCell>最終更新</TableCell>
               </TableRow>
@@ -190,8 +190,8 @@ function SourceListModal({
                       source.status === 'failed' ? 'error.lighter' : 'inherit',
                   }}
                 >
-                  <TableCell>{source.title}</TableCell>
                   <TableCell>{source.path}</TableCell>
+                  <TableCell>{source.title}</TableCell>
                   <TableCell>
                     {getStatusIcon(source.status)}
                     {source.error && (
