@@ -4,7 +4,6 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  Button,
   IconButton,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
@@ -23,7 +22,7 @@ const Modal: React.FC<ModalProps> = ({
   title,
   onClose,
   children,
-  actions,
+  actions = undefined,
   maxWidth = 'sm',
 }) => {
   return (

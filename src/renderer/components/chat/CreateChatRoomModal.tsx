@@ -8,7 +8,7 @@ import {
 } from '@mui/material';
 import Modal from '../common/Modal';
 import { ChatRoom } from '../../types';
-import chatService from '../../services/chatService';
+import { chatService } from '../../services/chatService';
 
 interface CreateChatRoomModalProps {
   open: boolean;

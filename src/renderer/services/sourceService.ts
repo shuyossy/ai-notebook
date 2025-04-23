@@ -46,6 +46,7 @@ export const sourceService = {
       // 実際にはIPC通信を使用してメインプロセスに再読み込みを要求する
       // ここではモックとして成功レスポンスを返す
       return { success: true, message: 'ソースの再読み込みが完了しました' };
+      // eslint-disable-next-line
     } catch (error) {
       return {
         success: false,

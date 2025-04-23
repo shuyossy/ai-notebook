@@ -21,7 +21,7 @@ const theme = createTheme({
   palette: {
     primary: {
       main: '#3f51b5',
-      lighter: '#e8eaf6',
+      light: '#e8eaf6',
     },
     secondary: {
       main: '#f50057',
@@ -123,7 +123,7 @@ function App() {
   };
 
   // 設定更新完了ハンドラ
-  const handleSettingsUpdated = (settings: Settings) => {
+  const handleSettingsUpdated = (_settings: Settings) => {
     showSnackbar('設定を更新しました', 'success');
   };
 
