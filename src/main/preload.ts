@@ -23,6 +23,18 @@ const electronHandler = {
     sendMessage: async (roomId: string, message: string) => {
       return ipcRenderer.invoke('chat-send-message', { roomId, message });
     },
+    // チャットルーム一覧を取得する
+    getRooms: async () => {
+      return ipcRenderer.invoke('chat-get-rooms');
+    },
+    // チャットメッセージ履歴を取得する
+    getMessages: async (threadId: string) => {
+      return ipcRenderer.invoke('chat-get-messages', threadId);
+    },
+    // チャットルームを削除する
+    deleteRoom: async (threadId: string) => {
+      return ipcRenderer.invoke('chat-delete-room', threadId);
+    },
     // AIの応答を取得する（ストリーミング）
     onStream: (callback: (chunk: string) => void) => {
       const subscription = (_event: IpcRendererEvent, chunk: string) => {
@@ -41,6 +53,16 @@ const electronHandler = {
       ipcRenderer.on('chat-complete', subscription);
       return () => {
         ipcRenderer.removeListener('chat-complete', subscription);
+      };
+    },
+    // ツール実行ステップ完了イベント
+    onStep: (callback: (step: any) => void) => {
+      const subscription = (_event: IpcRendererEvent, step: any) => {
+        callback(step);
+      };
+      ipcRenderer.on('chat-step', subscription);
+      return () => {
+        ipcRenderer.removeListener('chat-step', subscription);
       };
     },
     // エラーイベント

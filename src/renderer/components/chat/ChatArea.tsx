@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Box, Typography, Divider } from '@mui/material';
 import MessageList from './MessageList';
 import MessageInput from './MessageInput';
@@ -13,7 +13,8 @@ function ChatArea({ selectedRoomId }: ChatAreaProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
-  const [streamingMessage, setStreamingMessage] = useState<string | null>(null);
+  const [streamingMessage, setStreamingMessage] = useState<string>('');
+  const streamingMessageRef = useRef<string>(streamingMessage);
   const [currentRoom, setCurrentRoom] = useState<ChatRoom | null>(null);
 
   // メッセージを取得
@@ -36,6 +37,61 @@ function ChatArea({ selectedRoomId }: ChatAreaProps) {
     }
   };
 
+  // チャットルームのストリーミングメッセージを更新するためのコールバック関数を登録
+  useEffect(() => {
+    // 現在のチャットルーム情報をリフレッシュ
+    const refreshCurrentRoomInfo = async () => {
+      if (!selectedRoomId) return;
+
+      try {
+        const rooms = await chatService.getChatRooms();
+        const room = rooms.find((r) => r.id === selectedRoomId);
+        if (room) {
+          setCurrentRoom(room);
+        }
+      } catch (error) {
+        console.error('チャットルーム情報の更新に失敗しました:', error);
+      }
+    };
+
+    const unsubscribeCallback = chatService.streamResponse({
+      onMessage: (chunk) => {
+        setStreamingMessage((prev) => prev + chunk);
+        streamingMessageRef.current += chunk;
+      },
+      onDone: () => {
+        // 完了したらメッセージリストに追加
+        setStreamingMessage('');
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: '',
+            roomId: selectedRoomId || '',
+            role: 'assistant',
+            content: streamingMessageRef.current,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          },
+        ]);
+
+        // チャットルーム一覧の情報が更新されている可能性があるので、現在のルーム情報も取得
+        refreshCurrentRoomInfo();
+        setSending(false);
+      },
+      onError: (error) => {
+        console.error('AI応答の取得に失敗しました:', error);
+        setStreamingMessage('');
+        setSending(false);
+      },
+    });
+    return () => {
+      setStreamingMessage('');
+      setSending(false);
+      unsubscribeCallback();
+    };
+    // eslint-disable-next-line
+  }, [selectedRoomId]);
+
   // チャットルームが選択されたらそのメッセージを取得
   useEffect(() => {
     if (selectedRoomId) {
@@ -47,34 +103,15 @@ function ChatArea({ selectedRoomId }: ChatAreaProps) {
   }, [selectedRoomId]);
 
   // メッセージを送信
-  const handleSendMessage = async (content: string) => {
+  const handleSendMessage = (content: string) => {
     if (!selectedRoomId) return;
 
     setSending(true);
+    setStreamingMessage('');
     try {
       // ユーザーメッセージを送信
-      const userMessage = await chatService.sendMessage(
-        selectedRoomId,
-        content,
-      );
+      const userMessage = chatService.sendMessage(selectedRoomId, content);
       setMessages((prev) => [...prev, userMessage]);
-
-      // AIの応答をストリーミングで取得
-      setStreamingMessage('');
-      await chatService.streamResponse(selectedRoomId, userMessage.id, {
-        onMessage: (chunk) => {
-          setStreamingMessage(chunk);
-        },
-        onDone: (message) => {
-          // 完了したらメッセージリストに追加
-          setStreamingMessage(null);
-          setMessages((prev) => [...prev, message]);
-        },
-        onError: (error) => {
-          console.error('AI応答の取得に失敗しました:', error);
-          setStreamingMessage(null);
-        },
-      });
     } catch (error) {
       console.error('メッセージの送信に失敗しました:', error);
     } finally {

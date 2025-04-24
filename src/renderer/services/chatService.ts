@@ -1,19 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import { ChatMessage, ChatRoom } from '../types';
 
-// モックのチャットルーム
-const mockChatRooms: ChatRoom[] = [
-  {
-    id: uuidv4(),
-    title: 'サンプルチャット1',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-];
-
-// モックのチャットメッセージ
-let mockChatMessages: ChatMessage[] = [];
-
 // IPC通信を使用してメインプロセスのAIエージェントへメッセージを送信するためのチャットサービス
 export const chatService = {
   /**
@@ -21,24 +8,14 @@ export const chatService = {
    * @returns チャットルーム配列
    */
   getChatRooms: async (): Promise<ChatRoom[]> => {
-    // 実際にはIPCを使用してメインプロセスから取得する
-    return mockChatRooms;
-  },
-
-  /**
-   * 新しいチャットルームを作成
-   * @param title チャットルームのタイトル
-   * @returns 作成されたチャットルーム
-   */
-  createChatRoom: async (title: string): Promise<ChatRoom> => {
-    const newRoom: ChatRoom = {
-      id: uuidv4(),
-      title,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    mockChatRooms.push(newRoom);
-    return newRoom;
+    try {
+      // IPCを使用してメインプロセスから取得
+      const rooms = await window.electron.chat.getRooms();
+      return rooms || [];
+    } catch (error) {
+      console.error('チャットルーム一覧の取得に失敗しました:', error);
+      return [];
+    }
   },
 
   /**
@@ -46,13 +23,12 @@ export const chatService = {
    * @param roomId チャットルームID
    */
   deleteChatRoom: async (roomId: string): Promise<void> => {
-    const index = mockChatRooms.findIndex((room) => room.id === roomId);
-    if (index !== -1) {
-      mockChatRooms.splice(index, 1);
-      // チャットルームに関連するメッセージも削除
-      mockChatMessages = mockChatMessages.filter(
-        (message) => message.roomId !== roomId,
-      );
+    try {
+      // IPCを使用してメインプロセスから削除
+      await window.electron.chat.deleteRoom(roomId);
+    } catch (error) {
+      console.error('チャットルームの削除に失敗しました:', error);
+      throw error;
     }
   },
 
@@ -62,7 +38,14 @@ export const chatService = {
    * @returns メッセージ配列
    */
   getChatMessages: async (roomId: string): Promise<ChatMessage[]> => {
-    return mockChatMessages.filter((message) => message.roomId === roomId);
+    try {
+      // IPCを使用してメインプロセスから取得
+      const messages = await window.electron.chat.getMessages(roomId);
+      return messages || [];
+    } catch (error) {
+      console.error('チャットメッセージの取得に失敗しました:', error);
+      return [];
+    }
   },
 
   /**
@@ -71,11 +54,8 @@ export const chatService = {
    * @param content メッセージ内容
    * @returns 送信結果
    */
-  sendMessage: async (
-    roomId: string,
-    content: string,
-  ): Promise<ChatMessage> => {
-    // ユーザーメッセージを保存
+  sendMessage: (roomId: string, content: string): ChatMessage => {
+    // ユーザーメッセージを作成
     const userMessage: ChatMessage = {
       id: uuidv4(),
       roomId,
@@ -84,63 +64,74 @@ export const chatService = {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
-    mockChatMessages.push(userMessage);
 
-    // ここでメインプロセスへのIPC通信が行われる（実際の実装時）
-    // 今はモックとして簡単な応答を返す
-    return userMessage;
+    try {
+      // このメソッドではメッセージ送信の開始だけを行い、
+      // 実際の応答はstreamResponseメソッドで非同期に取得する
+      window.electron.chat.sendMessage(roomId, content);
+      return userMessage;
+    } catch (error) {
+      console.error('メッセージの送信に失敗しました:', error);
+      throw error;
+    }
   },
 
   /**
    * ストリーミングでAIからの応答を取得
-   * @param roomId チャットルームID
-   * @param userMessageId ユーザーメッセージID
    * @param callbacks コールバック関数群
    */
-  streamResponse: async (
-    roomId: string,
-    userMessageId: string,
-    callbacks: {
-      onMessage: (chunk: string) => void;
-      onDone: (message: ChatMessage) => void;
-      onError: (error: Error) => void;
-    },
-  ): Promise<void> => {
-    try {
-      // モックのストリーミング応答（実際にはIPCでイベントリスナーを設定する）
-      const fullResponse =
-        'これはAIエージェントからのモック応答です。実際の実装ではMastraエージェントとの対話が行われます。';
+  streamResponse: (callbacks: {
+    onMessage: (chunk: string) => void;
+    onDone: () => void;
+    onError: (error: Error) => void;
+  }): (() => void) => {
+    // ストリーミングイベントの購読
+    const unsubscribeStream = window.electron.chat.onStream((chunk) => {
+      callbacks.onMessage(chunk);
+    });
 
-      // 応答をストリーミングするシミュレーション
-      let accumulated = '';
-      const words = fullResponse.split(' ');
+    // ツール実行ステップイベントの購読
+    const unsubscribeStep = window.electron.chat.onStep((step) => {
+      // 必要に応じてステップ情報を処理
+      console.log('ツール実行ステップ:', step);
+    });
 
-      // for...of ループの代わりに従来のforループを使用
-      for (let i = 0; i < words.length; i += 1) {
-        accumulated = `${accumulated}${words[i]} `;
-        callbacks.onMessage(accumulated);
-        // 単語ごとに少し待機してストリーミングを模倣
-        // eslint-disable-next-line no-await-in-loop
-        await new Promise((resolve) => {
-          setTimeout(resolve, 100);
-        });
-      }
+    // 完了イベントの購読
+    const unsubscribeComplete = window.electron.chat.onComplete(
+      // eslint-disable-next-line
+      ({ text, finishReason }) => {
+        // 購読を解除
+        unsubscribeStream();
+        unsubscribeStep();
+        unsubscribeComplete();
+        // eslint-disable-next-line
+        unsubscribeError();
 
-      // 完了時にメッセージを保存
-      const assistantMessage: ChatMessage = {
-        id: uuidv4(),
-        roomId,
-        role: 'assistant',
-        content: fullResponse,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-      mockChatMessages.push(assistantMessage);
+        // 完了コールバックを呼び出し
+        callbacks.onDone();
+      },
+    );
 
-      callbacks.onDone(assistantMessage);
-    } catch (error) {
-      callbacks.onError(error as Error);
-    }
+    // エラーイベントの購読
+    const unsubscribeError = window.electron.chat.onError((error) => {
+      // 購読を解除
+      unsubscribeStream();
+      unsubscribeStep();
+      unsubscribeComplete();
+      unsubscribeError();
+
+      // エラーコールバックを呼び出し
+      callbacks.onError(
+        new Error(error.message || '不明なエラーが発生しました'),
+      );
+    });
+    // 購読解除のためのクリーンアップ
+    return () => {
+      unsubscribeStream();
+      unsubscribeStep();
+      unsubscribeComplete();
+      unsubscribeError();
+    };
   },
 };
 

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Box, Menu, MenuItem, Divider } from '@mui/material';
+import { v4 as uuidv4 } from 'uuid';
 import SourceListModal from '../common/SourceListModal';
 import { ChatRoom } from '../../types/schema';
 import { chatService } from '../../services/chatService';
@@ -11,7 +12,6 @@ import SidebarFooter from './SidebarFooter';
 interface SidebarProps {
   selectedRoomId: string | null;
   onRoomSelect: (roomId: string) => void;
-  onCreateRoom: () => void;
   onSettingsClick: () => void;
   onReloadSources: () => void; // ソース読み込み処理を実行する関数
 }
@@ -19,7 +19,6 @@ interface SidebarProps {
 function Sidebar({
   selectedRoomId,
   onRoomSelect,
-  onCreateRoom,
   onSettingsClick,
   onReloadSources,
 }: SidebarProps) {
@@ -82,6 +81,15 @@ function Sidebar({
     }
   };
 
+  // 新しいチャットを開始
+  const handleNewChat = () => {
+    // 新しいUUIDを生成してルームIDとして使用
+    const newRoomId = uuidv4();
+    // 選択状態を更新
+    onRoomSelect(newRoomId);
+    // モーダルは表示せず、すぐにチャット画面に遷移
+  };
+
   // チャットルーム一覧の更新をトリガーする関数
   const refreshChatRooms = useCallback(() => {
     fetchChatRooms();
@@ -89,7 +97,7 @@ function Sidebar({
 
   // チャットルーム一覧の定期更新
   useEffect(() => {
-    const interval = setInterval(refreshChatRooms, 1000);
+    const interval = setInterval(refreshChatRooms, 5000);
     return () => clearInterval(interval);
   }, [refreshChatRooms]);
 
@@ -105,7 +113,7 @@ function Sidebar({
         borderColor: 'divider',
       }}
     >
-      <SidebarHeader onCreateRoom={onCreateRoom} />
+      <SidebarHeader onCreateRoom={handleNewChat} />
       <Divider />
 
       {/* チャットルーム一覧 */}

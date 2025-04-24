@@ -12,8 +12,6 @@ import Sidebar from './components/sidebar/Sidebar';
 import ChatArea from './components/chat/ChatArea';
 import SettingsModal from './components/common/SettingsModal';
 import SnackbarNotification from './components/common/SnackbarNotification';
-import CreateChatRoomModal from './components/chat/CreateChatRoomModal';
-import { ChatRoom } from './types';
 import { sourceService } from './services/sourceService';
 
 // テーマの設定
@@ -58,7 +56,6 @@ const theme = createTheme({
 function App() {
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
-  const [isCreateRoomModalOpen, setIsCreateRoomModalOpen] = useState(false);
   const [snackbar, setSnackbar] = useState<{
     open: boolean;
     message: string;
@@ -72,11 +69,6 @@ function App() {
   // チャットルーム選択ハンドラ
   const handleRoomSelect = (roomId: string) => {
     setSelectedRoomId(roomId);
-  };
-
-  // チャットルーム作成ハンドラ
-  const handleCreateRoom = () => {
-    setIsCreateRoomModalOpen(true);
   };
 
   // 設定ボタンクリックハンドラ
@@ -116,12 +108,6 @@ function App() {
     }
   };
 
-  // チャットルーム作成完了ハンドラ
-  const handleRoomCreated = (room: ChatRoom) => {
-    setSelectedRoomId(room.id);
-    showSnackbar('チャットルームを作成しました', 'success');
-  };
-
   // 設定更新完了ハンドラ
   const handleSettingsUpdated = () => {
     showSnackbar('設定を更新しました', 'success');
@@ -150,7 +136,6 @@ function App() {
                 <Sidebar
                   selectedRoomId={selectedRoomId}
                   onRoomSelect={handleRoomSelect}
-                  onCreateRoom={handleCreateRoom}
                   onSettingsClick={handleSettingsClick}
                   onReloadSources={handleReloadSources}
                 />
@@ -163,12 +148,6 @@ function App() {
                   open={isSettingsModalOpen}
                   onClose={() => setIsSettingsModalOpen(false)}
                   onSettingsUpdated={handleSettingsUpdated}
-                />
-
-                <CreateChatRoomModal
-                  open={isCreateRoomModalOpen}
-                  onClose={() => setIsCreateRoomModalOpen(false)}
-                  onRoomCreated={handleRoomCreated}
                 />
 
                 {/* 通知 */}

@@ -12,6 +12,9 @@ import path from 'path';
 import { app, BrowserWindow, shell, ipcMain } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import log from 'electron-log';
+import { Mastra } from '@mastra/core';
+import { createLogger } from '@mastra/core/logger';
+import { maskStreamTags } from '@mastra/core/utils';
 import { type Source } from '../db/schema';
 import { sources } from '../db/schema';
 import getDb, { initializeDb } from '../db';
@@ -28,6 +31,51 @@ class AppUpdater {
     autoUpdater.checkForUpdatesAndNotify();
   }
 }
+
+// Mastraのインスタンスを保持する変数
+let mastraInstance: Mastra | null = null;
+
+/**
+ * Mastraインスタンスを取得する関数
+ * @returns Mastraインスタンス
+ */
+const getMastra = (): Mastra => {
+  if (!mastraInstance) {
+    throw new Error('Mastraインスタンスが初期化されていません');
+  }
+  return mastraInstance;
+};
+
+/**
+ * Mastraの初期化を行う関数
+ * 環境に応じたログレベルを設定し、オーケストレーターエージェントを登録する
+ */
+const initializeMastra = async (): Promise<void> => {
+  try {
+    // 開発環境か本番環境かによってログレベルを切り替え
+    const logLevel = process.env.NODE_ENV === 'production' ? 'info' : 'debug';
+
+    // ロガーの作成
+    const logger = createLogger({
+      name: 'MyPedia',
+      level: logLevel,
+    });
+
+    // オーケストレーターエージェントを取得
+    const orchestratorAgent = getOrchestrator();
+
+    // Mastraインスタンスを初期化
+    mastraInstance = new Mastra({
+      agents: { orchestratorAgent },
+      logger,
+    });
+
+    console.log('Mastraインスタンスの初期化が完了しました');
+  } catch (error) {
+    console.error('Mastraの初期化に失敗しました:', error);
+    throw error;
+  }
+};
 
 // ストアのIPC通信ハンドラーを設定
 const setupStoreHandlers = () => {
@@ -48,12 +96,23 @@ const setupChatHandlers = () => {
   // メッセージ送信ハンドラ
   ipcMain.handle('chat-send-message', async (event, { roomId, message }) => {
     try {
-      // AIエージェントにメッセージを送信
-      const orchInstance = getOrchestrator();
-      const stream = await orchInstance.stream(message, {
-        resourceId: 'user', // 実際の実装ではユーザーIDを使用
+      // Mastraインスタンスからオーケストレーターエージェントを取得
+      const mastra = getMastra();
+      const orchestratorAgent = mastra.getAgent('orchestratorAgent');
+
+      // メッセージをストリーミングで送信
+      const stream = await orchestratorAgent.stream(message, {
+        resourceId: 'user', // 固定のリソースID
         threadId: roomId, // チャットルームIDをスレッドIDとして使用
         maxSteps: 30, // ツールの利用上限
+        onFinish: ({ text, finishReason }) => {
+          // ストリーミングが完了したときの処理
+          // フロントエンドに完了通知を送信
+          event.sender.send('chat-complete', {
+            text,
+            finishReason,
+          });
+        },
         onStepFinish: ({
           text,
           toolCalls,
@@ -62,21 +121,33 @@ const setupChatHandlers = () => {
           toolCalls: any[];
         }) => {
           // ステップ完了ごとにフロントエンドに進捗を通知
+          // ツール呼び出し情報も含めて送信
           event.sender.send('chat-step', { text, toolCalls });
         },
       });
 
-      // ストリーミング処理は可能な限りシンプルに実装
+      // テキストストリームを処理
       try {
-        event.sender.send('chat-stream', await stream.text);
+        // ライフサイクルフックを追加してUIフィードバックを提供する
+        const maskedStream = maskStreamTags(
+          stream.textStream,
+          'working_memory',
+          {
+            // working_memoryタグが開始されたときに呼び出される
+            onStart: () => console.debug('作業メモリ更新中...'),
+            // working_memoryタグが終了したときに呼び出される
+            onEnd: () => console.debug('作業メモリの更新が完了しました'),
+            // マスクされたコンテンツと共に呼び出される
+            onMask: (chunk) => console.debug('更新された作業メモリ:', chunk),
+          },
+        );
+        for await (const chunk of maskedStream) {
+          // チャンクをフロントエンドに送信
+          event.sender.send('chat-stream', chunk);
+        }
       } catch (streamError) {
         console.error('ストリーミング処理中にエラーが発生:', streamError);
       }
-
-      // 完了通知
-      event.sender.send('chat-complete', {
-        text: await stream.text,
-      });
 
       return { success: true };
     } catch (error) {
@@ -84,6 +155,76 @@ const setupChatHandlers = () => {
       event.sender.send('chat-error', {
         message: `エラーが発生しました: ${(error as Error).message}`,
       });
+      return { success: false, error: (error as Error).message };
+    }
+  });
+
+  // チャットルーム一覧取得ハンドラ
+  ipcMain.handle('chat-get-rooms', async () => {
+    try {
+      const mastra = getMastra();
+      // マスターエージェントからメモリを取得（オーケストレーターエージェントを使用）
+      const orchestratorAgent = mastra.getAgent('orchestratorAgent');
+
+      // メモリのスレッド一覧を取得
+      const threads = await orchestratorAgent
+        .getMemory()
+        ?.getThreadsByResourceId({
+          resourceId: 'user',
+        });
+
+      if (!threads) {
+        return [];
+      }
+
+      // スレッドをチャットルーム形式に変換
+      return threads.map((thread) => ({
+        id: thread.id,
+        title: thread.title || '新しいチャット',
+        createdAt: new Date(thread.createdAt).toISOString(),
+        updatedAt: new Date(thread.updatedAt).toISOString(),
+      }));
+    } catch (error) {
+      console.error('チャットルーム一覧の取得中にエラーが発生:', error);
+      return [];
+    }
+  });
+
+  // チャットメッセージ履歴取得ハンドラ
+  ipcMain.handle('chat-get-messages', async (_, threadId: string) => {
+    try {
+      const mastra = getMastra();
+      const orchestratorAgent = mastra.getAgent('orchestratorAgent');
+
+      // スレッド内のメッセージを取得
+      const result = await orchestratorAgent.getMemory()?.query({ threadId });
+
+      if (!result) {
+        return [];
+      }
+
+      const { uiMessages } = result;
+
+      // メッセージをチャットメッセージ形式に変換
+      return uiMessages;
+    } catch (error) {
+      console.error('チャットメッセージの取得中にエラーが発生:', error);
+      return [];
+    }
+  });
+
+  // チャットルーム削除ハンドラ
+  ipcMain.handle('chat-delete-room', async (_, threadId: string) => {
+    try {
+      const mastra = getMastra();
+      const orchestratorAgent = mastra.getAgent('orchestratorAgent');
+
+      // スレッドを削除
+      await orchestratorAgent.getMemory()?.deleteThread(threadId);
+
+      return { success: true };
+    } catch (error) {
+      console.error('チャットルームの削除中にエラーが発生:', error);
       return { success: false, error: (error as Error).message };
     }
   });
@@ -242,10 +383,11 @@ app.on('window-all-closed', () => {
 const initialize = async () => {
   createWindow();
   await initStore();
+  await initializeDb();
+  await initializeMastra(); // Mastraの初期化を追加
   setupStoreHandlers();
   setupChatHandlers();
   setupSourceHandlers();
-  await initializeDb();
   await initializeSourceRegistration();
 };
 

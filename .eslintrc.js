@@ -24,6 +24,13 @@ module.exports = {
         unnamedComponents: ['arrow-function', 'function-expression'],
       },
     ],
+    'no-restricted-syntax': [
+      'error',
+      {
+        selector: 'ForAwaitStatement',
+        message: 'async iterator は重いため使用非推奨です',
+      },
+    ],
   },
   parserOptions: {
     ecmaVersion: 2022,
