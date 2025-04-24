@@ -23,14 +23,7 @@ import {
   Help as UnknownIcon,
 } from '@mui/icons-material';
 
-export interface Source {
-  id: number;
-  path: string;
-  title: string;
-  status: 'idle' | 'processing' | 'completed' | 'failed';
-  error?: string | null;
-  updatedAt: string;
-}
+import { Source } from '../../types';
 
 interface SourceListModalProps {
   open: boolean;

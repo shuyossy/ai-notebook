@@ -28,6 +28,36 @@ export const getOrchestrator = (): Agent => {
       memoryConfig: {
         lastMessages: 40,
         semanticRecall: false,
+        threads: {
+          generateTitle: true,
+        },
+        workingMemory: {
+          enabled: true,
+          use: 'text-stream',
+          tmplate: `
+# ユーザの質問内容
+## 質問内容
+- 例: javaの特徴は？どのような開発案件で利用されますか？
+## キーワード
+- 例: javaの特徴
+- 例: 開発案件
+# 作業手順
+- 例: javaの特徴を調べるために、ソースを検索する
+- 例: javaがどのような開発案件で利用されているか、ソースを検索する
+# 作業メモ
+- 例: javaの特徴
+  - 例: javaはオブジェクト指向プログラミング言語であり、プラットフォームに依存しない
+  - 例: javaはオープンソースであり、広く使用されている
+- 例: javaと開発案件
+  - 例: javaはWebアプリケーション開発やAndroidアプリ開発に利用されることが多い
+  - 例: javaは大規模なエンタープライズシステムでも使用される
+# 回答メモ
+- 例: まず、javaの特徴を以下に挙げます
+  - 例: javaはオブジェクト指向プログラミング言語であり、プラットフォームに依存しない
+  - 例: javaはオープンソースであり、広く使用されている  
+- 例: 次にjavaと開発案件についてですが、javaは以下のような開発案件で利用されます...
+`,
+        },
       },
     });
 

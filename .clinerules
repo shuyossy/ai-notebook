@@ -3,6 +3,7 @@
 - UIはElectronとReact、バックエンドはMastraをベースに開発する
 
 # 実装上の注意
+- プロジェクト全体を把握して、全ての実装が必要箇所を正しく洗い出してから実装すること
 - UIは実際に市場に投入できるくらいレベルの高い、スタイリッシュなUIにすること
 - TypeScriptやzodを用いた型安全なコードを意識すること
 - electronについてはelectron-react-boilerplateのテンプレートを適用済み

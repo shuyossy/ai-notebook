@@ -5,7 +5,7 @@ import { getStore } from '../../main/store';
 import { sourceRegistrationWorkflow } from './sourceRegistration';
 import getDb from '../../db';
 import { sources } from '../../db/schema';
-import FileExtractor from '../utils/fileExtractor';
+import FileExtractor from '../../main/utils/fileExtractor';
 
 /**
  * ディレクトリ内の全てのファイルを登録するワークフロー
@@ -102,7 +102,7 @@ export default class SourceRegistrationManager {
           return previousPromise.then(async (resultList) => {
             try {
               // ファイルからテキストを抽出
-              const content = await FileExtractor.extractText(filePath);
+              const { content } = await FileExtractor.extractText(filePath);
 
               // ワークフローを開始
               const run = sourceRegistrationWorkflow.createRun();

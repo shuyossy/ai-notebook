@@ -6,8 +6,8 @@ const mockChatRooms: ChatRoom[] = [
   {
     id: uuidv4(),
     title: 'サンプルチャット1',
-    createdAt: new Date(),
-    updatedAt: new Date(),
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
   },
 ];
 
@@ -34,8 +34,8 @@ export const chatService = {
     const newRoom: ChatRoom = {
       id: uuidv4(),
       title,
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     };
     mockChatRooms.push(newRoom);
     return newRoom;
@@ -81,7 +81,8 @@ export const chatService = {
       roomId,
       role: 'user',
       content,
-      createdAt: new Date(),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     };
     mockChatMessages.push(userMessage);
 
@@ -131,7 +132,8 @@ export const chatService = {
         roomId,
         role: 'assistant',
         content: fullResponse,
-        createdAt: new Date(),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       };
       mockChatMessages.push(assistantMessage);
 

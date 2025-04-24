@@ -1,12 +1,32 @@
 import { z } from 'zod';
 import type { Source as DBSource, Topic as DBTopic } from '../../db/schema';
+import type { ProcessStatus, ChatRole } from '../../shared/types/base';
 
-// DBのスキーマに基づいたZodスキーマ定義
+/**
+ * 共通のスキーマ定義
+ */
+export const baseEntityDateSchema = z.object({
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+});
+
+export const processStatusSchema = z.enum([
+  'idle',
+  'processing',
+  'completed',
+  'failed',
+]) satisfies z.ZodType<ProcessStatus>;
+
+/**
+ * DBのスキーマに基づいたZodバリデーションスキーマ
+ */
 export const SourceSchema = z.object({
   id: z.number(),
   path: z.string(),
   title: z.string(),
   summary: z.string(),
+  status: processStatusSchema,
+  error: z.string().nullable(),
   createdAt: z.string(),
   updatedAt: z.string(),
 });
@@ -20,43 +40,44 @@ export const TopicSchema = z.object({
   updatedAt: z.string(),
 });
 
-// フロントエンド用の拡張された型定義
+/**
+ * フロントエンド用の拡張スキーマ
+ */
 export const SourceWithTopicsSchema = SourceSchema.extend({
   topics: z.array(TopicSchema),
 });
 
-// チャットルーム関連のスキーマ
-export const ChatRoomSchema = z.object({
+export const ChatRoomSchema = baseEntityDateSchema.extend({
   id: z.string(),
   title: z.string(),
-  createdAt: z.date(),
-  updatedAt: z.date(),
 });
 
-export const ChatMessageSchema = z.object({
+export const ChatMessageSchema = baseEntityDateSchema.extend({
   id: z.string(),
   roomId: z.string(),
-  role: z.enum(['user', 'assistant', 'system']),
+  role: z.enum(['user', 'assistant', 'system']) satisfies z.ZodType<ChatRole>,
   content: z.string(),
-  createdAt: z.date(),
 });
 
-// 設定のスキーマ
+/**
+ * 処理結果のスキーマ
+ */
+export const ProcessingResultSchema = z.object({
+  filePath: z.string(),
+  success: z.boolean(),
+  error: z.string().optional(),
+  timestamp: z.string(),
+});
+
+/**
+ * 設定のスキーマ
+ */
 export const SettingsSchema = z.object({
   database: z.object({
     dir: z.string(),
   }),
   source: z.object({
     registerDir: z.string(),
-    lastProcessedAt: z.string().optional(),
-    processingResults: z.array(
-      z.object({
-        filePath: z.string(),
-        success: z.boolean(),
-        error: z.string().optional(),
-        timestamp: z.string(),
-      }),
-    ),
   }),
   api: z.object({
     key: z.string(),
@@ -65,15 +86,20 @@ export const SettingsSchema = z.object({
   }),
 });
 
-// 型エクスポート
+/**
+ * 型エクスポート
+ */
 export type Source = z.infer<typeof SourceSchema>;
 export type Topic = z.infer<typeof TopicSchema>;
-export type SourceWithTopics = z.infer<typeof SourceWithTopicsSchema>;
+export type SourceWithTopics = Source & { topics: Topic[] };
 export type ChatRoom = z.infer<typeof ChatRoomSchema>;
 export type ChatMessage = z.infer<typeof ChatMessageSchema>;
 export type Settings = z.infer<typeof SettingsSchema>;
+export type ProcessingResult = z.infer<typeof ProcessingResultSchema>;
 
-// データベースの型とフロントエンドの型の変換ユーティリティ
+/**
+ * データベースの型とフロントエンドの型の変換ユーティリティ
+ */
 export const convertDBSourceToSource = (dbSource: DBSource): Source => ({
   id: dbSource.id,
   path: dbSource.path,
@@ -81,6 +107,8 @@ export const convertDBSourceToSource = (dbSource: DBSource): Source => ({
   summary: dbSource.summary,
   createdAt: dbSource.createdAt,
   updatedAt: dbSource.updatedAt,
+  status: dbSource.status,
+  error: dbSource.error,
 });
 
 export const convertDBTopicToTopic = (dbTopic: DBTopic): Topic => ({

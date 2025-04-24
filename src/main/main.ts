@@ -18,7 +18,7 @@ import getDb, { initializeDb } from '../db';
 import SourceRegistrationManager from '../mastra/workflows/sourceRegistrationManager';
 import { getOrchestrator } from '../mastra/agents/orchestrator';
 import MenuBuilder from './menu';
-import { resolveHtmlPath } from './util';
+import { resolveHtmlPath } from './utils/util';
 import { initStore, getStore } from './store';
 
 class AppUpdater {

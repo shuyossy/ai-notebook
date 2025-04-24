@@ -7,6 +7,14 @@ import { getStore } from '../../../main/store';
 export interface MemoryConfig {
   lastMessages?: number;
   semanticRecall?: boolean;
+  workingMemory?: {
+    enabled: boolean;
+    use?: 'text-stream' | 'tool-call';
+    tmplate?: string;
+  };
+  threads?: {
+    generateTitle: boolean;
+  };
 }
 
 // メモリインスタンスの作成
@@ -21,13 +29,21 @@ export const createMemory = (config: MemoryConfig = {}): Memory => {
   const options = {
     lastMessages: config.lastMessages ?? 40,
     semanticRecall: config.semanticRecall ?? false,
+    workingMemory: {
+      enabled: config.workingMemory?.enabled ?? false,
+      use: config.workingMemory?.use ?? undefined,
+      template: config.workingMemory?.tmplate ?? undefined,
+    },
+    threads: {
+      generateTitle: config.threads?.generateTitle ?? false,
+    },
   };
 
   return new Memory({
     options,
     storage: new LibSQLStore({
       config: {
-        url: new URL(`file:${dbDir}/memory.db`).toString(),
+        url: new URL('memory.db', dbDir as string).href,
       },
     }),
   });

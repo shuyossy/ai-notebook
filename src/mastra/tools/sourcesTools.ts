@@ -4,7 +4,7 @@ import { createTool } from '@mastra/core/tools';
 import { eq } from 'drizzle-orm';
 import { sources, topics } from '../../db/schema';
 import getDb from '../../db/index';
-import FileExtractor from '../utils/fileExtractor';
+import FileExtractor from '../../main/utils/fileExtractor';
 import { getSourceQuerySystemPrompt } from '../agents/prompts';
 import openAICompatibleModel from '../agents/model/openAICompatible';
 
@@ -105,7 +105,7 @@ export const querySourceTool = createTool({
 
       // ファイルのテキストを抽出
       const filePath = source.path;
-      const content = await FileExtractor.extractText(filePath);
+      const { content } = await FileExtractor.extractText(filePath);
 
       const sourceExpertAgent = new Agent({
         name: 'sourceExpertAgent',

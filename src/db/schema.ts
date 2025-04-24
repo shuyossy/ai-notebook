@@ -5,12 +5,12 @@ import {
   customType,
 } from 'drizzle-orm/sqlite-core';
 import { sql } from 'drizzle-orm';
+import type { ProcessStatus } from '../shared/types/base';
 
-// ソースステータスの定義
-export type SourceStatus = 'idle' | 'processing' | 'completed' | 'failed';
-
-// カスタム型定義
-const sourceStatusType = customType<{ data: SourceStatus }>({
+/**
+ * SQLiteのカスタム型定義
+ */
+const sourceStatusType = customType<{ data: ProcessStatus }>({
   dataType() {
     return 'text';
   },

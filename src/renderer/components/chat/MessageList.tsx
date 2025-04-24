@@ -66,7 +66,8 @@ const MessageList: React.FC<MessageListProps> = ({
                 roomId: messages.length > 0 ? messages[0].roomId : '',
                 role: 'assistant',
                 content: streamingMessage,
-                createdAt: new Date(),
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
               }}
             />
           )}
