@@ -53,7 +53,7 @@ const setupChatHandlers = () => {
       const stream = await orchInstance.stream(message, {
         resourceId: 'user', // 実際の実装ではユーザーIDを使用
         threadId: roomId, // チャットルームIDをスレッドIDとして使用
-        maxSteps: 5, // 最大5ステップまでツールを使用可能
+        maxSteps: 30, // ツールの利用上限
         onStepFinish: ({
           text,
           toolCalls,
