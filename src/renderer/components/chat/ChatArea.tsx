@@ -117,8 +117,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
       setMessages((prev) => [...prev, userMessage]);
     } catch (error) {
       console.error('メッセージの送信に失敗しました:', error);
-    } finally {
-      setSending(false);
+      setSending(false); // エラー時のみ送信状態を解除
     }
   };
 
