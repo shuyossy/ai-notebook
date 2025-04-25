@@ -70,8 +70,5 @@ export interface ChatMessage extends BaseEntityDate {
  * ストリーミングメッセージの型
  */
 export interface StreamMessage {
-  id: string;
-  type: 'chunk' | 'end' | 'error';
   content?: string;
-  error?: AppError;
 }
