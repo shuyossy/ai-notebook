@@ -8,12 +8,17 @@ import { chatService } from '../../services/chatService';
 
 interface ChatAreaProps {
   selectedRoomId: string | null;
+  sending: boolean;
+  setSending: (sending: boolean) => void;
 }
 
-const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
+const ChatArea: React.FC<ChatAreaProps> = ({
+  selectedRoomId,
+  sending,
+  setSending,
+}) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
-  const [sending, setSending] = useState(false);
   const [streamingMessage, setStreamingMessage] = useState<string>('');
   const streamingMessageRef = useRef<string>(streamingMessage);
   const [currentRoom, setCurrentRoom] = useState<ChatRoom | null>(null);

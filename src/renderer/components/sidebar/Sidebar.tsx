@@ -13,6 +13,7 @@ interface SidebarProps {
   onRoomSelect: (roomId: string) => void;
   onSettingsClick: () => void;
   onReloadSources: () => void; // ソース読み込み処理を実行する関数
+  sending: boolean;
 }
 
 function Sidebar({
@@ -20,6 +21,7 @@ function Sidebar({
   onRoomSelect,
   onSettingsClick,
   onReloadSources,
+  sending,
 }: SidebarProps) {
   const [isSourceListOpen, setIsSourceListOpen] = useState(false);
   const [chatRooms, setChatRooms] = useState<ChatRoom[]>([]);
@@ -134,6 +136,7 @@ function Sidebar({
           rooms={chatRooms}
           selectedRoomId={selectedRoomId}
           loading={loading}
+          sending={sending}
           onRoomSelect={onRoomSelect}
           onMenuOpen={handleMenuOpen}
         />

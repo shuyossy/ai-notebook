@@ -55,6 +55,7 @@ const theme = createTheme({
 
 function App() {
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [snackbar, setSnackbar] = useState<{
     open: boolean;
@@ -68,6 +69,8 @@ function App() {
 
   // チャットルーム選択ハンドラ
   const handleRoomSelect = (roomId: string) => {
+    // チャット処理中は新しいルームを選択できないようにする
+    if (sending) return;
     setSelectedRoomId(roomId);
   };
 
@@ -138,10 +141,15 @@ function App() {
                   onRoomSelect={handleRoomSelect}
                   onSettingsClick={handleSettingsClick}
                   onReloadSources={handleReloadSources}
+                  sending={sending}
                 />
 
                 {/* メインコンテンツ */}
-                <ChatArea selectedRoomId={selectedRoomId} />
+                <ChatArea
+                  selectedRoomId={selectedRoomId}
+                  sending={sending}
+                  setSending={setSending}
+                />
 
                 {/* モーダル */}
                 <SettingsModal

@@ -17,6 +17,7 @@ interface ChatRoomListProps {
   rooms: ChatRoom[];
   selectedRoomId: string | null;
   loading: boolean;
+  sending: boolean;
   onRoomSelect: (roomId: string) => void;
   onMenuOpen: (event: React.MouseEvent<HTMLElement>, roomId: string) => void;
 }
@@ -25,6 +26,7 @@ function ChatRoomList({
   rooms,
   selectedRoomId,
   loading,
+  sending,
   onRoomSelect,
   onMenuOpen,
 }: ChatRoomListProps) {
@@ -65,6 +67,7 @@ function ChatRoomList({
           <ListItemButton
             selected={selectedRoomId === room.id}
             onClick={() => onRoomSelect(room.id)}
+            disabled={sending}
             sx={{ pr: 6 }}
           >
             <Tooltip title={room.title} placement="right">
