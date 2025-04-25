@@ -23,6 +23,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
   sending = false,
 }) => {
   const [message, setMessage] = useState('');
+  const [isComposing, setIsComposing] = useState(false);
   const textFieldRef = useRef<HTMLDivElement>(null);
 
   // 送信ハンドラ
@@ -36,10 +37,20 @@ const MessageInput: React.FC<MessageInputProps> = ({
 
   // Enterキーで送信（Shift+Enterで改行）
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === 'Enter' && !e.shiftKey && !isComposing) {
       e.preventDefault();
       handleSubmit(e);
     }
+  };
+
+  // IME変換開始時のハンドラ
+  const handleCompositionStart = () => {
+    setIsComposing(true);
+  };
+
+  // IME変換確定時のハンドラ
+  const handleCompositionEnd = () => {
+    setIsComposing(false);
   };
 
   // 高さの自動調整
@@ -75,6 +86,8 @@ const MessageInput: React.FC<MessageInputProps> = ({
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           onKeyDown={handleKeyDown}
+          onCompositionStart={handleCompositionStart}
+          onCompositionEnd={handleCompositionEnd}
           disabled={disabled || sending}
           ref={textFieldRef}
           InputProps={{
