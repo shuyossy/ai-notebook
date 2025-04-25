@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   Box,
   TextField,
@@ -24,7 +24,6 @@ const MessageInput: React.FC<MessageInputProps> = ({
 }) => {
   const [message, setMessage] = useState('');
   const [isComposing, setIsComposing] = useState(false);
-  const textFieldRef = useRef<HTMLDivElement>(null);
 
   // 送信ハンドラ
   const handleSubmit = (e: React.FormEvent) => {
@@ -53,17 +52,6 @@ const MessageInput: React.FC<MessageInputProps> = ({
     setIsComposing(false);
   };
 
-  // 高さの自動調整
-  useEffect(() => {
-    if (textFieldRef.current) {
-      const element = textFieldRef.current.querySelector('textarea');
-      if (element) {
-        element.style.height = 'auto';
-        element.style.height = `${element.scrollHeight}px`;
-      }
-    }
-  }, [message]);
-
   return (
     <Box sx={{ p: 2 }}>
       <Paper
@@ -80,7 +68,8 @@ const MessageInput: React.FC<MessageInputProps> = ({
         <TextField
           fullWidth
           multiline
-          maxRows={4}
+          minRows={1}
+          maxRows={6}
           placeholder={placeholder}
           variant="outlined"
           value={message}
@@ -89,23 +78,25 @@ const MessageInput: React.FC<MessageInputProps> = ({
           onCompositionStart={handleCompositionStart}
           onCompositionEnd={handleCompositionEnd}
           disabled={disabled || sending}
-          ref={textFieldRef}
-          InputProps={{
-            sx: {
-              p: 1,
-              '& fieldset': { border: 'none' },
+          slotProps={{
+            input: {
+              sx: {
+                p: 1,
+                '& fieldset': { border: 'none' }, // フィールドセットの枠線を消す
+              },
+              endAdornment: (
+                <InputAdornment position="end">
+                  {/* 送信ボタンまたは送信中インジケーター */}
+                  <IconButton
+                    color="primary"
+                    onClick={handleSubmit}
+                    disabled={disabled || sending || !message.trim()}
+                  >
+                    {sending ? <CircularProgress size={24} /> : <SendIcon />}
+                  </IconButton>
+                </InputAdornment>
+              ),
             },
-            endAdornment: (
-              <InputAdornment position="end">
-                <IconButton
-                  color="primary"
-                  onClick={handleSubmit}
-                  disabled={disabled || sending || !message.trim()}
-                >
-                  {sending ? <CircularProgress size={24} /> : <SendIcon />}
-                </IconButton>
-              </InputAdornment>
-            ),
           }}
         />
       </Paper>
