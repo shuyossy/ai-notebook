@@ -1,3 +1,5 @@
+import type { AiMessageType, StorageThreadType } from '@mastra/core';
+
 /**
  * 日付を含む基本エンティティの型
  */
@@ -49,22 +51,14 @@ export interface ProcessResult {
 export type ChatRole = 'user' | 'assistant' | 'system';
 
 /**
- * チャットルーム情報の型
+ * チャットルーム情報の型（Mastraの型を利用）
  */
-export interface ChatRoom extends BaseEntityDate {
-  id: string;
-  title: string;
-}
+export type ChatRoom = StorageThreadType;
 
 /**
- * チャットメッセージの型
+ * チャットメッセージの型（Mastraの型を利用）
  */
-export interface ChatMessage extends BaseEntityDate {
-  id: string;
-  roomId: string;
-  role: ChatRole;
-  content: string;
-}
+export type ChatMessage = AiMessageType;
 
 /**
  * ストリーミングメッセージの型

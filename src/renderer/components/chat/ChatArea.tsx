@@ -1,15 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Box, Typography, Divider } from '@mui/material';
+import { v4 as uuidv4 } from 'uuid';
 import MessageList from './MessageList';
 import MessageInput from './MessageInput';
-import { ChatMessage, ChatRoom } from '../../types';
+import { ChatMessage, ChatRoom } from '../../../shared/types/base';
 import { chatService } from '../../services/chatService';
 
 interface ChatAreaProps {
   selectedRoomId: string | null;
 }
 
-function ChatArea({ selectedRoomId }: ChatAreaProps) {
+const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
@@ -69,12 +70,10 @@ function ChatArea({ selectedRoomId }: ChatAreaProps) {
         setMessages((prev) => [
           ...prev,
           {
-            id: '',
-            roomId: selectedRoomId || '',
+            id: uuidv4(),
             role: 'assistant',
             content: streamingMessageRef.current,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
+            createdAt: new Date(),
           },
         ]);
 
@@ -188,6 +187,5 @@ function ChatArea({ selectedRoomId }: ChatAreaProps) {
       )}
     </Box>
   );
-}
-
+};
 export default ChatArea;

@@ -8,7 +8,7 @@ import {
   CircularProgress,
 } from '@mui/material';
 import Modal from './Modal';
-import { Settings } from '../../types';
+import { StoreSchema as Settings } from '../../../main/store';
 import { useElectronStore } from '../../hooks/useElectronStore';
 
 interface SettingsModalProps {

@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { Box, CircularProgress, Typography } from '@mui/material';
 import MessageItem from './MessageItem';
-import { ChatMessage } from '../../types';
+import { ChatMessage } from '../../../shared/types/base';
 
 interface MessageListProps {
   messages: ChatMessage[];
@@ -63,11 +63,9 @@ const MessageList: React.FC<MessageListProps> = ({
             <MessageItem
               message={{
                 id: 'streaming',
-                roomId: messages.length > 0 ? messages[0].roomId : '',
                 role: 'assistant',
                 content: streamingMessage,
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString(),
+                createdAt: new Date(),
               }}
             />
           )}

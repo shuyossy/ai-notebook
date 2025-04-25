@@ -3,7 +3,7 @@ import { Box, Typography, Paper, Avatar, Tooltip } from '@mui/material';
 import { Person as PersonIcon, SmartToy as BotIcon } from '@mui/icons-material';
 // @ts-ignore
 import Markdown from 'react-markdown';
-import { ChatMessage } from '../../types';
+import { ChatMessage } from '../../../shared/types/base';
 
 interface MessageProps {
   message: ChatMessage;
@@ -59,7 +59,7 @@ function AIParagraph({ children }: MarkdownComponentProps) {
 const MessageItem = forwardRef<HTMLDivElement, MessageProps>(
   ({ message }, ref) => {
     const isUser = message.role === 'user';
-    const date = new Date(message.createdAt);
+    const date = message.createdAt || new Date();
     const formattedTime = date.toLocaleTimeString([], {
       hour: '2-digit',
       minute: '2-digit',

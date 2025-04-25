@@ -23,7 +23,7 @@ import {
   Help as UnknownIcon,
 } from '@mui/icons-material';
 
-import { Source } from '../../types';
+import { Source } from '../../../db/schema';
 
 interface SourceListModalProps {
   open: boolean;
