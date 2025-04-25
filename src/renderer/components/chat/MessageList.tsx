@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { Box, CircularProgress, Typography } from '@mui/material';
 import MessageItem from './MessageItem';
-import { ChatMessage } from '../../../shared/types/base';
+import { ChatMessage } from '../../../main/types';
 
 interface MessageListProps {
   messages: ChatMessage[];

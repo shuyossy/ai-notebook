@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
-import { ChatMessage, ChatRoom } from '../../shared/types/base';
+import { ChatMessage, ChatRoom } from '../../main/types';
 
 // IPC通信を使用してメインプロセスのAIエージェントへメッセージを送信するためのチャットサービス
 export const chatService = {

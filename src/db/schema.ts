@@ -5,7 +5,7 @@ import {
   customType,
 } from 'drizzle-orm/sqlite-core';
 import { sql } from 'drizzle-orm';
-import type { ProcessStatus } from '../shared/types/base';
+import type { ProcessStatus } from '../main/types';
 
 /**
  * SQLiteのカスタム型定義

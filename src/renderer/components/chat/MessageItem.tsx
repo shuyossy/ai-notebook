@@ -3,7 +3,7 @@ import { Box, Typography, Paper, Avatar, Tooltip } from '@mui/material';
 import { Person as PersonIcon, SmartToy as BotIcon } from '@mui/icons-material';
 // @ts-ignore
 import Markdown from 'react-markdown';
-import { ChatMessage } from '../../../shared/types/base';
+import { ChatMessage } from '../../../main/types';
 
 interface MessageProps {
   message: ChatMessage;

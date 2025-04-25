@@ -1,6 +1,5 @@
 import fs from 'fs/promises';
 import path from 'path';
-import { AppError } from '../../shared/types/base';
 
 /**
  * 抽出結果の型定義
@@ -16,9 +15,10 @@ export interface ExtractionResult {
 }
 
 /**
- * 抽出エラーの型定義
+ * ファイル抽出エラーの型定義
  */
-export interface ExtractionError extends AppError {
+interface FileExtractionError extends Error {
+  code: string;
   filePath: string;
   fileType: string;
 }
@@ -74,7 +74,7 @@ export default class FileExtractor {
     } catch (error) {
       throw this.createError(
         'extraction_failed',
-        `テキスト抽出に失敗しました: ${(error as Error).message}`,
+        `${filePath}のテキスト抽出に失敗しました: ${(error as Error).message}`,
         filePath,
         extension,
       );
@@ -168,13 +168,12 @@ export default class FileExtractor {
     message: string,
     filePath: string,
     fileType: string,
-  ): ExtractionError {
-    return {
-      code,
-      message,
-      filePath,
-      fileType,
-      details: { filePath, fileType },
-    };
+  ): FileExtractionError {
+    const error = new Error(message) as FileExtractionError;
+    error.code = code;
+    error.filePath = filePath;
+    error.fileType = fileType;
+    error.name = 'FileExtractionError';
+    return error;
   }
 }

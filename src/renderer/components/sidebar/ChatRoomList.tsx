@@ -11,7 +11,7 @@ import {
   Tooltip,
 } from '@mui/material';
 import { MoreVert as MoreIcon } from '@mui/icons-material';
-import type { ChatRoom } from '../../types/schema';
+import type { ChatRoom } from '../../../main/types';
 
 interface ChatRoomListProps {
   rooms: ChatRoom[];

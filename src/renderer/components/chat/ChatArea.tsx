@@ -3,7 +3,7 @@ import { Box, Typography, Divider } from '@mui/material';
 import { v4 as uuidv4 } from 'uuid';
 import MessageList from './MessageList';
 import MessageInput from './MessageInput';
-import { ChatMessage, ChatRoom } from '../../../shared/types/base';
+import { ChatMessage, ChatRoom } from '../../../main/types';
 import { chatService } from '../../services/chatService';
 
 interface ChatAreaProps {

@@ -2,9 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Box, Menu, MenuItem, Divider } from '@mui/material';
 import { v4 as uuidv4 } from 'uuid';
 import SourceListModal from '../common/SourceListModal';
-import { ChatRoom } from '../../types/schema';
+import { ChatRoom } from '../../../main/types';
 import { chatService } from '../../services/chatService';
-import { formatError } from '../../../utils/errors';
 import SidebarHeader from './SidebarHeader';
 import ChatRoomList from './ChatRoomList';
 import SidebarFooter from './SidebarFooter';
@@ -35,7 +34,7 @@ function Sidebar({
       const rooms = await chatService.getChatRooms();
       setChatRooms(rooms);
     } catch (error) {
-      console.error(formatError(error));
+      console.error(error);
     } finally {
       setLoading(false);
     }
@@ -75,7 +74,7 @@ function Sidebar({
       // 一覧を再取得して最新状態を反映
       fetchChatRooms();
     } catch (error) {
-      console.error(formatError(error));
+      console.error(error);
     } finally {
       handleMenuClose();
     }
