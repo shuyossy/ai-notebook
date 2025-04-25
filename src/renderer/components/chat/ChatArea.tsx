@@ -37,6 +37,11 @@ function ChatArea({ selectedRoomId }: ChatAreaProps) {
     }
   };
 
+  // streamingMessageが変わるたびにRefを更新
+  useEffect(() => {
+    streamingMessageRef.current = streamingMessage;
+  }, [streamingMessage]);
+
   // チャットルームのストリーミングメッセージを更新するためのコールバック関数を登録
   useEffect(() => {
     // 現在のチャットルーム情報をリフレッシュ
@@ -57,7 +62,6 @@ function ChatArea({ selectedRoomId }: ChatAreaProps) {
     const unsubscribeCallback = chatService.streamResponse({
       onMessage: (chunk) => {
         setStreamingMessage((prev) => prev + chunk);
-        streamingMessageRef.current += chunk;
       },
       onDone: () => {
         // 完了したらメッセージリストに追加
