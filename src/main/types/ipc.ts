@@ -52,7 +52,11 @@ export type IpcResponsePayloadMap = {
   [IpcChannels.SET_STORE_VALUE]: boolean;
 
   // ソース関連
-  [IpcChannels.SOURCE_GET_ALL]: Source[];
+  [IpcChannels.SOURCE_GET_ALL]: {
+    success: boolean;
+    sources?: Source[];
+    error?: string;
+  };
   [IpcChannels.SOURCE_RELOAD]: { success: boolean; message?: string };
 
   // チャット関連

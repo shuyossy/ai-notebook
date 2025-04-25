@@ -1,12 +1,12 @@
 import React, { useEffect, useRef } from 'react';
 import { Box, CircularProgress, Typography } from '@mui/material';
 import MessageItem from './MessageItem';
-import { ChatMessage } from '../../../main/types';
+import { ChatMessage, StreamMessage } from '../../../main/types';
 
 interface MessageListProps {
   messages: ChatMessage[];
   loading: boolean;
-  streamingMessage: string | null;
+  streamingMessage: StreamMessage | null;
 }
 
 const MessageList: React.FC<MessageListProps> = ({

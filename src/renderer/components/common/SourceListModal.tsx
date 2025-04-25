@@ -46,8 +46,11 @@ function SourceListModal({
     const fetchSources = async () => {
       try {
         const response = await window.electron.source.getSources();
-        setSources(response);
-        setProcessing(response.some((s: Source) => s.status === 'processing'));
+        const responseSources: Source[] = response.sources || [];
+        setSources(responseSources);
+        setProcessing(
+          responseSources.some((s: Source) => s.status === 'processing'),
+        );
       } catch (error) {
         console.error('ソースデータの取得に失敗しました:', error);
       }

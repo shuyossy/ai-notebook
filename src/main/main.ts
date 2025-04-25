@@ -16,6 +16,8 @@ import { Mastra } from '@mastra/core';
 import { createLogger } from '@mastra/core/logger';
 import { maskStreamTags } from '@mastra/core/utils';
 import { type Source } from '../db/schema';
+import { ToolCall } from './types';
+import { IpcChannels, IpcResponsePayloadMap } from './types/ipc';
 import { sources } from '../db/schema';
 import getDb, { initializeDb } from '../db';
 import SourceRegistrationManager from '../mastra/workflows/sourceRegistrationManager';
@@ -79,194 +81,239 @@ const initializeMastra = async (): Promise<void> => {
 
 // ストアのIPC通信ハンドラーを設定
 const setupStoreHandlers = () => {
-  ipcMain.handle('get-store-value', async (_, key: string) => {
-    const store = getStore();
-    return store.get(key);
-  });
+  ipcMain.handle(
+    IpcChannels.GET_STORE_VALUE,
+    async (
+      _,
+      key: string,
+    ): Promise<IpcResponsePayloadMap[typeof IpcChannels.GET_STORE_VALUE]> => {
+      const store = getStore();
+      return store.get(key);
+    },
+  );
 
-  ipcMain.handle('set-store-value', async (_, key: string, value: unknown) => {
-    const store = getStore();
-    store.set(key, value);
-    return true;
-  });
+  ipcMain.handle(
+    IpcChannels.SET_STORE_VALUE,
+    async (
+      _,
+      key: string,
+      value: unknown,
+    ): Promise<IpcResponsePayloadMap[typeof IpcChannels.SET_STORE_VALUE]> => {
+      const store = getStore();
+      store.set(key, value);
+      return true;
+    },
+  );
 };
 
 // チャット関連のIPCハンドラー
 const setupChatHandlers = () => {
   // メッセージ送信ハンドラ
-  ipcMain.handle('chat-send-message', async (event, { roomId, message }) => {
-    try {
-      // Mastraインスタンスからオーケストレーターエージェントを取得
-      const mastra = getMastra();
-      const orchestratorAgent = mastra.getAgent('orchestratorAgent');
-
-      // メッセージをストリーミングで送信
-      const stream = await orchestratorAgent.stream(message, {
-        resourceId: 'user', // 固定のリソースID
-        threadId: roomId, // チャットルームIDをスレッドIDとして使用
-        maxSteps: 30, // ツールの利用上限
-        onFinish: ({ text, finishReason }) => {
-          // ストリーミングが完了したときの処理
-          // フロントエンドに完了通知を送信
-          event.sender.send('chat-complete', {
-            text,
-            finishReason,
-          });
-        },
-        onStepFinish: ({
-          text,
-          toolCalls,
-        }: {
-          text: string;
-          toolCalls: any[];
-        }) => {
-          // ステップ完了ごとにフロントエンドに進捗を通知
-          // ツール呼び出し情報も含めて送信
-          event.sender.send('chat-step', { text, toolCalls });
-        },
-      });
-
-      // テキストストリームを処理
+  ipcMain.handle(
+    IpcChannels.CHAT_SEND_MESSAGE,
+    async (
+      event,
+      { roomId, content },
+    ): Promise<IpcResponsePayloadMap[typeof IpcChannels.CHAT_SEND_MESSAGE]> => {
       try {
-        // ライフサイクルフックを追加してUIフィードバックを提供する
-        const maskedStream = maskStreamTags(
-          stream.textStream,
-          'working_memory',
-          {
-            // working_memoryタグが開始されたときに呼び出される
-            onStart: () => console.debug('作業メモリ更新中...'),
-            // working_memoryタグが終了したときに呼び出される
-            onEnd: () => console.debug('作業メモリの更新が完了しました'),
-            // マスクされたコンテンツと共に呼び出される
-            onMask: (chunk) => console.debug('更新された作業メモリ:', chunk),
+        // Mastraインスタンスからオーケストレーターエージェントを取得
+        const mastra = getMastra();
+        const orchestratorAgent = mastra.getAgent('orchestratorAgent');
+
+        // メッセージをストリーミングで送信
+        const stream = await orchestratorAgent.stream(content, {
+          resourceId: 'user', // 固定のリソースID
+          threadId: roomId, // チャットルームIDをスレッドIDとして使用
+          maxSteps: 30, // ツールの利用上限
+          onFinish: ({ text, finishReason }) => {
+            // ストリーミングが完了したときの処理
+            // フロントエンドに完了通知を送信
+            event.sender.send(IpcChannels.CHAT_COMPLETE, {
+              text,
+              finishReason,
+            });
           },
-        );
-        for await (const chunk of maskedStream) {
-          // チャンクをフロントエンドに送信
-          event.sender.send('chat-stream', chunk);
-        }
-      } catch (streamError) {
-        console.error('ストリーミング処理中にエラーが発生:', streamError);
-      }
-
-      return { success: true };
-    } catch (error) {
-      console.error('AIエージェントとの通信中にエラーが発生:', error);
-      event.sender.send('chat-error', {
-        message: `エラーが発生しました: ${(error as Error).message}`,
-      });
-      return { success: false, error: (error as Error).message };
-    }
-  });
-
-  // チャットルーム一覧取得ハンドラ
-  ipcMain.handle('chat-get-rooms', async () => {
-    try {
-      const mastra = getMastra();
-      // マスターエージェントからメモリを取得（オーケストレーターエージェントを使用）
-      const orchestratorAgent = mastra.getAgent('orchestratorAgent');
-
-      // メモリのスレッド一覧を取得
-      const threads = await orchestratorAgent
-        .getMemory()
-        ?.getThreadsByResourceId({
-          resourceId: 'user',
+          onStepFinish: ({
+            text,
+            toolCalls,
+          }: {
+            text: string;
+            toolCalls: ToolCall[];
+          }) => {
+            // ステップ完了ごとにフロントエンドに進捗を通知
+            // ツール呼び出し情報も含めて送信
+            event.sender.send(IpcChannels.CHAT_STEP, { text, toolCalls });
+          },
         });
 
-      if (!threads) {
+        // テキストストリームを処理
+        try {
+          // ライフサイクルフックを追加してUIフィードバックを提供する
+          const maskedStream = maskStreamTags(
+            stream.textStream,
+            'working_memory',
+            {
+              // working_memoryタグが開始されたときに呼び出される
+              onStart: () => console.debug('作業メモリ更新中...'),
+              // working_memoryタグが終了したときに呼び出される
+              onEnd: () => console.debug('作業メモリの更新が完了しました'),
+              // マスクされたコンテンツと共に呼び出される
+              onMask: (chunk: string) =>
+                console.debug('更新された作業メモリ:', chunk),
+            },
+          );
+          for await (const chunk of maskedStream) {
+            // チャンクをフロントエンドに送信
+            event.sender.send(IpcChannels.CHAT_STREAM, chunk);
+          }
+        } catch (streamError) {
+          console.error('ストリーミング処理中にエラーが発生:', streamError);
+        }
+
+        return { success: true };
+      } catch (error) {
+        console.error('AIエージェントとの通信中にエラーが発生:', error);
+        event.sender.send(IpcChannels.CHAT_ERROR, {
+          message: `エラーが発生しました: ${(error as Error).message}`,
+        });
+        return { success: false, error: (error as Error).message };
+      }
+    },
+  );
+
+  // チャットルーム一覧取得ハンドラ
+  ipcMain.handle(
+    IpcChannels.CHAT_GET_ROOMS,
+    async (): Promise<
+      IpcResponsePayloadMap[typeof IpcChannels.CHAT_GET_ROOMS]
+    > => {
+      try {
+        const mastra = getMastra();
+        // マスターエージェントからメモリを取得（オーケストレーターエージェントを使用）
+        const orchestratorAgent = mastra.getAgent('orchestratorAgent');
+
+        // メモリのスレッド一覧を取得
+        const threads = await orchestratorAgent
+          .getMemory()
+          ?.getThreadsByResourceId({
+            resourceId: 'user',
+          });
+
+        if (!threads) {
+          return [];
+        }
+
+        // スレッドをチャットルーム形式に変換
+        return threads;
+      } catch (error) {
+        console.error('チャットルーム一覧の取得中にエラーが発生:', error);
         return [];
       }
-
-      // スレッドをチャットルーム形式に変換
-      return threads.map((thread) => ({
-        id: thread.id,
-        title: thread.title || '新しいチャット',
-        createdAt: new Date(thread.createdAt).toISOString(),
-        updatedAt: new Date(thread.updatedAt).toISOString(),
-      }));
-    } catch (error) {
-      console.error('チャットルーム一覧の取得中にエラーが発生:', error);
-      return [];
-    }
-  });
+    },
+  );
 
   // チャットメッセージ履歴取得ハンドラ
-  ipcMain.handle('chat-get-messages', async (_, threadId: string) => {
-    try {
-      const mastra = getMastra();
-      const orchestratorAgent = mastra.getAgent('orchestratorAgent');
+  ipcMain.handle(
+    IpcChannels.CHAT_GET_MESSAGES,
+    async (
+      _,
+      threadId: string,
+    ): Promise<IpcResponsePayloadMap[typeof IpcChannels.CHAT_GET_MESSAGES]> => {
+      try {
+        const mastra = getMastra();
+        const orchestratorAgent = mastra.getAgent('orchestratorAgent');
 
-      // スレッド内のメッセージを取得
-      const result = await orchestratorAgent.getMemory()?.query({ threadId });
+        // スレッド内のメッセージを取得
+        const result = await orchestratorAgent.getMemory()?.query({ threadId });
 
-      if (!result) {
+        if (!result) {
+          return [];
+        }
+
+        const { uiMessages } = result;
+
+        // メッセージをチャットメッセージ形式に変換
+        return uiMessages;
+      } catch (error) {
+        console.error('チャットメッセージの取得中にエラーが発生:', error);
         return [];
       }
-
-      const { uiMessages } = result;
-
-      // メッセージをチャットメッセージ形式に変換
-      return uiMessages;
-    } catch (error) {
-      console.error('チャットメッセージの取得中にエラーが発生:', error);
-      return [];
-    }
-  });
+    },
+  );
 
   // チャットルーム削除ハンドラ
-  ipcMain.handle('chat-delete-room', async (_, threadId: string) => {
-    try {
-      const mastra = getMastra();
-      const orchestratorAgent = mastra.getAgent('orchestratorAgent');
+  ipcMain.handle(
+    IpcChannels.CHAT_DELETE_ROOM,
+    async (
+      _,
+      threadId: string,
+    ): Promise<IpcResponsePayloadMap[typeof IpcChannels.CHAT_DELETE_ROOM]> => {
+      try {
+        const mastra = getMastra();
+        const orchestratorAgent = mastra.getAgent('orchestratorAgent');
 
-      // スレッドを削除
-      await orchestratorAgent.getMemory()?.deleteThread(threadId);
+        // スレッドを削除
+        await orchestratorAgent.getMemory()?.deleteThread(threadId);
 
-      return { success: true };
-    } catch (error) {
-      console.error('チャットルームの削除中にエラーが発生:', error);
-      return { success: false, error: (error as Error).message };
-    }
-  });
+        return { success: true };
+      } catch (error) {
+        console.error('チャットルームの削除中にエラーが発生:', error);
+        return { success: false, error: (error as Error).message };
+      }
+    },
+  );
 };
 
 // ソース関連のIPCハンドラー
 const setupSourceHandlers = () => {
   // ソース再読み込みハンドラ
-  ipcMain.handle('source-reload', async () => {
-    try {
-      const registrationManager = SourceRegistrationManager.getInstance();
-      await registrationManager.registerAllFiles();
-      return { success: true, message: 'ソースの再読み込みが完了しました' };
-    } catch (error) {
-      console.error('ソースの再読み込み中にエラーが発生:', error);
-      return {
-        success: false,
-        message: `エラーが発生しました: ${(error as Error).message}`,
-      };
-    }
-  });
+  ipcMain.handle(
+    IpcChannels.SOURCE_RELOAD,
+    async (): Promise<
+      IpcResponsePayloadMap[typeof IpcChannels.SOURCE_RELOAD]
+    > => {
+      try {
+        const registrationManager = SourceRegistrationManager.getInstance();
+        await registrationManager.registerAllFiles();
+        return { success: true, message: 'ソースの再読み込みが完了しました' };
+      } catch (error) {
+        console.error('ソースの再読み込み中にエラーが発生:', error);
+        return {
+          success: false,
+          message: `エラーが発生しました: ${(error as Error).message}`,
+        };
+      }
+    },
+  );
 
   // ソース一覧取得ハンドラ
-  ipcMain.handle('source-get-all', async () => {
-    try {
-      const db = await getDb();
-      const sourcesList = await db.select().from(sources);
-      return sourcesList.map((source: Source) => ({
-        ...source,
-        // ISO 8601形式の日時文字列をDateオブジェクトに変換してから文字列に戻す
-        // これにより、フロントエンドで一貫した日時表示が可能になる
-        createdAt: new Date(source.createdAt).toISOString(),
-        updatedAt: new Date(source.updatedAt).toISOString(),
-      }));
-    } catch (error) {
-      console.error('ソース一覧の取得中にエラーが発生:', error);
-      return {
-        success: false,
-        error: (error as Error).message,
-      };
-    }
-  });
+  ipcMain.handle(
+    IpcChannels.SOURCE_GET_ALL,
+    async (): Promise<
+      IpcResponsePayloadMap[typeof IpcChannels.SOURCE_GET_ALL]
+    > => {
+      try {
+        const db = await getDb();
+        const sourcesList = await db.select().from(sources);
+        return {
+          success: true,
+          sources: sourcesList.map((source: Source) => ({
+            ...source,
+            // ISO 8601形式の日時文字列をDateオブジェクトに変換してから文字列に戻す
+            // これにより、フロントエンドで一貫した日時表示が可能になる
+            createdAt: new Date(source.createdAt).toISOString(),
+            updatedAt: new Date(source.updatedAt).toISOString(),
+          })),
+        };
+      } catch (error) {
+        console.error('ソース一覧の取得中にエラーが発生:', error);
+        return {
+          success: false,
+          error: (error as Error).message,
+        };
+      }
+    },
+  );
 };
 
 // ソース登録処理の実行
