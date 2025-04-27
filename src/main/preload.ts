@@ -48,6 +48,13 @@ const electronHandler = {
     ): Promise<IpcResponsePayload<typeof IpcChannels.CHAT_DELETE_ROOM>> => {
       return ipcRenderer.invoke(IpcChannels.CHAT_DELETE_ROOM, threadId);
     },
+    // 新規スレッドを作成する
+    createThread: (params: {
+      roomId: string;
+      title: string;
+    }): Promise<IpcResponsePayload<typeof IpcChannels.CHAT_CREATE_THREAD>> => {
+      return ipcRenderer.invoke(IpcChannels.CHAT_CREATE_THREAD, params);
+    },
     // AIの応答を取得する（ストリーミング）
     onStream: (
       callback: (

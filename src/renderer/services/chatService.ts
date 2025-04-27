@@ -59,6 +59,25 @@ export const chatService = {
   },
 
   /**
+   * 新規スレッドを作成
+   * @param roomId チャットルームID
+   */
+  createThread: async (roomId: string, title: string): Promise<void> => {
+    try {
+      const result = await window.electron.chat.createThread({
+        roomId,
+        title,
+      });
+      if (!result.success) {
+        throw new Error(result.error);
+      }
+    } catch (error) {
+      console.error('スレッドの作成に失敗しました:', error);
+      throw error;
+    }
+  },
+
+  /**
    * ストリーミングでAIからの応答を取得
    * @param callbacks コールバック関数群
    */

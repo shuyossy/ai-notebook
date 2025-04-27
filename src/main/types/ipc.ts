@@ -18,6 +18,7 @@ export const IpcChannels = {
   CHAT_GET_ROOMS: 'chat-get-rooms',
   CHAT_GET_MESSAGES: 'chat-get-messages',
   CHAT_DELETE_ROOM: 'chat-delete-room',
+  CHAT_CREATE_THREAD: 'chat-create-thread',
   CHAT_STREAM: 'chat-stream',
   CHAT_COMPLETE: 'chat-complete',
   CHAT_STEP: 'chat-step',
@@ -44,6 +45,10 @@ export type IpcRequestPayloadMap = {
   [IpcChannels.CHAT_GET_ROOMS]: undefined;
   [IpcChannels.CHAT_GET_MESSAGES]: string; // threadId
   [IpcChannels.CHAT_DELETE_ROOM]: string; // threadId
+  [IpcChannels.CHAT_CREATE_THREAD]: {
+    roomId: string;
+    title: string;
+  };
 };
 
 export type IpcResponsePayloadMap = {
@@ -64,6 +69,7 @@ export type IpcResponsePayloadMap = {
   [IpcChannels.CHAT_GET_ROOMS]: ChatRoom[];
   [IpcChannels.CHAT_GET_MESSAGES]: ChatMessage[];
   [IpcChannels.CHAT_DELETE_ROOM]: { success: boolean; error?: string };
+  [IpcChannels.CHAT_CREATE_THREAD]: { success: boolean; error?: string };
 };
 
 export type IpcEventPayloadMap = {

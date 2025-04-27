@@ -239,6 +239,37 @@ const setupChatHandlers = () => {
       }
     },
   );
+
+  // スレッド作成ハンドラ
+  ipcMain.handle(
+    IpcChannels.CHAT_CREATE_THREAD,
+    async (
+      _,
+      { roomId, title },
+    ): Promise<
+      IpcResponsePayloadMap[typeof IpcChannels.CHAT_CREATE_THREAD]
+    > => {
+      try {
+        const mastra = getMastra();
+        const orchestratorAgent = mastra.getAgent('orchestratorAgent');
+        const memory = orchestratorAgent.getMemory();
+
+        if (!memory) {
+          throw new Error('メモリインスタンスが初期化されていません');
+        }
+        await memory.createThread({
+          resourceId: 'user',
+          title,
+          threadId: roomId,
+        });
+
+        return { success: true };
+      } catch (error) {
+        console.error('チャットルームの作成中にエラーが発生:', error);
+        return { success: false, error: (error as Error).message };
+      }
+    },
+  );
 };
 
 // ソース関連のIPCハンドラー

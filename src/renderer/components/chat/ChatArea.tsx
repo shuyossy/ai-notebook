@@ -135,6 +135,12 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
             ? request.messages[request.messages.length - 1]
             : null;
 
+        // 初回メッセージ送信時にスレッドを作成
+        // titleについてはここで、指定してもmemoryのオプションでgenerateTitleをtrueにしていた場合、「New Thread 2025-04-27T08:20:05.694Z」のようなタイトルが自動生成されてしまう
+        if (selectedRoomId && request.messages.length === 1) {
+          chatService.createThread(selectedRoomId, '');
+        }
+
         // Return the structured body for your API route
         return {
           message: lastMessage?.content, // Send only the most recent message content/role
