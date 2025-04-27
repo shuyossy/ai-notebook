@@ -17,6 +17,7 @@ import {
   TableBody,
   TableRow,
   TableCell,
+  Tooltip,
 } from '@mui/material';
 import { ContentCopy as CopyIcon } from '@mui/icons-material';
 // @ts-ignore
@@ -25,7 +26,6 @@ import type { ChatMessage } from '../../../main/types';
 
 // ──────── Markdown レンダラー設定 ────────
 
-// コードブロック＆インラインコード
 type CodeProps = {
   inline?: boolean;
   className?: string;
@@ -39,7 +39,14 @@ const customStyle = {
     ...materialLight['pre[class*="language-"]'],
     backgroundColor: '#f5f5f5',
   },
+  'code[class*="language-"]': {
+    backgroundColor: '#f5f5f5',
+  },
+  'span[class*="token"]': {
+    backgroundColor: 'transparent',
+  },
 };
+
 const CodeBlockRenderer: React.FC<CodeProps> = ({
   inline,
   className,
@@ -50,13 +57,12 @@ const CodeBlockRenderer: React.FC<CodeProps> = ({
   const lang = langMatch?.[1] ?? '';
 
   if (inline) {
-    // インラインコード
     return (
       <Box
         component="code"
         sx={{
-          px: '4px',
-          py: '2px',
+          px: 1,
+          py: 0.5,
           bgcolor: 'grey.100',
           borderRadius: 1,
           fontSize: '0.875em',
@@ -67,26 +73,33 @@ const CodeBlockRenderer: React.FC<CodeProps> = ({
     );
   }
 
-  // ブロックコード：シンタックスハイライト＋コピー
   return (
     <Box sx={{ position: 'relative', mb: 2 }}>
-      <IconButton
-        size="small"
-        onClick={() => copy(text)}
-        sx={{
-          position: 'absolute',
-          top: 4,
-          right: 4,
-          bgcolor: 'background.paper',
-        }}
-        aria-label="コードをコピー"
-      >
-        <CopyIcon fontSize="small" />
-      </IconButton>
+      <Tooltip title="コードをコピー">
+        <IconButton
+          size="small"
+          onClick={() => copy(text)}
+          sx={{
+            position: 'absolute',
+            top: 8,
+            right: 8,
+            bgcolor: 'background.paper',
+            zIndex: 1,
+          }}
+          aria-label="コピー"
+        >
+          <CopyIcon fontSize="small" />
+        </IconButton>
+      </Tooltip>
       <SyntaxHighlighter
         style={customStyle as unknown as any}
         language={lang}
-        PreTag="div"
+        customStyle={{
+          backgroundColor: '#f5f5f5',
+          padding: '1em',
+          borderRadius: '0.25em',
+        }}
+        codeTagProps={{ style: { backgroundColor: '#f5f5f5' } }}
       >
         {text}
       </SyntaxHighlighter>
@@ -94,10 +107,9 @@ const CodeBlockRenderer: React.FC<CodeProps> = ({
   );
 };
 
-// テーブル周り
 const TableRenderers = {
   table: ({ children }: { children?: React.ReactNode }) => (
-    <TableContainer component={Paper} elevation={0} sx={{ my: 1 }}>
+    <TableContainer component={Paper} elevation={0} sx={{ my: 2 }}>
       <Table size="small">{children}</Table>
     </TableContainer>
   ),
@@ -120,7 +132,6 @@ const TableRenderers = {
   ),
 };
 
-// 画像
 const ImageRenderer: React.FC<{ src?: string; alt?: string }> = ({
   src,
   alt,
@@ -133,7 +144,6 @@ const ImageRenderer: React.FC<{ src?: string; alt?: string }> = ({
   />
 );
 
-// 段落
 const ParagraphRenderer: React.FC<{ children?: React.ReactNode }> = ({
   children,
 }) => (
@@ -146,7 +156,6 @@ const ParagraphRenderer: React.FC<{ children?: React.ReactNode }> = ({
   </Typography>
 );
 
-// ReactMarkdown に渡す components マップ（型キャスト付き）
 const markdownComponents = {
   code: CodeBlockRenderer,
   img: ImageRenderer,
@@ -154,7 +163,6 @@ const markdownComponents = {
   ...TableRenderers,
 } as unknown as Components;
 
-// ── MessageItem 本体 ──
 interface MessageProps {
   message: ChatMessage;
 }
