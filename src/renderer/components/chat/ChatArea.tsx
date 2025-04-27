@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Divider, Typography, CircularProgress } from '@mui/material';
+import { Box, Divider, Typography } from '@mui/material';
 import { useChat } from '@ai-sdk/react';
 import MessageList from './MessageList';
 import MessageInput from './MessageInput';
@@ -105,7 +105,6 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
     try {
       const chatMessages = await chatService.getChatMessages(roomId);
       setInitialMessages(chatMessages);
-      console.log('initialMessages: ', chatMessages);
     } catch (error) {
       console.error('チャットメッセージの取得に失敗しました:', error);
     } finally {
@@ -152,8 +151,6 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
       },
     });
 
-  console.log('useChat messages:', messages);
-
   return (
     <Box
       sx={{
@@ -171,22 +168,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
       {selectedRoomId ? (
         <>
           {/* メッセージリスト */}
-          <MessageList messages={messages} loading={loading} />
-          {status === 'streaming' && (
-            <Box
-              sx={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'flex-start',
-                mt: 1,
-              }}
-            >
-              <CircularProgress size={20} />
-              <Box component="span" sx={{ ml: 1, fontSize: '0.875rem' }}>
-                応答中…
-              </Box>
-            </Box>
-          )}
+          <MessageList messages={messages} loading={loading} status={status} />
 
           <Divider />
 
