@@ -1,4 +1,3 @@
-import { ipcMain } from 'electron';
 import { drizzle, type LibSQLDatabase } from 'drizzle-orm/libsql';
 import * as schema from './schema';
 import { getStore } from '../main/store';
@@ -31,38 +30,6 @@ const getDb = async (): Promise<Database> => {
     dbInstance = await initializeDatabase();
   }
   return dbInstance!;
-};
-
-// データベース操作用のIPCハンドラーを設定
-export const initializeDb = async () => {
-  const db = await getDb();
-  ipcMain.handle('db-operation', async (event, { type, payload }) => {
-    try {
-      switch (type) {
-        case 'select': {
-          const table = schema[payload.table as keyof typeof schema];
-          return await db.select().from(table);
-        }
-        case 'insert': {
-          const table = schema[payload.table as keyof typeof schema];
-          return await db.insert(table).values(payload.data);
-        }
-        case 'update': {
-          const table = schema[payload.table as keyof typeof schema];
-          return await db.update(table).set(payload.data).where(payload.where);
-        }
-        case 'delete': {
-          const table = schema[payload.table as keyof typeof schema];
-          return await db.delete(table).where(payload.where);
-        }
-        default:
-          throw new Error(`Unsupported operation type: ${type}`);
-      }
-    } catch (error) {
-      console.error('Database operation failed:', error);
-      throw error;
-    }
-  });
 };
 
 // データベースモジュールのデフォルトエクスポート

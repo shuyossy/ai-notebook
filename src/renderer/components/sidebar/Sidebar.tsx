@@ -23,13 +23,11 @@ function Sidebar({
 }: SidebarProps) {
   const [isSourceListOpen, setIsSourceListOpen] = useState(false);
   const [chatRooms, setChatRooms] = useState<ChatRoom[]>([]);
-  const [loading, setLoading] = useState(false);
   const [menuAnchorEl, setMenuAnchorEl] = useState<null | HTMLElement>(null);
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
 
   // チャットルーム一覧を取得
   const fetchChatRooms = useCallback(async () => {
-    setLoading(true);
     try {
       const rooms = await chatService.getChatRooms();
       // updatedAtで降順ソート
@@ -40,8 +38,6 @@ function Sidebar({
       setChatRooms(sortedRooms);
     } catch (error) {
       console.error(error);
-    } finally {
-      setLoading(false);
     }
   }, []);
 
@@ -138,7 +134,6 @@ function Sidebar({
         <ChatRoomList
           rooms={chatRooms}
           selectedRoomId={selectedRoomId}
-          loading={loading}
           onRoomSelect={onRoomSelect}
           onMenuOpen={handleMenuOpen}
         />

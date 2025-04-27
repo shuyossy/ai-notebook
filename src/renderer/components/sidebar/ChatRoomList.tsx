@@ -7,7 +7,6 @@ import {
   IconButton,
   Typography,
   Box,
-  CircularProgress,
   Tooltip,
 } from '@mui/material';
 import { MoreVert as MoreIcon } from '@mui/icons-material';
@@ -16,7 +15,6 @@ import type { ChatRoom } from '../../../main/types';
 interface ChatRoomListProps {
   rooms: ChatRoom[];
   selectedRoomId: string | null;
-  loading: boolean;
   onRoomSelect: (roomId: string) => void;
   onMenuOpen: (event: React.MouseEvent<HTMLElement>, roomId: string) => void;
 }
@@ -24,18 +22,9 @@ interface ChatRoomListProps {
 function ChatRoomList({
   rooms,
   selectedRoomId,
-  loading,
   onRoomSelect,
   onMenuOpen,
 }: ChatRoomListProps) {
-  if (loading) {
-    return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
-        <CircularProgress size={24} />
-      </Box>
-    );
-  }
-
   if (rooms.length === 0) {
     return (
       <Box sx={{ p: 3, textAlign: 'center' }}>

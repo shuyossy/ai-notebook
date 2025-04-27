@@ -18,7 +18,7 @@ import { createDataStream } from 'ai';
 import { type Source } from '../db/schema';
 import { IpcChannels, IpcResponsePayloadMap } from './types/ipc';
 import { sources } from '../db/schema';
-import getDb, { initializeDb } from '../db';
+import getDb from '../db';
 import SourceRegistrationManager from '../mastra/workflows/sourceRegistrationManager';
 import { getOrchestrator } from '../mastra/agents/orchestrator';
 import MenuBuilder from './menu';
@@ -115,8 +115,6 @@ const setupChatHandlers = () => {
       { roomId, content },
     ): Promise<IpcResponsePayloadMap[typeof IpcChannels.CHAT_SEND_MESSAGE]> => {
       try {
-        console.log('AIエージェントにメッセージを送信:', content);
-        console.log(roomId);
         // Mastraインスタンスからオーケストレーターエージェントを取得
         const mastra = getMastra();
         const orchestratorAgent = mastra.getAgent('orchestratorAgent');
@@ -438,7 +436,6 @@ app.on('window-all-closed', () => {
 const initialize = async () => {
   createWindow();
   await initStore();
-  await initializeDb();
   await initializeMastra(); // Mastraの初期化を追加
   setupStoreHandlers();
   setupChatHandlers();

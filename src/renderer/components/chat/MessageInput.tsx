@@ -5,7 +5,6 @@ import {
   IconButton,
   Paper,
   InputAdornment,
-  CircularProgress,
 } from '@mui/material';
 import { Send as SendIcon } from '@mui/icons-material';
 
@@ -15,7 +14,6 @@ interface MessageInputProps {
   message: string;
   disabled?: boolean;
   placeholder?: string;
-  sending?: boolean;
 }
 
 const MessageInput: React.FC<MessageInputProps> = ({
@@ -24,7 +22,6 @@ const MessageInput: React.FC<MessageInputProps> = ({
   message,
   disabled = false,
   placeholder = 'メッセージを入力...',
-  sending = false,
 }) => {
   const [isComposing, setIsComposing] = useState(false);
 
@@ -71,7 +68,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
           onKeyDown={handleKeyDown}
           onCompositionStart={handleCompositionStart}
           onCompositionEnd={handleCompositionEnd}
-          disabled={disabled || sending}
+          disabled={disabled}
           slotProps={{
             input: {
               sx: {
@@ -84,9 +81,9 @@ const MessageInput: React.FC<MessageInputProps> = ({
                   <IconButton
                     color="primary"
                     onClick={handleSubmit}
-                    disabled={disabled || sending || !message.trim()}
+                    disabled={disabled || !message.trim()}
                   >
-                    {sending ? <CircularProgress size={24} /> : <SendIcon />}
+                    <SendIcon />
                   </IconButton>
                 </InputAdornment>
               ),
