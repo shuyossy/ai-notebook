@@ -155,14 +155,14 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
     <Box
       sx={{
         width: 'calc(100% - 280px)',
-        height: '100%',
+        height: '100vh',
         display: 'flex',
         flexDirection: 'column',
-        bgcolor: 'background.default',
         position: 'fixed',
         right: 0,
         top: 0,
         bottom: 0,
+        overflow: 'hidden',
       }}
     >
       {selectedRoomId ? (
@@ -199,7 +199,6 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
             display: 'flex',
             justifyContent: 'center',
             alignItems: 'center',
-            bgcolor: 'background.paper',
           }}
         >
           <Typography variant="h6" color="text.secondary">

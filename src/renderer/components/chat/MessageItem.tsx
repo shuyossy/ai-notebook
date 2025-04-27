@@ -10,8 +10,6 @@ import {
   Box,
   Typography,
   Paper,
-  Avatar,
-  Tooltip,
   IconButton,
   TableContainer,
   Table,
@@ -20,22 +18,27 @@ import {
   TableRow,
   TableCell,
 } from '@mui/material';
-import {
-  Person as PersonIcon,
-  SmartToy as BotIcon,
-  ContentCopy as CopyIcon,
-} from '@mui/icons-material';
+import { ContentCopy as CopyIcon } from '@mui/icons-material';
 // @ts-ignore
 import type { Components } from 'react-markdown';
 import type { ChatMessage } from '../../../main/types';
 
-// ── Markdown 用レンダラをファイルトップに分離 ──
+// ──────── Markdown レンダラー設定 ────────
 
 // コードブロック＆インラインコード
 type CodeProps = {
   inline?: boolean;
   className?: string;
   children?: React.ReactNode;
+};
+
+// コードブロックのテーマ設定
+const customStyle = {
+  ...materialLight,
+  'pre[class*="language-"]': {
+    ...materialLight['pre[class*="language-"]'],
+    backgroundColor: '#f5f5f5',
+  },
 };
 const CodeBlockRenderer: React.FC<CodeProps> = ({
   inline,
@@ -54,7 +57,7 @@ const CodeBlockRenderer: React.FC<CodeProps> = ({
         sx={{
           px: '4px',
           py: '2px',
-          bgcolor: 'rgba(0,0,0,0.04)',
+          bgcolor: 'grey.100',
           borderRadius: 1,
           fontSize: '0.875em',
         }}
@@ -81,7 +84,7 @@ const CodeBlockRenderer: React.FC<CodeProps> = ({
         <CopyIcon fontSize="small" />
       </IconButton>
       <SyntaxHighlighter
-        style={materialLight as unknown as any}
+        style={customStyle as unknown as any}
         language={lang}
         PreTag="div"
       >
@@ -175,24 +178,12 @@ const MessageItem = forwardRef<HTMLDivElement, MessageProps>(
           px: 2,
         }}
       >
-        {/* アバター */}
-        <Box sx={{ mr: isUser ? 0 : 2, ml: isUser ? 2 : 0, mt: 0.5 }}>
-          <Tooltip title={isUser ? 'ユーザー' : 'AI'}>
-            <Avatar
-              sx={{ bgcolor: isUser ? 'primary.main' : 'secondary.main' }}
-            >
-              {isUser ? <PersonIcon /> : <BotIcon />}
-            </Avatar>
-          </Tooltip>
-        </Box>
-
-        {/* メッセージバブル */}
-        <Box sx={{ maxWidth: '85%', textAlign: isUser ? 'right' : 'left' }}>
+        <Box sx={{ maxWidth: isUser ? '70%' : '100%', textAlign: 'left' }}>
           <Paper
-            elevation={1}
+            elevation={isUser ? 1 : 0}
             sx={{
               p: 2,
-              bgcolor: isUser ? 'primary.lighter' : 'grey.100',
+              bgcolor: isUser ? 'grey.100' : 'background.paper',
               borderRadius: 2,
             }}
           >

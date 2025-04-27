@@ -440,7 +440,7 @@ const initialize = async () => {
   setupStoreHandlers();
   setupChatHandlers();
   setupSourceHandlers();
-  await initializeSourceRegistration();
+  initializeSourceRegistration();
 };
 
 app.whenReady().then(initialize).catch(console.error);

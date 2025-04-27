@@ -33,6 +33,11 @@ const MessageList: React.FC<MessageListProps> = ({
         p: 2,
         display: 'flex',
         flexDirection: 'column',
+        '& > *': {
+          maxWidth: '800px',
+          margin: '0 auto',
+          width: '100%',
+        },
       }}
       className="hidden-scrollbar"
     >
