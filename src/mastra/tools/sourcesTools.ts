@@ -51,6 +51,7 @@ export const sourceListTool = createTool({
 
           return {
             id: source.id,
+            path: source.path,
             title: source.title,
             summary: source.summary,
             topics: topicsList.map((topic) => ({
@@ -81,6 +82,7 @@ export const querySourceTool = createTool({
   description: '特定のソースファイルの内容に基づいて質問に回答する',
   inputSchema: z.object({
     sourceId: z.number().describe('対象のソースID'),
+    path: z.string().describe('ソースファイルのパス'),
     query: z.string().describe('検索内容や質問'),
   }),
   outputSchema: z.object({

@@ -18,6 +18,7 @@ const MessageList: React.FC<MessageListProps> = ({ messages, loading }) => {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, loading]);
+  console.log('MessageList: ', messages);
 
   return (
     <Box
@@ -37,33 +38,29 @@ const MessageList: React.FC<MessageListProps> = ({ messages, loading }) => {
 
         return (
           <Box key={m.id} mb={2}>
-            <MessageItem message={m} />
-
-            {toolParts.length > 0 && (
-              <Accordion>
-                <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                  ツール実行結果 ({toolParts.length})
-                </AccordionSummary>
-                <AccordionDetails>
-                  {toolParts.map((part) => {
-                    const ti = part.toolInvocation;
-                    return (
-                      <Box
-                        key={ti.toolCallId}
-                        mb={1}
-                        p={1}
-                        sx={{ bgcolor: 'grey.100', borderRadius: 1 }}
-                      >
-                        <Box component="pre" sx={{ margin: 0 }}>
-                          Tool: {ti.toolName}
-                          {'\n'}args: ({JSON.stringify(ti.args)})
-                        </Box>
+            {toolParts.map((part) => {
+              const ti = part.toolInvocation;
+              return (
+                <Accordion>
+                  <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                    {ti.toolName}
+                  </AccordionSummary>
+                  <AccordionDetails>
+                    <Box
+                      key={ti.toolCallId}
+                      mb={1}
+                      p={1}
+                      sx={{ bgcolor: 'grey.100', borderRadius: 1 }}
+                    >
+                      <Box component="pre" sx={{ margin: 0 }}>
+                        {'\n'}args: ({JSON.stringify(ti.args)})
                       </Box>
-                    );
-                  })}
-                </AccordionDetails>
-              </Accordion>
-            )}
+                    </Box>
+                  </AccordionDetails>
+                </Accordion>
+              );
+            })}
+            {m.content && <MessageItem message={m} />}
           </Box>
         );
       })}

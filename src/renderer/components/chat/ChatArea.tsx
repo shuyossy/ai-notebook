@@ -105,6 +105,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
     try {
       const chatMessages = await chatService.getChatMessages(roomId);
       setInitialMessages(chatMessages);
+      console.log('initialMessages: ', chatMessages);
     } catch (error) {
       console.error('チャットメッセージの取得に失敗しました:', error);
     } finally {
@@ -144,6 +145,8 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
         console.error('useChat error:', err);
       },
     });
+
+  console.log('useChat messages:', messages);
 
   const sending = status === 'submitted' || status === 'streaming';
 
