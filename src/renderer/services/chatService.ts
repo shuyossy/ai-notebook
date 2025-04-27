@@ -1,5 +1,5 @@
-import { v4 as uuidv4 } from 'uuid';
 import { ChatMessage, ChatRoom } from '../../main/types';
+import { IpcChannels, IpcEventPayload } from '../../main/types/ipc';
 
 // IPC通信を使用してメインプロセスのAIエージェントへメッセージを送信するためのチャットサービス
 export const chatService = {
@@ -54,24 +54,8 @@ export const chatService = {
    * @param content メッセージ内容
    * @returns 送信結果
    */
-  sendMessage: (roomId: string, content: string): ChatMessage => {
-    // ユーザーメッセージを作成
-    const userMessage: ChatMessage = {
-      id: uuidv4(),
-      role: 'user',
-      content,
-      createdAt: new Date(),
-    };
-
-    try {
-      // このメソッドではメッセージ送信の開始だけを行い、
-      // 実際の応答はstreamResponseメソッドで非同期に取得する
-      window.electron.chat.sendMessage(roomId, content);
-      return userMessage;
-    } catch (error) {
-      console.error('メッセージの送信に失敗しました:', error);
-      throw error;
-    }
+  sendMessage: (roomId: string, content: string): void => {
+    window.electron.chat.sendMessage(roomId, content);
   },
 
   /**
@@ -79,7 +63,7 @@ export const chatService = {
    * @param callbacks コールバック関数群
    */
   streamResponse: (callbacks: {
-    onMessage: (chunk: string) => void;
+    onMessage: (chunk: IpcEventPayload<typeof IpcChannels.CHAT_STREAM>) => void;
     onDone: () => void;
     onError: (error: Error) => void;
   }): (() => void) => {
@@ -88,19 +72,12 @@ export const chatService = {
       callbacks.onMessage(chunk);
     });
 
-    // ツール実行ステップイベントの購読
-    const unsubscribeStep = window.electron.chat.onStep((step) => {
-      // 必要に応じてステップ情報を処理
-      console.log('ツール実行ステップ:', step);
-    });
-
     // 完了イベントの購読
     const unsubscribeComplete = window.electron.chat.onComplete(
       // eslint-disable-next-line
-      ({ text, finishReason }) => {
+      () => {
         // 購読を解除
         unsubscribeStream();
-        unsubscribeStep();
         unsubscribeComplete();
         // eslint-disable-next-line
         unsubscribeError();
@@ -114,7 +91,6 @@ export const chatService = {
     const unsubscribeError = window.electron.chat.onError((error) => {
       // 購読を解除
       unsubscribeStream();
-      unsubscribeStep();
       unsubscribeComplete();
       unsubscribeError();
 
@@ -126,7 +102,6 @@ export const chatService = {
     // 購読解除のためのクリーンアップ
     return () => {
       unsubscribeStream();
-      unsubscribeStep();
       unsubscribeComplete();
       unsubscribeError();
     };

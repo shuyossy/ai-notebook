@@ -33,7 +33,7 @@ export const getOrchestrator = (): Agent => {
         },
         workingMemory: {
           enabled: true,
-          use: 'text-stream',
+          use: 'tool-call',
           tmplate: `
 # スレッド全体の内容
 

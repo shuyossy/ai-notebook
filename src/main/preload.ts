@@ -66,35 +66,14 @@ const electronHandler = {
       };
     },
     // AIの応答完了イベント
-    onComplete: (
-      callback: (
-        response: IpcEventPayload<typeof IpcChannels.CHAT_COMPLETE>,
-      ) => void,
-    ) => {
-      const subscription = (
-        _event: IpcRendererEvent,
-        response: IpcEventPayload<typeof IpcChannels.CHAT_COMPLETE>,
-      ) => {
-        callback(response);
+    onComplete: (callback: () => void) => {
+      // eslint-disable-next-line
+      const subscription = (_event: IpcRendererEvent) => {
+        callback();
       };
       ipcRenderer.on(IpcChannels.CHAT_COMPLETE, subscription);
       return () => {
         ipcRenderer.removeListener(IpcChannels.CHAT_COMPLETE, subscription);
-      };
-    },
-    // ツール実行ステップ完了イベント
-    onStep: (
-      callback: (step: IpcEventPayload<typeof IpcChannels.CHAT_STEP>) => void,
-    ) => {
-      const subscription = (
-        _event: IpcRendererEvent,
-        step: IpcEventPayload<typeof IpcChannels.CHAT_STEP>,
-      ) => {
-        callback(step);
-      };
-      ipcRenderer.on(IpcChannels.CHAT_STEP, subscription);
-      return () => {
-        ipcRenderer.removeListener(IpcChannels.CHAT_STEP, subscription);
       };
     },
     // エラーイベント

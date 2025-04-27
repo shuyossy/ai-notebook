@@ -14,9 +14,8 @@ import { autoUpdater } from 'electron-updater';
 import log from 'electron-log';
 import { Mastra } from '@mastra/core';
 import { createLogger } from '@mastra/core/logger';
-import { maskStreamTags } from '@mastra/core/utils';
+import { createDataStream } from 'ai';
 import { type Source } from '../db/schema';
-import { ToolCall } from './types';
 import { IpcChannels, IpcResponsePayloadMap } from './types/ipc';
 import { sources } from '../db/schema';
 import getDb, { initializeDb } from '../db';
@@ -116,6 +115,8 @@ const setupChatHandlers = () => {
       { roomId, content },
     ): Promise<IpcResponsePayloadMap[typeof IpcChannels.CHAT_SEND_MESSAGE]> => {
       try {
+        console.log('AIエージェントにメッセージを送信:', content);
+        console.log(roomId);
         // Mastraインスタンスからオーケストレーターエージェントを取得
         const mastra = getMastra();
         const orchestratorAgent = mastra.getAgent('orchestratorAgent');
@@ -125,56 +126,32 @@ const setupChatHandlers = () => {
           resourceId: 'user', // 固定のリソースID
           threadId: roomId, // チャットルームIDをスレッドIDとして使用
           maxSteps: 30, // ツールの利用上限
-          onFinish: ({ text, finishReason }) => {
+          onFinish: () => {
             // ストリーミングが完了したときの処理
             // フロントエンドに完了通知を送信
-            event.sender.send(IpcChannels.CHAT_COMPLETE, {
-              text,
-              finishReason,
-            });
+            event.sender.send(IpcChannels.CHAT_COMPLETE);
           },
-          onStepFinish: ({
-            text,
-            toolCalls,
-          }: {
-            text: string;
-            toolCalls: ToolCall[];
-          }) => {
-            // ステップ完了ごとにフロントエンドに進捗を通知
-            // ツール呼び出し情報も含めて送信
-            event.sender.send(IpcChannels.CHAT_STEP, { text, toolCalls });
+        });
+
+        // DataStreamを生成
+        const dataStream = createDataStream({
+          execute(writer) {
+            stream.mergeIntoDataStream(writer);
           },
         });
 
         // テキストストリームを処理
-        try {
-          // ライフサイクルフックを追加してUIフィードバックを提供する
-          const maskedStream = maskStreamTags(
-            stream.textStream,
-            'working_memory',
-            {
-              // working_memoryタグが開始されたときに呼び出される
-              onStart: () => console.debug('作業メモリ更新中...'),
-              // working_memoryタグが終了したときに呼び出される
-              onEnd: () => console.debug('作業メモリの更新が完了しました'),
-              // マスクされたコンテンツと共に呼び出される
-              onMask: (chunk: string) =>
-                console.debug('更新された作業メモリ:', chunk),
-            },
-          );
-          for await (const chunk of maskedStream) {
-            // チャンクをフロントエンドに送信
-            event.sender.send(IpcChannels.CHAT_STREAM, chunk);
-          }
-        } catch (streamError) {
-          console.error('ストリーミング処理中にエラーが発生:', streamError);
+        // @ts-ignore
+        for await (const chunk of dataStream) {
+          // チャンクをフロントエンドに送信
+          event.sender.send(IpcChannels.CHAT_STREAM, chunk);
         }
 
         return { success: true };
       } catch (error) {
         console.error('AIエージェントとの通信中にエラーが発生:', error);
         event.sender.send(IpcChannels.CHAT_ERROR, {
-          message: `エラーが発生しました: ${(error as Error).message}`,
+          message: `${(error as Error).message}`,
         });
         return { success: false, error: (error as Error).message };
       }

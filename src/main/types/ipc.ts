@@ -1,4 +1,4 @@
-import type { ChatMessage, ChatRoom, ToolCall } from '.';
+import type { ChatMessage, ChatRoom } from '.';
 import type { Source } from '../../db/schema';
 
 /**
@@ -67,9 +67,8 @@ export type IpcResponsePayloadMap = {
 };
 
 export type IpcEventPayloadMap = {
-  [IpcChannels.CHAT_STREAM]: string;
-  [IpcChannels.CHAT_COMPLETE]: { text: string; finishReason: string };
-  [IpcChannels.CHAT_STEP]: { text: string; toolCalls: ToolCall[] };
+  [IpcChannels.CHAT_STREAM]: any; // AI SDKが定義するDataStreamが入る想定(型がexportされていないためany型)
+  [IpcChannels.CHAT_COMPLETE]: unknown;
   [IpcChannels.CHAT_ERROR]: { message: string };
 };
 

@@ -10,29 +10,23 @@ import {
 import { Send as SendIcon } from '@mui/icons-material';
 
 interface MessageInputProps {
-  onSendMessage: (message: string) => void;
+  handleSubmit: (e: React.FormEvent) => void;
+  handleInputChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  message: string;
   disabled?: boolean;
   placeholder?: string;
   sending?: boolean;
 }
 
 const MessageInput: React.FC<MessageInputProps> = ({
-  onSendMessage,
+  handleSubmit,
+  handleInputChange,
+  message,
   disabled = false,
   placeholder = 'メッセージを入力...',
   sending = false,
 }) => {
-  const [message, setMessage] = useState('');
   const [isComposing, setIsComposing] = useState(false);
-
-  // 送信ハンドラ
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (message.trim() && !disabled && !sending) {
-      onSendMessage(message);
-      setMessage('');
-    }
-  };
 
   // Enterキーで送信（Shift+Enterで改行）
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -73,7 +67,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
           placeholder={placeholder}
           variant="outlined"
           value={message}
-          onChange={(e) => setMessage(e.target.value)}
+          onChange={handleInputChange}
           onKeyDown={handleKeyDown}
           onCompositionStart={handleCompositionStart}
           onCompositionEnd={handleCompositionEnd}

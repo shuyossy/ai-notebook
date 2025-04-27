@@ -19,18 +19,3 @@ export type ChatRoom = StorageThreadType;
  * チャットメッセージの型（Mastraの型を利用）
  */
 export type ChatMessage = AiMessageType;
-
-/**
- * ストリーミングメッセージの型
- */
-export type StreamMessage = string;
-
-/**
- * toolCallの型
- */
-export type ToolCall = {
-  args: object;
-  toolCallId: string;
-  toolName: string;
-  type: string;
-};

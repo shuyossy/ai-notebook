@@ -1,178 +1,214 @@
 import React, { forwardRef, memo } from 'react';
-import { Box, Typography, Paper, Avatar, Tooltip } from '@mui/material';
-import { Person as PersonIcon, SmartToy as BotIcon } from '@mui/icons-material';
 // @ts-ignore
-import Markdown from 'react-markdown';
-import { ChatMessage } from '../../../main/types';
+import ReactMarkdown from 'react-markdown';
+// @ts-ignore
+import remarkGfm from 'remark-gfm';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { materialLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import copy from 'copy-to-clipboard';
+import {
+  Box,
+  Typography,
+  Paper,
+  Avatar,
+  Tooltip,
+  IconButton,
+  TableContainer,
+  Table,
+  TableHead,
+  TableBody,
+  TableRow,
+  TableCell,
+} from '@mui/material';
+import {
+  Person as PersonIcon,
+  SmartToy as BotIcon,
+  ContentCopy as CopyIcon,
+} from '@mui/icons-material';
+// @ts-ignore
+import type { Components } from 'react-markdown';
+import type { ChatMessage } from '../../../main/types';
 
-interface MessageProps {
-  message: ChatMessage;
-}
+// ── Markdown 用レンダラをファイルトップに分離 ──
 
-interface MarkdownComponentProps {
-  children: React.ReactNode;
-}
+// コードブロック＆インラインコード
+type CodeProps = {
+  inline?: boolean;
+  className?: string;
+  children?: React.ReactNode;
+};
+const CodeBlockRenderer: React.FC<CodeProps> = ({
+  inline,
+  className,
+  children,
+}) => {
+  const text = String(children ?? '').replace(/\n$/, '');
+  const langMatch = /language-(\w+)/.exec(className || '');
+  const lang = langMatch?.[1] ?? '';
 
-// カスタムコンポーネントを外で定義
-function CodeBlock({ children }: MarkdownComponentProps) {
+  if (inline) {
+    // インラインコード
+    return (
+      <Box
+        component="code"
+        sx={{
+          px: '4px',
+          py: '2px',
+          bgcolor: 'rgba(0,0,0,0.04)',
+          borderRadius: 1,
+          fontSize: '0.875em',
+        }}
+      >
+        {children}
+      </Box>
+    );
+  }
+
+  // ブロックコード：シンタックスハイライト＋コピー
   return (
-    <Box
-      component="code"
-      sx={{
-        whiteSpace: 'pre-wrap',
-        display: 'inline-block',
-        background: 'rgba(0, 0, 0, 0.04)',
-        padding: '2px 4px',
-        borderRadius: 1,
-        fontSize: '0.875em',
-      }}
-    >
-      {children}
+    <Box sx={{ position: 'relative', mb: 2 }}>
+      <IconButton
+        size="small"
+        onClick={() => copy(text)}
+        sx={{
+          position: 'absolute',
+          top: 4,
+          right: 4,
+          bgcolor: 'background.paper',
+        }}
+        aria-label="コードをコピー"
+      >
+        <CopyIcon fontSize="small" />
+      </IconButton>
+      <SyntaxHighlighter
+        style={materialLight as unknown as any}
+        language={lang}
+        PreTag="div"
+      >
+        {text}
+      </SyntaxHighlighter>
     </Box>
   );
-}
+};
 
-function UserParagraph({ children }: MarkdownComponentProps) {
-  return (
-    <Typography
-      variant="body1"
-      component="p"
-      sx={{
-        margin: 0,
-        whiteSpace: 'pre-wrap',
-        overflowWrap: 'break-word',
-      }}
-    >
+// テーブル周り
+const TableRenderers = {
+  table: ({ children }: { children?: React.ReactNode }) => (
+    <TableContainer component={Paper} elevation={0} sx={{ my: 1 }}>
+      <Table size="small">{children}</Table>
+    </TableContainer>
+  ),
+  thead: ({ children }: { children?: React.ReactNode }) => (
+    <TableHead sx={{ bgcolor: 'grey.200' }}>{children}</TableHead>
+  ),
+  tbody: ({ children }: { children?: React.ReactNode }) => (
+    <TableBody>{children}</TableBody>
+  ),
+  tr: ({ children }: { children?: React.ReactNode }) => (
+    <TableRow>{children}</TableRow>
+  ),
+  th: ({ children }: { children?: React.ReactNode }) => (
+    <TableCell sx={{ fontWeight: 'bold', borderColor: 'grey.300' }}>
       {children}
-    </Typography>
-  );
-}
+    </TableCell>
+  ),
+  td: ({ children }: { children?: React.ReactNode }) => (
+    <TableCell sx={{ borderColor: 'grey.300' }}>{children}</TableCell>
+  ),
+};
 
-function AIParagraph({ children }: MarkdownComponentProps) {
-  return (
-    <Typography variant="body1" component="p" sx={{ margin: 0 }}>
-      {children}
-    </Typography>
-  );
+// 画像
+const ImageRenderer: React.FC<{ src?: string; alt?: string }> = ({
+  src,
+  alt,
+}) => (
+  <Box
+    component="img"
+    src={src}
+    alt={alt}
+    sx={{ maxWidth: '100%', borderRadius: 1, my: 1 }}
+  />
+);
+
+// 段落
+const ParagraphRenderer: React.FC<{ children?: React.ReactNode }> = ({
+  children,
+}) => (
+  <Typography
+    variant="body1"
+    component="p"
+    sx={{ mt: 1, whiteSpace: 'pre-wrap' }}
+  >
+    {children}
+  </Typography>
+);
+
+// ReactMarkdown に渡す components マップ（型キャスト付き）
+const markdownComponents = {
+  code: CodeBlockRenderer,
+  img: ImageRenderer,
+  p: ParagraphRenderer,
+  ...TableRenderers,
+} as unknown as Components;
+
+// ── MessageItem 本体 ──
+interface MessageProps {
+  message: ChatMessage;
 }
 
 const MessageItem = forwardRef<HTMLDivElement, MessageProps>(
   ({ message }, ref) => {
     const isUser = message.role === 'user';
-    const date = message.createdAt || new Date();
-    const formattedTime = date.toLocaleTimeString([], {
+    const date = message.createdAt ? new Date(message.createdAt) : new Date();
+    const time = date.toLocaleTimeString([], {
       hour: '2-digit',
       minute: '2-digit',
     });
-
-    const ParagraphComponent = isUser ? UserParagraph : AIParagraph;
 
     return (
       <Box
         ref={ref}
         sx={{
           display: 'flex',
+          justifyContent: isUser ? 'flex-end' : 'flex-start',
           mb: 2,
           px: 2,
         }}
       >
-        <Box
-          sx={{
-            mr: 2,
-            mt: 0.5,
-          }}
-        >
+        {/* アバター */}
+        <Box sx={{ mr: isUser ? 0 : 2, ml: isUser ? 2 : 0, mt: 0.5 }}>
           <Tooltip title={isUser ? 'ユーザー' : 'AI'}>
             <Avatar
-              sx={{
-                bgcolor: isUser ? 'primary.main' : 'secondary.main',
-              }}
+              sx={{ bgcolor: isUser ? 'primary.main' : 'secondary.main' }}
             >
               {isUser ? <PersonIcon /> : <BotIcon />}
             </Avatar>
           </Tooltip>
         </Box>
 
-        <Box sx={{ maxWidth: '85%' }}>
+        {/* メッセージバブル */}
+        <Box sx={{ maxWidth: '85%', textAlign: isUser ? 'right' : 'left' }}>
           <Paper
-            elevation={0}
+            elevation={1}
             sx={{
               p: 2,
               bgcolor: isUser ? 'primary.lighter' : 'grey.100',
               borderRadius: 2,
             }}
           >
-            <Box
-              sx={{
-                // マークダウン要素のスタイル調整
-                '& h1, & h2, & h3, & h4, & h5, & h6': {
-                  margin: '0.15rem',
-                  fontWeight: 'bold',
-                  lineHeight: 1.2,
-                },
-                '& ul, & ol': {
-                  margin: 0,
-                  padding: 0,
-                  paddingLeft: '1rem',
-                  '& ul, & ol': {
-                    marginLeft: '0.5rem',
-                  },
-                },
-                '& li': {
-                  margin: 0,
-                  padding: 0,
-                },
-                '& p': {
-                  margin: 0,
-                  padding: 0,
-                },
-                '& pre': {
-                  background: 'rgba(0, 0, 0, 0.04)',
-                  padding: '0.25rem 0.5rem',
-                  borderRadius: 1,
-                  overflowX: 'auto',
-                  margin: 0,
-                  '& code': {
-                    whiteSpace: 'pre',
-                  },
-                },
-                '& :not(pre) > code': {
-                  whiteSpace: 'pre-wrap',
-                  background: 'rgba(0, 0, 0, 0.04)',
-                  padding: '2px 4px',
-                  borderRadius: 1,
-                  fontSize: '0.875em',
-                },
-                '& blockquote': {
-                  margin: 0,
-                  padding: '0.25rem 0.5rem',
-                  borderLeft: '3px solid rgba(0, 0, 0, 0.1)',
-                },
-                // 見出しのサイズ調整
-                '& h1': { fontSize: '1.2em' },
-                '& h2': { fontSize: '1.1em' },
-                '& h3, & h4, & h5, & h6': { fontSize: '1em' },
-                // 段落間の余白調整
-                '& p + p': { marginTop: '0.25rem' },
-                '& pre + p, & p + pre': { marginTop: '0.25rem' },
-              }}
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              components={markdownComponents}
             >
-              <Markdown
-                components={{
-                  p: ParagraphComponent as any,
-                  code: CodeBlock as any,
-                }}
-              >
-                {message.content}
-              </Markdown>
-            </Box>
+              {message.content}
+            </ReactMarkdown>
           </Paper>
           <Typography
             variant="caption"
             color="text.secondary"
-            sx={{ ml: 1, mt: 0.5, display: 'block' }}
+            sx={{ mt: 0.5, display: 'block' }}
           >
-            {formattedTime}
+            {time}
           </Typography>
         </Box>
       </Box>
@@ -181,5 +217,4 @@ const MessageItem = forwardRef<HTMLDivElement, MessageProps>(
 );
 
 MessageItem.displayName = 'MessageItem';
-
 export default memo(MessageItem);
