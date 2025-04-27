@@ -1,9 +1,10 @@
-import React, { useEffect } from 'react';
-import { Box, Divider, Typography, LinearProgress } from '@mui/material';
+import React, { useState, useEffect } from 'react';
+import { Box, Divider, Typography } from '@mui/material';
 import { useChat } from '@ai-sdk/react';
 import MessageList from './MessageList';
 import MessageInput from './MessageInput';
 import { chatService } from '../../services/chatService';
+import { ChatMessage } from '../../../main/types';
 
 // ai-sdk提供のcreateDataStreamResponseを使ってストリーミングレスポンスを取得する場合の関数
 // なぜか適切なヘッダが付与されないので、利用しない
@@ -92,20 +93,40 @@ const customFetch: typeof fetch = async (input, init) => {
 
 interface ChatAreaProps {
   selectedRoomId: string | null;
-  sending: boolean;
-  setSending: (sending: boolean) => void;
 }
 
-const ChatArea: React.FC<ChatAreaProps> = ({
-  selectedRoomId,
-  sending,
-  setSending,
-}) => {
+const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
+  const [loading, setLoading] = useState(false);
+  const [initialMessages, setInitialMessages] = useState<ChatMessage[]>([]);
+
+  // メッセージ履歴を取得
+  const fetchMessages = async (roomId: string) => {
+    setLoading(true);
+    try {
+      const chatMessages = await chatService.getChatMessages(roomId);
+      setInitialMessages(chatMessages);
+    } catch (error) {
+      console.error('チャットメッセージの取得に失敗しました:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // チャットルームが選択されたらそのメッセージを取得
+  useEffect(() => {
+    if (selectedRoomId) {
+      fetchMessages(selectedRoomId);
+    } else {
+      setInitialMessages([]);
+    }
+  }, [selectedRoomId]);
+
   const { messages, input, status, error, handleInputChange, handleSubmit } =
     useChat({
+      id: selectedRoomId ?? undefined,
       api: '/api/chat',
       fetch: customFetch,
-      streamProtocol: 'data',
+      initialMessages,
       experimental_prepareRequestBody: (request) => {
         // Ensure messages array is not empty and get the last message
         const lastMessage =
@@ -124,12 +145,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
       },
     });
 
-  // 親コンポーネントと“送信中”状態を同期
-  useEffect(() => {
-    setSending(status === 'submitted' || status === 'streaming');
-  }, [status, setSending]);
-
-  const streaming = status === 'streaming';
+  const sending = status === 'submitted' || status === 'streaming';
 
   return (
     <Box
@@ -147,11 +163,8 @@ const ChatArea: React.FC<ChatAreaProps> = ({
     >
       {selectedRoomId ? (
         <>
-          {/* ステータスバー */}
-          {streaming && <LinearProgress />}
-
           {/* メッセージリスト */}
-          <MessageList messages={messages} loading={sending} />
+          <MessageList messages={messages} loading={loading} />
 
           <Divider />
 
