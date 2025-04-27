@@ -32,7 +32,12 @@ function Sidebar({
     setLoading(true);
     try {
       const rooms = await chatService.getChatRooms();
-      setChatRooms(rooms);
+      // updatedAtで降順ソート
+      const sortedRooms = [...rooms].sort(
+        (a, b) =>
+          new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+      );
+      setChatRooms(sortedRooms);
     } catch (error) {
       console.error(error);
     } finally {
