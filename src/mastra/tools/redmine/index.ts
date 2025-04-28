@@ -103,21 +103,18 @@ export const createRedmineTools = (config: {
     }),
     execute: async () => {
       // 各種マスタ情報を取得
-      const [projects, trackers, statuses, priorities, activities] =
-        await Promise.all([
-          client.getProjects(),
-          client.getTrackers(),
-          client.getStatuses(),
-          client.getPriorities(),
-          client.getTimeEntryActivities(),
-        ]);
+      const [projects, trackers, statuses, priorities] = await Promise.all([
+        client.getProjects(),
+        client.getTrackers(),
+        client.getStatuses(),
+        client.getPriorities(),
+      ]);
 
       return {
         projects,
         trackers,
         statuses,
         priorities,
-        activities,
       };
     },
   });
