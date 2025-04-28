@@ -1,0 +1,235 @@
+/**
+ * Redmine操作ツールで使用する型定義
+ */
+
+/**
+ * Redmineユーザー情報
+ */
+export interface RedmineUser {
+  id: number;
+  name: string;
+}
+
+/**
+ * Redmineカスタムフィールド
+ */
+export interface RedmineCustomField {
+  id: number;
+  name: string;
+  value: string | number | boolean | null;
+}
+
+/**
+ * Redmineチケット（Issue）
+ */
+export interface RedmineIssue {
+  id: number;
+  project: {
+    id: number;
+    name: string;
+  };
+  tracker: {
+    id: number;
+    name: string;
+  };
+  status: {
+    id: number;
+    name: string;
+  };
+  priority: {
+    id: number;
+    name: string;
+  };
+  author: {
+    id: number;
+    name: string;
+  };
+  assigned_to?: {
+    id: number;
+    name: string;
+  };
+  subject: string;
+  description: string;
+  start_date?: string;
+  due_date?: string;
+  done_ratio: number;
+  created_on: string;
+  updated_on: string;
+  closed_on?: string;
+  custom_fields?: RedmineCustomField[];
+  fixed_version?: {
+    id: number;
+    name: string;
+  };
+  parent?: {
+    id: number;
+  };
+  story_points?: number;
+  sprint_id?: number;
+  estimated_hours?: number;
+}
+
+/**
+ * Redmineチケット作成/更新用のデータ
+ */
+export interface RedmineIssueData {
+  project_id: number | string;
+  subject: string;
+  description?: string;
+  status_id?: number | string;
+  tracker_id?: number | string;
+  priority_id?: number | string;
+  assigned_to_id?: number | string;
+  parent_issue_id?: number;
+  start_date?: string;
+  due_date?: string;
+  estimated_hours?: number;
+  done_ratio?: number;
+  fixed_version_id?: number | string;
+  custom_fields?: {
+    id: number;
+    value: string | number | boolean | null;
+  }[];
+  sprint_id?: number | string;
+  story_points?: number;
+}
+
+/**
+ * Redmineチケットフィルター
+ */
+export interface IssueFilter {
+  project_id?: number | string;
+  status_id?: number | string | 'open' | 'closed' | '*';
+  tracker_id?: number | string;
+  assigned_to_id?: number | string | 'me';
+  author_id?: number | string | 'me';
+  priority_id?: number | string;
+  fixed_version_id?: number | string;
+  sprint_id?: number | string;
+  subject?: string;
+  created_on?: string;
+  updated_on?: string;
+  sort?: string;
+}
+
+/**
+ * Redmineタイムエントリー
+ */
+export interface RedmineTimeEntry {
+  id: number;
+  project: {
+    id: number;
+    name: string;
+  };
+  issue?: {
+    id: number;
+  };
+  user: {
+    id: number;
+    name: string;
+  };
+  activity: {
+    id: number;
+    name: string;
+  };
+  hours: number;
+  comments: string;
+  spent_on: string;
+  created_on: string;
+  updated_on: string;
+}
+
+/**
+ * Redmineタイムエントリー作成/更新用のデータ
+ */
+export interface RedmineTimeEntryData {
+  issue_id?: number;
+  project_id?: number | string;
+  spent_on: string;
+  hours: number;
+  activity_id?: number | string;
+  comments?: string;
+  user_id?: number | string;
+}
+
+/**
+ * Redmineタイムエントリーフィルター
+ */
+export interface TimeEntryFilter {
+  project_id?: number | string;
+  issue_id?: number;
+  user_id?: number | string | 'me';
+  activity_id?: number | string;
+  spent_on?: string;
+}
+
+/**
+ * RedmineWikiページ
+ */
+export interface RedmineWikiPage {
+  title: string;
+  parent?: {
+    title: string;
+  };
+  text: string;
+  version: number;
+  author: {
+    id: number;
+    name: string;
+  };
+  comments?: string;
+  created_on: string;
+  updated_on: string;
+}
+
+/**
+ * RedmineWikiページ作成/更新用のデータ
+ */
+export interface RedmineWikiPageData {
+  title: string;
+  parent_title?: string;
+  text: string;
+  comments?: string;
+  version?: number;
+}
+
+/**
+ * Redmineスプリント
+ */
+export interface RedmineSprint {
+  id: number;
+  name: string;
+  status: number;
+  project_id: number;
+  sprint_start_date?: string;
+  sprint_end_date?: string;
+  is_product_backlog: boolean;
+  shared?: boolean;
+}
+
+/**
+ * Redmineスプリント作成/更新用のデータ
+ */
+export interface RedmineSprintData {
+  name: string;
+  sprint_start_date?: string;
+  sprint_end_date?: string;
+  status?: number;
+  project_id: number;
+  is_product_backlog?: boolean;
+  shared?: boolean;
+}
+
+/**
+ * Redmineバーンダウンチャートデータ
+ */
+export interface RedmineBurndownData {
+  days: {
+    date: string;
+    spent_time: number;
+    remaining_time: number;
+    ideal_time?: number;
+  }[];
+  total_points: number;
+  total_hours: number;
+}
