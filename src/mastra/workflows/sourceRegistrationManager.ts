@@ -59,7 +59,7 @@ export default class SourceRegistrationManager {
               .where(
                 and(
                   eq(sources.path, filePath),
-                  eq(sources.status, 'completed'),
+                  inArray(sources.status, ['completed', 'idle', 'processing']),
                 ),
               );
             // 登録済みかつ完了状態のファイルは除外

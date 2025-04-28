@@ -49,7 +49,9 @@ function SourceListModal({
         const responseSources: Source[] = response.sources || [];
         setSources(responseSources);
         setProcessing(
-          responseSources.some((s: Source) => s.status === 'processing'),
+          responseSources.some(
+            (s: Source) => s.status === 'idle' || s.status === 'processing',
+          ),
         );
       } catch (error) {
         console.error('ソースデータの取得に失敗しました:', error);
@@ -62,7 +64,7 @@ function SourceListModal({
 
       // processingステータスがある場合は5秒ごとに更新
       if (processing) {
-        intervalId = setInterval(fetchSources, 5000);
+        intervalId = setInterval(fetchSources, 3000);
       }
     }
 
@@ -158,7 +160,11 @@ function SourceListModal({
           <Tooltip title="設定したソースディレクトリからソースを読み取ります">
             <Button
               variant="contained"
-              onClick={handleReloadClick}
+              onClick={() => {
+                setProcessing(true);
+                handleReloadClick();
+              }}
+              disabled={processing}
               startIcon={<SyncIcon />}
             >
               ソース読み込み
