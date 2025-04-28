@@ -216,7 +216,7 @@ function SourceListModal({
         </Typography>
 
         <Box sx={{ mb: 2, display: 'flex', justifyContent: 'flex-end' }}>
-          <Tooltip title="設定したソースディレクトリからソースを読み取ります">
+          <Tooltip title="ソース登録ディレクトリ内のファイル内容と同期します">
             <Button
               variant="contained"
               onClick={() => {
@@ -236,19 +236,25 @@ function SourceListModal({
             <TableHead>
               <TableRow>
                 <TableCell padding="checkbox">
-                  <Checkbox
-                    indeterminate={
-                      Object.values(checkedSources).some(
-                        (checked) => checked,
-                      ) &&
-                      Object.values(checkedSources).some((checked) => !checked)
-                    }
-                    checked={
-                      Object.values(checkedSources).length > 0 &&
-                      Object.values(checkedSources).every((checked) => checked)
-                    }
-                    onChange={handleSelectAllChange}
-                  />
+                  <Tooltip title="AIが回答時に利用するソースを選択してください、チェックした内容は即時に反映されます">
+                    <Checkbox
+                      indeterminate={
+                        Object.values(checkedSources).some(
+                          (checked) => checked,
+                        ) &&
+                        Object.values(checkedSources).some(
+                          (checked) => !checked,
+                        )
+                      }
+                      checked={
+                        Object.values(checkedSources).length > 0 &&
+                        Object.values(checkedSources).every(
+                          (checked) => checked,
+                        )
+                      }
+                      onChange={handleSelectAllChange}
+                    />
+                  </Tooltip>
                 </TableCell>
                 <TableCell>ファイルパス</TableCell>
                 <TableCell>タイトル（生成）</TableCell>
@@ -267,10 +273,12 @@ function SourceListModal({
                   }}
                 >
                   <TableCell padding="checkbox">
-                    <Checkbox
-                      checked={checkedSources[source.id] || false}
-                      onChange={() => handleSourceCheckChange(source.id)}
-                    />
+                    <Tooltip title="AIが回答時に利用するソースを選択してください\nチェックした内容は即時に反映されます">
+                      <Checkbox
+                        checked={checkedSources[source.id] || false}
+                        onChange={() => handleSourceCheckChange(source.id)}
+                      />
+                    </Tooltip>
                   </TableCell>
                   <TableCell>{source.path}</TableCell>
                   <TableCell>{source.title}</TableCell>
