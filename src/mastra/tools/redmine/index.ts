@@ -13,7 +13,6 @@ import {
 import { createIssueTools } from './issueTools';
 import { createTimeEntryTools } from './timeEntryTools';
 import { createWikiTools } from './wikiTools';
-import { createScrumTools } from './scrumTools';
 
 /**
  * Redmine操作ツール一式を作成する
@@ -30,7 +29,6 @@ export const createRedmineTools = (config: {
   const issueTools = createIssueTools(client);
   const timeEntryTools = createTimeEntryTools(client);
   const wikiTools = createWikiTools(client);
-  const scrumTools = createScrumTools(client);
 
   // Redmineクライアント設定を検証するツール
   const validateRedmineConfig = createTool({
@@ -144,9 +142,6 @@ export const createRedmineTools = (config: {
 
     // Wikiツール
     ...wikiTools,
-
-    // Scrumツール
-    ...scrumTools,
   };
 };
 

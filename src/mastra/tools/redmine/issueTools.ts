@@ -35,10 +35,6 @@ export const createGetIssuesListTool = (client: RedmineClient) => {
         .union([z.string(), z.number(), z.literal('me')])
         .optional()
         .describe('担当者IDまたは名前、"me"（自分）'),
-      sprint_id: z
-        .union([z.string(), z.number()])
-        .optional()
-        .describe('スプリントIDまたは名前'),
       fixed_version_id: z
         .union([z.string(), z.number()])
         .optional()
@@ -174,32 +170,6 @@ export const createGetIssuesListTool = (client: RedmineClient) => {
         }
       }
 
-      if (context.sprint_id) {
-        if (
-          typeof context.sprint_id === 'string' &&
-          !Number.isNaN(Number(context.sprint_id))
-        ) {
-          filters.sprint_id = Number(context.sprint_id);
-        } else if (
-          typeof context.sprint_id === 'string' &&
-          context.project_id
-        ) {
-          // スプリントIDはプロジェクトに依存するため、プロジェクトIDが必要
-          let projectId = filters.project_id as number;
-          if (!projectId && typeof context.project_id === 'string') {
-            const projects = await client.getProjects();
-            projectId = await client.resolveId(context.project_id, projects);
-          }
-
-          if (projectId) {
-            const sprints = await client.getSprints(projectId);
-            const sprintId = await client.resolveId(context.sprint_id, sprints);
-            filters.sprint_id = sprintId;
-          }
-        } else {
-          filters.sprint_id = context.sprint_id;
-        }
-      }
 
       if (context.fixed_version_id) {
         if (
@@ -728,11 +698,6 @@ export const createUpdateIssueTool = (client: RedmineClient) => {
         )
         .optional()
         .describe('カスタムフィールド'),
-      sprint_id: z
-        .union([z.string(), z.number()])
-        .optional()
-        .describe('スプリントIDまたは名前'),
-      story_points: z.number().optional().describe('ストーリーポイント'),
     }),
     outputSchema: z.object({
       success: z.boolean(),
@@ -872,28 +837,6 @@ export const createUpdateIssueTool = (client: RedmineClient) => {
 
       if (context.custom_fields) {
         updateData.custom_fields = context.custom_fields;
-      }
-
-      if (context.sprint_id) {
-        if (
-          typeof context.sprint_id === 'string' &&
-          !Number.isNaN(Number(context.sprint_id))
-        ) {
-          updateData.sprint_id = Number(context.sprint_id);
-        } else if (typeof context.sprint_id === 'string') {
-          const projectId = existingIssue.issue.project.id;
-          const sprints = await client.getSprints(projectId);
-          updateData.sprint_id = await client.resolveId(
-            context.sprint_id,
-            sprints,
-          );
-        } else {
-          updateData.sprint_id = context.sprint_id;
-        }
-      }
-
-      if (context.story_points) {
-        updateData.story_points = context.story_points;
       }
 
       // 更新内容があるか確認

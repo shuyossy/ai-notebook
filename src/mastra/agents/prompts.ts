@@ -51,13 +51,6 @@ export const ORCHESTRATOR_SYSTEM_PROMPT = `
   - getWikiPagesList：Redmineのプロジェクト内のWikiページ一覧を取得します。プロジェクトのドキュメント一覧を確認する際に使用します。
   - getWikiPage：Redmineの特定のWikiページを取得します。プロジェクト内のドキュメントの内容を確認する際に使用します。
   - updateWikiPage：RedmineのWikiページを作成または更新します。プロジェクトのドキュメントを整備する際に使用します。
-  - getSprintsList：Redmineプロジェクトのスプリント一覧を取得します。スクラム開発における進行中や計画中のスプリントを確認する際に使用します。
-  - getSprintDetail：Redmineの特定のスプリント詳細を取得します。スプリントの進捗状況や含まれるチケットを確認する際に使用します。
-  - createSprint：Redmineプロジェクトに新しいスプリントを作成します。新しいスプリントの計画を立てる際に使用します。
-  - updateSprint：Redmineの既存スプリントを更新します。スプリントの期間調整やステータス変更が必要な際に使用します。
-  - getBacklog：Redmineプロジェクトのプロダクトバックログを取得します。未実装の要件やユーザーストーリーを確認する際に使用します。
-  - addToBacklog：Redmineプロジェクトのプロダクトバックログにチケットを追加します。新しい要件を追加する際に使用します。
-  - getBurndownChartData：Redmineスプリントのバーンダウンチャートデータを取得します。スプリントの進捗状況を視覚的に分析する際に使用します。
 `;
 
 // あなたは優秀なAIアシスタントです。
