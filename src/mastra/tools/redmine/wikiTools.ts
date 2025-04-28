@@ -57,7 +57,7 @@ export const createGetWikiPagesListTool = (client: RedmineClient) => {
           created_on: string;
           updated_on: string;
         }[];
-      }>(path);
+      }>(path, 'GET');
 
       return {
         wiki_pages: response.wiki_pages,
@@ -127,6 +127,7 @@ export const createGetWikiPageTool = (client: RedmineClient) => {
       const path = `projects/${projectId}/wiki/${encodeURIComponent(context.wiki_page_title)}${versionParam}.json`;
       const response = await client.request<{ wiki_page: RedmineWikiPage }>(
         path,
+        'GET',
       );
 
       return {

@@ -56,7 +56,7 @@ export const createGetSprintsListTool = (client: RedmineClient) => {
       const path = `projects/${projectId}/sprints.json`;
       const response = await client.request<{
         sprints: RedmineSprint[];
-      }>(path);
+      }>(path, 'GET');
 
       return {
         sprints: response.sprints,
@@ -169,7 +169,7 @@ export const createGetSprintDetailTool = (client: RedmineClient) => {
             };
           }[];
         };
-      }>(path);
+      }>(path, 'GET');
 
       return {
         sprint: response.sprint,
@@ -400,6 +400,7 @@ export const createUpdateSprintTool = (client: RedmineClient) => {
       // 更新後のスプリント詳細を取得
       const updatedSprint = await client.request<{ sprint: RedmineSprint }>(
         `projects/${projectId}/sprints/${sprintId}.json`,
+        'GET',
       );
 
       return {
@@ -474,7 +475,7 @@ export const createGetBacklogTool = (client: RedmineClient) => {
       // スプリント一覧から、プロダクトバックログを検索
       const sprintsResponse = await client.request<{
         sprints: RedmineSprint[];
-      }>(`projects/${projectId}/sprints.json`);
+      }>(`projects/${projectId}/sprints.json`, 'GET');
 
       const productBacklog = sprintsResponse.sprints.find(
         (sprint) => sprint.is_product_backlog,
@@ -505,7 +506,7 @@ export const createGetBacklogTool = (client: RedmineClient) => {
             };
           }[];
         };
-      }>(`projects/${projectId}/sprints/${productBacklog.id}.json`);
+      }>(`projects/${projectId}/sprints/${productBacklog.id}.json`, 'GET');
 
       return {
         backlog: {
@@ -566,7 +567,7 @@ export const createAddToBacklogTool = (client: RedmineClient) => {
       // スプリント一覧から、プロダクトバックログを検索
       const sprintsResponse = await client.request<{
         sprints: RedmineSprint[];
-      }>(`projects/${projectId}/sprints.json`);
+      }>(`projects/${projectId}/sprints.json`, 'GET');
 
       const productBacklog = sprintsResponse.sprints.find(
         (sprint) => sprint.is_product_backlog,
@@ -596,7 +597,7 @@ export const createAddToBacklogTool = (client: RedmineClient) => {
           id: number;
           subject: string;
         };
-      }>(`issues/${context.issue_id}.json`);
+      }>(`issues/${context.issue_id}.json`, 'GET');
 
       return {
         success: true,
@@ -678,7 +679,7 @@ export const createGetBurndownChartDataTool = (client: RedmineClient) => {
       const path = `projects/${projectId}/sprints/${sprintId}/burndown.json`;
       const response = await client.request<{
         burndown_data: RedmineBurndownData;
-      }>(path);
+      }>(path, 'GET');
 
       return {
         burndown_data: response.burndown_data,

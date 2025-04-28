@@ -262,7 +262,7 @@ export const createGetIssuesListTool = (client: RedmineClient) => {
         total_count: number;
         limit: number;
         offset: number;
-      }>(path);
+      }>(path, 'GET');
 
       return {
         issues: response.issues,
@@ -405,7 +405,10 @@ export const createGetIssueDetailTool = (client: RedmineClient) => {
       const path = `issues/${context.issue_id}.json${includes ? `?include=${includes}` : ''}`;
 
       // API リクエストの実行
-      const response = await client.request<{ issue: RedmineIssue }>(path);
+      const response = await client.request<{ issue: RedmineIssue }>(
+        path,
+        'GET',
+      );
 
       return {
         issue: response.issue,
@@ -663,6 +666,7 @@ export const createCreateIssueTool = (client: RedmineClient) => {
       // 作成されたチケットの詳細を取得
       const createdIssue = await client.request<{ issue: RedmineIssue }>(
         `issues/${response.issue.id}.json`,
+        'GET',
       );
 
       return {
@@ -743,6 +747,7 @@ export const createUpdateIssueTool = (client: RedmineClient) => {
       // 既存チケットの詳細を取得
       const existingIssue = await client.request<{ issue: RedmineIssue }>(
         `issues/${context.issue_id}.json`,
+        'GET',
       );
 
       // 更新データの準備
@@ -906,6 +911,7 @@ export const createUpdateIssueTool = (client: RedmineClient) => {
       // 更新後のチケット詳細を取得
       const updatedIssue = await client.request<{ issue: RedmineIssue }>(
         `issues/${context.issue_id}.json`,
+        'GET',
       );
 
       return {

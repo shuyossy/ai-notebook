@@ -5,6 +5,8 @@
 
 import { z } from 'zod';
 
+type RedmineHeaders = Record<string, string>;
+
 /**
  * Redmineクライアント設定のインターフェース
  */
@@ -37,15 +39,17 @@ export class RedmineClient {
   private readonly apiKey: string;
 
   // キャッシュ: プロジェクト、ユーザー、トラッカー、ステータス、優先度など
-  private projectsCache: NameIdMapping[] | null = null;
+  private projectsCache: NameIdMapping[] = [];
 
-  private usersCache: NameIdMapping[] | null = null;
+  private usersCache: NameIdMapping[] = [];
 
-  private trackersCache: NameIdMapping[] | null = null;
+  private trackersCache: NameIdMapping[] = [];
 
-  private statusesCache: NameIdMapping[] | null = null;
+  private statusesCache: NameIdMapping[] = [];
 
-  private prioritiesCache: NameIdMapping[] | null = null;
+  private prioritiesCache: NameIdMapping[] = [];
+
+  private sprintsCache: NameIdMapping[] = [];
 
   /* コンストラクタ
    * @param config RedmineClientConfig - クライアント設定
@@ -64,8 +68,8 @@ export class RedmineClient {
    */
   async request<T>(
     path: string,
-    data?: any,
-    method: 'GET' | 'POST' | 'PUT' | 'DELETE' = 'GET',
+    method: 'GET' | 'POST' | 'PUT' | 'DELETE',
+    data: any = undefined,
   ): Promise<T> {
     const url = new URL(path, this.apiUrl);
 
@@ -74,7 +78,7 @@ export class RedmineClient {
       url.searchParams.append('key', this.apiKey);
     }
 
-    const headers: HeadersInit = {
+    const headers: RedmineHeaders = {
       'Content-Type': 'application/json',
     };
 
@@ -83,7 +87,7 @@ export class RedmineClient {
       headers['X-Redmine-API-Key'] = this.apiKey;
     }
 
-    const options: RequestInit = {
+    const options = {
       method,
       headers,
       body: data ? JSON.stringify(data) : undefined,
@@ -111,6 +115,7 @@ export class RedmineClient {
    * @param mappings 名前→IDのマッピング配列
    * @returns 解決されたID
    */
+  // eslint-disable-next-line
   async resolveId(
     value: number | string,
     mappings: NameIdMapping[],
@@ -121,7 +126,7 @@ export class RedmineClient {
     }
 
     // 文字列が数値表現なら変換
-    if (!isNaN(Number(value))) {
+    if (!Number.isNaN(Number(value))) {
       return Number(value);
     }
 
@@ -141,7 +146,7 @@ export class RedmineClient {
    * @returns プロジェクトの名前とIDのマッピング配列
    */
   async getProjects(): Promise<NameIdMapping[]> {
-    if (this.projectsCache) {
+    if (this.projectsCache.length > 0) {
       return this.projectsCache;
     }
 
@@ -152,7 +157,10 @@ export class RedmineClient {
       }>;
     }
 
-    const response = await this.request<ProjectsResponse>('projects.json');
+    const response = await this.request<ProjectsResponse>(
+      'projects.json',
+      'GET',
+    );
     this.projectsCache = response.projects.map((project) => ({
       id: project.id,
       name: project.name,
@@ -166,7 +174,7 @@ export class RedmineClient {
    * @returns ユーザーの名前とIDのマッピング配列
    */
   async getUsers(): Promise<NameIdMapping[]> {
-    if (this.usersCache) {
+    if (this.usersCache.length > 0) {
       return this.usersCache;
     }
 
@@ -178,7 +186,7 @@ export class RedmineClient {
       }>;
     }
 
-    const response = await this.request<UsersResponse>('users.json');
+    const response = await this.request<UsersResponse>('users.json', 'GET');
     this.usersCache = response.users.map((user) => ({
       id: user.id,
       name: `${user.firstname} ${user.lastname}`.trim(),
@@ -192,7 +200,7 @@ export class RedmineClient {
    * @returns トラッカーの名前とIDのマッピング配列
    */
   async getTrackers(): Promise<NameIdMapping[]> {
-    if (this.trackersCache) {
+    if (this.trackersCache.length > 0) {
       return this.trackersCache;
     }
 
@@ -203,7 +211,10 @@ export class RedmineClient {
       }>;
     }
 
-    const response = await this.request<TrackersResponse>('trackers.json');
+    const response = await this.request<TrackersResponse>(
+      'trackers.json',
+      'GET',
+    );
     this.trackersCache = response.trackers.map((tracker) => ({
       id: tracker.id,
       name: tracker.name,
@@ -217,7 +228,7 @@ export class RedmineClient {
    * @returns ステータスの名前とIDのマッピング配列
    */
   async getStatuses(): Promise<NameIdMapping[]> {
-    if (this.statusesCache) {
+    if (this.statusesCache.length > 0) {
       return this.statusesCache;
     }
 
@@ -230,6 +241,7 @@ export class RedmineClient {
 
     const response = await this.request<StatusesResponse>(
       'issue_statuses.json',
+      'GET',
     );
     this.statusesCache = response.issue_statuses.map((status) => ({
       id: status.id,
@@ -244,7 +256,7 @@ export class RedmineClient {
    * @returns 優先度の名前とIDのマッピング配列
    */
   async getPriorities(): Promise<NameIdMapping[]> {
-    if (this.prioritiesCache) {
+    if (this.prioritiesCache.length > 0) {
       return this.prioritiesCache;
     }
 
@@ -257,6 +269,7 @@ export class RedmineClient {
 
     const response = await this.request<PrioritiesResponse>(
       'enumerations/issue_priorities.json',
+      'GET',
     );
     this.prioritiesCache = response.issue_priorities.map((priority) => ({
       id: priority.id,
@@ -272,24 +285,23 @@ export class RedmineClient {
    * @returns スプリントの名前とIDのマッピング配列
    */
   async getSprints(projectId: number): Promise<NameIdMapping[]> {
-    if (this.sprintsCache) {
-      return this.sprintsCache;
-    }
+    this.sprintsCache = this.sprintsCache || [];
 
-    // Scrumプラグインからスプリント情報を取得
-    // 注意: このエンドポイントはプラグインに依存し、RedmineインスタンスとScrumプラグインのバージョンによって異なる場合がある
-    const response = await this.request<any>(
-      `projects/${projectId}/sprints.json`,
-    );
+    // キャッシュがない場合のみAPIリクエストを実行
+    if (this.sprintsCache.length === 0) {
+      // Scrumプラグインからスプリント情報を取得
+      // 注意: このエンドポイントはプラグインに依存し、RedmineインスタンスとScrumプラグインのバージョンによって異なる場合がある
+      const response = await this.request<any>(
+        `projects/${projectId}/sprints.json`,
+        'GET',
+      );
 
-    if (response.sprints) {
-      this.sprintsCache = response.sprints.map((sprint: any) => ({
-        id: sprint.id,
-        name: sprint.name,
-      }));
-    } else {
-      // スプリントがない場合は空配列を返す
-      this.sprintsCache = [];
+      if (response.sprints) {
+        this.sprintsCache = response.sprints.map((sprint: any) => ({
+          id: sprint.id,
+          name: sprint.name,
+        }));
+      }
     }
 
     return this.sprintsCache;
@@ -310,6 +322,7 @@ export class RedmineClient {
 
     const response = await this.request<VersionsResponse>(
       `projects/${projectId}/versions.json`,
+      'GET',
     );
     return response.versions.map((version) => ({
       id: version.id,
@@ -332,8 +345,10 @@ export class RedmineClient {
       }>;
     }
 
-    const response =
-      await this.request<CustomFieldsResponse>('custom_fields.json');
+    const response = await this.request<CustomFieldsResponse>(
+      'custom_fields.json',
+      'GET',
+    );
     return response.custom_fields;
   }
 }

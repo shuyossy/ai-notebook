@@ -145,7 +145,7 @@ export const createGetTimeEntriesListTool = (client: RedmineClient) => {
         total_count: number;
         limit: number;
         offset: number;
-      }>(path);
+      }>(path, 'GET');
 
       return {
         time_entries: response.time_entries,
