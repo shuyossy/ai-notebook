@@ -42,7 +42,28 @@ export default class SourceRegistrationManager {
       // ディレクトリ内のファイル一覧を取得
       let files = await this.readDirectoryRecursively(this.registerDir);
 
-      // ファイルが存在しない場合は早期リターン
+      // DB接続を一度だけ確立
+      const db = await getDb();
+      const allSources = await db.select().from(sources);
+
+      // DBに存在するが実ファイルが存在しないソースを削除
+      const existingPaths = new Set(files);
+      const toDeleteSources = allSources.filter(
+        (source) => !existingPaths.has(source.path),
+      );
+      if (toDeleteSources.length > 0) {
+        await db.delete(sources).where(
+          inArray(
+            sources.path,
+            toDeleteSources.map((s) => s.path),
+          ),
+        );
+        console.log(
+          `${toDeleteSources.length}件の存在しないファイルのソース情報を削除しました`,
+        );
+      }
+
+      // ディレクトリ内のファイルが存在しない場合は早期リターン
       if (files.length === 0) {
         console.log('登録するファイルが見つかりませんでした');
         return;
@@ -52,7 +73,6 @@ export default class SourceRegistrationManager {
       if (excludeRegisteredFile) {
         files = await Promise.all(
           files.map(async (filePath) => {
-            const db = await getDb();
             const existingSource = await db
               .select()
               .from(sources)
@@ -78,7 +98,6 @@ export default class SourceRegistrationManager {
 
       // 登録済みかつ完了状態ではないファイルについてはDBから全削除
       // 処理中のtopicsテーブルも削除
-      const db = await getDb();
       await db.delete(sources).where(
         inArray(sources.path, files), // path が files のいずれか
       );
