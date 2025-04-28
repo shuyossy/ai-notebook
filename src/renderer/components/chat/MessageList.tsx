@@ -25,6 +25,8 @@ const MessageList: React.FC<MessageListProps> = ({
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, loading]);
 
+  console.log('MessageList: ', messages);
+
   return (
     <Box
       sx={{

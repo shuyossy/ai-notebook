@@ -51,6 +51,8 @@ export class RedmineClient {
 
   private sprintsCache: NameIdMapping[] = [];
 
+  private activitiesCache: NameIdMapping[] = [];
+
   /* コンストラクタ
    * @param config RedmineClientConfig - クライアント設定
    */
@@ -305,6 +307,34 @@ export class RedmineClient {
     }
 
     return this.sprintsCache;
+  }
+
+  /**
+   * 活動分類一覧を取得してIDマッピングを返す
+   * @returns 活動分類の名前とIDのマッピング配列
+   */
+  async getTimeEntryActivities(): Promise<NameIdMapping[]> {
+    if (this.activitiesCache && this.activitiesCache.length > 0) {
+      return this.activitiesCache;
+    }
+
+    interface ActivitiesResponse {
+      time_entry_activities: Array<{
+        id: number;
+        name: string;
+      }>;
+    }
+
+    const response = await this.request<ActivitiesResponse>(
+      'enumerations/time_entry_activities.json',
+      'GET',
+    );
+    this.activitiesCache = response.time_entry_activities.map((activity) => ({
+      id: activity.id,
+      name: activity.name,
+    }));
+
+    return this.activitiesCache;
   }
 
   /**

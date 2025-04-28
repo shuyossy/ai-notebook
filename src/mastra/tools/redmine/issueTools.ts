@@ -26,9 +26,7 @@ export const createGetIssuesListTool = (client: RedmineClient) => {
       status_id: z
         .union([z.string(), z.number(), z.enum(['open', 'closed', '*'])])
         .optional()
-        .describe(
-          'ステータスIDまたは名前、"open"（未完了）、"closed"（完了）、"*"（すべて）',
-        ),
+        .describe('ステータスIDまたは名前'),
       tracker_id: z
         .union([z.string(), z.number()])
         .optional()

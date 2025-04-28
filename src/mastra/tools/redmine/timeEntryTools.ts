@@ -240,10 +240,12 @@ export const createCreateTimeEntryTool = (client: RedmineClient) => {
         ) {
           timeEntryData.activity_id = Number(context.activity_id);
         } else if (typeof context.activity_id === 'string') {
-          // 作業分類（activity）の名前からIDへの解決は、Redmine APIで直接サポートされておらず、
-          // 通常は/enumerations/time_entry_activities.jsonから取得する必要があります。
-          // ここでは簡易的にクライアントが解決できると仮定しています。
-          timeEntryData.activity_id = context.activity_id;
+          // 活動分類の名前からIDへの解決
+          const activities = await client.getTimeEntryActivities();
+          timeEntryData.activity_id = await client.resolveId(
+            context.activity_id,
+            activities,
+          );
         } else {
           timeEntryData.activity_id = context.activity_id;
         }

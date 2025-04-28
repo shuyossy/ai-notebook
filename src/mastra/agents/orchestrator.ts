@@ -15,8 +15,8 @@ export const getOrchestrator = (): Agent => {
     // Redinmeツールの登録
     // APIキーとエンドポイントが登録されていた場合は登録する
     const store = getStore();
-    const apiKey = store.get('api.key') as string;
-    const apiUrl = store.get('api.endpoint') as string;
+    const apiKey = store.get('redmine.apiKey') as string;
+    const apiUrl = store.get('redmine.endpoint') as string;
     let redmineTools = {};
     if (apiKey && apiUrl) {
       try {
@@ -25,7 +25,12 @@ export const getOrchestrator = (): Agent => {
       } catch (error) {
         console.error('Redmineクライアントの初期化に失敗:', error);
       }
+    } else {
+      console.warn(
+        'Redmine APIキーまたはエンドポイントが設定されていません。Redmineツールは登録されません。',
+      );
     }
+    console.log('Redmineツールの登録:', redmineTools);
 
     // 新規インスタンスを作成
     const agent = createAgent({
