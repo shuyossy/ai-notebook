@@ -32,6 +32,14 @@ function SettingsModal({
     model: string;
   };
   const [api, setApi] = useElectronStore<ApiSettings>('api');
+  const [redmine, setRedmine] = useElectronStore<{
+    endpoint: string;
+    apiKey: string;
+  }>('redmine');
+  const [gitlab, setGitlab] = useElectronStore<{
+    endpoint: string;
+    apiKey: string;
+  }>('gitlab');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -41,8 +49,10 @@ function SettingsModal({
       database: database ?? { dir: '' },
       source: source ?? { registerDir: './source' },
       api: api ?? { key: '', url: '', model: '' },
+      redmine: redmine ?? { endpoint: '', apiKey: '' },
+      gitlab: gitlab ?? { endpoint: '', apiKey: '' },
     }),
-    [database, source, api],
+    [database, source, api, redmine, gitlab],
   );
 
   // 設定を更新する
@@ -55,6 +65,8 @@ function SettingsModal({
         setDatabase(settings.database),
         setSource(settings.source),
         setApi(settings.api),
+        setRedmine(settings.redmine),
+        setGitlab(settings.gitlab),
       ]);
       onSettingsUpdated();
       onClose();
@@ -80,6 +92,12 @@ function SettingsModal({
         break;
       case 'api':
         setApi({ ...api, [field]: value } as ApiSettings);
+        break;
+      case 'redmine':
+        setRedmine({ ...redmine, [field]: value });
+        break;
+      case 'gitlab':
+        setGitlab({ ...gitlab, [field]: value });
         break;
       default:
         console.warn(`Unknown section: ${section}`);
@@ -168,6 +186,56 @@ function SettingsModal({
               label="モデル名"
               value={settings.api.model}
               onChange={(e) => handleChange('api', 'model', e.target.value)}
+              margin="normal"
+              variant="outlined"
+            />
+          </Box>
+
+          <Box sx={{ width: '100%', mb: 1 }}>
+            <Typography variant="h6" gutterBottom>
+              Redmine設定
+            </Typography>
+            <TextField
+              fullWidth
+              label="エンドポイント"
+              value={settings.redmine.endpoint}
+              onChange={(e) =>
+                handleChange('redmine', 'endpoint', e.target.value)
+              }
+              margin="normal"
+              variant="outlined"
+            />
+            <TextField
+              fullWidth
+              label="APIキー"
+              value={settings.redmine.apiKey}
+              onChange={(e) =>
+                handleChange('redmine', 'apiKey', e.target.value)
+              }
+              margin="normal"
+              variant="outlined"
+            />
+          </Box>
+
+          <Box sx={{ width: '100%', mb: 1 }}>
+            <Typography variant="h6" gutterBottom>
+              GitLab設定
+            </Typography>
+            <TextField
+              fullWidth
+              label="エンドポイント"
+              value={settings.gitlab.endpoint}
+              onChange={(e) =>
+                handleChange('gitlab', 'endpoint', e.target.value)
+              }
+              margin="normal"
+              variant="outlined"
+            />
+            <TextField
+              fullWidth
+              label="APIキー"
+              value={settings.gitlab.apiKey}
+              onChange={(e) => handleChange('gitlab', 'apiKey', e.target.value)}
               margin="normal"
               variant="outlined"
             />

@@ -14,6 +14,14 @@ export interface StoreSchema {
     url: string;
     model: string;
   };
+  redmine: {
+    endpoint: string;
+    apiKey: string;
+  };
+  gitlab: {
+    endpoint: string;
+    apiKey: string;
+  };
 }
 
 // スキーマ定義
@@ -41,6 +49,22 @@ const schema = {
     },
     required: ['key', 'url', 'model'],
   },
+  redmine: {
+    type: 'object',
+    properties: {
+      endpoint: { type: 'string' },
+      apiKey: { type: 'string' },
+    },
+    required: ['endpoint', 'apiKey'],
+  },
+  gitlab: {
+    type: 'object',
+    properties: {
+      endpoint: { type: 'string' },
+      apiKey: { type: 'string' },
+    },
+    required: ['endpoint', 'apiKey'],
+  },
 } as const;
 
 // デフォルト値の設定
@@ -55,6 +79,14 @@ const defaults: StoreSchema = {
     key: '',
     url: '',
     model: '',
+  },
+  redmine: {
+    endpoint: '',
+    apiKey: '',
+  },
+  gitlab: {
+    endpoint: '',
+    apiKey: '',
   },
 };
 
