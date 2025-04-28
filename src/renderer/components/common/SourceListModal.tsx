@@ -167,7 +167,7 @@ function SourceListModal({
               disabled={processing}
               startIcon={<SyncIcon />}
             >
-              ソース読み込み
+              {processing ? '処理中...' : 'ソース読み込み'}
             </Button>
           </Tooltip>
         </Box>
