@@ -1,20 +1,30 @@
 import { Agent } from '@mastra/core/agent';
 import { ORCHESTRATOR_SYSTEM_PROMPT } from './prompts';
 import { sourceListTool, querySourceTool } from '../tools/sourcesTools';
-import { AgentManager, createAgent } from './config/agent';
+import { createAgent } from './config/agent';
+import { getStore } from '../../main/store';
+import { setupRedmineTools } from '../tools/redmine';
 
 const ORCHESTRATOR_NAME = 'orchestrator';
 
 /**
  * オーケストレーターエージェントを取得または作成する
- * シングルトンパターンで管理し、必要に応じて初期化する
  */
 export const getOrchestrator = (): Agent => {
   try {
-    // 既存のインスタンスがあれば返す
-    const existingAgent = AgentManager.getInstance(ORCHESTRATOR_NAME);
-    if (existingAgent) {
-      return existingAgent;
+    // Redinmeツールの登録
+    // APIキーとエンドポイントが登録されていた場合は登録する
+    const store = getStore();
+    const apiKey = store.get('api.key') as string;
+    const apiUrl = store.get('api.endpoint') as string;
+    let redmineTools = {};
+    if (apiKey && apiUrl) {
+      try {
+        // Redmineクライアントの初期化
+        redmineTools = setupRedmineTools({ apiKey, apiUrl });
+      } catch (error) {
+        console.error('Redmineクライアントの初期化に失敗:', error);
+      }
     }
 
     // 新規インスタンスを作成
@@ -24,6 +34,7 @@ export const getOrchestrator = (): Agent => {
       tools: {
         sourceListTool,
         querySourceTool,
+        ...redmineTools,
       },
       memoryConfig: {
         lastMessages: 40,
@@ -69,9 +80,6 @@ export const getOrchestrator = (): Agent => {
         },
       },
     });
-
-    // インスタンスを保存
-    AgentManager.setInstance(ORCHESTRATOR_NAME, agent);
 
     return agent;
   } catch (error: unknown) {
