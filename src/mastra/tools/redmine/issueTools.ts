@@ -170,7 +170,6 @@ export const createGetIssuesListTool = (client: RedmineClient) => {
         }
       }
 
-
       if (context.fixed_version_id) {
         if (
           typeof context.fixed_version_id === 'string' &&
