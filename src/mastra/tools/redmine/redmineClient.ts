@@ -38,18 +38,14 @@ export class RedmineClient {
 
   private readonly apiKey: string;
 
-  // キャッシュ: プロジェクト、ユーザー、トラッカー、ステータス、優先度など
+  // キャッシュ: プロジェクト、トラッカー、ステータス、アクティビティなど
   private projectsCache: NameIdMapping[] = [];
-
-  private usersCache: NameIdMapping[] = [];
 
   private trackersCache: NameIdMapping[] = [];
 
   private statusesCache: NameIdMapping[] = [];
 
   private prioritiesCache: NameIdMapping[] = [];
-
-  private sprintsCache: NameIdMapping[] = [];
 
   private activitiesCache: NameIdMapping[] = [];
 
@@ -172,32 +168,6 @@ export class RedmineClient {
   }
 
   /**
-   * ユーザー一覧を取得してIDマッピングを返す
-   * @returns ユーザーの名前とIDのマッピング配列
-   */
-  async getUsers(): Promise<NameIdMapping[]> {
-    if (this.usersCache.length > 0) {
-      return this.usersCache;
-    }
-
-    interface UsersResponse {
-      users: Array<{
-        id: number;
-        firstname: string;
-        lastname: string;
-      }>;
-    }
-
-    const response = await this.request<UsersResponse>('users.json', 'GET');
-    this.usersCache = response.users.map((user) => ({
-      id: user.id,
-      name: `${user.firstname} ${user.lastname}`.trim(),
-    }));
-
-    return this.usersCache;
-  }
-
-  /**
    * トラッカー一覧を取得してIDマッピングを返す
    * @returns トラッカーの名前とIDのマッピング配列
    */
@@ -279,34 +249,6 @@ export class RedmineClient {
     }));
 
     return this.prioritiesCache;
-  }
-
-  /**
-   * プロジェクトのスプリント一覧を取得してIDマッピングを返す
-   * @param projectId プロジェクトID
-   * @returns スプリントの名前とIDのマッピング配列
-   */
-  async getSprints(projectId: number): Promise<NameIdMapping[]> {
-    this.sprintsCache = this.sprintsCache || [];
-
-    // キャッシュがない場合のみAPIリクエストを実行
-    if (this.sprintsCache.length === 0) {
-      // Scrumプラグインからスプリント情報を取得
-      // 注意: このエンドポイントはプラグインに依存し、RedmineインスタンスとScrumプラグインのバージョンによって異なる場合がある
-      const response = await this.request<any>(
-        `projects/${projectId}/sprints.json`,
-        'GET',
-      );
-
-      if (response.sprints) {
-        this.sprintsCache = response.sprints.map((sprint: any) => ({
-          id: sprint.id,
-          name: sprint.name,
-        }));
-      }
-    }
-
-    return this.sprintsCache;
   }
 
   /**

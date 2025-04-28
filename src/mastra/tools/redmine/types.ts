@@ -3,14 +3,6 @@
  */
 
 /**
- * Redmineユーザー情報
- */
-export interface RedmineUser {
-  id: number;
-  name: string;
-}
-
-/**
  * Redmineカスタムフィールド
  */
 export interface RedmineCustomField {
@@ -64,8 +56,6 @@ export interface RedmineIssue {
   parent?: {
     id: number;
   };
-  story_points?: number;
-  sprint_id?: number;
   estimated_hours?: number;
 }
 
@@ -79,7 +69,7 @@ export interface RedmineIssueData {
   status_id?: number | string;
   tracker_id?: number | string;
   priority_id?: number | string;
-  assigned_to_id?: number | string;
+  assigned_to_id?: number;
   parent_issue_id?: number;
   start_date?: string;
   due_date?: string;
@@ -90,8 +80,6 @@ export interface RedmineIssueData {
     id: number;
     value: string | number | boolean | null;
   }[];
-  sprint_id?: number | string;
-  story_points?: number;
 }
 
 /**
@@ -101,11 +89,10 @@ export interface IssueFilter {
   project_id?: number | string;
   status_id?: number | string | 'open' | 'closed' | '*';
   tracker_id?: number | string;
-  assigned_to_id?: number | string | 'me';
+  assigned_to_id?: number | 'me';
   author_id?: number | string | 'me';
   priority_id?: number | string;
   fixed_version_id?: number | string;
-  sprint_id?: number | string;
   subject?: string;
   created_on?: string;
   updated_on?: string;
@@ -149,7 +136,7 @@ export interface RedmineTimeEntryData {
   hours: number;
   activity_id?: number | string;
   comments?: string;
-  user_id?: number | string;
+  user_id?: number;
 }
 
 /**
@@ -158,7 +145,7 @@ export interface RedmineTimeEntryData {
 export interface TimeEntryFilter {
   project_id?: number | string;
   issue_id?: number;
-  user_id?: number | string | 'me';
+  user_id?: number | 'me';
   activity_id?: number | string;
   spent_on?: string;
 }

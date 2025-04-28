@@ -41,7 +41,7 @@ export const ORCHESTRATOR_SYSTEM_PROMPT = `
   - updateWorkingMemory：スレッドに関する内容や作業時の手順やメモに関するWorkingMemoryを更新します。
 - redmine操作ツール
   - validateRedmineConfig：Redmine API接続設定を検証します。Redmine API接続が正常に機能しているか確認したい時に使用します。
-  - getRedmineInfo：Redmineインスタンスの基本情報（プロジェクト、ユーザー、トラッカー、ステータスなど）を取得します。Redmine環境の全体像を把握したい時に使用します。
+  - getRedmineInfo：Redmineインスタンスの基本情報（プロジェクト、トラッカー、ステータスなど）を取得します。Redmine環境の全体像を把握したい時に使用します。
   - getIssuesList：Redmineのチケット一覧を取得します。プロジェクト、ステータス、担当者などで絞り込み可能です。業務の進捗状況確認やタスクの全体把握に使用します。
   - getIssueDetail：Redmineの特定のチケット詳細を取得します。チケットの詳細情報や関連するデータを確認する際に使用します。
   - createIssue：Redmineに新しいチケットを作成します。新しいタスクや課題を登録する際に使用します。

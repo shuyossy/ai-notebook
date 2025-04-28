@@ -82,12 +82,6 @@ export const createRedmineTools = (config: {
           name: z.string(),
         }),
       ),
-      users: z.array(
-        z.object({
-          id: z.number(),
-          name: z.string(),
-        }),
-      ),
       trackers: z.array(
         z.object({
           id: z.number(),
@@ -109,21 +103,21 @@ export const createRedmineTools = (config: {
     }),
     execute: async () => {
       // 各種マスタ情報を取得
-      const [projects, users, trackers, statuses, priorities] =
+      const [projects, trackers, statuses, priorities, activities] =
         await Promise.all([
           client.getProjects(),
-          client.getUsers(),
           client.getTrackers(),
           client.getStatuses(),
           client.getPriorities(),
+          client.getTimeEntryActivities(),
         ]);
 
       return {
         projects,
-        users,
         trackers,
         statuses,
         priorities,
+        activities,
       };
     },
   });

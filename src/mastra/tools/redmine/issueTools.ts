@@ -32,9 +32,9 @@ export const createGetIssuesListTool = (client: RedmineClient) => {
         .optional()
         .describe('トラッカーIDまたは名前'),
       assigned_to_id: z
-        .union([z.string(), z.number(), z.literal('me')])
+        .union([z.number(), z.literal('me')])
         .optional()
-        .describe('担当者IDまたは名前、"me"（自分）'),
+        .describe('担当者ID、または"me"（自分）'),
       fixed_version_id: z
         .union([z.string(), z.number()])
         .optional()
@@ -88,8 +88,6 @@ export const createGetIssuesListTool = (client: RedmineClient) => {
           done_ratio: z.number(),
           created_on: z.string(),
           updated_on: z.string(),
-          story_points: z.number().optional(),
-          sprint_id: z.number().optional(),
         }),
       ),
       total_count: z.number(),
@@ -154,20 +152,7 @@ export const createGetIssuesListTool = (client: RedmineClient) => {
       }
 
       if (context.assigned_to_id) {
-        if (context.assigned_to_id === 'me') {
-          filters.assigned_to_id = 'me';
-        } else if (
-          typeof context.assigned_to_id === 'string' &&
-          !Number.isNaN(Number(context.assigned_to_id))
-        ) {
-          filters.assigned_to_id = Number(context.assigned_to_id);
-        } else if (typeof context.assigned_to_id === 'string') {
-          const users = await client.getUsers();
-          const userId = await client.resolveId(context.assigned_to_id, users);
-          filters.assigned_to_id = userId;
-        } else {
-          filters.assigned_to_id = context.assigned_to_id;
-        }
+        filters.assigned_to_id = context.assigned_to_id;
       }
 
       if (context.fixed_version_id) {
@@ -361,8 +346,6 @@ export const createGetIssueDetailTool = (client: RedmineClient) => {
             }),
           )
           .optional(),
-        story_points: z.number().optional(),
-        sprint_id: z.number().optional(),
         estimated_hours: z.number().optional(),
       }),
     }),
@@ -411,10 +394,7 @@ export const createCreateIssueTool = (client: RedmineClient) => {
         .union([z.string(), z.number()])
         .optional()
         .describe('優先度IDまたは名前'),
-      assigned_to_id: z
-        .union([z.string(), z.number()])
-        .optional()
-        .describe('担当者IDまたは名前'),
+      assigned_to_id: z.number().optional().describe('担当者ID'),
       parent_issue_id: z.number().optional().describe('親チケットID'),
       fixed_version_id: z
         .union([z.string(), z.number()])
@@ -435,11 +415,6 @@ export const createCreateIssueTool = (client: RedmineClient) => {
         )
         .optional()
         .describe('カスタムフィールド'),
-      sprint_id: z
-        .union([z.string(), z.number()])
-        .optional()
-        .describe('スプリントIDまたは名前'),
-      story_points: z.number().optional().describe('ストーリーポイント'),
     }),
     outputSchema: z.object({
       issue: z.object({
@@ -529,20 +504,7 @@ export const createCreateIssueTool = (client: RedmineClient) => {
       }
 
       if (context.assigned_to_id) {
-        if (
-          typeof context.assigned_to_id === 'string' &&
-          !Number.isNaN(Number(context.assigned_to_id))
-        ) {
-          issueData.assigned_to_id = Number(context.assigned_to_id);
-        } else if (typeof context.assigned_to_id === 'string') {
-          const users = await client.getUsers();
-          issueData.assigned_to_id = await client.resolveId(
-            context.assigned_to_id,
-            users,
-          );
-        } else {
-          issueData.assigned_to_id = context.assigned_to_id;
-        }
+        issueData.assigned_to_id = context.assigned_to_id;
       }
 
       if (context.parent_issue_id) {
@@ -592,35 +554,6 @@ export const createCreateIssueTool = (client: RedmineClient) => {
 
       if (context.custom_fields) {
         issueData.custom_fields = context.custom_fields;
-      }
-
-      if (context.sprint_id) {
-        if (
-          typeof context.sprint_id === 'string' &&
-          !Number.isNaN(Number(context.sprint_id))
-        ) {
-          issueData.sprint_id = Number(context.sprint_id);
-        } else if (typeof context.sprint_id === 'string') {
-          const projectId =
-            typeof issueData.project_id === 'number'
-              ? issueData.project_id
-              : await client.resolveId(
-                  issueData.project_id,
-                  await client.getProjects(),
-                );
-
-          const sprints = await client.getSprints(projectId);
-          issueData.sprint_id = await client.resolveId(
-            context.sprint_id,
-            sprints,
-          );
-        } else {
-          issueData.sprint_id = context.sprint_id;
-        }
-      }
-
-      if (context.story_points) {
-        issueData.story_points = context.story_points;
       }
 
       // API リクエストの実行
@@ -673,10 +606,7 @@ export const createUpdateIssueTool = (client: RedmineClient) => {
         .union([z.string(), z.number()])
         .optional()
         .describe('優先度IDまたは名前'),
-      assigned_to_id: z
-        .union([z.string(), z.number()])
-        .optional()
-        .describe('担当者IDまたは名前'),
+      assigned_to_id: z.number().optional().describe('担当者ID'),
       parent_issue_id: z.number().optional().describe('親チケットID'),
       fixed_version_id: z
         .union([z.string(), z.number()])
@@ -780,20 +710,7 @@ export const createUpdateIssueTool = (client: RedmineClient) => {
       }
 
       if (context.assigned_to_id) {
-        if (
-          typeof context.assigned_to_id === 'string' &&
-          !Number.isNaN(Number(context.assigned_to_id))
-        ) {
-          updateData.assigned_to_id = Number(context.assigned_to_id);
-        } else if (typeof context.assigned_to_id === 'string') {
-          const users = await client.getUsers();
-          updateData.assigned_to_id = await client.resolveId(
-            context.assigned_to_id,
-            users,
-          );
-        } else {
-          updateData.assigned_to_id = context.assigned_to_id;
-        }
+        updateData.assigned_to_id = context.assigned_to_id;
       }
 
       if (context.parent_issue_id) {

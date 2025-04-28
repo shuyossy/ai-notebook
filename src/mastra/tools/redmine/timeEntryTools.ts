@@ -29,9 +29,9 @@ export const createGetTimeEntriesListTool = (client: RedmineClient) => {
         .describe('プロジェクトIDまたは名前'),
       issue_id: z.number().optional().describe('チケットID'),
       user_id: z
-        .union([z.string(), z.number(), z.literal('me')])
+        .union([z.number(), z.literal('me')])
         .optional()
-        .describe('ユーザーIDまたは名前、"me"（自分）'),
+        .describe('ユーザーID、または"me"（自分）'),
       spent_on: z
         .string()
         .optional()
@@ -104,20 +104,7 @@ export const createGetTimeEntriesListTool = (client: RedmineClient) => {
       }
 
       if (context.user_id) {
-        if (context.user_id === 'me') {
-          filters.user_id = 'me';
-        } else if (
-          typeof context.user_id === 'string' &&
-          !Number.isNaN(Number(context.user_id))
-        ) {
-          filters.user_id = Number(context.user_id);
-        } else if (typeof context.user_id === 'string') {
-          const users = await client.getUsers();
-          const userId = await client.resolveId(context.user_id, users);
-          filters.user_id = userId;
-        } else {
-          filters.user_id = context.user_id;
-        }
+        filters.user_id = context.user_id;
       }
 
       if (context.spent_on) {
@@ -183,9 +170,9 @@ export const createCreateTimeEntryTool = (client: RedmineClient) => {
         .describe('作業分類IDまたは名前'),
       comments: z.string().optional().describe('コメント'),
       user_id: z
-        .union([z.string(), z.number()])
+        .number()
         .optional()
-        .describe('ユーザーIDまたは名前（管理者のみ指定可能）'),
+        .describe('ユーザーID（管理者のみ指定可能）'),
     }),
     outputSchema: z.object({
       time_entry: z.object({
@@ -256,20 +243,7 @@ export const createCreateTimeEntryTool = (client: RedmineClient) => {
       }
 
       if (context.user_id) {
-        if (
-          typeof context.user_id === 'string' &&
-          !Number.isNaN(Number(context.user_id))
-        ) {
-          timeEntryData.user_id = Number(context.user_id);
-        } else if (typeof context.user_id === 'string') {
-          const users = await client.getUsers();
-          timeEntryData.user_id = await client.resolveId(
-            context.user_id,
-            users,
-          );
-        } else {
-          timeEntryData.user_id = context.user_id;
-        }
+        timeEntryData.user_id = context.user_id;
       }
 
       // API リクエストの実行
