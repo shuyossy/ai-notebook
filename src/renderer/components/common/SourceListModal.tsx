@@ -14,6 +14,7 @@ import {
   Paper,
   Tooltip,
   Chip,
+  Checkbox,
 } from '@mui/material';
 import {
   Check as CheckIcon,
@@ -38,6 +39,64 @@ function SourceListModal({
 }: SourceListModalProps): React.ReactElement {
   const [sources, setSources] = useState<Source[]>([]);
   const [processing, setProcessing] = useState(false);
+  const [checkedSources, setCheckedSources] = useState<{
+    [key: number]: boolean;
+  }>({});
+
+  // チェック状態の初期化
+  useEffect(() => {
+    // すべてのソースのチェック状態をtrueで初期化
+    const initialCheckedState = sources.reduce(
+      (acc, source) => {
+        acc[source.id] = true;
+        return acc;
+      },
+      {} as { [key: number]: boolean },
+    );
+    setCheckedSources(initialCheckedState);
+  }, [sources]);
+
+  // チェックボックスの変更ハンドラ
+  const handleSourceCheckChange = async (sourceId: number) => {
+    const newCheckedState = { ...checkedSources };
+    newCheckedState[sourceId] = !checkedSources[sourceId];
+    setCheckedSources(newCheckedState);
+
+    try {
+      await window.electron.source.updateSourceEnabled(
+        sourceId,
+        newCheckedState[sourceId],
+      );
+    } catch (error) {
+      console.error('ソース状態の更新に失敗しました:', error);
+    }
+  };
+
+  // 全選択/全解除の切り替えハンドラ
+  const handleSelectAllChange = () => {
+    const someUnchecked = Object.values(checkedSources).some(
+      (checked) => !checked,
+    );
+    const newCheckedState = { ...checkedSources };
+
+    // 一つでもチェックが外れているものがあれば全選択、すべてチェック済みなら全解除
+    const newValue = someUnchecked;
+
+    // すべてのソースのチェック状態を更新
+    sources.forEach((source) => {
+      newCheckedState[source.id] = newValue;
+    });
+    setCheckedSources(newCheckedState);
+
+    // 各ソースの状態を更新
+    sources.forEach(async (source) => {
+      try {
+        await window.electron.source.updateSourceEnabled(source.id, newValue);
+      } catch (error) {
+        console.error('ソース状態の更新に失敗しました:', error);
+      }
+    });
+  };
 
   // ソースデータの定期更新（processingステータスがある場合のみ）
   useEffect(() => {
@@ -176,6 +235,21 @@ function SourceListModal({
           <Table>
             <TableHead>
               <TableRow>
+                <TableCell padding="checkbox">
+                  <Checkbox
+                    indeterminate={
+                      Object.values(checkedSources).some(
+                        (checked) => checked,
+                      ) &&
+                      Object.values(checkedSources).some((checked) => !checked)
+                    }
+                    checked={
+                      Object.values(checkedSources).length > 0 &&
+                      Object.values(checkedSources).every((checked) => checked)
+                    }
+                    onChange={handleSelectAllChange}
+                  />
+                </TableCell>
                 <TableCell>ファイルパス</TableCell>
                 <TableCell>タイトル（生成）</TableCell>
                 <TableCell>ステータス</TableCell>
@@ -192,6 +266,12 @@ function SourceListModal({
                       source.status === 'failed' ? 'error.lighter' : 'inherit',
                   }}
                 >
+                  <TableCell padding="checkbox">
+                    <Checkbox
+                      checked={checkedSources[source.id] || false}
+                      onChange={() => handleSourceCheckChange(source.id)}
+                    />
+                  </TableCell>
                   <TableCell>{source.path}</TableCell>
                   <TableCell>{source.title}</TableCell>
                   <TableCell>

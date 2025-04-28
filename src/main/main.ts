@@ -15,6 +15,7 @@ import log from 'electron-log';
 import { Mastra } from '@mastra/core';
 import { createLogger } from '@mastra/core/logger';
 import { createDataStream } from 'ai';
+import { eq } from 'drizzle-orm';
 import { type Source } from '../db/schema';
 import { IpcChannels, IpcResponsePayloadMap } from './types/ipc';
 import { sources } from '../db/schema';
@@ -313,6 +314,32 @@ const setupSourceHandlers = () => {
         };
       } catch (error) {
         console.error('ソース一覧の取得中にエラーが発生:', error);
+        return {
+          success: false,
+          error: (error as Error).message,
+        };
+      }
+    },
+  );
+
+  // ソースの有効/無効状態を更新するハンドラ
+  ipcMain.handle(
+    IpcChannels.SOURCE_UPDATE_ENABLED,
+    async (
+      _,
+      { sourceId, isEnabled },
+    ): Promise<
+      IpcResponsePayloadMap[typeof IpcChannels.SOURCE_UPDATE_ENABLED]
+    > => {
+      try {
+        const db = await getDb();
+        await db
+          .update(sources)
+          .set({ isEnabled })
+          .where(eq(sources.id, sourceId));
+        return { success: true };
+      } catch (error) {
+        console.error('ソースの有効/無効状態の更新中にエラーが発生:', error);
         return {
           success: false,
           error: (error as Error).message,

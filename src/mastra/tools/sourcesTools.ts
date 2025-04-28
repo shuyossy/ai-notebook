@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { Agent } from '@mastra/core/agent';
 import { createTool } from '@mastra/core/tools';
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { sources, topics } from '../../db/schema';
 import getDb from '../../db/index';
 import FileExtractor from '../../main/utils/fileExtractor';
@@ -34,10 +34,11 @@ export const sourceListTool = createTool({
   execute: async () => {
     try {
       const db = await getDb();
-      // ソースの一覧を取得
+      // ソースの一覧を取得（将来的にisEnabled=trueのみに絞り込む）
       const sourcesList = await db
         .select()
         .from(sources)
+        .where(eq(sources.isEnabled, 1))
         .orderBy(sources.title);
 
       // 各ソースのトピックを取得して結果を整形
@@ -91,11 +92,11 @@ export const querySourceTool = createTool({
   execute: async ({ context: { sourceId, query } }) => {
     try {
       const db = await getDb();
-      // ソース情報を取得
+      // ソース情報を取得（将来的にisEnabled=trueのみに絞り込む）
       const sourceData = await db
         .select()
         .from(sources)
-        .where(eq(sources.id, sourceId));
+        .where(and(eq(sources.id, sourceId), eq(sources.isEnabled, 1)));
 
       if (sourceData.length === 0) {
         throw new Error(

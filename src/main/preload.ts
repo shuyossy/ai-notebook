@@ -112,6 +112,18 @@ const electronHandler = {
     > => {
       return ipcRenderer.invoke(IpcChannels.SOURCE_GET_ALL);
     },
+    // ソースの有効/無効状態を更新する
+    updateSourceEnabled: async (
+      sourceId: number,
+      isEnabled: boolean,
+    ): Promise<
+      IpcResponsePayload<typeof IpcChannels.SOURCE_UPDATE_ENABLED>
+    > => {
+      return ipcRenderer.invoke(IpcChannels.SOURCE_UPDATE_ENABLED, {
+        sourceId,
+        isEnabled,
+      });
+    },
   },
   ipcRenderer: {
     sendMessage(channel: Channels, ...args: unknown[]) {

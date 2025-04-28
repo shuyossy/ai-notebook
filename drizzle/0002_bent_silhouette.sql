@@ -1,0 +1,1 @@
+ALTER TABLE `sources` ADD `is_enabled` integer DEFAULT 1 NOT NULL;

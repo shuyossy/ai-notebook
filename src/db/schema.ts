@@ -31,6 +31,7 @@ export const sources = sqliteTable('sources', {
     .$onUpdate(() => sql`(current_timestamp)`),
   status: sourceStatusType('status').notNull().default('idle'),
   error: text('error'),
+  isEnabled: integer('is_enabled').notNull().default(1),
 });
 
 // トピックを格納するテーブル

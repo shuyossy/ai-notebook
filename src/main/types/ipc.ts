@@ -12,6 +12,7 @@ export const IpcChannels = {
   // ソース関連
   SOURCE_GET_ALL: 'source-get-all',
   SOURCE_RELOAD: 'source-reload',
+  SOURCE_UPDATE_ENABLED: 'source-update-enabled',
 
   // チャット関連
   CHAT_SEND_MESSAGE: 'chat-send-message',
@@ -39,6 +40,7 @@ export type IpcRequestPayloadMap = {
   // ソース関連
   [IpcChannels.SOURCE_GET_ALL]: undefined;
   [IpcChannels.SOURCE_RELOAD]: undefined;
+  [IpcChannels.SOURCE_UPDATE_ENABLED]: { sourceId: number; isEnabled: boolean };
 
   // チャット関連
   [IpcChannels.CHAT_SEND_MESSAGE]: { roomId: string; content: string };
@@ -63,6 +65,7 @@ export type IpcResponsePayloadMap = {
     error?: string;
   };
   [IpcChannels.SOURCE_RELOAD]: { success: boolean; message?: string };
+  [IpcChannels.SOURCE_UPDATE_ENABLED]: { success: boolean; error?: string };
 
   // チャット関連
   [IpcChannels.CHAT_SEND_MESSAGE]: { success: boolean; error?: string };
