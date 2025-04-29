@@ -16,7 +16,7 @@ const electronHandler = {
       key: string,
       value: unknown,
     ): Promise<IpcResponsePayload<typeof IpcChannels.SET_STORE_VALUE>> => {
-      return ipcRenderer.invoke(IpcChannels.SET_STORE_VALUE, { key, value });
+      return ipcRenderer.invoke(IpcChannels.SET_STORE_VALUE, key, value);
     },
   },
   chat: {

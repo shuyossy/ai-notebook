@@ -99,9 +99,14 @@ const setupStoreHandlers = () => {
       key: string,
       value: unknown,
     ): Promise<IpcResponsePayloadMap[typeof IpcChannels.SET_STORE_VALUE]> => {
-      const store = getStore();
-      store.set(key, value);
-      return true;
+      try {
+        const store = getStore();
+        store.set(key, value);
+        return true;
+      } catch (error) {
+        console.error('設定の保存中にエラーが発生:', error);
+        return false;
+      }
     },
   );
 };
