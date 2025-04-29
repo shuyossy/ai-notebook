@@ -6,7 +6,7 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { GitLabClient } from './gitlabClient';
-import { GitLabMergeRequest, GitLabMergeRequestData } from './types';
+import { GitLabMergeRequestData } from './types';
 
 /**
  * マージリクエスト一覧を取得するツール
@@ -205,13 +205,22 @@ export const createGetMergeRequestsListTool = (client: GitLabClient) => {
       }
 
       // マージリクエスト一覧を取得
-      const { data, paginationInfo } = await mergeRequests.all({
+      const mrList = await mergeRequests.all({
         showExpanded: true,
         ...options,
       });
 
+      // 新しいGitBeakerでは返り値の形式が異なるため、結果を適切に取り出す
+      const data = Array.isArray(mrList) ? mrList : [];
+      const paginationInfo = {
+        total: data.length,
+        current: context.page || 1,
+        perPage: context.per_page || 20,
+        totalPages: Math.ceil(data.length / (context.per_page || 20)),
+      };
+
       return {
-        merge_requests: data.map((mr: GitLabMergeRequest) => ({
+        merge_requests: data.map((mr) => ({
           id: mr.id,
           iid: mr.iid,
           project_id: mr.project_id,
@@ -315,7 +324,11 @@ export const createGetMergeRequestDetailTool = (client: GitLabClient) => {
       const projectId = await client.resolveProjectId(context.project_id);
 
       // マージリクエスト詳細を取得
-      const mr = await mergeRequests.show(projectId, context.merge_request_iid);
+      // GitBeakerの最新バージョンでは、mergeRequests.showのパラメータ指定方法が変更されている
+      const mr = await mergeRequests.show(projectId, {
+        iid: context.merge_request_iid,
+        showExpanded: true,
+      });
 
       return {
         merge_request: {

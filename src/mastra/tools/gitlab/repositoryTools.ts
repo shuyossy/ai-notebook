@@ -6,14 +6,7 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { GitLabClient } from './gitlabClient';
-import {
-  GitLabBranch,
-  GitLabCommit,
-  GitLabDiff,
-  GitLabFile,
-  GitLabTag,
-  GitLabTreeItem,
-} from './types';
+import { GitLabCommit, GitLabDiff, GitLabTreeItem } from './types';
 
 /**
  * ブランチ一覧を取得するツール
@@ -73,7 +66,7 @@ export const createGetBranchesListTool = (client: GitLabClient) => {
 
       // レスポンス形式に整形
       return {
-        branches: branchesList.map((branch: GitLabBranch) => ({
+        branches: branchesList.map((branch) => ({
           name: branch.name,
           merged: branch.merged,
           protected: branch.protected,
@@ -290,7 +283,7 @@ export const createGetTagsListTool = (client: GitLabClient) => {
       const tagsList = await tags.all(projectId, options);
 
       return {
-        tags: tagsList.map((tag: GitLabTag) => ({
+        tags: tagsList.map((tag) => ({
           name: tag.name,
           message: tag.message,
           target: tag.target,

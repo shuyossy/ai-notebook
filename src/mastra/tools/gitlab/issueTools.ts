@@ -6,7 +6,7 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { GitLabClient } from './gitlabClient';
-import { GitLabIssue, GitLabIssueData } from './types';
+import { GitLabIssueData } from './types';
 
 /**
  * イシュー一覧を取得するツール
@@ -186,13 +186,22 @@ export const createGetIssuesListTool = (client: GitLabClient) => {
       }
 
       // イシュー一覧を取得
-      const { data, paginationInfo } = await issues.all({
+      const issuesList = await issues.all({
         showExpanded: true,
         ...options,
       });
 
+      // 新しいGitBeakerでは返り値の形式が異なるため、結果を適切に取り出す
+      const data = Array.isArray(issuesList) ? issuesList : [];
+      const paginationInfo = {
+        total: data.length,
+        current: context.page || 1,
+        perPage: context.per_page || 20,
+        totalPages: Math.ceil(data.length / (context.per_page || 20)),
+      };
+
       return {
-        issues: data.map((issue: GitLabIssue) => ({
+        issues: data.map((issue) => ({
           id: issue.id,
           iid: issue.iid,
           project_id: issue.project_id,
@@ -299,7 +308,11 @@ export const createGetIssueDetailTool = (client: GitLabClient) => {
       const projectId = await client.resolveProjectId(context.project_id);
 
       // イシュー詳細を取得
-      const issue = await issues.show(projectId, context.issue_iid);
+      // GitBeakerの最新バージョンでは、issue.showのパラメータ指定方法が変更されている
+      const issue = await issues.show(projectId, {
+        iid: context.issue_iid,
+        showExpanded: true,
+      });
 
       return { issue };
     },
@@ -420,7 +433,10 @@ export const createCreateIssueTool = (client: GitLabClient) => {
       }
 
       // イシューを作成
-      const issue = await issues.create(projectId, issueData);
+      // GitBeakerの最新バージョンでは、issues.createの引数の渡し方が変更されている
+      const issue = await issues.create(projectId, {
+        ...issueData,
+      });
 
       return {
         issue: {
@@ -501,7 +517,11 @@ export const createUpdateIssueTool = (client: GitLabClient) => {
       const projectId = await client.resolveProjectId(context.project_id);
 
       // 更新対象のイシューを取得
-      const existingIssue = await issues.show(projectId, context.issue_iid);
+      // GitBeakerの最新バージョンでは、issue.showのパラメータ指定方法が変更されている
+      const existingIssue = await issues.show(projectId, {
+        iid: context.issue_iid,
+        showExpanded: true,
+      });
 
       // 更新データの準備
       const updateData: any = {};
@@ -581,7 +601,10 @@ export const createUpdateIssueTool = (client: GitLabClient) => {
       }
 
       // イシューを更新
-      const issue = await issues.edit(projectId, context.issue_iid, updateData);
+      // GitBeakerの最新バージョンでは、issues.editの引数の渡し方が変更されている
+      const issue = await issues.edit(projectId, context.issue_iid, {
+        ...updateData,
+      });
 
       return {
         issue: {

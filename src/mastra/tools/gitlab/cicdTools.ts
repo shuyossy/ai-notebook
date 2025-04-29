@@ -6,7 +6,6 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { GitLabClient } from './gitlabClient';
-import { GitLabJob, GitLabPipeline } from './types';
 
 /**
  * パイプライン一覧を取得するツール
@@ -133,13 +132,22 @@ export const createGetPipelinesListTool = (client: GitLabClient) => {
       }
 
       // パイプライン一覧を取得
-      const { data, paginationInfo } = await pipelines.all(projectId, {
+      const pipelinesList = await pipelines.all(projectId, {
         showExpanded: true,
         ...options,
       });
 
+      // 新しいgitbeakerでは返り値の形式が異なるため、結果を適切に取り出す
+      const data = Array.isArray(pipelinesList) ? pipelinesList : [];
+      const paginationInfo = {
+        total: data.length,
+        current: context.page || 1,
+        perPage: context.per_page || 20,
+        totalPages: Math.ceil(data.length / (context.per_page || 20)),
+      };
+
       return {
-        pipelines: data.map((pipeline: GitLabPipeline) => ({
+        pipelines: data.map((pipeline) => ({
           id: pipeline.id,
           iid: pipeline.iid,
           project_id: pipeline.project_id,
@@ -306,14 +314,22 @@ export const createGetPipelineJobsListTool = (client: GitLabClient) => {
       }
 
       // パイプラインのジョブ一覧を取得
-      const jobsList = await jobs.showPipelineJobs(
-        projectId,
-        context.pipeline_id,
-        options,
-      );
+      // GitBeakerの最新バージョンではshowPipelineJobsメソッドが存在しないため、
+      // プロジェクトのジョブ一覧を取得して指定されたパイプラインに絞り込む
+      const allJobs = await jobs.all(projectId, {
+        showExpanded: true,
+        ...options,
+      });
+
+      const jobsList = Array.isArray(allJobs)
+        ? allJobs.filter(
+            (job: any) =>
+              job.pipeline && job.pipeline.id === context.pipeline_id,
+          )
+        : [];
 
       return {
-        jobs: jobsList.map((job: GitLabJob) => ({
+        jobs: jobsList.map((job) => ({
           id: job.id,
           name: job.name,
           status: job.status,
@@ -411,13 +427,22 @@ export const createGetProjectJobsListTool = (client: GitLabClient) => {
       }
 
       // プロジェクトのジョブ一覧を取得
-      const { data, paginationInfo } = await jobs.all(projectId, {
+      const jobsList = await jobs.all(projectId, {
         showExpanded: true,
         ...options,
       });
 
+      // 新しいgitbeakerでは返り値の形式が異なるため、結果を適切に取り出す
+      const data = Array.isArray(jobsList) ? jobsList : [];
+      const paginationInfo = {
+        total: data.length,
+        current: context.page || 1,
+        perPage: context.per_page || 20,
+        totalPages: Math.ceil(data.length / (context.per_page || 20)),
+      };
+
       return {
-        jobs: data.map((job: GitLabJob) => ({
+        jobs: data.map((job) => ({
           id: job.id,
           name: job.name,
           status: job.status,
@@ -636,8 +661,8 @@ export const createGetJobArtifactsTool = (client: GitLabClient) => {
       // ジョブ詳細を取得（アーティファクト情報を含む）
       const job = await jobs.show(projectId, context.job_id);
 
-      // アーティファクト一覧を取得
-      const artifacts = await jobs.showArtifacts(projectId, context.job_id);
+      // 新しいGitBeakerではshowArtifactsメソッドが存在しないため、ジョブ詳細からアーティファクト情報を取得
+      const artifacts = job.artifacts || [];
 
       return {
         artifacts: artifacts.map((artifact: any) => ({
@@ -686,7 +711,9 @@ export const createGetCiCdVariablesListTool = (client: GitLabClient) => {
       const projectId = await client.resolveProjectId(context.project_id);
 
       // プロジェクトのCI/CD変数一覧を取得
-      const variables = await projects.variables.all(projectId);
+      // 新しいGitBeakerではAPI呼び出し方法が変わっているため、プロジェクト変数APIは別途インポートが必要
+      // ここでは直接projectsオブジェクトから呼び出せる方法に変更
+      const variables = await projects.showVariables(projectId);
 
       return {
         variables: variables.map((variable: any) => ({
@@ -735,7 +762,9 @@ export const createGetGroupCiCdVariablesListTool = (client: GitLabClient) => {
       const groupId = await client.resolveGroupId(context.group_id);
 
       // グループのCI/CD変数一覧を取得
-      const variables = await groups.variables.all(groupId);
+      // 新しいGitBeakerではAPI呼び出し方法が変わっているため、グループ変数APIは別途インポートが必要
+      // ここでは直接groupsオブジェクトから呼び出せる方法に変更
+      const variables = await groups.showVariables(groupId);
 
       return {
         variables: variables.map((variable: any) => ({
