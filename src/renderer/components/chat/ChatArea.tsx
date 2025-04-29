@@ -177,7 +177,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
             handleSubmit={handleSubmit}
             handleInputChange={handleInputChange}
             message={input}
-            disabled={status !== 'ready'}
+            disabled={status === 'submitted' || status === 'streaming'}
             placeholder={
               // eslint-disable-next-line
               status === 'submitted'
