@@ -47,29 +47,29 @@ export interface NameIdMapping {
  * GitLab APIクライアントクラス
  */
 export class GitLabClient {
-  private readonly gitlab: InstanceType<typeof Gitlab>;
+  private readonly gitlab: InstanceType<typeof Gitlab<false>>;
 
-  private readonly projects: InstanceType<typeof Projects>;
+  private readonly projects: InstanceType<typeof Projects<false>>;
 
-  private readonly users: InstanceType<typeof Users>;
+  private readonly users: InstanceType<typeof Users<false>>;
 
-  private readonly groups: InstanceType<typeof Groups>;
+  private readonly groups: InstanceType<typeof Groups<false>>;
 
-  private readonly mergeRequests: InstanceType<typeof MergeRequests>;
+  private readonly mergeRequests: InstanceType<typeof MergeRequests<false>>;
 
-  private readonly issues: InstanceType<typeof Issues>;
+  private readonly issues: InstanceType<typeof Issues<false>>;
 
-  private readonly branches: InstanceType<typeof Branches>;
+  private readonly branches: InstanceType<typeof Branches<false>>;
 
-  private readonly tags: InstanceType<typeof Tags>;
+  private readonly tags: InstanceType<typeof Tags<false>>;
 
-  private readonly jobs: InstanceType<typeof Jobs>;
+  private readonly jobs: InstanceType<typeof Jobs<false>>;
 
-  private readonly pipelines: InstanceType<typeof Pipelines>;
+  private readonly pipelines: InstanceType<typeof Pipelines<false>>;
 
-  private readonly repositories: InstanceType<typeof Repositories>;
+  private readonly repositories: InstanceType<typeof Repositories<false>>;
 
-  private readonly repositoryFiles: InstanceType<typeof RepositoryFiles>;
+  private readonly repositoryFiles: InstanceType<typeof RepositoryFiles<false>>;
 
   // キャッシュ: プロジェクト、グループなど
   private projectsCache: NameIdMapping[] = [];

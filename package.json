@@ -87,6 +87,7 @@
     "@electron/notarize": "^3.0.0",
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.0",
+    "@gitbeaker/rest": "^42.5.0",
     "@libsql/client": "^0.15.4",
     "@mastra/core": "^0.8.3",
     "@mastra/mcp": "^0.4.0",

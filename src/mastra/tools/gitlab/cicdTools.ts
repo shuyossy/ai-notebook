@@ -77,14 +77,6 @@ export const createGetPipelinesListTool = (client: GitLabClient) => {
           web_url: z.string(),
           created_at: z.string(),
           updated_at: z.string(),
-          user: z
-            .object({
-              id: z.number(),
-              name: z.string(),
-              username: z.string(),
-              avatar_url: z.string().nullable(),
-            })
-            .optional(),
         }),
       ),
       total: z.number(),
@@ -157,7 +149,6 @@ export const createGetPipelinesListTool = (client: GitLabClient) => {
           web_url: pipeline.web_url,
           created_at: pipeline.created_at,
           updated_at: pipeline.updated_at,
-          user: pipeline.user,
         })),
         total: paginationInfo.total,
         page: paginationInfo.current,
@@ -197,15 +188,7 @@ export const createGetPipelineDetailTool = (client: GitLabClient) => {
         started_at: z.string().nullable(),
         finished_at: z.string().nullable(),
         duration: z.number().nullable(),
-        queued_duration: z.number().nullable(),
-        user: z
-          .object({
-            id: z.number(),
-            name: z.string(),
-            username: z.string(),
-            avatar_url: z.string().nullable(),
-          })
-          .optional(),
+        queued_duration: z.unknown().nullable(),
       }),
     }),
     execute: async ({ context }) => {
@@ -232,7 +215,6 @@ export const createGetPipelineDetailTool = (client: GitLabClient) => {
           finished_at: pipeline.finished_at,
           duration: pipeline.duration,
           queued_duration: pipeline.queued_duration,
-          user: pipeline.user,
         },
       };
     },
@@ -282,9 +264,9 @@ export const createGetPipelineJobsListTool = (client: GitLabClient) => {
           status: z.string(),
           stage: z.string(),
           created_at: z.string(),
-          started_at: z.string().nullable(),
-          finished_at: z.string().nullable(),
-          duration: z.number().nullable(),
+          started_at: z.string().optional(),
+          finished_at: z.string().optional(),
+          duration: z.number().optional(),
           queued_duration: z.number().nullable(),
           pipeline: z.object({
             id: z.number(),
@@ -391,9 +373,9 @@ export const createGetProjectJobsListTool = (client: GitLabClient) => {
           status: z.string(),
           stage: z.string(),
           created_at: z.string(),
-          started_at: z.string().nullable(),
-          finished_at: z.string().nullable(),
-          duration: z.number().nullable(),
+          started_at: z.string().optional(),
+          finished_at: z.string().optional(),
+          duration: z.number().optional(),
           pipeline: z.object({
             id: z.number(),
             project_id: z.number(),
@@ -486,10 +468,10 @@ export const createGetJobDetailTool = (client: GitLabClient) => {
         status: z.string(),
         stage: z.string(),
         created_at: z.string(),
-        started_at: z.string().nullable(),
-        finished_at: z.string().nullable(),
-        duration: z.number().nullable(),
-        queued_duration: z.number().nullable(),
+        started_at: z.string().optional(),
+        finished_at: z.string().optional(),
+        duration: z.number().optional(),
+        queued_duration: z.number().optional(),
         pipeline: z.object({
           id: z.number(),
           project_id: z.number(),
