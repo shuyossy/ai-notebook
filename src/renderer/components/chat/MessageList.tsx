@@ -85,7 +85,7 @@ const MessageList: React.FC<MessageListProps> = ({
                 if (ti.toolName === 'querySourceTool') {
                   return `検索内容：${JSON.stringify(jti.args?.query)}\n検索結果：${jti.result?.answer || ''}`;
                 }
-                return `Args：${jti.args}\nResult：${jti.result}}`;
+                return `Args：${JSON.stringify(jti.args)}\nResult：${JSON.stringify(jti.result)}}`;
               };
 
               return (

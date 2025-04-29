@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { z } from 'zod';
 import {
   Button,
   TextField,
@@ -9,6 +10,7 @@ import {
 } from '@mui/material';
 import Modal from './Modal';
 import { StoreSchema as Settings } from '../../../main/store';
+import { McpSchema, McpSchemaType } from '../../../main/types/schema';
 import { useElectronStore } from '../../hooks/useElectronStore';
 
 interface SettingsModalProps {
@@ -17,11 +19,11 @@ interface SettingsModalProps {
   onSettingsUpdated: () => void;
 }
 
-function SettingsModal({
+const SettingsModal: React.FC<SettingsModalProps> = ({
   open,
   onClose,
   onSettingsUpdated,
-}: SettingsModalProps) {
+}) => {
   const [database, setDatabase] = useElectronStore<{ dir: string }>('database');
   const [source, setSource] = useElectronStore<{ registerDir: string }>(
     'source',
@@ -40,6 +42,14 @@ function SettingsModal({
     endpoint: string;
     apiKey: string;
   }>('gitlab');
+  const [mcpServers, setMcpServers] =
+    useElectronStore<McpSchemaType>('mcpServers');
+  const [mcpServersText, setMcpServersText] = useState<string>(
+    JSON.stringify(mcpServers ?? {}, null, 2),
+  );
+  const [mcpValidationError, setMcpValidationError] = useState<string | null>(
+    null,
+  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -51,8 +61,9 @@ function SettingsModal({
       api: api ?? { key: '', url: '', model: '' },
       redmine: redmine ?? { endpoint: '', apiKey: '' },
       gitlab: gitlab ?? { endpoint: '', apiKey: '' },
+      mcpServers: mcpServers ?? {},
     }),
-    [database, source, api, redmine, gitlab],
+    [database, source, api, redmine, gitlab, mcpServers],
   );
 
   // 設定を更新する
@@ -67,6 +78,7 @@ function SettingsModal({
         setApi(settings.api),
         setRedmine(settings.redmine),
         setGitlab(settings.gitlab),
+        setMcpServers(settings.mcpServers),
       ]);
       onSettingsUpdated();
       onClose();
@@ -81,7 +93,7 @@ function SettingsModal({
   const handleChange = (
     section: keyof Settings,
     field: string,
-    value: string,
+    value: string | McpSchemaType,
   ) => {
     switch (section) {
       case 'database':
@@ -98,6 +110,9 @@ function SettingsModal({
         break;
       case 'gitlab':
         setGitlab({ ...gitlab, [field]: value });
+        break;
+      case 'mcpServers':
+        setMcpServers(value as McpSchemaType);
         break;
       default:
         console.warn(`Unknown section: ${section}`);
@@ -240,10 +255,72 @@ function SettingsModal({
               variant="outlined"
             />
           </Box>
+
+          <Box sx={{ width: '100%', mb: 1 }}>
+            <Typography variant="h6" gutterBottom>
+              MCPサーバー設定
+            </Typography>
+            <TextField
+              fullWidth
+              label="MCPサーバー設定（JSON）"
+              multiline
+              rows={4}
+              value={mcpServersText}
+              onChange={(e) => {
+                setMcpServersText(e.target.value);
+                // バリデーション実行
+                try {
+                  const newValue = McpSchema.parse(JSON.parse(e.target.value));
+                  setMcpValidationError(null);
+                  handleChange('mcpServers', 'json', newValue);
+                } catch (err) {
+                  if (err instanceof SyntaxError) {
+                    setMcpValidationError('JSONの形式が不正です');
+                  } else if (err instanceof z.ZodError) {
+                    setMcpValidationError(
+                      `MCPサーバー設定が不正です: ${err.errors
+                        .map((validationError) => validationError.message)
+                        .join(', ')}`,
+                    );
+                  } else {
+                    setMcpValidationError('予期せぬエラーが発生しました');
+                  }
+                }
+              }}
+              margin="normal"
+              variant="outlined"
+              error={!!mcpValidationError}
+              helperText={mcpValidationError}
+            />
+            <Typography variant="caption" color="textSecondary" sx={{ mt: 1 }}>
+              設定例:
+              <pre
+                style={{
+                  backgroundColor: 'rgba(0, 0, 0, 0.04)',
+                  padding: '8px',
+                  borderRadius: '4px',
+                }}
+              >
+                {JSON.stringify(
+                  {
+                    weather: {
+                      command: 'npx',
+                      args: ['tsx', 'weather.ts'],
+                      env: {
+                        API_KEY: 'your-api-key',
+                      },
+                    },
+                  },
+                  null,
+                  2,
+                )}
+              </pre>
+            </Typography>
+          </Box>
         </Grid>
       </Box>
     </Modal>
   );
-}
+};
 
 export default SettingsModal;

@@ -89,6 +89,7 @@
     "@emotion/styled": "^11.14.0",
     "@libsql/client": "^0.15.4",
     "@mastra/core": "^0.8.3",
+    "@mastra/mcp": "^0.4.0",
     "@mastra/memory": "^0.2.10",
     "@mui/icons-material": "^7.0.2",
     "@mui/material": "^7.0.2",

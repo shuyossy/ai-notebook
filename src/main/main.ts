@@ -64,7 +64,7 @@ const initializeMastra = async (): Promise<void> => {
     });
 
     // オーケストレーターエージェントを取得
-    const orchestratorAgent = getOrchestrator();
+    const orchestratorAgent = await getOrchestrator();
 
     // Mastraインスタンスを初期化
     mastraInstance = new Mastra({

@@ -1,5 +1,6 @@
 import path from 'path';
 import { app } from 'electron';
+import { McpSchemaType } from './types/schema';
 
 // 設定の型定義
 export interface StoreSchema {
@@ -22,6 +23,7 @@ export interface StoreSchema {
     endpoint: string;
     apiKey: string;
   };
+  mcpServers: McpSchemaType;
 }
 
 // スキーマ定義
@@ -65,6 +67,11 @@ const schema = {
     },
     required: ['endpoint', 'apiKey'],
   },
+  mcpServers: {
+    type: 'object',
+    default: {},
+    additionalProperties: true,
+  },
 } as const;
 
 // デフォルト値の設定
@@ -88,6 +95,7 @@ const defaults: StoreSchema = {
     endpoint: '',
     apiKey: '',
   },
+  mcpServers: {},
 };
 
 // ストアのインスタンスを作成する関数
