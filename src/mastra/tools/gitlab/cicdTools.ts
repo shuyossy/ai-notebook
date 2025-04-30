@@ -486,7 +486,6 @@ export const createGetJobDetailTool = (client: GitLabClient) => {
             id: z.number(),
             description: z.string().nullable(),
             ip_address: z.string().nullable(),
-            active: z.boolean(),
             is_shared: z.boolean(),
           })
           .nullable(),
@@ -632,7 +631,6 @@ export const createGetJobArtifactsTool = (client: GitLabClient) => {
           size: z.number(),
         })
         .nullable(),
-      artifact_size: z.number().nullable(),
     }),
     execute: async ({ context }) => {
       const { jobs } = client.getApiResources();
@@ -654,109 +652,6 @@ export const createGetJobArtifactsTool = (client: GitLabClient) => {
           file_format: artifact.file_format,
         })),
         artifacts_file: job.artifacts_file,
-        artifact_size: job.artifact_size,
-      };
-    },
-  });
-};
-
-/**
- * GitLabのCI/CD変数一覧を取得するツール
- * @param client GitLabClient - GitLab APIクライアント
- * @returns CI/CD変数一覧取得ツール
- */
-export const createGetCiCdVariablesListTool = (client: GitLabClient) => {
-  return createTool({
-    id: 'gitlab-get-ci-cd-variables-list',
-    description: 'GitLabのプロジェクトレベルのCI/CD変数一覧を取得します。',
-    inputSchema: z.object({
-      project_id: z
-        .union([z.string(), z.number()])
-        .describe('プロジェクトIDまたは名前'),
-    }),
-    outputSchema: z.object({
-      variables: z.array(
-        z.object({
-          key: z.string(),
-          variable_type: z.enum(['env_var', 'file']),
-          value: z.string(),
-          protected: z.boolean(),
-          masked: z.boolean(),
-          environment_scope: z.string(),
-        }),
-      ),
-    }),
-    execute: async ({ context }) => {
-      const { projects } = client.getApiResources();
-
-      // プロジェクトIDを解決
-      const projectId = await client.resolveProjectId(context.project_id);
-
-      // プロジェクトのCI/CD変数一覧を取得
-      // 新しいGitBeakerではAPI呼び出し方法が変わっているため、プロジェクト変数APIは別途インポートが必要
-      // ここでは直接projectsオブジェクトから呼び出せる方法に変更
-      const variables = await projects.showVariables(projectId);
-
-      return {
-        variables: variables.map((variable: any) => ({
-          key: variable.key,
-          variable_type: variable.variable_type,
-          value: variable.value,
-          protected: variable.protected,
-          masked: variable.masked,
-          environment_scope: variable.environment_scope || '*',
-        })),
-      };
-    },
-  });
-};
-
-/**
- * GitLabのグループCI/CD変数一覧を取得するツール
- * @param client GitLabClient - GitLab APIクライアント
- * @returns グループCI/CD変数一覧取得ツール
- */
-export const createGetGroupCiCdVariablesListTool = (client: GitLabClient) => {
-  return createTool({
-    id: 'gitlab-get-group-ci-cd-variables-list',
-    description: 'GitLabのグループレベルのCI/CD変数一覧を取得します。',
-    inputSchema: z.object({
-      group_id: z
-        .union([z.string(), z.number()])
-        .describe('グループIDまたは名前'),
-    }),
-    outputSchema: z.object({
-      variables: z.array(
-        z.object({
-          key: z.string(),
-          variable_type: z.enum(['env_var', 'file']),
-          value: z.string(),
-          protected: z.boolean(),
-          masked: z.boolean(),
-          environment_scope: z.string(),
-        }),
-      ),
-    }),
-    execute: async ({ context }) => {
-      const { groups } = client.getApiResources();
-
-      // グループIDを解決
-      const groupId = await client.resolveGroupId(context.group_id);
-
-      // グループのCI/CD変数一覧を取得
-      // 新しいGitBeakerではAPI呼び出し方法が変わっているため、グループ変数APIは別途インポートが必要
-      // ここでは直接groupsオブジェクトから呼び出せる方法に変更
-      const variables = await groups.showVariables(groupId);
-
-      return {
-        variables: variables.map((variable: any) => ({
-          key: variable.key,
-          variable_type: variable.variable_type,
-          value: variable.value,
-          protected: variable.protected,
-          masked: variable.masked,
-          environment_scope: variable.environment_scope || '*',
-        })),
       };
     },
   });
@@ -776,7 +671,5 @@ export const createCiCdTools = (client: GitLabClient) => {
     getJobDetail: createGetJobDetailTool(client),
     runPipeline: createRunPipelineTool(client),
     getJobArtifacts: createGetJobArtifactsTool(client),
-    getProjectCiCdVariables: createGetCiCdVariablesListTool(client),
-    getGroupCiCdVariables: createGetGroupCiCdVariablesListTool(client),
   };
 };

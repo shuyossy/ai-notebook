@@ -85,17 +85,24 @@ export const createGetIssuesListTool = (client: GitLabClient) => {
           state: z.string(),
           created_at: z.string(),
           updated_at: z.string(),
-          closed_at: z.string().nullable(),
-          labels: z.array(z.string()),
+          closed_at: z.string().optional(),
+          labels: z.any(),
           milestone: z
             .object({
               id: z.number(),
+              iid: z.number(),
+              project_id: z.number(),
               title: z.string(),
-              description: z.string().nullable(),
-              due_date: z.string().nullable(),
+              description: z.string(),
+              due_date: z.string().optional(),
+              start_date: z.string(),
               state: z.string(),
+              updated_at: z.string(),
+              created_at: z.string(),
+              expired: z.boolean(),
+              web_url: z.string(),
             })
-            .nullable(),
+            .optional(),
           assignees: z.array(
             z.object({
               id: z.number(),
@@ -111,7 +118,7 @@ export const createGetIssuesListTool = (client: GitLabClient) => {
             avatar_url: z.string().nullable(),
           }),
           user_notes_count: z.number(),
-          due_date: z.string().nullable(),
+          due_date: z.string(),
           web_url: z.string(),
         }),
       ),
@@ -309,8 +316,8 @@ export const createGetIssueDetailTool = (client: GitLabClient) => {
 
       // イシュー詳細を取得
       // GitBeakerの最新バージョンでは、issue.showのパラメータ指定方法が変更されている
-      const issue = await issues.show(projectId, {
-        iid: context.issue_iid,
+      const issue = await issues.show(context.issue_iid, {
+        projectId,
         showExpanded: true,
       });
 

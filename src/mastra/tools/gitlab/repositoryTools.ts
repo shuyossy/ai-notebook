@@ -6,7 +6,6 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { GitLabClient } from './gitlabClient';
-import { GitLabCommit, GitLabDiff, GitLabTreeItem } from './types';
 
 /**
  * ブランチ一覧を取得するツール
@@ -41,7 +40,6 @@ export const createGetBranchesListTool = (client: GitLabClient) => {
             short_id: z.string(),
             title: z.string(),
             author_name: z.string(),
-            created_at: z.string(),
           }),
         }),
       ),
@@ -79,7 +77,6 @@ export const createGetBranchesListTool = (client: GitLabClient) => {
             short_id: branch.commit.short_id,
             title: branch.commit.title,
             author_name: branch.commit.author_name,
-            created_at: branch.commit.created_at,
           },
         })),
       };
@@ -117,8 +114,7 @@ export const createGetBranchDetailTool = (client: GitLabClient) => {
           title: z.string(),
           author_name: z.string(),
           author_email: z.string(),
-          created_at: z.string(),
-          committed_date: z.string(),
+          committed_date: z.string().optional(),
           message: z.string(),
         }),
       }),
@@ -180,7 +176,6 @@ export const createCreateBranchTool = (client: GitLabClient) => {
           short_id: z.string(),
           title: z.string(),
           author_name: z.string(),
-          created_at: z.string(),
         }),
       }),
     }),
@@ -215,7 +210,6 @@ export const createCreateBranchTool = (client: GitLabClient) => {
             short_id: branch.commit.short_id,
             title: branch.commit.title,
             author_name: branch.commit.author_name,
-            created_at: branch.commit.created_at,
           },
         },
       };
@@ -259,7 +253,7 @@ export const createGetTagsListTool = (client: GitLabClient) => {
           release: z
             .object({
               tag_name: z.string(),
-              description: z.string(),
+              description: z.string().nullable(),
             })
             .optional(),
         }),
@@ -328,13 +322,13 @@ export const createGetTagDetailTool = (client: GitLabClient) => {
           author_name: z.string(),
           author_email: z.string(),
           created_at: z.string(),
-          committed_date: z.string(),
+          committed_date: z.string().optional(),
           message: z.string(),
         }),
         release: z
           .object({
             tag_name: z.string(),
-            description: z.string(),
+            description: z.string().nullable(),
           })
           .optional(),
       }),
@@ -440,7 +434,7 @@ export const createGetRepositoryTreeTool = (client: GitLabClient) => {
         z.object({
           id: z.string(),
           name: z.string(),
-          type: z.enum(['tree', 'blob']),
+          type: z.string(),
           path: z.string(),
           mode: z.string(),
         }),
@@ -463,10 +457,13 @@ export const createGetRepositoryTreeTool = (client: GitLabClient) => {
       }
 
       // リポジトリツリーを取得
-      const treeItems = await repositories.tree(projectId, options);
+      const treeItems = await repositories.allRepositoryTrees(
+        projectId,
+        options,
+      );
 
       return {
-        tree: treeItems.map((item: GitLabTreeItem) => ({
+        tree: treeItems.map((item) => ({
           id: item.id,
           name: item.name,
           type: item.type,
@@ -521,14 +518,14 @@ export const createGetCommitHistoryTool = (client: GitLabClient) => {
           title: z.string(),
           author_name: z.string(),
           author_email: z.string(),
-          authored_date: z.string(),
-          committer_name: z.string(),
-          committer_email: z.string(),
-          committed_date: z.string(),
-          created_at: z.string(),
-          message: z.string(),
-          parent_ids: z.array(z.string()),
-          web_url: z.string().optional(),
+          authored_date: z.string().optional(),
+          committer_name: z.string().optional(),
+          committer_email: z.string().optional(),
+          committed_date: z.string().optional(),
+          created_at: z.string().optional(),
+          message: z.string().optional(),
+          parent_ids: z.array(z.string()).optional(),
+          web_url: z.string().optional().optional(),
         }),
       ),
     }),
@@ -563,7 +560,7 @@ export const createGetCommitHistoryTool = (client: GitLabClient) => {
       const commitsList = await commits.all(projectId, options);
 
       return {
-        commits: commitsList.map((commit: GitLabCommit) => ({
+        commits: commitsList.map((commit) => ({
           id: commit.id,
           short_id: commit.short_id,
           title: commit.title,
@@ -605,14 +602,14 @@ export const createGetCommitDetailTool = (client: GitLabClient) => {
         title: z.string(),
         author_name: z.string(),
         author_email: z.string(),
-        authored_date: z.string(),
-        committer_name: z.string(),
-        committer_email: z.string(),
-        committed_date: z.string(),
-        created_at: z.string(),
-        message: z.string(),
-        parent_ids: z.array(z.string()),
-        web_url: z.string().optional(),
+        authored_date: z.string().optional(),
+        committer_name: z.string().optional(),
+        committer_email: z.string().optional(),
+        committed_date: z.string().optional(),
+        created_at: z.string().optional(),
+        message: z.string().optional(),
+        parent_ids: z.array(z.string()).optional(),
+        web_url: z.string().optional().optional(),
       }),
     }),
     execute: async ({ context }) => {
@@ -650,20 +647,24 @@ export const createGetDiffTool = (client: GitLabClient) => {
         .describe('比較先のリファレンス（ブランチ名、タグ名、コミットSHA）'),
       path: z.string().optional().describe('特定のファイルパスの差分のみ取得'),
     }),
-    outputSchema: z.object({
-      diffs: z.array(
-        z.object({
-          old_path: z.string(),
-          new_path: z.string(),
-          a_mode: z.string().nullable(),
-          b_mode: z.string(),
-          diff: z.string(),
-          new_file: z.boolean(),
-          renamed_file: z.boolean(),
-          deleted_file: z.boolean(),
-        }),
-      ),
-    }),
+    outputSchema: z
+      .object({
+        diffs: z
+          .array(
+            z.object({
+              old_path: z.string(),
+              new_path: z.string(),
+              a_mode: z.string().optional(),
+              b_mode: z.string(),
+              diff: z.string(),
+              new_file: z.boolean(),
+              renamed_file: z.boolean(),
+              deleted_file: z.boolean(),
+            }),
+          )
+          .optional(),
+      })
+      .optional(),
     execute: async ({ context }) => {
       const { repositories } = client.getApiResources();
 
@@ -686,7 +687,7 @@ export const createGetDiffTool = (client: GitLabClient) => {
       );
 
       return {
-        diffs: compareResult.diffs.map((diff: GitLabDiff) => ({
+        diffs: compareResult.diffs?.map((diff) => ({
           old_path: diff.old_path,
           new_path: diff.new_path,
           a_mode: diff.a_mode,

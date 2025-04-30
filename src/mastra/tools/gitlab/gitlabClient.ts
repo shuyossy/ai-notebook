@@ -17,6 +17,9 @@ import {
   Pipelines,
   Repositories,
   RepositoryFiles,
+  Commits,
+  MergeRequestDiscussions,
+  MergeRequestNotes,
 } from '@gitbeaker/rest';
 import { z } from 'zod';
 
@@ -70,6 +73,16 @@ export class GitLabClient {
   private readonly repositories: InstanceType<typeof Repositories<false>>;
 
   private readonly repositoryFiles: InstanceType<typeof RepositoryFiles<false>>;
+
+  private readonly commits: InstanceType<typeof Commits<false>>;
+
+  private readonly mergeRequestDiscussions: InstanceType<
+    typeof MergeRequestDiscussions<false>
+  >;
+
+  private readonly mergeRequestNotes: InstanceType<
+    typeof MergeRequestNotes<false>
+  >;
 
   // キャッシュ: プロジェクト、グループなど
   private projectsCache: NameIdMapping[] = [];
@@ -141,6 +154,21 @@ export class GitLabClient {
     });
 
     this.repositoryFiles = new RepositoryFiles({
+      host: config.host,
+      token: config.token,
+    });
+
+    this.commits = new Commits({
+      host: config.host,
+      token: config.token,
+    });
+
+    this.mergeRequestDiscussions = new MergeRequestDiscussions({
+      host: config.host,
+      token: config.token,
+    });
+
+    this.mergeRequestNotes = new MergeRequestNotes({
       host: config.host,
       token: config.token,
     });
@@ -371,6 +399,9 @@ export class GitLabClient {
       pipelines: this.pipelines,
       repositories: this.repositories,
       repositoryFiles: this.repositoryFiles,
+      commits: this.commits,
+      mergeRequestDiscussions: this.mergeRequestDiscussions,
+      mergeRequestNotes: this.mergeRequestNotes,
     };
   }
 }

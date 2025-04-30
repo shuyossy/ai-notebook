@@ -104,7 +104,7 @@ export const createGetMergeRequestsListTool = (client: GitLabClient) => {
               username: z.string(),
             }),
           ),
-          labels: z.array(z.string()),
+          labels: z.array(z.record(z.string(), z.unknown())),
           merge_status: z.string(),
           web_url: z.string(),
         }),
@@ -308,7 +308,9 @@ export const createGetMergeRequestDetailTool = (client: GitLabClient) => {
             avatar_url: z.string().nullable(),
           }),
         ),
-        labels: z.array(z.string()),
+        labels: z
+          .array(z.record(z.string(), z.unknown()))
+          .or(z.array(z.string())),
         draft: z.boolean(),
         work_in_progress: z.boolean(),
         merge_status: z.string(),
@@ -325,37 +327,38 @@ export const createGetMergeRequestDetailTool = (client: GitLabClient) => {
 
       // マージリクエスト詳細を取得
       // GitBeakerの最新バージョンでは、mergeRequests.showのパラメータ指定方法が変更されている
-      const mr = await mergeRequests.show(projectId, {
-        iid: context.merge_request_iid,
-        showExpanded: true,
-      });
+      const mr = await mergeRequests.show(
+        projectId,
+        context.merge_request_iid,
+        { showExpanded: true },
+      );
 
       return {
         merge_request: {
-          id: mr.id,
-          iid: mr.iid,
-          project_id: mr.project_id,
-          title: mr.title,
-          description: mr.description,
-          state: mr.state,
-          created_at: mr.created_at,
-          updated_at: mr.updated_at,
-          merged_at: mr.merged_at,
-          closed_at: mr.closed_at,
-          target_branch: mr.target_branch,
-          source_branch: mr.source_branch,
-          source_project_id: mr.source_project_id,
-          target_project_id: mr.target_project_id,
-          author: mr.author,
-          assignees: mr.assignees || [],
-          reviewers: mr.reviewers || [],
-          labels: Array.isArray(mr.labels) ? mr.labels : [],
-          draft: mr.draft || mr.work_in_progress,
-          work_in_progress: mr.work_in_progress,
-          merge_status: mr.merge_status,
-          detailed_merge_status: mr.detailed_merge_status,
-          user_notes_count: mr.user_notes_count,
-          web_url: mr.web_url,
+          id: mr.data.id,
+          iid: mr.data.iid,
+          project_id: mr.data.project_id,
+          title: mr.data.title,
+          description: mr.data.description,
+          state: mr.data.state,
+          created_at: mr.data.created_at,
+          updated_at: mr.data.updated_at,
+          merged_at: mr.data.merged_at,
+          closed_at: mr.data.closed_at,
+          target_branch: mr.data.target_branch,
+          source_branch: mr.data.source_branch,
+          source_project_id: mr.data.source_project_id,
+          target_project_id: mr.data.target_project_id,
+          author: mr.data.author,
+          assignees: mr.data.assignees || [],
+          reviewers: mr.data.reviewers || [],
+          labels: Array.isArray(mr.data.labels) ? mr.data.labels : [],
+          draft: mr.data.draft || mr.data.work_in_progress,
+          work_in_progress: mr.data.work_in_progress,
+          merge_status: mr.data.merge_status,
+          detailed_merge_status: mr.data.detailed_merge_status,
+          user_notes_count: mr.data.user_notes_count,
+          web_url: mr.data.web_url,
         },
       };
     },
@@ -445,11 +448,11 @@ export const createCreateMergeRequestTool = (client: GitLabClient) => {
               !Number.isNaN(Number(assigneeId))
             ) {
               return Number(assigneeId);
-            } else if (typeof assigneeId === 'string') {
-              return await client.resolveUserId(assigneeId);
-            } else {
-              return assigneeId;
             }
+            if (typeof assigneeId === 'string') {
+              return client.resolveUserId(assigneeId);
+            }
+            return assigneeId;
           }),
         );
         mrData.assignee_ids = resolvedAssigneeIds;
@@ -464,11 +467,11 @@ export const createCreateMergeRequestTool = (client: GitLabClient) => {
               !Number.isNaN(Number(reviewerId))
             ) {
               return Number(reviewerId);
-            } else if (typeof reviewerId === 'string') {
-              return await client.resolveUserId(reviewerId);
-            } else {
-              return reviewerId;
             }
+            if (typeof reviewerId === 'string') {
+              return client.resolveUserId(reviewerId);
+            }
+            return reviewerId;
           }),
         );
         mrData.reviewer_ids = resolvedReviewerIds;
@@ -491,7 +494,13 @@ export const createCreateMergeRequestTool = (client: GitLabClient) => {
       }
 
       // マージリクエストを作成
-      const mr = await mergeRequests.create(projectId, mrData);
+      const mr = await mergeRequests.create(
+        projectId,
+        mrData.source_branch,
+        mrData.target_branch,
+        mrData.title,
+        { ...mrData },
+      );
 
       return {
         merge_request: {
@@ -541,16 +550,16 @@ export const createAddMergeRequestCommentTool = (client: GitLabClient) => {
       }),
     }),
     execute: async ({ context }) => {
-      const { mergeRequests } = client.getApiResources();
+      const { mergeRequestNotes } = client.getApiResources();
 
       // プロジェクトIDを解決
       const projectId = await client.resolveProjectId(context.project_id);
 
       // コメントを追加
-      const comment = await mergeRequests.createNote(
+      const comment = await mergeRequestNotes.create(
         projectId,
         context.merge_request_iid,
-        { body: context.body },
+        context.body,
       );
 
       return {
@@ -590,156 +599,71 @@ export const createAddMergeRequestDiffCommentTool = (client: GitLabClient) => {
       body: z.string().describe('コメント本文'),
       position: z
         .object({
-          base_sha: z.string().describe('ベースコミットのSHA'),
-          head_sha: z.string().describe('ヘッドコミットのSHA'),
-          old_path: z.string().describe('変更前のファイルパス'),
-          new_path: z.string().describe('変更後のファイルパス'),
-          position_type: z
-            .enum(['text', 'image'])
-            .default('text')
-            .describe('位置タイプ'),
-          old_line: z
-            .number()
-            .nullable()
-            .optional()
-            .describe('変更前の行番号（null可）'),
-          new_line: z
-            .number()
-            .nullable()
-            .optional()
-            .describe('変更後の行番号（null可）'),
+          baseSha: z.string().describe('ソースブランチのベースコミットSHA'),
+          startSha: z
+            .string()
+            .describe('	ターゲットブランチのコミットを参照するSHA'),
+          headSha: z.string().describe('ヘッドコミットのSHA'),
+          oldPath: z.string().describe('変更前のファイルパス'),
+          newPath: z.string().describe('変更後のファイルパス'),
+          oldLine: z.string().optional().describe('変更前の行番号'),
+          newLine: z.string().optional().describe('変更後の行番号'),
         })
         .describe('コメントの位置情報'),
     }),
     outputSchema: z.object({
       comment: z.object({
-        id: z.number(),
-        body: z.string(),
-        author: z.object({
-          id: z.number(),
-          name: z.string(),
-          username: z.string(),
-        }),
-        created_at: z.string(),
-        updated_at: z.string(),
-        position: z
-          .object({
-            base_sha: z.string(),
-            head_sha: z.string(),
-            old_path: z.string(),
-            new_path: z.string(),
-            position_type: z.string(),
-            old_line: z.number().nullable(),
-            new_line: z.number().nullable(),
-          })
+        id: z.string(),
+        individual_note: z.boolean(),
+        notes: z
+          .array(
+            z.object({
+              id: z.number(),
+              type: z.enum(['DiffNote', 'DiscussionNote']).nullable(),
+              body: z.string(),
+              attachment: z.string().nullable(),
+              author: z.any(),
+              created_at: z.string(),
+              updated_at: z.string(),
+              system: z.boolean(),
+              noteable_id: z.number(),
+              noteable_type: z.enum([
+                'Issue',
+                'Snippet',
+                'Epic',
+                'Commit',
+                'MergeRequest',
+              ]),
+              noteable_iid: z.number().nullable(),
+              resolvable: z.boolean(),
+            }),
+          )
           .optional(),
       }),
     }),
     execute: async ({ context }) => {
-      const { mergeRequests } = client.getApiResources();
+      const { mergeRequestDiscussions } = client.getApiResources();
 
       // プロジェクトIDを解決
       const projectId = await client.resolveProjectId(context.project_id);
 
       // Diffコメントを追加
-      const comment = await mergeRequests.createDiscussionNote(
+      const comment = await mergeRequestDiscussions.create(
         projectId,
         context.merge_request_iid,
+        context.body,
         {
-          body: context.body,
-          position: context.position,
+          position: { positionType: 'text', ...context.position },
         },
       );
 
       return {
         comment: {
           id: comment.id,
-          body: comment.body,
-          author: {
-            id: comment.author.id,
-            name: comment.author.name,
-            username: comment.author.username,
-          },
-          created_at: comment.created_at,
-          updated_at: comment.updated_at,
-          position: comment.position,
+          individual_note: comment.individual_note,
+          notes: comment.notes,
         },
       };
-    },
-  });
-};
-
-/**
- * マージリクエストのコンフリクト状態を確認するツール
- * @param client GitLabClient - GitLab APIクライアント
- * @returns マージリクエストコンフリクト確認ツール
- */
-export const createCheckMergeRequestConflictsTool = (client: GitLabClient) => {
-  return createTool({
-    id: 'gitlab-check-merge-request-conflicts',
-    description: 'GitLabのマージリクエストのコンフリクト状態を確認します。',
-    inputSchema: z.object({
-      project_id: z
-        .union([z.string(), z.number()])
-        .describe('プロジェクトIDまたは名前'),
-      merge_request_iid: z
-        .number()
-        .describe('マージリクエストのIID（プロジェクト内ID）'),
-    }),
-    outputSchema: z.object({
-      has_conflicts: z.boolean(),
-      can_be_merged: z.boolean(),
-      detailed_merge_status: z.string(),
-      conflicts: z
-        .array(
-          z.object({
-            file_path: z.string(),
-            content: z.string(),
-          }),
-        )
-        .optional(),
-    }),
-    execute: async ({ context }) => {
-      const { mergeRequests } = client.getApiResources();
-
-      // プロジェクトIDを解決
-      const projectId = await client.resolveProjectId(context.project_id);
-
-      try {
-        // コンフリクト情報を取得
-        const conflicts = await mergeRequests.conflicts(
-          projectId,
-          context.merge_request_iid,
-        );
-
-        // マージリクエスト情報も取得してマージ可能状態を確認
-        const mr = await mergeRequests.show(
-          projectId,
-          context.merge_request_iid,
-        );
-
-        return {
-          has_conflicts: true,
-          can_be_merged: false,
-          detailed_merge_status: mr.detailed_merge_status,
-          conflicts: conflicts.map((conflict: any) => ({
-            file_path: conflict.file_path,
-            content: conflict.content,
-          })),
-        };
-      } catch (error) {
-        // エラーが発生した場合、マージリクエスト情報からマージ可能状態を判定
-        const mr = await mergeRequests.show(
-          projectId,
-          context.merge_request_iid,
-        );
-
-        return {
-          has_conflicts: mr.merge_status !== 'can_be_merged',
-          can_be_merged: mr.merge_status === 'can_be_merged',
-          detailed_merge_status: mr.detailed_merge_status,
-        };
-      }
     },
   });
 };
@@ -756,6 +680,5 @@ export const createMergeRequestTools = (client: GitLabClient) => {
     createMergeRequest: createCreateMergeRequestTool(client),
     addMergeRequestComment: createAddMergeRequestCommentTool(client),
     addMergeRequestDiffComment: createAddMergeRequestDiffCommentTool(client),
-    checkMergeRequestConflicts: createCheckMergeRequestConflictsTool(client),
   };
 };
