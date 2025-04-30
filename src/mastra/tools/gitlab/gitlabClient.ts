@@ -20,6 +20,7 @@ import {
   Commits,
   MergeRequestDiscussions,
   MergeRequestNotes,
+  ProjectMilestones,
 } from '@gitbeaker/rest';
 import { z } from 'zod';
 
@@ -84,12 +85,18 @@ export class GitLabClient {
     typeof MergeRequestNotes<false>
   >;
 
+  private readonly projectMilestones: InstanceType<
+    typeof ProjectMilestones<false>
+  >;
+
   // キャッシュ: プロジェクト、グループなど
   private projectsCache: NameIdMapping[] = [];
 
   private groupsCache: NameIdMapping[] = [];
 
   private usersCache: NameIdMapping[] = [];
+
+  private mailestonesCache: NameIdMapping[] = [];
 
   /**
    * コンストラクタ
@@ -169,6 +176,11 @@ export class GitLabClient {
     });
 
     this.mergeRequestNotes = new MergeRequestNotes({
+      host: config.host,
+      token: config.token,
+    });
+
+    this.projectMilestones = new ProjectMilestones({
       host: config.host,
       token: config.token,
     });
@@ -310,6 +322,56 @@ export class GitLabClient {
   }
 
   /**
+   * IDまたは名前からマイルストーンIDを解決する
+   * @param projectId プロジェクトID
+   * @param value ID（数値）または名前（文字列）
+   * @returns 解決されたマイルストーンID
+   */
+  async resolveMilestoneId(
+    projectId: number,
+    value: number | string,
+  ): Promise<number> {
+    // 既にIDなら変換不要
+    if (typeof value === 'number') {
+      return value;
+    }
+
+    // 文字列が数値表現なら変換
+    if (!Number.isNaN(Number(value))) {
+      return Number(value);
+    }
+
+    // マイルストーンキャッシュをロード
+    if (this.mailestonesCache.length === 0) {
+      this.mailestonesCache = await this.getMilestones(projectId);
+    }
+
+    // 名前からIDを検索
+    const found = this.mailestonesCache.find(
+      (item) => item.name.toLowerCase() === value.toLowerCase(),
+    );
+
+    if (found) {
+      return found.id;
+    }
+
+    // マイルストーンを取得
+    try {
+      const milestones = await this.projectMilestones.all(projectId, {
+        search: value,
+      });
+      if (milestones.length > 0) {
+        return milestones[0].id;
+      }
+    } catch (error) {
+      // エラー処理
+      console.log(error);
+    }
+
+    throw new Error(`マイルストーンが見つかりません: ${value}`);
+  }
+
+  /**
    * プロジェクト一覧を取得
    * @returns プロジェクト一覧
    */
@@ -382,6 +444,23 @@ export class GitLabClient {
   }
 
   /**
+   * マイルストーン一覧を取得
+   * @returns マイルストーン一覧
+   */
+  async getMilestones(projectId: number): Promise<NameIdMapping[]> {
+    try {
+      const milestones = await this.projectMilestones.all(projectId);
+      return milestones.map((milestone) => ({
+        id: milestone.id,
+        name: milestone.title,
+      }));
+    } catch (e) {
+      console.error('GitLab API - マイルストーン一覧取得エラー:', e);
+      throw e;
+    }
+  }
+
+  /**
    * アクセス可能なAPIリソースを取得
    * @returns 各種APIリソース
    */
@@ -402,6 +481,7 @@ export class GitLabClient {
       commits: this.commits,
       mergeRequestDiscussions: this.mergeRequestDiscussions,
       mergeRequestNotes: this.mergeRequestNotes,
+      projectMilestones: this.projectMilestones,
     };
   }
 }

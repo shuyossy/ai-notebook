@@ -187,7 +187,6 @@ export interface GitLabIssue {
  * GitLabイシュー作成/更新用のデータ
  */
 export interface GitLabIssueData {
-  title: string;
   description?: string;
   confidential?: boolean;
   assignee_ids?: number[];

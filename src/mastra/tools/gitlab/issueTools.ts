@@ -250,64 +250,65 @@ export const createGetIssueDetailTool = (client: GitLabClient) => {
         .describe('プロジェクトIDまたは名前'),
       issue_iid: z.number().describe('イシューのIID（プロジェクト内ID）'),
     }),
-    outputSchema: z.object({
-      issue: z.object({
-        id: z.number(),
-        iid: z.number(),
-        project_id: z.number(),
-        title: z.string(),
-        description: z.string().nullable(),
+    outputSchema: z
+      .object({
         state: z.string(),
-        created_at: z.string(),
+        description: z.string(),
+        health_status: z.string().optional(),
+        weight: z.number().optional(),
+        author: z.any(),
+        milestone: z.any().optional(),
+        project_id: z.number(),
+        assignees: z.array(z.any()).optional(),
+        type: z.string(),
         updated_at: z.string(),
-        closed_at: z.string().nullable(),
-        closed_by: z
-          .object({
-            id: z.number(),
-            name: z.string(),
-            username: z.string(),
-          })
-          .nullable(),
-        labels: z.array(z.string()),
-        milestone: z
-          .object({
-            id: z.number(),
-            title: z.string(),
-            description: z.string().nullable(),
-            due_date: z.string().nullable(),
-            state: z.string(),
-          })
-          .nullable(),
-        assignees: z.array(
-          z.object({
-            id: z.number(),
-            name: z.string(),
-            username: z.string(),
-            avatar_url: z.string().nullable(),
-          }),
-        ),
-        author: z.object({
-          id: z.number(),
-          name: z.string(),
-          username: z.string(),
-          avatar_url: z.string().nullable(),
-        }),
-        user_notes_count: z.number(),
+        closed_at: z.string().optional(),
+        closed_by: z.string().optional(),
+        id: z.number(),
+        title: z.string(),
+        created_at: z.string(),
+        moved_to_id: z.string().optional(),
+        iid: z.number(),
+        labels: z.union([z.array(z.string()), z.array(z.any())]),
         upvotes: z.number(),
         downvotes: z.number(),
-        due_date: z.string().nullable(),
-        confidential: z.boolean(),
+        merge_requests_count: z.number(),
+        user_notes_count: z.number(),
+        due_date: z.string(),
         web_url: z.string(),
-        time_stats: z
+        references: z.object({
+          short: z.string(),
+          relative: z.string(),
+          full: z.string(),
+        }),
+        time_stats: z.any(),
+        has_tasks: z.boolean(),
+        task_status: z.string(),
+        confidential: z.boolean(),
+        discussion_locked: z.boolean(),
+        _links: z.object({
+          self: z.string(),
+          notes: z.string(),
+          award_emoji: z.string(),
+          project: z.string(),
+        }),
+        task_completion_status: z.object({
+          count: z.number(),
+          completed_count: z.number(),
+        }),
+        subscribed: z.boolean(),
+        epic: z
           .object({
-            time_estimate: z.number(),
-            total_time_spent: z.number(),
-            human_time_estimate: z.string().nullable(),
-            human_total_time_spent: z.string().nullable(),
+            id: z.number(),
+            iid: z.number(),
+            title: z.string(),
+            url: z.string(),
+            group_id: z.number(),
           })
           .optional(),
-      }),
-    }),
+        service_desk_reply_to: z.string().optional(),
+      })
+      .passthrough(), // Allows additional properties since the interface extends Record<string, unknown>
     execute: async ({ context }) => {
       const { issues } = client.getApiResources();
 
@@ -321,7 +322,7 @@ export const createGetIssueDetailTool = (client: GitLabClient) => {
         showExpanded: true,
       });
 
-      return { issue };
+      return issue.data;
     },
   });
 };
@@ -379,9 +380,7 @@ export const createCreateIssueTool = (client: GitLabClient) => {
       const projectId = await client.resolveProjectId(context.project_id);
 
       // イシューデータの準備
-      const issueData: GitLabIssueData = {
-        title: context.title,
-      };
+      const issueData: GitLabIssueData = {};
 
       if (context.description) {
         issueData.description = context.description;
@@ -400,11 +399,11 @@ export const createCreateIssueTool = (client: GitLabClient) => {
               !Number.isNaN(Number(assigneeId))
             ) {
               return Number(assigneeId);
-            } else if (typeof assigneeId === 'string') {
-              return await client.resolveUserId(assigneeId);
-            } else {
-              return assigneeId;
             }
+            if (typeof assigneeId === 'string') {
+              return client.resolveUserId(assigneeId);
+            }
+            return assigneeId;
           }),
         );
         issueData.assignee_ids = resolvedAssigneeIds;
@@ -418,10 +417,10 @@ export const createCreateIssueTool = (client: GitLabClient) => {
         ) {
           issueData.milestone_id = Number(context.milestone_id);
         } else if (typeof context.milestone_id === 'string') {
-          // マイルストーン名→IDの解決はGitBeakerで直接サポートされていないため、
-          // プロジェクトのマイルストーン一覧を取得して解決する必要があります
-          // 現状ではマイルストーンIDを数値で直接指定するか、数値文字列で指定する必要があります
-          issueData.milestone_id = context.milestone_id;
+          issueData.milestone_id = await client.resolveMilestoneId(
+            projectId,
+            context.milestone_id,
+          );
         } else {
           issueData.milestone_id = context.milestone_id;
         }
@@ -441,7 +440,7 @@ export const createCreateIssueTool = (client: GitLabClient) => {
 
       // イシューを作成
       // GitBeakerの最新バージョンでは、issues.createの引数の渡し方が変更されている
-      const issue = await issues.create(projectId, {
+      const issue = await issues.create(projectId, context.title, {
         ...issueData,
       });
 
@@ -501,11 +500,6 @@ export const createUpdateIssueTool = (client: GitLabClient) => {
         .nullable()
         .optional()
         .describe('期日（YYYY-MM-DD形式、nullで削除）'),
-      weight: z
-        .number()
-        .nullable()
-        .optional()
-        .describe('重み（数値、nullで削除）'),
     }),
     outputSchema: z.object({
       issue: z.object({
@@ -522,13 +516,6 @@ export const createUpdateIssueTool = (client: GitLabClient) => {
 
       // プロジェクトIDを解決
       const projectId = await client.resolveProjectId(context.project_id);
-
-      // 更新対象のイシューを取得
-      // GitBeakerの最新バージョンでは、issue.showのパラメータ指定方法が変更されている
-      const existingIssue = await issues.show(projectId, {
-        iid: context.issue_iid,
-        showExpanded: true,
-      });
 
       // 更新データの準備
       const updateData: any = {};
@@ -561,11 +548,11 @@ export const createUpdateIssueTool = (client: GitLabClient) => {
                 !Number.isNaN(Number(assigneeId))
               ) {
                 return Number(assigneeId);
-              } else if (typeof assigneeId === 'string') {
-                return await client.resolveUserId(assigneeId);
-              } else {
-                return assigneeId;
               }
+              if (typeof assigneeId === 'string') {
+                return client.resolveUserId(assigneeId);
+              }
+              return assigneeId;
             }),
           );
           updateData.assignee_ids = resolvedAssigneeIds;
@@ -582,9 +569,10 @@ export const createUpdateIssueTool = (client: GitLabClient) => {
         ) {
           updateData.milestone_id = Number(context.milestone_id);
         } else if (typeof context.milestone_id === 'string') {
-          // マイルストーン名→IDの解決はGitBeakerで直接サポートされていないため、
-          // プロジェクトのマイルストーン一覧を取得して解決する必要があります
-          updateData.milestone_id = context.milestone_id;
+          updateData.milestone_id = await client.resolveMilestoneId(
+            projectId,
+            context.milestone_id,
+          );
         } else {
           updateData.milestone_id = context.milestone_id;
         }
@@ -596,10 +584,6 @@ export const createUpdateIssueTool = (client: GitLabClient) => {
 
       if (context.due_date !== undefined) {
         updateData.due_date = context.due_date;
-      }
-
-      if (context.weight !== undefined) {
-        updateData.weight = context.weight;
       }
 
       // 更新内容があるか確認
