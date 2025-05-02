@@ -15,7 +15,10 @@ import openAICompatibleModel from '../agents/model/openAICompatible';
 export const sourceListTool = createTool({
   id: 'sourceListTool',
   description: '登録されているソースの一覧とその要約、トピックを表示する',
-  inputSchema: z.object({}),
+  inputSchema: z
+    .any()
+    .optional()
+    .describe('ソース一覧を取得するための入力は不要'),
   outputSchema: z.object({
     sources: z.array(
       z.object({
