@@ -19,7 +19,7 @@ export const createGetMergeRequestDetailTool = (client: GitLabClient) => {
     inputSchema: z.object({
       project_id: z
         .union([z.string(), z.number()])
-        .describe('プロジェクトIDまたは名前'),
+        .describe('プロジェクトIDまたはURLエンコードされたパス'),
       merge_request_iid: z
         .number()
         .describe('マージリクエストのIID（プロジェクト内ID）'),
@@ -53,7 +53,7 @@ export const createAddMergeRequestCommentTool = (client: GitLabClient) => {
     inputSchema: z.object({
       project_id: z
         .union([z.string(), z.number()])
-        .describe('プロジェクトIDまたは名前'),
+        .describe('プロジェクトIDまたはURLエンコードされたパス'),
       merge_request_iid: z
         .number()
         .describe('マージリクエストのIID（プロジェクト内ID）'),
@@ -88,7 +88,7 @@ export const createAddMergeRequestDiffCommentTool = (client: GitLabClient) => {
     inputSchema: z.object({
       project_id: z
         .union([z.string(), z.number()])
-        .describe('プロジェクトIDまたは名前'),
+        .describe('プロジェクトIDまたはURLエンコードされたパス'),
       merge_request_iid: z
         .number()
         .describe('マージリクエストのIID（プロジェクト内ID）'),
@@ -138,7 +138,7 @@ export const createAddMergeRequestDiffCommentTool = (client: GitLabClient) => {
                 .describe('マルチラインノートの終了行情報'),
             })
             .optional()
-            .describe('複数行コメント時専用のパラメータ（オプション）'),
+            .describe('複数行コメント時専用のパラメータ'),
         })
         .describe('コメントの位置情報'),
     }),

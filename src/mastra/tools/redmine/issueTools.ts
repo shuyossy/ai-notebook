@@ -6,7 +6,14 @@
 import { z } from 'zod';
 import { createTool } from '@mastra/core/tools';
 import { RedmineClient } from './redmineClient';
-import { IssueFilter, RedmineIssue, RedmineIssueData } from './types';
+import {
+  IssueFilter,
+  RedmineIssueData,
+  RedmineUpdateIssueData,
+  RedmineIssueListResponse,
+  RedmineIssueDetailResponse,
+  RedmineCreateIssueResponse,
+} from './types';
 
 /**
  * チケット一覧を取得するツール
@@ -17,16 +24,15 @@ export const createGetIssuesListTool = (client: RedmineClient) => {
   return createTool({
     id: 'redmine-get-issues-list',
     description:
-      'Redmineのチケット一覧を取得します。プロジェクト、ステータス、担当者などで絞り込み可能です。',
+      'Redmineのチケット一覧を取得します。ステータス、トラッカー、担当者、バージョンで絞り込み可能です。',
     inputSchema: z.object({
       project_id: z
         .union([z.string(), z.number()])
-        .optional()
         .describe('プロジェクトIDまたは名前'),
       status_id: z
         .union([z.string(), z.number(), z.enum(['open', 'closed', '*'])])
         .optional()
-        .describe('ステータスIDまたは名前'),
+        .describe('"open"または"closed"または"*"またはステータスIDまたは名前'),
       tracker_id: z
         .union([z.string(), z.number()])
         .optional()
@@ -39,63 +45,18 @@ export const createGetIssuesListTool = (client: RedmineClient) => {
         .union([z.string(), z.number()])
         .optional()
         .describe('バージョンIDまたは名前'),
-      subject: z.string().optional().describe('タイトルに含まれる文字列'),
       sort: z
         .string()
         .optional()
-        .describe('ソート条件（例: "priority:desc,updated_on:desc"）'),
-      limit: z
-        .number()
-        .optional()
-        .default(100)
-        .describe('取得上限数（最大100）'),
-      offset: z.number().optional().default(0).describe('取得開始位置'),
+        .describe(
+          'column to sort with. Append :desc to invert the order.（例: "category:desc,updated_on"）',
+        ),
     }),
     outputSchema: z.object({
-      issues: z.array(
-        z.object({
-          id: z.number(),
-          subject: z.string(),
-          project: z.object({
-            id: z.number(),
-            name: z.string(),
-          }),
-          tracker: z.object({
-            id: z.number(),
-            name: z.string(),
-          }),
-          status: z.object({
-            id: z.number(),
-            name: z.string(),
-          }),
-          priority: z.object({
-            id: z.number(),
-            name: z.string(),
-          }),
-          assigned_to: z
-            .object({
-              id: z.number(),
-              name: z.string(),
-            })
-            .optional(),
-          author: z.object({
-            id: z.number(),
-            name: z.string(),
-          }),
-          description: z.string().optional(),
-          start_date: z.string().optional(),
-          due_date: z.string().optional(),
-          done_ratio: z.number(),
-          created_on: z.string(),
-          updated_on: z.string(),
-        }),
-      ),
-      total_count: z.number(),
+      issues: z.any(),
     }),
     execute: async ({ context }) => {
       const filters: IssueFilter = {};
-      const limit = context.limit || 100;
-      const offset = context.offset || 0;
 
       // フィルター条件の設定
       if (context.project_id) {
@@ -185,10 +146,6 @@ export const createGetIssuesListTool = (client: RedmineClient) => {
         }
       }
 
-      if (context.subject) {
-        filters.subject = context.subject;
-      }
-
       if (context.sort) {
         filters.sort = context.sort;
       }
@@ -204,21 +161,26 @@ export const createGetIssuesListTool = (client: RedmineClient) => {
       });
 
       // ページネーション
-      queryParams.append('limit', String(limit));
-      queryParams.append('offset', String(offset));
-
-      // API リクエストの実行
-      const path = `issues.json?${queryParams.toString()}`;
-      const response = await client.request<{
-        issues: RedmineIssue[];
-        total_count: number;
-        limit: number;
-        offset: number;
-      }>(path, 'GET');
+      const limit = 100;
+      let offset = 0;
+      // すべてのチケットを格納する配列
+      let all: any[] = [];
+      // eslint-disable-next-line
+      while (true) {
+        // API リクエストの実行
+        const path = `issues.json?${queryParams.toString()}&limit=${limit}&offset=${offset}`;
+        // eslint-disable-next-line
+        const response = await client.request<RedmineIssueListResponse>(
+          path,
+          'GET',
+        );
+        all = all.concat(response.issues);
+        if (all.length >= response.total_count) break;
+        offset += limit;
+      }
 
       return {
-        issues: response.issues,
-        total_count: response.total_count,
+        issues: all,
       };
     },
   });
@@ -236,118 +198,15 @@ export const createGetIssueDetailTool = (client: RedmineClient) => {
     inputSchema: z.object({
       issue_id: z.number().describe('チケットID'),
       include: z
-        .array(z.string())
+        .array(z.enum(['children', 'attachments', 'relations', 'journals']))
         .optional()
         .default([])
         .describe(
-          '含める関連情報（例: ["children", "attachments", "relations", "journals"]）',
+          '含める関連情報の配列（利用可能な関連情報: ["children", "attachments", "relations", "journals"]）',
         ),
     }),
     outputSchema: z.object({
-      issue: z.object({
-        id: z.number(),
-        project: z.object({
-          id: z.number(),
-          name: z.string(),
-        }),
-        tracker: z.object({
-          id: z.number(),
-          name: z.string(),
-        }),
-        status: z.object({
-          id: z.number(),
-          name: z.string(),
-        }),
-        priority: z.object({
-          id: z.number(),
-          name: z.string(),
-        }),
-        author: z.object({
-          id: z.number(),
-          name: z.string(),
-        }),
-        assigned_to: z
-          .object({
-            id: z.number(),
-            name: z.string(),
-          })
-          .optional(),
-        subject: z.string(),
-        description: z.string(),
-        start_date: z.string().optional(),
-        due_date: z.string().optional(),
-        done_ratio: z.number(),
-        created_on: z.string(),
-        updated_on: z.string(),
-        closed_on: z.string().optional(),
-        custom_fields: z
-          .array(
-            z.object({
-              id: z.number(),
-              name: z.string(),
-              value: z.union([z.string(), z.number(), z.boolean(), z.null()]),
-            }),
-          )
-          .optional(),
-        fixed_version: z
-          .object({
-            id: z.number(),
-            name: z.string(),
-          })
-          .optional(),
-        parent: z
-          .object({
-            id: z.number(),
-          })
-          .optional(),
-        children: z
-          .array(
-            z.object({
-              id: z.number(),
-              subject: z.string(),
-            }),
-          )
-          .optional(),
-        attachments: z
-          .array(
-            z.object({
-              id: z.number(),
-              filename: z.string(),
-              filesize: z.number(),
-              content_type: z.string(),
-              author: z.object({
-                id: z.number(),
-                name: z.string(),
-              }),
-              created_on: z.string(),
-            }),
-          )
-          .optional(),
-        journals: z
-          .array(
-            z.object({
-              id: z.number(),
-              user: z.object({
-                id: z.number(),
-                name: z.string(),
-              }),
-              notes: z.string().optional(),
-              created_on: z.string(),
-              details: z
-                .array(
-                  z.object({
-                    property: z.string(),
-                    name: z.string().optional(),
-                    old_value: z.union([z.string(), z.null()]).optional(),
-                    new_value: z.union([z.string(), z.null()]).optional(),
-                  }),
-                )
-                .optional(),
-            }),
-          )
-          .optional(),
-        estimated_hours: z.number().optional(),
-      }),
+      issue: z.any(),
     }),
     execute: async ({ context }) => {
       // 含める関連情報の設定
@@ -355,7 +214,7 @@ export const createGetIssueDetailTool = (client: RedmineClient) => {
       const path = `issues/${context.issue_id}.json${includes ? `?include=${includes}` : ''}`;
 
       // API リクエストの実行
-      const response = await client.request<{ issue: RedmineIssue }>(
+      const response = await client.request<RedmineIssueDetailResponse>(
         path,
         'GET',
       );
@@ -394,7 +253,6 @@ export const createCreateIssueTool = (client: RedmineClient) => {
         .union([z.string(), z.number()])
         .optional()
         .describe('優先度IDまたは名前'),
-      assigned_to_id: z.number().optional().describe('担当者ID'),
       parent_issue_id: z.number().optional().describe('親チケットID'),
       fixed_version_id: z
         .union([z.string(), z.number()])
@@ -402,29 +260,10 @@ export const createCreateIssueTool = (client: RedmineClient) => {
         .describe('バージョンIDまたは名前'),
       start_date: z.string().optional().describe('開始日（YYYY-MM-DD形式）'),
       due_date: z.string().optional().describe('期日（YYYY-MM-DD形式）'),
-      estimated_hours: z.number().optional().describe('予定工数'),
-      done_ratio: z.number().optional().describe('進捗率（0-100）'),
-      custom_fields: z
-        .array(
-          z.object({
-            id: z.number().describe('カスタムフィールドID'),
-            value: z
-              .union([z.string(), z.number(), z.boolean(), z.null()])
-              .describe('値'),
-          }),
-        )
-        .optional()
-        .describe('カスタムフィールド'),
+      estimated_hours: z.number().optional().describe('予定工数(h)'),
     }),
     outputSchema: z.object({
-      issue: z.object({
-        id: z.number(),
-        subject: z.string(),
-        project: z.object({
-          id: z.number(),
-          name: z.string(),
-        }),
-      }),
+      created_issue: z.any(),
     }),
     execute: async ({ context }) => {
       // チケットデータの準備
@@ -503,10 +342,6 @@ export const createCreateIssueTool = (client: RedmineClient) => {
         }
       }
 
-      if (context.assigned_to_id) {
-        issueData.assigned_to_id = context.assigned_to_id;
-      }
-
       if (context.parent_issue_id) {
         issueData.parent_issue_id = context.parent_issue_id;
       }
@@ -548,33 +383,15 @@ export const createCreateIssueTool = (client: RedmineClient) => {
         issueData.estimated_hours = context.estimated_hours;
       }
 
-      if (context.done_ratio) {
-        issueData.done_ratio = context.done_ratio;
-      }
-
-      if (context.custom_fields) {
-        issueData.custom_fields = context.custom_fields;
-      }
-
       // API リクエストの実行
-      const response = await client.request<{ issue: { id: number } }>(
+      const response = await client.request<RedmineCreateIssueResponse>(
         'issues.json',
         'POST',
         { issue: issueData },
       );
 
-      // 作成されたチケットの詳細を取得
-      const createdIssue = await client.request<{ issue: RedmineIssue }>(
-        `issues/${response.issue.id}.json`,
-        'GET',
-      );
-
       return {
-        issue: {
-          id: createdIssue.issue.id,
-          subject: createdIssue.issue.subject,
-          project: createdIssue.issue.project,
-        },
+        created_issue: response.issue,
       };
     },
   });
@@ -615,35 +432,19 @@ export const createUpdateIssueTool = (client: RedmineClient) => {
       start_date: z.string().optional().describe('開始日（YYYY-MM-DD形式）'),
       due_date: z.string().optional().describe('期日（YYYY-MM-DD形式）'),
       estimated_hours: z.number().optional().describe('予定工数'),
-      done_ratio: z.number().optional().describe('進捗率（0-100）'),
-      custom_fields: z
-        .array(
-          z.object({
-            id: z.number().describe('カスタムフィールドID'),
-            value: z
-              .union([z.string(), z.number(), z.boolean(), z.null()])
-              .describe('値'),
-          }),
-        )
-        .optional()
-        .describe('カスタムフィールド'),
     }),
     outputSchema: z.object({
-      success: z.boolean(),
-      issue: z.object({
-        id: z.number(),
-        subject: z.string(),
-      }),
+      updated_issue: z.any(),
     }),
     execute: async ({ context }) => {
       // 既存チケットの詳細を取得
-      const existingIssue = await client.request<{ issue: RedmineIssue }>(
+      const existingIssue = await client.request<RedmineIssueDetailResponse>(
         `issues/${context.issue_id}.json`,
         'GET',
       );
 
       // 更新データの準備
-      const updateData: any = {};
+      const updateData: RedmineUpdateIssueData = {};
 
       // 各フィールドの更新
       if (context.notes) {
@@ -709,10 +510,6 @@ export const createUpdateIssueTool = (client: RedmineClient) => {
         }
       }
 
-      if (context.assigned_to_id) {
-        updateData.assigned_to_id = context.assigned_to_id;
-      }
-
       if (context.parent_issue_id) {
         updateData.parent_issue_id = context.parent_issue_id;
       }
@@ -747,14 +544,6 @@ export const createUpdateIssueTool = (client: RedmineClient) => {
         updateData.estimated_hours = context.estimated_hours;
       }
 
-      if (context.done_ratio) {
-        updateData.done_ratio = context.done_ratio;
-      }
-
-      if (context.custom_fields) {
-        updateData.custom_fields = context.custom_fields;
-      }
-
       // 更新内容があるか確認
       if (Object.keys(updateData).length === 0) {
         throw new Error('更新する項目が指定されていません');
@@ -766,17 +555,13 @@ export const createUpdateIssueTool = (client: RedmineClient) => {
       });
 
       // 更新後のチケット詳細を取得
-      const updatedIssue = await client.request<{ issue: RedmineIssue }>(
+      const updatedIssue = await client.request<RedmineIssueDetailResponse>(
         `issues/${context.issue_id}.json`,
         'GET',
       );
 
       return {
-        success: true,
-        issue: {
-          id: updatedIssue.issue.id,
-          subject: updatedIssue.issue.subject,
-        },
+        updated_issue: updatedIssue.issue,
       };
     },
   });

@@ -40,17 +40,11 @@ export const ORCHESTRATOR_SYSTEM_PROMPT = `
 - メモリ更新ツール
   - updateWorkingMemory：スレッドに関する内容や作業時の手順やメモに関するWorkingMemoryを更新します。
 - redmine操作ツール
-  - validateRedmineConfig：Redmine API接続設定を検証します。Redmine API接続が正常に機能しているか確認したい時に使用します。
   - getRedmineInfo：Redmineインスタンスの基本情報（プロジェクト、トラッカー、ステータスなど）を取得します。Redmine環境の全体像を把握したい時に使用します。
   - getIssuesList：Redmineのチケット一覧を取得します。プロジェクト、ステータス、担当者などで絞り込み可能です。業務の進捗状況確認やタスクの全体把握に使用します。
   - getIssueDetail：Redmineの特定のチケット詳細を取得します。チケットの詳細情報や関連するデータを確認する際に使用します。
   - createIssue：Redmineに新しいチケットを作成します。新しいタスクや課題を登録する際に使用します。
   - updateIssue：Redmineの既存チケットを更新します。ステータスの変更や内容の修正が必要な際に使用します。
-  - getTimeEntriesList：Redmineのタイムエントリー（時間記録）一覧を取得します。プロジェクト、ユーザー、日付などで絞り込み可能です。工数管理や作業時間の分析に使用します。
-  - createTimeEntry：Redmineに新しいタイムエントリー（時間記録）を作成します。作業時間を記録する際に使用します。
-  - getWikiPagesList：Redmineのプロジェクト内のWikiページ一覧を取得します。プロジェクトのドキュメント一覧を確認する際に使用します。
-  - getWikiPage：Redmineの特定のWikiページを取得します。プロジェクト内のドキュメントの内容を確認する際に使用します。
-  - updateWikiPage：RedmineのWikiページを作成または更新します。プロジェクトのドキュメントを整備する際に使用します。
 `;
 
 // あなたは優秀なAIアシスタントです。

@@ -20,7 +20,7 @@ export const createGetFileContentTool = (client: GitLabClient) => {
     inputSchema: z.object({
       project_id: z
         .union([z.string(), z.number()])
-        .describe('プロジェクトIDまたは名前'),
+        .describe('プロジェクトIDまたはURLエンコードされたパス'),
       file_path: z
         .string()
         .describe(
@@ -30,9 +30,11 @@ export const createGetFileContentTool = (client: GitLabClient) => {
         .string()
         .optional()
         .default('master')
-        .describe('リファレンス（ブランチ名、タグ名、コミットSHA）'),
+        .describe('リファレンス（ブランチ名、タグ名）'),
     }),
-    outputSchema: z.any(),
+    outputSchema: z.object({
+      file: z.any(),
+    }),
     execute: async ({ context }) => {
       const { repositoryFiles } = client.getApiResources();
 
@@ -61,7 +63,7 @@ export const createGetRawFileTool = (client: GitLabClient) => {
     inputSchema: z.object({
       project_id: z
         .union([z.string(), z.number()])
-        .describe('プロジェクトIDまたは名前'),
+        .describe('プロジェクトIDまたはURLエンコードされたパス'),
       file_path: z
         .string()
         .describe(
@@ -71,7 +73,7 @@ export const createGetRawFileTool = (client: GitLabClient) => {
         .string()
         .optional()
         .default('master')
-        .describe('リファレンス（ブランチ名、タグ名、コミットSHA）'),
+        .describe('リファレンス（ブランチ名、タグ名）'),
     }),
     outputSchema: z.any(),
     execute: async ({ context }) => {
@@ -101,7 +103,7 @@ export const createGeBlameFileTool = (client: GitLabClient) => {
     inputSchema: z.object({
       project_id: z
         .union([z.string(), z.number()])
-        .describe('プロジェクトIDまたは名前'),
+        .describe('プロジェクトIDまたはURLエンコードされたパス'),
       file_path: z
         .string()
         .describe(
@@ -111,7 +113,7 @@ export const createGeBlameFileTool = (client: GitLabClient) => {
         .string()
         .optional()
         .default('master')
-        .describe('リファレンス（ブランチ名、タグ名、コミットSHA）'),
+        .describe('リファレンス（ブランチ名、タグ名）'),
       range: z
         .object({
           start: z.number().describe('開始行'),
@@ -149,7 +151,7 @@ export const createGetRepositoryTreeTool = (client: GitLabClient) => {
     inputSchema: z.object({
       project_id: z
         .union([z.string(), z.number()])
-        .describe('プロジェクトIDまたは名前'),
+        .describe('プロジェクトIDまたはURLエンコードされたパス'),
       path: z
         .string()
         .optional()
@@ -186,6 +188,8 @@ export const createGetRepositoryTreeTool = (client: GitLabClient) => {
 export const createRepositoryTools = (client: GitLabClient) => {
   return {
     getFileContent: createGetFileContentTool(client),
+    getRawFile: createGetRawFileTool(client),
+    getBlameFile: createGeBlameFileTool(client),
     getRepositoryTree: createGetRepositoryTreeTool(client),
   };
 };

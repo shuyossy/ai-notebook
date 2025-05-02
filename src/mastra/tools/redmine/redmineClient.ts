@@ -38,7 +38,7 @@ export class RedmineClient {
 
   private readonly apiKey: string;
 
-  // キャッシュ: プロジェクト、トラッカー、ステータス、アクティビティなど
+  // キャッシュ: プロジェクト、トラッカー、ステータスなど
   private projectsCache: NameIdMapping[] = [];
 
   private trackersCache: NameIdMapping[] = [];
@@ -46,8 +46,6 @@ export class RedmineClient {
   private statusesCache: NameIdMapping[] = [];
 
   private prioritiesCache: NameIdMapping[] = [];
-
-  private activitiesCache: NameIdMapping[] = [];
 
   /* コンストラクタ
    * @param config RedmineClientConfig - クライアント設定
@@ -64,26 +62,17 @@ export class RedmineClient {
    * @param data リクエストデータ
    * @returns レスポンスデータ
    */
-  async request<T>(
+  async request<T = any>(
     path: string,
-    method: 'GET' | 'POST' | 'PUT' | 'DELETE',
+    method: 'GET' | 'POST' | 'PUT',
     data: any = undefined,
   ): Promise<T> {
     const url = new URL(path, this.apiUrl);
 
-    // GETリクエストの場合はクエリパラメータとしてAPIキーを付与
-    if (method === 'GET') {
-      url.searchParams.append('key', this.apiKey);
-    }
-
     const headers: RedmineHeaders = {
       'Content-Type': 'application/json',
+      'X-Redmine-API-Key': this.apiKey,
     };
-
-    // GET以外のリクエストではAuthorizationヘッダーでAPIキーを送信
-    if (method !== 'GET') {
-      headers['X-Redmine-API-Key'] = this.apiKey;
-    }
 
     const options = {
       method,
@@ -100,7 +89,16 @@ export class RedmineClient {
         );
       }
 
-      return (await response.json()) as T;
+      // 更新処理（PUT）の場合、204ステータスかつコンテンツが返らないため空オブジェクトを返す
+      if (
+        response.status === 204 ||
+        !response.headers.get('content-length') ||
+        response.headers.get('transfer-encoding')?.includes('chunked')
+      ) {
+        return {} as T;
+      }
+
+      return await response.json();
     } catch (error) {
       console.error('Redmine API Request failed:', error);
       throw error;
@@ -249,34 +247,6 @@ export class RedmineClient {
     }));
 
     return this.prioritiesCache;
-  }
-
-  /**
-   * 活動分類一覧を取得してIDマッピングを返す
-   * @returns 活動分類の名前とIDのマッピング配列
-   */
-  async getTimeEntryActivities(): Promise<NameIdMapping[]> {
-    if (this.activitiesCache && this.activitiesCache.length > 0) {
-      return this.activitiesCache;
-    }
-
-    interface ActivitiesResponse {
-      time_entry_activities: Array<{
-        id: number;
-        name: string;
-      }>;
-    }
-
-    const response = await this.request<ActivitiesResponse>(
-      'enumerations/time_entry_activities.json',
-      'GET',
-    );
-    this.activitiesCache = response.time_entry_activities.map((activity) => ({
-      id: activity.id,
-      name: activity.name,
-    }));
-
-    return this.activitiesCache;
   }
 
   /**

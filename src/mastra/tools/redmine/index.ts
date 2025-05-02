@@ -11,8 +11,6 @@ import {
   redmineClientConfigSchema,
 } from './redmineClient';
 import { createIssueTools } from './issueTools';
-import { createTimeEntryTools } from './timeEntryTools';
-import { createWikiTools } from './wikiTools';
 
 /**
  * Redmine操作ツール一式を作成する
@@ -27,47 +25,6 @@ export const createRedmineTools = (config: {
 
   // 各ツールグループを作成
   const issueTools = createIssueTools(client);
-  const timeEntryTools = createTimeEntryTools(client);
-  const wikiTools = createWikiTools(client);
-
-  // Redmineクライアント設定を検証するツール
-  const validateRedmineConfig = createTool({
-    id: 'redmine-validate-config',
-    description: 'Redmine API接続設定を検証します。',
-    inputSchema: z.object({}),
-    outputSchema: z.object({
-      valid: z.boolean(),
-      message: z.string(),
-      projects: z
-        .array(
-          z.object({
-            id: z.number(),
-            name: z.string(),
-          }),
-        )
-        .optional(),
-    }),
-    execute: async () => {
-      try {
-        // プロジェクト一覧を取得してAPI接続が正常か確認
-        const projects = await client.getProjects();
-        return {
-          valid: true,
-          message: 'Redmine API接続が正常に確立されました。',
-          projects,
-        };
-      } catch (error) {
-        let errorMessage = 'Redmine API接続に失敗しました。';
-        if (error instanceof Error) {
-          errorMessage += ` エラー: ${error.message}`;
-        }
-        return {
-          valid: false,
-          message: errorMessage,
-        };
-      }
-    },
-  });
 
   // Redmine API情報を取得するツール
   const getRedmineInfo = createTool({
@@ -122,17 +79,10 @@ export const createRedmineTools = (config: {
   // すべてのツールをエクスポート
   return {
     // ユーティリティツール
-    validateRedmineConfig,
     getRedmineInfo,
 
     // チケット操作ツール
     ...issueTools,
-
-    // タイムエントリーツール
-    ...timeEntryTools,
-
-    // Wikiツール
-    ...wikiTools,
   };
 };
 
