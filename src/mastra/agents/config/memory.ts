@@ -1,6 +1,6 @@
 import { Memory } from '@mastra/memory';
 import { LibSQLStore } from '@mastra/core/storage/libsql';
-import { URL } from 'url';
+import { toAbsoluteFileURL } from '@/main/utils/util';
 import { getStore } from '../../../main/store';
 
 // メモリオプションの型定義
@@ -20,9 +20,9 @@ export interface MemoryConfig {
 // メモリインスタンスの作成
 export const createMemory = (config: MemoryConfig = {}): Memory => {
   const store = getStore();
-  const dbDir = store.get('database.dir');
+  const dbSetting = store.get('database');
 
-  if (!dbDir) {
+  if (!dbSetting.dir) {
     throw new Error('データベースディレクトリが設定されていません。');
   }
 
@@ -43,7 +43,7 @@ export const createMemory = (config: MemoryConfig = {}): Memory => {
     options,
     storage: new LibSQLStore({
       config: {
-        url: new URL('memory.db', dbDir as string).href,
+        url: toAbsoluteFileURL(dbSetting.dir, 'memory.db'),
       },
     }),
   });

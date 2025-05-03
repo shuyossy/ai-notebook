@@ -7,9 +7,9 @@ const getOpenAICompatibleModel = () => {
   if (!model) {
     const store = getStore();
     const apiConfig = {
-      key: store.get('api.key') as string,
-      url: store.get('api.url') as string,
-      model: store.get('api.model') as string,
+      key: store.get('api').key,
+      url: store.get('api').url,
+      model: store.get('api').model,
     };
 
     // API設定の確認

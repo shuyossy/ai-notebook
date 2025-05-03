@@ -18,13 +18,12 @@ export const getOrchestrator = async (): Promise<Agent> => {
     // Redinmeツールの登録
     // APIキーとエンドポイントが登録されていた場合は登録する
     const store = getStore();
-    const apiKey = store.get('redmine.apiKey') as string;
-    const apiUrl = store.get('redmine.endpoint') as string;
+    const { apiKey, endpoint } = store.get('redmine');
     let redmineTools = {};
-    if (apiKey && apiUrl) {
+    if (apiKey && endpoint) {
       try {
         // Redmineクライアントの初期化
-        redmineTools = setupRedmineTools({ apiKey, apiUrl });
+        redmineTools = setupRedmineTools({ apiKey, apiUrl: endpoint });
         console.log('Redmineクライアントの初期化に成功しました。');
       } catch (error) {
         console.error('Redmineクライアントの初期化に失敗:', error);

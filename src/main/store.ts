@@ -77,10 +77,10 @@ const schema = {
 // デフォルト値の設定
 const defaults: StoreSchema = {
   database: {
-    dir: '',
+    dir: './default_data_dir',
   },
   source: {
-    registerDir: './source',
+    registerDir: './default_data_dir',
   },
   api: {
     key: '',

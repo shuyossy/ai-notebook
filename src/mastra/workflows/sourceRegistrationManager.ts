@@ -31,7 +31,7 @@ export default class SourceRegistrationManager {
    */
   private constructor() {
     const store = getStore();
-    this.registerDir = store.get('source.registerDir');
+    this.registerDir = store.get('source').registerDir;
   }
 
   /**

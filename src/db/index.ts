@@ -1,6 +1,7 @@
 import { drizzle, type LibSQLDatabase } from 'drizzle-orm/libsql';
 import * as schema from './schema';
 import { getStore } from '../main/store';
+import { toAbsoluteFileURL } from '../main/utils/util';
 
 // データベースの型定義
 type Database = LibSQLDatabase<typeof schema>;
@@ -12,9 +13,8 @@ const initializeDatabase = async () => {
 
   // データベース接続クライアントを作成
   const { createClient } = await import('@libsql/client');
-
   const client = createClient({
-    url: new URL('source.db', store.get('database.dir')).href,
+    url: toAbsoluteFileURL(store.get('database').dir, 'source.db'),
   });
 
   // Drizzle ORMインスタンスを作成
