@@ -15,10 +15,7 @@ import openAICompatibleModel from '../agents/model/openAICompatible';
 export const sourceListTool = createTool({
   id: 'sourceListTool',
   description: '登録されているソースの一覧とその要約、トピックを表示する',
-  inputSchema: z
-    .any()
-    .optional()
-    .describe('ソース一覧を取得するための入力は不要'),
+  inputSchema: z.any().optional().describe('入力パラメータ不要'),
   outputSchema: z.object({
     sources: z.array(
       z.object({
@@ -85,9 +82,9 @@ export const querySourceTool = createTool({
   id: 'sourceQueryTool',
   description: '特定のソースファイルの内容に基づいて質問に回答する',
   inputSchema: z.object({
-    sourceId: z.number().describe('対象のソースID'),
-    path: z.string().describe('ソースファイルのパス'),
-    query: z.string().describe('検索内容や質問'),
+    sourceId: z.number().describe('対象のソースID:必須'),
+    path: z.string().describe('ソースファイルのパス:必須'),
+    query: z.string().describe('検索内容や質問:必須'),
   }),
   outputSchema: z.object({
     answer: z.string(),

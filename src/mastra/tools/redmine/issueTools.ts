@@ -28,28 +28,30 @@ export const createGetIssuesListTool = (client: RedmineClient) => {
     inputSchema: z.object({
       project_id: z
         .union([z.string(), z.number()])
-        .describe('プロジェクトIDまたは名前'),
+        .describe('プロジェクトIDまたはプロジェクト名:必須'),
       status_id: z
         .union([z.string(), z.number(), z.enum(['open', 'closed', '*'])])
         .optional()
-        .describe('"open"または"closed"または"*"またはステータスIDまたは名前'),
+        .describe(
+          '"open"または"closed"または"*"またはステータスIDまたは名前:任意',
+        ),
       tracker_id: z
         .union([z.string(), z.number()])
         .optional()
-        .describe('トラッカーIDまたは名前'),
+        .describe('トラッカーIDまたはトラッカー名:任意'),
       assigned_to_id: z
         .union([z.number(), z.literal('me')])
         .optional()
-        .describe('担当者ID、または"me"（自分）'),
+        .describe('担当者ID、または"me"（自分）:任意'),
       fixed_version_id: z
         .union([z.string(), z.number()])
         .optional()
-        .describe('バージョンIDまたは名前'),
+        .describe('バージョンIDまたはバージョン名:任意'),
       sort: z
         .string()
         .optional()
         .describe(
-          'column to sort with. Append :desc to invert the order.（例: "category:desc,updated_on"）',
+          'column to sort with. Append :desc to invert the order.（例: "category:desc,updated_on"）:任意',
         ),
     }),
     outputSchema: z.object({
@@ -196,13 +198,13 @@ export const createGetIssueDetailTool = (client: RedmineClient) => {
     id: 'redmine-get-issue-detail',
     description: 'Redmineの特定のチケット詳細を取得します。',
     inputSchema: z.object({
-      issue_id: z.number().describe('チケットID'),
+      issue_id: z.number().describe('チケットID:必須'),
       include: z
         .array(z.enum(['children', 'attachments', 'relations', 'journals']))
         .optional()
         .default([])
         .describe(
-          '含める関連情報の配列（利用可能な関連情報: ["children", "attachments", "relations", "journals"]）',
+          '含める関連情報の配列（利用可能な関連情報: ["children", "attachments", "relations", "journals"]）:任意',
         ),
     }),
     outputSchema: z.object({
@@ -238,29 +240,32 @@ export const createCreateIssueTool = (client: RedmineClient) => {
     inputSchema: z.object({
       project_id: z
         .union([z.string(), z.number()])
-        .describe('プロジェクトIDまたは名前'),
-      subject: z.string().describe('チケットのタイトル'),
-      description: z.string().optional().describe('チケットの説明'),
+        .describe('プロジェクトIDまたはプロジェクト名:必須'),
+      subject: z.string().describe('チケットのタイトル:必須'),
+      description: z.string().optional().describe('チケットの説明:任意'),
       tracker_id: z
         .union([z.string(), z.number()])
         .optional()
-        .describe('トラッカーIDまたは名前'),
+        .describe('トラッカーIDまたはトラッカー名:任意'),
       status_id: z
         .union([z.string(), z.number()])
         .optional()
-        .describe('ステータスIDまたは名前'),
+        .describe('ステータスIDまたはステータス名:任意'),
       priority_id: z
         .union([z.string(), z.number()])
         .optional()
-        .describe('優先度IDまたは名前'),
-      parent_issue_id: z.number().optional().describe('親チケットID'),
+        .describe('優先度IDまたは優先度名:任意'),
+      parent_issue_id: z.number().optional().describe('親チケットID:任意'),
       fixed_version_id: z
         .union([z.string(), z.number()])
         .optional()
-        .describe('バージョンIDまたは名前'),
-      start_date: z.string().optional().describe('開始日（YYYY-MM-DD形式）'),
-      due_date: z.string().optional().describe('期日（YYYY-MM-DD形式）'),
-      estimated_hours: z.number().optional().describe('予定工数(h)'),
+        .describe('バージョンIDまたはバージョン名:任意'),
+      start_date: z
+        .string()
+        .optional()
+        .describe('開始日（YYYY-MM-DD形式）:任意'),
+      due_date: z.string().optional().describe('期日（YYYY-MM-DD形式）:任意'),
+      estimated_hours: z.number().optional().describe('予定工数(h):任意'),
     }),
     outputSchema: z.object({
       created_issue: z.any(),
@@ -407,31 +412,34 @@ export const createUpdateIssueTool = (client: RedmineClient) => {
     id: 'redmine-update-issue',
     description: 'Redmineの既存チケットを更新します。',
     inputSchema: z.object({
-      issue_id: z.number().describe('更新するチケットのID'),
-      notes: z.string().optional().describe('更新に関するコメント'),
-      subject: z.string().optional().describe('チケットのタイトル'),
-      description: z.string().optional().describe('チケットの説明'),
+      issue_id: z.number().describe('更新するチケットのID:必須'),
+      notes: z.string().optional().describe('更新に関するコメント:任意'),
+      subject: z.string().optional().describe('チケットのタイトル:任意'),
+      description: z.string().optional().describe('チケットの説明:任意'),
       tracker_id: z
         .union([z.string(), z.number()])
         .optional()
-        .describe('トラッカーIDまたは名前'),
+        .describe('トラッカーIDまたはトラッカー名:任意'),
       status_id: z
         .union([z.string(), z.number()])
         .optional()
-        .describe('ステータスIDまたは名前'),
+        .describe('ステータスIDまたはステータス名:任意'),
       priority_id: z
         .union([z.string(), z.number()])
         .optional()
-        .describe('優先度IDまたは名前'),
-      assigned_to_id: z.number().optional().describe('担当者ID'),
-      parent_issue_id: z.number().optional().describe('親チケットID'),
+        .describe('優先度IDまたは優先度名:任意'),
+      assigned_to_id: z.number().optional().describe('担当者ID:任意'),
+      parent_issue_id: z.number().optional().describe('親チケットID:任意'),
       fixed_version_id: z
         .union([z.string(), z.number()])
         .optional()
-        .describe('バージョンIDまたは名前'),
-      start_date: z.string().optional().describe('開始日（YYYY-MM-DD形式）'),
-      due_date: z.string().optional().describe('期日（YYYY-MM-DD形式）'),
-      estimated_hours: z.number().optional().describe('予定工数'),
+        .describe('バージョンIDまたはバージョン名:任意'),
+      start_date: z
+        .string()
+        .optional()
+        .describe('開始日（YYYY-MM-DD形式）:任意'),
+      due_date: z.string().optional().describe('期日（YYYY-MM-DD形式）:任意'),
+      estimated_hours: z.number().optional().describe('予定工数:任意'),
     }),
     outputSchema: z.object({
       updated_issue: z.any(),

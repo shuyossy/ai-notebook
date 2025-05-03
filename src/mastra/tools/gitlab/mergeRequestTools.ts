@@ -19,10 +19,10 @@ export const createGetMergeRequestDetailTool = (client: GitLabClient) => {
     inputSchema: z.object({
       project_id: z
         .union([z.string(), z.number()])
-        .describe('プロジェクトIDまたはURLエンコードされたパス'),
+        .describe('プロジェクトIDまたはURLエンコードされたパス:必須'),
       merge_request_iid: z
         .number()
-        .describe('マージリクエストのIID（プロジェクト内ID）'),
+        .describe('マージリクエストのIID（プロジェクト内ID）:必須'),
     }),
     outputSchema: z.any(),
     execute: async ({ context }) => {
@@ -53,11 +53,11 @@ export const createAddMergeRequestCommentTool = (client: GitLabClient) => {
     inputSchema: z.object({
       project_id: z
         .union([z.string(), z.number()])
-        .describe('プロジェクトIDまたはURLエンコードされたパス'),
+        .describe('プロジェクトIDまたはURLエンコードされたパス:必須'),
       merge_request_iid: z
         .number()
-        .describe('マージリクエストのIID（プロジェクト内ID）'),
-      body: z.string().describe('コメント本文'),
+        .describe('マージリクエストのIID（プロジェクト内ID）:必須'),
+      body: z.string().describe('コメント本文:必須'),
     }),
     outputSchema: z.any(),
     execute: async ({ context }) => {
@@ -88,59 +88,63 @@ export const createAddMergeRequestDiffCommentTool = (client: GitLabClient) => {
     inputSchema: z.object({
       project_id: z
         .union([z.string(), z.number()])
-        .describe('プロジェクトIDまたはURLエンコードされたパス'),
+        .describe('プロジェクトIDまたはURLエンコードされたパス:必須'),
       merge_request_iid: z
         .number()
-        .describe('マージリクエストのIID（プロジェクト内ID）'),
-      body: z.string().describe('コメント本文'),
+        .describe('マージリクエストのIID（プロジェクト内ID）:必須'),
+      body: z.string().describe('コメント本文:必須'),
       position: z
         .object({
-          baseSha: z.string().describe('ソースブランチのベースコミットSHA'),
+          baseSha: z
+            .string()
+            .describe('ソースブランチのベースコミットSHA:必須'),
           startSha: z
             .string()
-            .describe('	ターゲットブランチのコミットを参照するSHA'),
-          headSha: z.string().describe('ヘッドコミットのSHA'),
-          oldPath: z.string().describe('変更前のファイルパス'),
-          newPath: z.string().describe('変更後のファイルパス'),
-          oldLine: z.string().optional().describe('変更前の行番号'),
-          newLine: z.string().optional().describe('変更後の行番号'),
+            .describe('ターゲットブランチのコミットを参照するSHA:必須'),
+          headSha: z.string().describe('ヘッドコミットのSHA:必須'),
+          oldPath: z.string().describe('変更前のファイルパス:必須'),
+          newPath: z.string().describe('変更後のファイルパス:必須'),
+          oldLine: z.string().optional().describe('変更前の行番号:任意'),
+          newLine: z.string().optional().describe('変更後の行番号:任意'),
           lineRange: z
             .object({
               start: z
                 .object({
-                  lineCode: z.string().describe('スタートラインのラインコード'),
+                  lineCode: z
+                    .string()
+                    .describe('スタートラインのラインコード:必須'),
                   type: z
                     .enum(['new', 'old'])
                     .describe(
-                      'このコミットによって追加された行には `new` を使用し、そうでない場合は `old` を使用します',
+                      'このコミットによって追加された行には `new` を使用し、そうでない場合は `old` を使用します:必須',
                     ),
                   hash: z
                     .string()
                     .optional()
-                    .describe('マルチラインノートの開始行ハッシュ'),
+                    .describe('マルチラインノートの開始行ハッシュ:任意'),
                 })
                 .describe('マルチラインノートの開始行情報'),
               end: z
                 .object({
                   lineCode: z
                     .string()
-                    .describe('終了行のラインコード。文字列です'),
+                    .describe('終了行のラインコード。文字列です:必須'),
                   type: z
                     .enum(['new', 'old'])
                     .describe(
-                      'このコミットによって追加された行には `new` を使用し、そうでない場合は `old` を使用します',
+                      'このコミットによって追加された行には `new` を使用し、そうでない場合は `old` を使用します:必須',
                     ),
                   hash: z
                     .string()
                     .optional()
-                    .describe('マルチラインノートの終了行ハッシュ'),
+                    .describe('マルチラインノートの終了行ハッシュ:任意'),
                 })
                 .describe('マルチラインノートの終了行情報'),
             })
             .optional()
-            .describe('複数行コメント時専用のパラメータ'),
+            .describe('複数行コメント時専用のパラメータ:任意'),
         })
-        .describe('コメントの位置情報'),
+        .describe('コメントの位置情報:必須'),
     }),
     outputSchema: z.any(),
     execute: async ({ context }) => {

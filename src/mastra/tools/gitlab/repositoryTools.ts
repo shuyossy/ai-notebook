@@ -20,17 +20,13 @@ export const createGetFileContentTool = (client: GitLabClient) => {
     inputSchema: z.object({
       project_id: z
         .union([z.string(), z.number()])
-        .describe('プロジェクトIDまたはURLエンコードされたパス'),
+        .describe('プロジェクトIDまたはURLエンコードされたパス:必須'),
       file_path: z
         .string()
         .describe(
-          '（リポジトリルートからの相対パスで、URLエンコード済みであること（例えばpath%2Fto%2Ffile.rb）',
+          '（リポジトリルートからの相対パスで、URLエンコード済みであること（例えばpath%2Fto%2Ffile.rb）:必須',
         ),
-      ref: z
-        .string()
-        .optional()
-        .default('master')
-        .describe('リファレンス（ブランチ名、タグ名）'),
+      ref: z.string().describe('リファレンス（ブランチ名、タグ名）:必須'),
     }),
     outputSchema: z.object({
       file: z.any(),
@@ -63,17 +59,13 @@ export const createGetRawFileTool = (client: GitLabClient) => {
     inputSchema: z.object({
       project_id: z
         .union([z.string(), z.number()])
-        .describe('プロジェクトIDまたはURLエンコードされたパス'),
+        .describe('プロジェクトIDまたはURLエンコードされたパス:必須'),
       file_path: z
         .string()
         .describe(
-          'ファイルパス（リポジトリルートからの相対パスで、URLエンコード済みであること（例えばpath%2Fto%2Ffile.rb）',
+          'ファイルパス（リポジトリルートからの相対パスで、URLエンコード済みであること（例えばpath%2Fto%2Ffile.rb）:必須',
         ),
-      ref: z
-        .string()
-        .optional()
-        .default('master')
-        .describe('リファレンス（ブランチ名、タグ名）'),
+      ref: z.string().describe('リファレンス（ブランチ名、タグ名）:必須'),
     }),
     outputSchema: z.any(),
     execute: async ({ context }) => {
@@ -103,24 +95,20 @@ export const createGeBlameFileTool = (client: GitLabClient) => {
     inputSchema: z.object({
       project_id: z
         .union([z.string(), z.number()])
-        .describe('プロジェクトIDまたはURLエンコードされたパス'),
+        .describe('プロジェクトIDまたはURLエンコードされたパス:必須'),
       file_path: z
         .string()
         .describe(
-          'ファイルパス（リポジトリルートからの相対パスで、URLエンコード済みであること（例えばpath%2Fto%2Ffile.rb））',
+          'ファイルパス（リポジトリルートからの相対パスで、URLエンコード済みであること（例えばpath%2Fto%2Ffile.rb））:必須',
         ),
-      ref: z
-        .string()
-        .optional()
-        .default('master')
-        .describe('リファレンス（ブランチ名、タグ名）'),
+      ref: z.string().describe('リファレンス（ブランチ名、タグ名）:必須'),
       range: z
         .object({
-          start: z.number().describe('開始行'),
-          end: z.number().describe('終了行'),
+          start: z.number().describe('開始行:必須'),
+          end: z.number().describe('終了行:必須'),
         })
         .optional()
-        .describe('取得する行の範囲'),
+        .describe('取得する行の範囲:任意'),
     }),
     outputSchema: z.any(),
     execute: async ({ context }) => {
@@ -151,17 +139,19 @@ export const createGetRepositoryTreeTool = (client: GitLabClient) => {
     inputSchema: z.object({
       project_id: z
         .union([z.string(), z.number()])
-        .describe('プロジェクトIDまたはURLエンコードされたパス'),
+        .describe('プロジェクトIDまたはURLエンコードされたパス:必須'),
       path: z
         .string()
         .optional()
-        .describe('取得するディレクトリパス（リポジトリルートからの相対パス）'),
-      ref: z.string().optional().describe('リファレンス（ブランチ名、タグ名）'),
+        .describe(
+          '取得するディレクトリパス（リポジトリルートからの相対パス）:任意',
+        ),
+      ref: z.string().describe('リファレンス（ブランチ名、タグ名）:必須'),
       recursive: z
         .boolean()
         .optional()
-        .default(false)
-        .describe('サブディレクトリを再帰的に取得するか'),
+        .default(true)
+        .describe('サブディレクトリを再帰的に取得するか:任意'),
     }),
     outputSchema: z.any(),
     execute: async ({ context }) => {
