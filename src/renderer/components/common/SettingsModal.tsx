@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { z } from 'zod';
 import {
   Button,
@@ -24,48 +24,128 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
   onClose,
   onSettingsUpdated,
 }) => {
-  const [database, setDatabase] = useElectronStore<{ dir: string }>('database');
-  const [source, setSource] = useElectronStore<{ registerDir: string }>(
-    'source',
-  );
-  type ApiSettings = {
+  const {
+    value: databaseStore,
+    loading: loadingDatabase,
+    setValue: setDatabaseStore,
+  } = useElectronStore<{ dir: string }>('database');
+
+  const {
+    value: sourceStore,
+    loading: loadingSource,
+    setValue: setSourceStore,
+  } = useElectronStore<{ registerDir: string }>('source');
+
+  const {
+    value: apiStore,
+    loading: loadingApi,
+    setValue: setApiStore,
+  } = useElectronStore<{
     key: string;
     url: string;
     model: string;
-  };
-  const [api, setApi] = useElectronStore<ApiSettings>('api');
-  const [redmine, setRedmine] = useElectronStore<{
+  }>('api');
+
+  const {
+    value: redmineStore,
+    loading: loadingRedmine,
+    setValue: setRedmineStore,
+  } = useElectronStore<{
     endpoint: string;
     apiKey: string;
   }>('redmine');
-  const [gitlab, setGitlab] = useElectronStore<{
+
+  const {
+    value: gitlabStore,
+    loading: loadingGitlab,
+    setValue: setGitlabStore,
+  } = useElectronStore<{
     endpoint: string;
     apiKey: string;
   }>('gitlab');
-  const [mcp, setMcp] = useElectronStore<{ serverConfig: McpSchemaType }>(
-    'mcp',
-  );
-  const [mcpServersText, setMcpServersText] = useState<string>(
-    JSON.stringify(mcp?.serverConfig ?? {}, null, 2),
-  );
-  const [mcpValidationError, setMcpValidationError] = useState<string | null>(
-    null,
-  );
+
+  const {
+    value: mcpStore,
+    loading: loadingMcp,
+    setValue: setMcpStore,
+  } = useElectronStore<{ serverConfig: McpSchemaType }>('mcp');
+
+  // ローカルステート
+  const [settings, setSettings] = useState<Settings>({
+    database: { dir: '' },
+    source: { registerDir: './source' },
+    api: { key: '', url: '', model: '' },
+    redmine: { endpoint: '', apiKey: '' },
+    gitlab: { endpoint: '', apiKey: '' },
+    mcp: { serverConfig: {} },
+  });
+
+  // MCPサーバー設定のJSONテキスト
+  const [mcpServersText, setMcpServersText] = useState<string>('{}');
+  const [mcpValidationError, setMcpValidationError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // 設定を結合
-  const settings = useMemo<Settings>(
-    () => ({
-      database: database ?? { dir: '' },
-      source: source ?? { registerDir: './source' },
-      api: api ?? { key: '', url: '', model: '' },
-      redmine: redmine ?? { endpoint: '', apiKey: '' },
-      gitlab: gitlab ?? { endpoint: '', apiKey: '' },
-      mcp: mcp ?? { serverConfig: {} },
-    }),
-    [database, source, api, redmine, gitlab, mcp],
-  );
+  // データベース設定の初期値
+  useEffect(() => {
+    if (!loadingDatabase) {
+      setSettings((prev) => ({
+        ...prev,
+        database: databaseStore ?? { dir: '' },
+      }));
+    }
+  }, [databaseStore, loadingDatabase]);
+
+  // ソース設定の初期値
+  useEffect(() => {
+    if (!loadingSource) {
+      setSettings((prev) => ({
+        ...prev,
+        source: sourceStore ?? { registerDir: './source' },
+      }));
+    }
+  }, [sourceStore, loadingSource]);
+
+  // API設定の初期値
+  useEffect(() => {
+    if (!loadingApi) {
+      setSettings((prev) => ({
+        ...prev,
+        api: apiStore ?? { key: '', url: '', model: '' },
+      }));
+    }
+  }, [apiStore, loadingApi]);
+
+  // Redmine設定の初期値
+  useEffect(() => {
+    if (!loadingRedmine) {
+      setSettings((prev) => ({
+        ...prev,
+        redmine: redmineStore ?? { endpoint: '', apiKey: '' },
+      }));
+    }
+  }, [redmineStore, loadingRedmine]);
+
+  // GitLab設定の初期値
+  useEffect(() => {
+    if (!loadingGitlab) {
+      setSettings((prev) => ({
+        ...prev,
+        gitlab: gitlabStore ?? { endpoint: '', apiKey: '' },
+      }));
+    }
+  }, [gitlabStore, loadingGitlab]);
+
+  // MCP設定の初期値
+  useEffect(() => {
+    if (!loadingMcp) {
+      setSettings((prev) => ({
+        ...prev,
+        mcp: mcpStore ?? { serverConfig: {} },
+      }));
+      setMcpServersText(JSON.stringify(mcpStore?.serverConfig ?? {}, null, 2));
+    }
+  }, [mcpStore, loadingMcp]);
 
   // 設定を更新する
   const handleSave = async () => {
@@ -74,12 +154,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
 
     try {
       await Promise.all([
-        setDatabase(settings.database),
-        setSource(settings.source),
-        setApi(settings.api),
-        setRedmine(settings.redmine),
-        setGitlab(settings.gitlab),
-        setMcp(settings.mcp),
+        setDatabaseStore(settings.database),
+        setSourceStore(settings.source),
+        setApiStore(settings.api),
+        setRedmineStore(settings.redmine),
+        setGitlabStore(settings.gitlab),
+        setMcpStore(settings.mcp),
       ]);
       onSettingsUpdated();
       onClose();
@@ -96,28 +176,43 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     field: string,
     value: string | McpSchemaType,
   ) => {
-    switch (section) {
-      case 'database':
-        setDatabase({ ...database, [field]: value } as { dir: string });
-        break;
-      case 'source':
-        setSource({ ...source, [field]: value } as { registerDir: string });
-        break;
-      case 'api':
-        setApi({ ...api, [field]: value } as ApiSettings);
-        break;
-      case 'redmine':
-        setRedmine({ ...redmine, [field]: value });
-        break;
-      case 'gitlab':
-        setGitlab({ ...gitlab, [field]: value });
-        break;
-      case 'mcp':
-        setMcp({ serverConfig: value as McpSchemaType });
-        break;
-      default:
-        console.warn(`Unknown section: ${section}`);
-    }
+    setSettings((prev) => {
+      switch (section) {
+        case 'database':
+          return {
+            ...prev,
+            database: { ...prev.database, [field]: value },
+          };
+        case 'source':
+          return {
+            ...prev,
+            source: { ...prev.source, [field]: value },
+          };
+        case 'api':
+          return {
+            ...prev,
+            api: { ...prev.api, [field]: value },
+          };
+        case 'redmine':
+          return {
+            ...prev,
+            redmine: { ...prev.redmine, [field]: value },
+          };
+        case 'gitlab':
+          return {
+            ...prev,
+            gitlab: { ...prev.gitlab, [field]: value },
+          };
+        case 'mcp':
+          return {
+            ...prev,
+            mcp: { serverConfig: value as McpSchemaType },
+          };
+        default:
+          console.warn(`Unknown section: ${section}`);
+          return prev;
+      }
+    });
   };
 
   // モーダルのアクションボタン

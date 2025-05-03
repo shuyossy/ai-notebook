@@ -1,15 +1,26 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
+
+/**
+ * Electronのストア操作の結果型
+ */
+export type StoreHookResult<T> = {
+  value: T;
+  loading: boolean;
+  error: string | null;
+  setValue: (value: T) => Promise<void>;
+};
 
 /**
  * Electronのストア操作用フック
  * @param key ストアのキー
- * @param defaultValue デフォルト値
- * @returns [値, セッター関数]
+ * @returns StoreHookResult
  */
 export function useElectronStore<T extends Record<string, unknown>>(
   key: string,
-): [T, (value: T) => Promise<void>] {
+): StoreHookResult<T> {
   const [value, setValue] = useState<T>({} as T);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // 値の取得
   useEffect(() => {
@@ -19,8 +30,13 @@ export function useElectronStore<T extends Record<string, unknown>>(
         if (storedValue !== undefined) {
           setValue(storedValue as T);
         }
-      } catch (error) {
-        console.error(`Failed to get value for key "${key}":`, error);
+        setError(null);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : '不明なエラーが発生しました';
+        setError(`値の取得に失敗しました: ${message}`);
+        console.error(`Failed to get value for key "${key}":`, err);
+      } finally {
+        setLoading(false);
       }
     };
 
@@ -28,19 +44,20 @@ export function useElectronStore<T extends Record<string, unknown>>(
   }, [key]);
 
   // 値の設定
-  const setStoreValue = useCallback(
-    async (newValue: T) => {
-      try {
-        await window.electron.store.set(key, newValue);
-        setValue(newValue);
-      } catch (error) {
-        console.error(`Failed to set value for key "${key}":`, error);
-      }
-    },
-    [key],
-  );
+  const setStoreValue = async (newValue: T) => {
+    try {
+      await window.electron.store.set(key, newValue);
+      setValue(newValue);
+      setError(null);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '不明なエラーが発生しました';
+      setError(`値の保存に失敗しました: ${message}`);
+      console.error(`Failed to set value for key "${key}":`, err);
+      throw err;
+    }
+  };
 
-  return [value, setStoreValue];
+  return { value, loading, error, setValue: setStoreValue };
 }
 
 export default useElectronStore;
