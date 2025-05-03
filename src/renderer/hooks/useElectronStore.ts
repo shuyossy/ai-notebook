@@ -32,7 +32,8 @@ export function useElectronStore<T extends Record<string, unknown>>(
         }
         setError(null);
       } catch (err) {
-        const message = err instanceof Error ? err.message : '不明なエラーが発生しました';
+        const message =
+          err instanceof Error ? err.message : '不明なエラーが発生しました';
         setError(`値の取得に失敗しました: ${message}`);
         console.error(`Failed to get value for key "${key}":`, err);
       } finally {
@@ -50,7 +51,8 @@ export function useElectronStore<T extends Record<string, unknown>>(
       setValue(newValue);
       setError(null);
     } catch (err) {
-      const message = err instanceof Error ? err.message : '不明なエラーが発生しました';
+      const message =
+        err instanceof Error ? err.message : '不明なエラーが発生しました';
       setError(`値の保存に失敗しました: ${message}`);
       console.error(`Failed to set value for key "${key}":`, err);
       throw err;

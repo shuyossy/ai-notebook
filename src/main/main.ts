@@ -9,6 +9,7 @@
  * `./src/main.js` using webpack. This gives us some performance wins.
  */
 import path from 'path';
+import fs from 'fs/promises';
 import { app, BrowserWindow, shell, ipcMain } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import log from 'electron-log';
@@ -277,6 +278,21 @@ const setupChatHandlers = () => {
 };
 
 // ソース関連のIPCハンドラー
+// ファイルシステム関連のIPCハンドラー
+const setupFsHandlers = () => {
+  ipcMain.handle(
+    IpcChannels.FS_CHECK_PATH_EXISTS,
+    async (_, filePath: string): Promise<boolean> => {
+      try {
+        await fs.access(filePath);
+        return true;
+      } catch {
+        return false;
+      }
+    },
+  );
+};
+
 const setupSourceHandlers = () => {
   // ソース再読み込みハンドラ
   ipcMain.handle(
@@ -471,6 +487,7 @@ const initialize = async () => {
   await initializeMastra(); // Mastraの初期化を追加
   setupStoreHandlers();
   setupChatHandlers();
+  setupFsHandlers();
   setupSourceHandlers();
   initializeSourceRegistration();
 };

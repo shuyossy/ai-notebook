@@ -6,6 +6,11 @@ import { IpcChannels, IpcResponsePayload, IpcEventPayload } from './types/ipc';
 export type Channels = (typeof IpcChannels)[keyof typeof IpcChannels];
 
 const electronHandler = {
+  fs: {
+    access: async (path: string): Promise<boolean> => {
+      return ipcRenderer.invoke(IpcChannels.FS_CHECK_PATH_EXISTS, path);
+    },
+  },
   store: {
     get: async (
       key: string,

@@ -1,7 +1,5 @@
 import path from 'path';
 import { app } from 'electron';
-import { McpSchemaType } from './types/schema';
-
 // 設定の型定義
 export interface StoreSchema {
   database: {
@@ -24,7 +22,7 @@ export interface StoreSchema {
     apiKey: string;
   };
   mcp: {
-    serverConfig: McpSchemaType;
+    serverConfigText: string;
   };
 }
 
@@ -72,10 +70,9 @@ const schema = {
   mcp: {
     type: 'object',
     properties: {
-      serverConfig: {
-        type: 'object',
-        default: {},
-        additionalProperties: true,
+      serverConfigText: {
+        type: 'string',
+        default: '{}',
       },
     },
     required: [],
@@ -104,7 +101,7 @@ const defaults: StoreSchema = {
     apiKey: '',
   },
   mcp: {
-    serverConfig: {},
+    serverConfigText: '{}',
   },
 };
 

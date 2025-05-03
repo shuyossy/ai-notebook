@@ -24,6 +24,9 @@ export const IpcChannels = {
   CHAT_COMPLETE: 'chat-complete',
   CHAT_STEP: 'chat-step',
   CHAT_ERROR: 'chat-error',
+
+  // ファイルシステム関連
+  FS_CHECK_PATH_EXISTS: 'fs-check-path-exists',
 } as const;
 
 export type IpcChannel = (typeof IpcChannels)[keyof typeof IpcChannels];
@@ -33,6 +36,9 @@ export type IpcChannel = (typeof IpcChannels)[keyof typeof IpcChannels];
  * 各チャネルごとにリクエストとレスポンスの型を厳密に定義
  */
 export type IpcRequestPayloadMap = {
+  // ファイルシステム関連
+  [IpcChannels.FS_CHECK_PATH_EXISTS]: string;
+
   // ストア関連
   [IpcChannels.GET_STORE_VALUE]: string;
   [IpcChannels.SET_STORE_VALUE]: { key: string; value: unknown };
@@ -54,6 +60,9 @@ export type IpcRequestPayloadMap = {
 };
 
 export type IpcResponsePayloadMap = {
+  // ファイルシステム関連
+  [IpcChannels.FS_CHECK_PATH_EXISTS]: boolean;
+
   // ストア関連
   [IpcChannels.GET_STORE_VALUE]: unknown;
   [IpcChannels.SET_STORE_VALUE]: boolean;

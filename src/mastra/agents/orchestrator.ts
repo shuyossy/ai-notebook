@@ -39,12 +39,10 @@ export const getOrchestrator = async (): Promise<Agent> => {
     let mcpTools = {};
 
     // MCPツールの登録
-    if (
-      mcpConfig?.serverConfig &&
-      Object.keys(mcpConfig.serverConfig).length > 0
-    ) {
+    if (mcpConfig?.serverConfigText && mcpConfig.serverConfigText !== '{}') {
       try {
-        const validatedConfig = McpSchema.parse(mcpConfig.serverConfig);
+        const parsedConfig = JSON.parse(mcpConfig.serverConfigText);
+        const validatedConfig = McpSchema.parse(parsedConfig);
         const mcp = new MCPConfiguration({
           id: uuid(),
           servers: validatedConfig,
