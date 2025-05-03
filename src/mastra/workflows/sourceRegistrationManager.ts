@@ -1,8 +1,9 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { and, eq, inArray } from 'drizzle-orm';
+import type { StepResult } from '@mastra/core/workflows';
 import { getStore } from '../../main/store';
-import { sourceRegistrationWorkflow } from './sourceRegistration';
+import { getMastra } from '../../main/main';
 import getDb from '../../db';
 import { sources } from '../../db/schema';
 import FileExtractor from '../../main/utils/fileExtractor';
@@ -123,26 +124,45 @@ export default class SourceRegistrationManager {
               // ファイルからテキストを抽出
               const { content } = await FileExtractor.extractText(filePath);
 
-              // ワークフローを開始
-              const run = sourceRegistrationWorkflow.createRun();
+              // Mastraインスタンスからワークフローを取得して実行
+              const mastra = getMastra();
+              const workflow = mastra.getWorkflow('sourceRegistrationWorkflow');
+              const run = workflow.createRun();
               const result = await run.start({
                 triggerData: { filePath, content },
               });
 
               // 失敗したステップを収集
-              const failedSteps = Object.entries(result.results)
-                .filter(
-                  ([, value]) =>
-                    value.status === 'failed' ||
-                    // @ts-ignore
-                    value.output?.status === 'failed',
-                )
-                .map(([step, outputObj]) => {
+              const failedSteps = Object.entries(
+                result.results as Record<
+                  string,
+                  StepResult<{
+                    status: 'success' | 'failed';
+                    errorMessage?: string;
+                  }>
+                >,
+              )
+                .filter(([, value]) => {
+                  if (value.status === 'failed') {
+                    return true;
+                  }
+                  if (
+                    value.status === 'success' &&
+                    value.output?.status === 'failed'
+                  ) {
+                    return true;
+                  }
+                  return false;
+                })
+                .map(([step, value]) => {
+                  const errorMessage =
+                    value.status === 'success'
+                      ? value.output?.errorMessage
+                      : undefined;
                   return {
                     step,
-                    stepStatus: outputObj.status,
-                    // @ts-ignore
-                    errorMessage: outputObj.output?.errorMessage,
+                    stepStatus: value.status,
+                    errorMessage,
                   };
                 });
 

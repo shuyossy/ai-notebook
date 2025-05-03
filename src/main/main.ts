@@ -17,6 +17,7 @@ import { Mastra } from '@mastra/core';
 import { createLogger } from '@mastra/core/logger';
 import { createDataStream } from 'ai';
 import { eq } from 'drizzle-orm';
+import { sourceRegistrationWorkflow } from '../mastra/workflows/sourceRegistration';
 import { type Source } from '../db/schema';
 import { IpcChannels, IpcResponsePayloadMap } from './types/ipc';
 import { sources } from '../db/schema';
@@ -42,7 +43,7 @@ let mastraInstance: Mastra | null = null;
  * Mastraインスタンスを取得する関数
  * @returns Mastraインスタンス
  */
-const getMastra = (): Mastra => {
+export const getMastra = (): Mastra => {
   if (!mastraInstance) {
     throw new Error('Mastraインスタンスが初期化されていません');
   }
@@ -70,6 +71,7 @@ const initializeMastra = async (): Promise<void> => {
     // Mastraインスタンスを初期化
     mastraInstance = new Mastra({
       agents: { orchestratorAgent },
+      workflows: { sourceRegistrationWorkflow },
       logger,
     });
 
