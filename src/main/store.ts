@@ -23,7 +23,9 @@ export interface StoreSchema {
     endpoint: string;
     apiKey: string;
   };
-  mcpServers: McpSchemaType;
+  mcp: {
+    serverConfig: McpSchemaType;
+  };
 }
 
 // スキーマ定義
@@ -57,7 +59,7 @@ const schema = {
       endpoint: { type: 'string' },
       apiKey: { type: 'string' },
     },
-    required: ['endpoint', 'apiKey'],
+    required: [],
   },
   gitlab: {
     type: 'object',
@@ -65,12 +67,18 @@ const schema = {
       endpoint: { type: 'string' },
       apiKey: { type: 'string' },
     },
-    required: ['endpoint', 'apiKey'],
+    required: [],
   },
-  mcpServers: {
+  mcp: {
     type: 'object',
-    default: {},
-    additionalProperties: true,
+    properties: {
+      serverConfig: {
+        type: 'object',
+        default: {},
+        additionalProperties: true,
+      },
+    },
+    required: [],
   },
 } as const;
 
@@ -95,7 +103,9 @@ const defaults: StoreSchema = {
     endpoint: '',
     apiKey: '',
   },
-  mcpServers: {},
+  mcp: {
+    serverConfig: {},
+  },
 };
 
 // ストアのインスタンスを作成する関数

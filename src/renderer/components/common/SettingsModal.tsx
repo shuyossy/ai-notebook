@@ -42,10 +42,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     endpoint: string;
     apiKey: string;
   }>('gitlab');
-  const [mcpServers, setMcpServers] =
-    useElectronStore<McpSchemaType>('mcpServers');
+  const [mcp, setMcp] = useElectronStore<{ serverConfig: McpSchemaType }>(
+    'mcp',
+  );
   const [mcpServersText, setMcpServersText] = useState<string>(
-    JSON.stringify(mcpServers ?? {}, null, 2),
+    JSON.stringify(mcp?.serverConfig ?? {}, null, 2),
   );
   const [mcpValidationError, setMcpValidationError] = useState<string | null>(
     null,
@@ -61,9 +62,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
       api: api ?? { key: '', url: '', model: '' },
       redmine: redmine ?? { endpoint: '', apiKey: '' },
       gitlab: gitlab ?? { endpoint: '', apiKey: '' },
-      mcpServers: mcpServers ?? {},
+      mcp: mcp ?? { serverConfig: {} },
     }),
-    [database, source, api, redmine, gitlab, mcpServers],
+    [database, source, api, redmine, gitlab, mcp],
   );
 
   // 設定を更新する
@@ -78,7 +79,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         setApi(settings.api),
         setRedmine(settings.redmine),
         setGitlab(settings.gitlab),
-        setMcpServers(settings.mcpServers),
+        setMcp(settings.mcp),
       ]);
       onSettingsUpdated();
       onClose();
@@ -111,8 +112,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
       case 'gitlab':
         setGitlab({ ...gitlab, [field]: value });
         break;
-      case 'mcpServers':
-        setMcpServers(value as McpSchemaType);
+      case 'mcp':
+        setMcp({ serverConfig: value as McpSchemaType });
         break;
       default:
         console.warn(`Unknown section: ${section}`);
@@ -272,7 +273,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                 try {
                   const newValue = McpSchema.parse(JSON.parse(e.target.value));
                   setMcpValidationError(null);
-                  handleChange('mcpServers', 'json', newValue);
+                  handleChange('mcp', 'serverConfig', newValue);
                 } catch (err) {
                   if (err instanceof SyntaxError) {
                     setMcpValidationError('JSONの形式が不正です');

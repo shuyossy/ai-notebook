@@ -35,13 +35,16 @@ export const getOrchestrator = async (): Promise<Agent> => {
     }
 
     // MCP設定の取得
-    const mcpServers = store.get('mcpServers');
+    const mcpConfig = store.get('mcp');
     let mcpTools = {};
 
     // MCPツールの登録
-    if (Object.keys(mcpServers).length > 0) {
+    if (
+      mcpConfig?.serverConfig &&
+      Object.keys(mcpConfig.serverConfig).length > 0
+    ) {
       try {
-        const validatedConfig = McpSchema.parse(mcpServers);
+        const validatedConfig = McpSchema.parse(mcpConfig.serverConfig);
         const mcp = new MCPConfiguration({
           id: uuid(),
           servers: validatedConfig,
