@@ -72,14 +72,17 @@ export const getOrchestrator = async (): Promise<{
           apiKey: redmineApiKey,
           apiUrl: redmineEndpoint,
         });
-        console.log('Redmineクライアントの初期化に成功しました。');
+        alertMessages.push({
+          id: uuid(),
+          type: 'info',
+          content: 'Redmineクライアントの初期化に成功しました。',
+        });
       } catch (error) {
         alertMessages.push({
           id: uuid(),
           type: 'warning',
           content: `Redmineクライアントの初期化に失敗しました\n設定を確認してください\n${error}`,
         });
-        console.error('Redmineクライアントの初期化に失敗しました:', error);
       }
     } else {
       console.warn(
@@ -100,14 +103,17 @@ export const getOrchestrator = async (): Promise<{
           token: gitlabApiKey,
           host: gitlabEndpoint,
         });
-        console.log('Gitlabクライアントの初期化に成功しました。');
+        alertMessages.push({
+          id: uuid(),
+          type: 'info',
+          content: 'Gitlabクライアントの初期化に成功しました。',
+        });
       } catch (error) {
         alertMessages.push({
           id: uuid(),
           type: 'warning',
           content: `Gitlabクライアントの初期化に失敗しました\n設定を確認してください\n${error}`,
         });
-        console.error('Gitlabクライアントの初期化に失敗しました:', error);
       }
     } else {
       console.warn(
@@ -140,7 +146,11 @@ export const getOrchestrator = async (): Promise<{
           servers: validatedConfigWithLoggerOption,
         });
         mcpTools = await mcp.getTools();
-        console.log('MCPサーバーの初期化に成功しました。');
+        alertMessages.push({
+          id: uuid(),
+          type: 'info',
+          content: 'MCPサーバーの初期化に成功しました。',
+        });
       } catch (error) {
         alertMessages.push({
           id: uuid(),
