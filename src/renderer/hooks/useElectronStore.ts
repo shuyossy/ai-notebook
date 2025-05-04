@@ -24,6 +24,8 @@ export function useElectronStore<T extends Record<string, unknown>>(
 
   // 値の取得
   useEffect(() => {
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+
     const fetchValue = async () => {
       try {
         const storedValue = await window.electron.store.get(key);
@@ -31,17 +33,34 @@ export function useElectronStore<T extends Record<string, unknown>>(
           setValue(storedValue as T);
         }
         setError(null);
+        // 成功時はポーリングを停止
+        if (intervalId) {
+          clearInterval(intervalId);
+          intervalId = null;
+        }
       } catch (err) {
         const message =
           err instanceof Error ? err.message : '不明なエラーが発生しました';
         setError(`値の取得に失敗しました: ${message}`);
         console.error(`Failed to get value for key "${key}":`, err);
+        // 失敗時はポーリングを継続（既に設定済みの場合は何もしない）
+        if (!intervalId) {
+          intervalId = setInterval(fetchValue, 5000);
+        }
       } finally {
         setLoading(false);
       }
     };
 
+    // 初回実行
     fetchValue();
+
+    // クリーンアップ関数
+    return () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+    };
   }, [key]);
 
   // 値の設定

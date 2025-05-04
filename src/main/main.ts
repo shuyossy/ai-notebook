@@ -576,8 +576,8 @@ app.on('window-all-closed', () => {
 });
 
 const initialize = async () => {
-  await initStore();
   createWindow();
+  await initStore();
   await initializeMastra(); // Mastraの初期化を追加
   setupStoreHandlers();
   setupChatHandlers();
