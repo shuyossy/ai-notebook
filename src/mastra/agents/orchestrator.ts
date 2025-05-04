@@ -77,7 +77,7 @@ export const getOrchestrator = async (): Promise<{
         alertMessages.push({
           id: uuid(),
           type: 'warning',
-          content: `Redmineクライアントの初期化に失敗しました\n設定を確認してください`,
+          content: `Redmineクライアントの初期化に失敗しました\n設定を確認してください\n${error}`,
         });
         console.error('Redmineクライアントの初期化に失敗しました:', error);
       }
@@ -105,7 +105,7 @@ export const getOrchestrator = async (): Promise<{
         alertMessages.push({
           id: uuid(),
           type: 'warning',
-          content: `Gitlabクライアントの初期化に失敗しました\n設定を確認してください`,
+          content: `Gitlabクライアントの初期化に失敗しました\n設定を確認してください\n${error}`,
         });
         console.error('Gitlabクライアントの初期化に失敗しました:', error);
       }
