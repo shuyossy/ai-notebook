@@ -1,6 +1,7 @@
 import { Agent } from '@mastra/core/agent';
 import { MCPConfiguration, LogMessage } from '@mastra/mcp';
 import { v4 as uuid } from 'uuid';
+import { writeFileSync } from 'fs';
 import { ORCHESTRATOR_SYSTEM_PROMPT } from './prompts';
 import { sourceListTool, querySourceTool } from '../tools/sourcesTools';
 import { createAgent } from './config/agent';
@@ -11,6 +12,42 @@ import { McpSchema } from '../../main/types/schema';
 import { AgentBootMessage } from '../../main/types';
 
 const ORCHESTRATOR_NAME = 'orchestrator';
+const LOG_FILE_PATH = './mcp.log';
+
+/**
+ * ログメッセージをフォーマットする
+ */
+const formatLogMessage = (logMessage: LogMessage): string => {
+  const timestamp = logMessage.timestamp
+    .toISOString()
+    .replace('T', ' ')
+    .split('.')[0];
+  const details = logMessage.details ? JSON.stringify(logMessage.details) : '';
+  return `[${timestamp}] [${logMessage.level}] ${logMessage.message} ${details}`.trim();
+};
+
+/**
+ * ログをファイルに書き込む
+ */
+const writeLog = (logMessage: LogMessage): void => {
+  try {
+    const formattedLog = formatLogMessage(logMessage);
+    writeFileSync(LOG_FILE_PATH, `${formattedLog}\n`, { flag: 'a' });
+  } catch (error) {
+    console.error('ログファイルの書き込みに失敗しました:', error);
+  }
+};
+
+/**
+ * ログファイルを削除する
+ */
+const deleteLogFile = (): void => {
+  try {
+    writeFileSync(LOG_FILE_PATH, '', { flag: 'w' });
+  } catch (error) {
+    console.error('ログファイルの削除に失敗しました:', error);
+  }
+};
 
 /**
  * オーケストレーターエージェントを取得または作成する
@@ -84,6 +121,7 @@ export const getOrchestrator = async (): Promise<{
 
     // MCPツールの登録
     if (mcpConfig?.serverConfigText && mcpConfig.serverConfigText !== '{}') {
+      deleteLogFile();
       try {
         const parsedConfig = JSON.parse(mcpConfig.serverConfigText);
         const validatedConfig = McpSchema.parse(parsedConfig);
@@ -93,8 +131,7 @@ export const getOrchestrator = async (): Promise<{
             key,
             {
               ...value,
-              logger: (logMessage: LogMessage) =>
-                console.log('custom log: ', logMessage),
+              logger: writeLog,
             },
           ]),
         );
@@ -108,7 +145,7 @@ export const getOrchestrator = async (): Promise<{
         alertMessages.push({
           id: uuid(),
           type: 'warning',
-          content: `MCPサーバーとの接続に失敗しました\nログについては./mcp.logをご確認ください`,
+          content: `MCPサーバーとの接続に失敗しました\nログについては${LOG_FILE_PATH}をご確認ください`,
         });
         console.error('MCPサーバーの初期化に失敗しました:', error);
       }

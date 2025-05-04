@@ -42,3 +42,4 @@ dist
 source
 db
 local_docker
+mcp.log
