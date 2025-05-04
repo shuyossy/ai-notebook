@@ -306,7 +306,7 @@ export class RedmineClient {
       return true;
     } catch (error) {
       console.error('Redmine API疎通確認に失敗:', error);
-      throw new Error('Redmine APIへの接続に失敗しました');
+      throw error;
     }
   }
 }

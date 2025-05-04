@@ -11,7 +11,6 @@ const useAgentStatus = () => {
 
     const pollStatus = async () => {
       const agentStatus = await window.electron.agent.getStatus();
-      console.log('ポーリング結果:', agentStatus);
       setStatus(agentStatus);
 
       if (agentStatus.state !== 'initializing') {

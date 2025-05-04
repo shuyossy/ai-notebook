@@ -7,6 +7,20 @@ import getDb from '../../db/index';
 import FileExtractor from '../../main/utils/fileExtractor';
 import { getSourceQuerySystemPrompt } from '../agents/prompts';
 import openAICompatibleModel from '../agents/model/openAICompatible';
+import { BaseToolResponse, createBaseToolResponseSchema } from './types';
+
+// ソースリストのレスポンス型
+type SourceListResponse = BaseToolResponse<{
+  sources: Array<{
+    id: number;
+    title: string;
+    summary: string;
+    topics: Array<{
+      name: string;
+      summary: string;
+    }>;
+  }>;
+}>;
 
 /**
  * ソース一覧表示ツール
@@ -15,23 +29,24 @@ import openAICompatibleModel from '../agents/model/openAICompatible';
 export const sourceListTool = createTool({
   id: 'sourceListTool',
   description: '登録されているソースの一覧とその要約、トピックを表示する',
-  inputSchema: z.any().optional().describe('入力パラメータ不要'),
-  outputSchema: z.object({
-    sources: z.array(
-      z.object({
-        id: z.number(),
-        title: z.string(),
-        summary: z.string(),
-        topics: z.array(
-          z.object({
-            name: z.string(),
-            summary: z.string(),
-          }),
-        ),
-      }),
-    ),
-  }),
-  execute: async () => {
+  outputSchema: createBaseToolResponseSchema(
+    z.object({
+      sources: z.array(
+        z.object({
+          id: z.number(),
+          title: z.string(),
+          summary: z.string(),
+          topics: z.array(
+            z.object({
+              name: z.string(),
+              summary: z.string(),
+            }),
+          ),
+        }),
+      ),
+    }),
+  ),
+  execute: async (): Promise<SourceListResponse> => {
     try {
       const db = await getDb();
       // ソースの一覧を取得（将来的にisEnabled=trueのみに絞り込む）
@@ -62,17 +77,30 @@ export const sourceListTool = createTool({
           };
         }),
       );
-
       return {
-        sources: result,
+        status: 'success',
+        result: {
+          sources: result,
+        },
       };
     } catch (error) {
-      throw new Error(
-        `ソース一覧の取得に失敗しました: ${(error as Error).message}`,
-      );
+      const errorMessage =
+        error instanceof Error
+          ? `${error.message}\n${error.stack}`
+          : String(error);
+
+      return {
+        status: 'failed',
+        error: `ソース一覧の取得に失敗しました: ${errorMessage}`,
+      };
     }
   },
 });
+
+// ソースクエリのレスポンス型
+type SourceQueryResponse = BaseToolResponse<{
+  answer: string;
+}>;
 
 /**
  * ソースクエリツール
@@ -86,10 +114,14 @@ export const querySourceTool = createTool({
     path: z.string().describe('ソースファイルのパス:必須'),
     query: z.string().describe('検索内容や質問:必須'),
   }),
-  outputSchema: z.object({
-    answer: z.string(),
-  }),
-  execute: async ({ context: { sourceId, query } }) => {
+  outputSchema: createBaseToolResponseSchema(
+    z.object({
+      answer: z.string(),
+    }),
+  ),
+  execute: async ({
+    context: { sourceId, query },
+  }): Promise<SourceQueryResponse> => {
     try {
       const db = await getDb();
       // ソース情報を取得（将来的にisEnabled=trueのみに絞り込む）
@@ -99,9 +131,10 @@ export const querySourceTool = createTool({
         .where(and(eq(sources.id, sourceId), eq(sources.isEnabled, 1)));
 
       if (sourceData.length === 0) {
-        throw new Error(
-          `指定されたID ${sourceId} のソースは見つかりませんでした`,
-        );
+        return {
+          status: 'failed',
+          error: 'ソースが見つかりませんでした',
+        };
       }
 
       const source = sourceData[0];
@@ -119,10 +152,21 @@ export const querySourceTool = createTool({
       const answer = (await sourceExpertAgent.generate(query)).text;
 
       return {
-        answer,
+        status: 'success',
+        result: {
+          answer,
+        },
       };
     } catch (error) {
-      throw new Error(`ソース検索に失敗しました: ${(error as Error).message}`);
+      const errorMessage =
+        error instanceof Error
+          ? `${error.message}\n${error.stack}`
+          : String(error);
+
+      return {
+        status: 'failed',
+        error: `ソース検索に失敗しました: ${errorMessage}`,
+      };
     }
   },
 });

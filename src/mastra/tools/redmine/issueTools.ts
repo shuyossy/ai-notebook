@@ -6,6 +6,7 @@
 import { z } from 'zod';
 import { createTool } from '@mastra/core/tools';
 import { RedmineClient } from './redmineClient';
+import { createBaseToolResponseSchema } from '../types';
 import {
   IssueFilter,
   RedmineIssueData,
@@ -13,6 +14,10 @@ import {
   RedmineIssueListResponse,
   RedmineIssueDetailResponse,
   RedmineCreateIssueResponse,
+  IssuesListResponse,
+  IssueDetailResponse,
+  CreateIssueResponse,
+  UpdateIssueResponse,
 } from './types';
 
 /**
@@ -54,10 +59,12 @@ export const createGetIssuesListTool = (client: RedmineClient) => {
           'column to sort with. Append :desc to invert the order.（例: "category:desc,updated_on"）:任意',
         ),
     }),
-    outputSchema: z.object({
-      issues: z.any(),
-    }),
-    execute: async ({ context }) => {
+    outputSchema: createBaseToolResponseSchema(
+      z.object({
+        issues: z.array(z.any()),
+      }),
+    ),
+    execute: async ({ context }): Promise<IssuesListResponse> => {
       const filters: IssueFilter = {};
 
       // フィルター条件の設定
@@ -152,38 +159,48 @@ export const createGetIssuesListTool = (client: RedmineClient) => {
         filters.sort = context.sort;
       }
 
-      // URL クエリパラメータの構築
-      const queryParams = new URLSearchParams();
+      try {
+        // URL クエリパラメータの構築
+        const queryParams = new URLSearchParams();
 
-      // フィルター条件をクエリパラメータに追加
-      Object.entries(filters).forEach(([key, value]) => {
-        if (value !== undefined) {
-          queryParams.append(key, String(value));
-        }
-      });
+        // フィルター条件をクエリパラメータに追加
+        Object.entries(filters).forEach(([key, value]) => {
+          if (value !== undefined) {
+            queryParams.append(key, String(value));
+          }
+        });
 
-      // ページネーション
-      const limit = 100;
-      let offset = 0;
-      // すべてのチケットを格納する配列
-      let all: any[] = [];
-      // eslint-disable-next-line
-      while (true) {
-        // API リクエストの実行
-        const path = `issues.json?${queryParams.toString()}&limit=${limit}&offset=${offset}`;
+        // ページネーション
+        const limit = 100;
+        let offset = 0;
+        // すべてのチケットを格納する配列
+        let all: any[] = [];
         // eslint-disable-next-line
-        const response = await client.request<RedmineIssueListResponse>(
-          path,
-          'GET',
-        );
-        all = all.concat(response.issues);
-        if (all.length >= response.total_count) break;
-        offset += limit;
-      }
+        while (true) {
+          // API リクエストの実行
+          const path = `issues.json?${queryParams.toString()}&limit=${limit}&offset=${offset}`;
+          // eslint-disable-next-line
+          const response = await client.request<RedmineIssueListResponse>(
+            path,
+            'GET',
+          );
+          all = all.concat(response.issues);
+          if (all.length >= response.total_count) break;
+          offset += limit;
+        }
 
-      return {
-        issues: all,
-      };
+        return {
+          status: 'success',
+          result: {
+            issues: all,
+          },
+        };
+      } catch (error) {
+        return {
+          status: 'failed',
+          error: `チケット一覧の取得に失敗しました: ${error}`,
+        };
+      }
     },
   });
 };
@@ -207,23 +224,35 @@ export const createGetIssueDetailTool = (client: RedmineClient) => {
           '含める関連情報の配列（利用可能な関連情報: ["children", "attachments", "relations", "journals"]）:任意',
         ),
     }),
-    outputSchema: z.object({
-      issue: z.any(),
-    }),
-    execute: async ({ context }) => {
-      // 含める関連情報の設定
-      const includes = context.include?.join(',') || '';
-      const path = `issues/${context.issue_id}.json${includes ? `?include=${includes}` : ''}`;
+    outputSchema: createBaseToolResponseSchema(
+      z.object({
+        issue: z.any(),
+      }),
+    ),
+    execute: async ({ context }): Promise<IssueDetailResponse> => {
+      try {
+        // 含める関連情報の設定
+        const includes = context.include?.join(',') || '';
+        const path = `issues/${context.issue_id}.json${includes ? `?include=${includes}` : ''}`;
 
-      // API リクエストの実行
-      const response = await client.request<RedmineIssueDetailResponse>(
-        path,
-        'GET',
-      );
+        // API リクエストの実行
+        const response = await client.request<RedmineIssueDetailResponse>(
+          path,
+          'GET',
+        );
 
-      return {
-        issue: response.issue,
-      };
+        return {
+          status: 'success',
+          result: {
+            issue: response.issue,
+          },
+        };
+      } catch (error) {
+        return {
+          status: 'failed',
+          error: `チケット詳細の取得に失敗しました: ${error}`,
+        };
+      }
     },
   });
 };
@@ -267,10 +296,12 @@ export const createCreateIssueTool = (client: RedmineClient) => {
       due_date: z.string().optional().describe('期日（YYYY-MM-DD形式）:任意'),
       estimated_hours: z.number().optional().describe('予定工数(h):任意'),
     }),
-    outputSchema: z.object({
-      created_issue: z.any(),
-    }),
-    execute: async ({ context }) => {
+    outputSchema: createBaseToolResponseSchema(
+      z.object({
+        created_issue: z.any(),
+      }),
+    ),
+    execute: async ({ context }): Promise<CreateIssueResponse> => {
       // チケットデータの準備
       const issueData: RedmineIssueData = {
         project_id: context.project_id,
@@ -388,16 +419,26 @@ export const createCreateIssueTool = (client: RedmineClient) => {
         issueData.estimated_hours = context.estimated_hours;
       }
 
-      // API リクエストの実行
-      const response = await client.request<RedmineCreateIssueResponse>(
-        'issues.json',
-        'POST',
-        { issue: issueData },
-      );
+      try {
+        // API リクエストの実行
+        const response = await client.request<RedmineCreateIssueResponse>(
+          'issues.json',
+          'POST',
+          { issue: issueData },
+        );
 
-      return {
-        created_issue: response.issue,
-      };
+        return {
+          status: 'success',
+          result: {
+            created_issue: response.issue,
+          },
+        };
+      } catch (error) {
+        return {
+          status: 'failed',
+          error: `チケットの作成に失敗しました: ${error}`,
+        };
+      }
     },
   });
 };
@@ -441,10 +482,12 @@ export const createUpdateIssueTool = (client: RedmineClient) => {
       due_date: z.string().optional().describe('期日（YYYY-MM-DD形式）:任意'),
       estimated_hours: z.number().optional().describe('予定工数:任意'),
     }),
-    outputSchema: z.object({
-      updated_issue: z.any(),
-    }),
-    execute: async ({ context }) => {
+    outputSchema: createBaseToolResponseSchema(
+      z.object({
+        updated_issue: z.any(),
+      }),
+    ),
+    execute: async ({ context }): Promise<UpdateIssueResponse> => {
       // 既存チケットの詳細を取得
       const existingIssue = await client.request<RedmineIssueDetailResponse>(
         `issues/${context.issue_id}.json`,
@@ -557,20 +600,30 @@ export const createUpdateIssueTool = (client: RedmineClient) => {
         throw new Error('更新する項目が指定されていません');
       }
 
-      // API リクエストの実行
-      await client.request(`issues/${context.issue_id}.json`, 'PUT', {
-        issue: updateData,
-      });
+      try {
+        // API リクエストの実行
+        await client.request(`issues/${context.issue_id}.json`, 'PUT', {
+          issue: updateData,
+        });
 
-      // 更新後のチケット詳細を取得
-      const updatedIssue = await client.request<RedmineIssueDetailResponse>(
-        `issues/${context.issue_id}.json`,
-        'GET',
-      );
+        // 更新後のチケット詳細を取得
+        const updatedIssue = await client.request<RedmineIssueDetailResponse>(
+          `issues/${context.issue_id}.json`,
+          'GET',
+        );
 
-      return {
-        updated_issue: updatedIssue.issue,
-      };
+        return {
+          status: 'success',
+          result: {
+            updated_issue: updatedIssue.issue,
+          },
+        };
+      } catch (error) {
+        return {
+          status: 'failed',
+          error: `チケットの更新に失敗しました: ${error}`,
+        };
+      }
     },
   });
 };

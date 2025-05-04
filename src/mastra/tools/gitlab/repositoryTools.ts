@@ -6,6 +6,17 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { GitLabClient } from './gitlabClient';
+import { BaseToolResponse, createBaseToolResponseSchema } from '../types';
+
+// リポジトリファイルのレスポンス型
+type RepositoryFileResponse = BaseToolResponse<{
+  file: any; // GitLabのファイル型は必要に応じて定義
+}>;
+
+// リポジトリツリーのレスポンス型
+type RepositoryTreeResponse = BaseToolResponse<{
+  tree: any[]; // GitLabのツリー項目型は必要に応じて定義
+}>;
 
 /**
  * リポジトリファイルを取得するツール
@@ -24,24 +35,38 @@ export const createGetFileContentTool = (client: GitLabClient) => {
       file_path: z
         .string()
         .describe(
-          '（リポジトリルートからの相対パスで、URLエンコード済みであること（例えばpath%2Fto%2Ffile.rb）:必須',
+          'リポジトリルートからの相対パスで、URLエンコード済みであること（例えばpath%2Fto%2Ffile.rb）:必須',
         ),
       ref: z.string().describe('リファレンス（ブランチ名、タグ名）:必須'),
     }),
-    outputSchema: z.object({
-      file: z.any(),
-    }),
-    execute: async ({ context }) => {
-      const { repositoryFiles } = client.getApiResources();
+    outputSchema: createBaseToolResponseSchema(
+      z.object({
+        file: z.any(),
+      }),
+    ),
+    execute: async ({ context }): Promise<RepositoryFileResponse> => {
+      try {
+        const { repositoryFiles } = client.getApiResources();
 
-      // ファイル内容を取得
-      const file = await repositoryFiles.show(
-        context.project_id,
-        context.file_path,
-        context.ref || 'master',
-      );
+        // ファイル内容を取得
+        const file = await repositoryFiles.show(
+          context.project_id,
+          context.file_path,
+          context.ref || 'master',
+        );
 
-      return { file };
+        return {
+          status: 'success',
+          result: {
+            file,
+          },
+        };
+      } catch (error) {
+        return {
+          status: 'failed',
+          error: `ファイル内容の取得に失敗しました: ${error}`,
+        };
+      }
     },
   });
 };
@@ -67,18 +92,34 @@ export const createGetRawFileTool = (client: GitLabClient) => {
         ),
       ref: z.string().describe('リファレンス（ブランチ名、タグ名）:必須'),
     }),
-    outputSchema: z.any(),
-    execute: async ({ context }) => {
-      const { repositoryFiles } = client.getApiResources();
+    outputSchema: createBaseToolResponseSchema(
+      z.object({
+        file: z.any(),
+      }),
+    ),
+    execute: async ({ context }): Promise<RepositoryFileResponse> => {
+      try {
+        const { repositoryFiles } = client.getApiResources();
 
-      // ファイル内容を取得
-      const file = await repositoryFiles.showRaw(
-        context.project_id,
-        context.file_path,
-        context.ref || 'master',
-      );
+        // ファイル内容を取得
+        const file = await repositoryFiles.showRaw(
+          context.project_id,
+          context.file_path,
+          context.ref || 'master',
+        );
 
-      return { file };
+        return {
+          status: 'success',
+          result: {
+            file,
+          },
+        };
+      } catch (error) {
+        return {
+          status: 'failed',
+          error: `生ファイルの取得に失敗しました: ${error}`,
+        };
+      }
     },
   });
 };
@@ -110,19 +151,35 @@ export const createGeBlameFileTool = (client: GitLabClient) => {
         .optional()
         .describe('取得する行の範囲:任意'),
     }),
-    outputSchema: z.any(),
-    execute: async ({ context }) => {
-      const { repositoryFiles } = client.getApiResources();
+    outputSchema: createBaseToolResponseSchema(
+      z.object({
+        file: z.any(),
+      }),
+    ),
+    execute: async ({ context }): Promise<RepositoryFileResponse> => {
+      try {
+        const { repositoryFiles } = client.getApiResources();
 
-      // ファイル内容を取得
-      const file = await repositoryFiles.allFileBlames(
-        context.project_id,
-        context.file_path,
-        context.ref || 'master',
-        { range: context.range },
-      );
+        // ファイル内容を取得
+        const file = await repositoryFiles.allFileBlames(
+          context.project_id,
+          context.file_path,
+          context.ref || 'master',
+          { range: context.range },
+        );
 
-      return { file };
+        return {
+          status: 'success',
+          result: {
+            file,
+          },
+        };
+      } catch (error) {
+        return {
+          status: 'failed',
+          error: `blameファイルの取得に失敗しました: ${error}`,
+        };
+      }
     },
   });
 };
@@ -153,19 +210,37 @@ export const createGetRepositoryTreeTool = (client: GitLabClient) => {
         .default(true)
         .describe('サブディレクトリを再帰的に取得するか:任意'),
     }),
-    outputSchema: z.any(),
-    execute: async ({ context }) => {
-      const { repositories } = client.getApiResources();
+    outputSchema: createBaseToolResponseSchema(
+      z.object({
+        tree: z.array(z.any()),
+      }),
+    ),
+    execute: async ({ context }): Promise<RepositoryTreeResponse> => {
+      try {
+        const { repositories } = client.getApiResources();
 
-      // リポジトリツリーを取得
-      const treeItems = await repositories.allRepositoryTrees(
-        context.project_id,
-        { ref: context.ref, recursive: context.recursive, path: context.path },
-      );
+        // リポジトリツリーを取得
+        const treeItems = await repositories.allRepositoryTrees(
+          context.project_id,
+          {
+            ref: context.ref,
+            recursive: context.recursive,
+            path: context.path,
+          },
+        );
 
-      return {
-        tree: treeItems,
-      };
+        return {
+          status: 'success',
+          result: {
+            tree: treeItems,
+          },
+        };
+      } catch (error) {
+        return {
+          status: 'failed',
+          error: `リポジトリツリーの取得に失敗しました: ${error}`,
+        };
+      }
     },
   });
 };
