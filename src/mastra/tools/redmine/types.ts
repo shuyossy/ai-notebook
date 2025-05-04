@@ -1,25 +1,3 @@
-import { BaseToolResponse } from '../types';
-
-// チケット一覧のレスポンス型
-export type IssuesListResponse = BaseToolResponse<{
-  issues: any[]; // Redmineのチケット型は必要に応じて定義
-}>;
-
-// チケット詳細のレスポンス型
-export type IssueDetailResponse = BaseToolResponse<{
-  issue: any; // Redmineのチケット型は必要に応じて定義
-}>;
-
-// チケット作成のレスポンス型
-export type CreateIssueResponse = BaseToolResponse<{
-  created_issue: any; // Redmineのチケット型は必要に応じて定義
-}>;
-
-// チケット更新のレスポンス型
-export type UpdateIssueResponse = BaseToolResponse<{
-  updated_issue: any; // Redmineのチケット型は必要に応じて定義
-}>;
-
 /**
  * Redmineチケット作成/更新用の共通データ
  */

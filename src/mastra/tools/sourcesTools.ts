@@ -7,20 +7,7 @@ import getDb from '../../db/index';
 import FileExtractor from '../../main/utils/fileExtractor';
 import { getSourceQuerySystemPrompt } from '../agents/prompts';
 import openAICompatibleModel from '../agents/model/openAICompatible';
-import { BaseToolResponse, createBaseToolResponseSchema } from './types';
-
-// ソースリストのレスポンス型
-type SourceListResponse = BaseToolResponse<{
-  sources: Array<{
-    id: number;
-    title: string;
-    summary: string;
-    topics: Array<{
-      name: string;
-      summary: string;
-    }>;
-  }>;
-}>;
+import { createBaseToolResponseSchema, RunToolStatus } from './types';
 
 /**
  * ソース一覧表示ツール
@@ -46,7 +33,8 @@ export const sourceListTool = createTool({
       ),
     }),
   ),
-  execute: async (): Promise<SourceListResponse> => {
+  execute: async () => {
+    let status: RunToolStatus = 'failed';
     try {
       const db = await getDb();
       // ソースの一覧を取得（将来的にisEnabled=trueのみに絞り込む）
@@ -77,8 +65,9 @@ export const sourceListTool = createTool({
           };
         }),
       );
+      status = 'success';
       return {
-        status: 'success',
+        status,
         result: {
           sources: result,
         },
@@ -88,19 +77,14 @@ export const sourceListTool = createTool({
         error instanceof Error
           ? `${error.message}\n${error.stack}`
           : String(error);
-
+      status = 'failed';
       return {
-        status: 'failed',
+        status,
         error: `ソース一覧の取得に失敗しました: ${errorMessage}`,
       };
     }
   },
 });
-
-// ソースクエリのレスポンス型
-type SourceQueryResponse = BaseToolResponse<{
-  answer: string;
-}>;
 
 /**
  * ソースクエリツール
@@ -119,9 +103,8 @@ export const querySourceTool = createTool({
       answer: z.string(),
     }),
   ),
-  execute: async ({
-    context: { sourceId, query },
-  }): Promise<SourceQueryResponse> => {
+  execute: async ({ context: { sourceId, query } }) => {
+    let status: RunToolStatus = 'failed';
     try {
       const db = await getDb();
       // ソース情報を取得（将来的にisEnabled=trueのみに絞り込む）
@@ -131,8 +114,9 @@ export const querySourceTool = createTool({
         .where(and(eq(sources.id, sourceId), eq(sources.isEnabled, 1)));
 
       if (sourceData.length === 0) {
+        status = 'failed';
         return {
-          status: 'failed',
+          status,
           error: 'ソースが見つかりませんでした',
         };
       }
@@ -150,9 +134,9 @@ export const querySourceTool = createTool({
       });
 
       const answer = (await sourceExpertAgent.generate(query)).text;
-
+      status = 'success';
       return {
-        status: 'success',
+        status,
         result: {
           answer,
         },
@@ -163,8 +147,9 @@ export const querySourceTool = createTool({
           ? `${error.message}\n${error.stack}`
           : String(error);
 
+      status = 'failed';
       return {
-        status: 'failed',
+        status,
         error: `ソース検索に失敗しました: ${errorMessage}`,
       };
     }

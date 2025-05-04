@@ -6,17 +6,7 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { GitLabClient } from './gitlabClient';
-import { BaseToolResponse, createBaseToolResponseSchema } from '../types';
-
-// マージリクエスト詳細のレスポンス型
-type MergeRequestDetailResponse = BaseToolResponse<{
-  mergeRequest: any; // GitLabのマージリクエスト型は必要に応じて定義
-}>;
-
-// マージリクエストコメントのレスポンス型
-type MergeRequestCommentResponse = BaseToolResponse<{
-  added_comment: any; // GitLabのコメント型は必要に応じて定義
-}>;
+import { createBaseToolResponseSchema, RunToolStatus } from '../types';
 
 /**
  * 特定のマージリクエスト詳細を取得するツール
@@ -40,7 +30,8 @@ export const createGetMergeRequestDetailTool = (client: GitLabClient) => {
         mergeRequest: z.any(),
       }),
     ),
-    execute: async ({ context }): Promise<MergeRequestDetailResponse> => {
+    execute: async ({ context }) => {
+      let status: RunToolStatus = 'failed';
       try {
         const { mergeRequests } = client.getApiResources();
 
@@ -52,15 +43,17 @@ export const createGetMergeRequestDetailTool = (client: GitLabClient) => {
           { showExpanded: true },
         );
 
+        status = 'success';
         return {
-          status: 'success',
+          status,
           result: {
             mergeRequest: mr.data,
           },
         };
       } catch (error) {
+        status = 'failed';
         return {
-          status: 'failed',
+          status,
           error: `マージリクエストの取得に失敗しました: ${error}`,
         };
       }
@@ -91,7 +84,8 @@ export const createAddMergeRequestCommentTool = (client: GitLabClient) => {
         added_comment: z.any(),
       }),
     ),
-    execute: async ({ context }): Promise<MergeRequestCommentResponse> => {
+    execute: async ({ context }) => {
+      let status: RunToolStatus = 'failed';
       try {
         const { mergeRequestNotes } = client.getApiResources();
 
@@ -102,15 +96,17 @@ export const createAddMergeRequestCommentTool = (client: GitLabClient) => {
           context.body,
         );
 
+        status = 'success';
         return {
-          status: 'success',
+          status,
           result: {
             added_comment: comment,
           },
         };
       } catch (error) {
+        status = 'failed';
         return {
-          status: 'failed',
+          status,
           error: `マージリクエストへのコメント追加に失敗しました: ${error}`,
         };
       }
@@ -194,7 +190,8 @@ export const createAddMergeRequestDiffCommentTool = (client: GitLabClient) => {
         added_comment: z.any(),
       }),
     ),
-    execute: async ({ context }): Promise<MergeRequestCommentResponse> => {
+    execute: async ({ context }) => {
+      let status: RunToolStatus = 'failed';
       try {
         const { mergeRequestDiscussions } = client.getApiResources();
 
@@ -208,15 +205,17 @@ export const createAddMergeRequestDiffCommentTool = (client: GitLabClient) => {
           },
         );
 
+        status = 'success';
         return {
-          status: 'success',
+          status,
           result: {
             added_comment: comment,
           },
         };
       } catch (error) {
+        status = 'failed';
         return {
-          status: 'failed',
+          status,
           error: `マージリクエストのDiffコメント追加に失敗しました: ${error}`,
         };
       }

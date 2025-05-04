@@ -6,17 +6,7 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { GitLabClient } from './gitlabClient';
-import { BaseToolResponse, createBaseToolResponseSchema } from '../types';
-
-// リポジトリファイルのレスポンス型
-type RepositoryFileResponse = BaseToolResponse<{
-  file: any; // GitLabのファイル型は必要に応じて定義
-}>;
-
-// リポジトリツリーのレスポンス型
-type RepositoryTreeResponse = BaseToolResponse<{
-  tree: any[]; // GitLabのツリー項目型は必要に応じて定義
-}>;
+import { createBaseToolResponseSchema, RunToolStatus } from '../types';
 
 /**
  * リポジトリファイルを取得するツール
@@ -44,7 +34,8 @@ export const createGetFileContentTool = (client: GitLabClient) => {
         file: z.any(),
       }),
     ),
-    execute: async ({ context }): Promise<RepositoryFileResponse> => {
+    execute: async ({ context }) => {
+      let status: RunToolStatus = 'failed';
       try {
         const { repositoryFiles } = client.getApiResources();
 
@@ -55,15 +46,17 @@ export const createGetFileContentTool = (client: GitLabClient) => {
           context.ref || 'master',
         );
 
+        status = 'success';
         return {
-          status: 'success',
+          status,
           result: {
             file,
           },
         };
       } catch (error) {
+        status = 'failed';
         return {
-          status: 'failed',
+          status,
           error: `ファイル内容の取得に失敗しました: ${error}`,
         };
       }
@@ -97,7 +90,8 @@ export const createGetRawFileTool = (client: GitLabClient) => {
         file: z.any(),
       }),
     ),
-    execute: async ({ context }): Promise<RepositoryFileResponse> => {
+    execute: async ({ context }) => {
+      let status: RunToolStatus = 'failed';
       try {
         const { repositoryFiles } = client.getApiResources();
 
@@ -108,15 +102,17 @@ export const createGetRawFileTool = (client: GitLabClient) => {
           context.ref || 'master',
         );
 
+        status = 'success';
         return {
-          status: 'success',
+          status,
           result: {
             file,
           },
         };
       } catch (error) {
+        status = 'failed';
         return {
-          status: 'failed',
+          status,
           error: `生ファイルの取得に失敗しました: ${error}`,
         };
       }
@@ -156,7 +152,8 @@ export const createGeBlameFileTool = (client: GitLabClient) => {
         file: z.any(),
       }),
     ),
-    execute: async ({ context }): Promise<RepositoryFileResponse> => {
+    execute: async ({ context }) => {
+      let status: RunToolStatus = 'failed';
       try {
         const { repositoryFiles } = client.getApiResources();
 
@@ -168,15 +165,17 @@ export const createGeBlameFileTool = (client: GitLabClient) => {
           { range: context.range },
         );
 
+        status = 'success';
         return {
-          status: 'success',
+          status,
           result: {
             file,
           },
         };
       } catch (error) {
+        status = 'failed';
         return {
-          status: 'failed',
+          status,
           error: `blameファイルの取得に失敗しました: ${error}`,
         };
       }
@@ -215,7 +214,8 @@ export const createGetRepositoryTreeTool = (client: GitLabClient) => {
         tree: z.array(z.any()),
       }),
     ),
-    execute: async ({ context }): Promise<RepositoryTreeResponse> => {
+    execute: async ({ context }) => {
+      let status: RunToolStatus = 'failed';
       try {
         const { repositories } = client.getApiResources();
 
@@ -229,15 +229,17 @@ export const createGetRepositoryTreeTool = (client: GitLabClient) => {
           },
         );
 
+        status = 'success';
         return {
-          status: 'success',
+          status,
           result: {
             tree: treeItems,
           },
         };
       } catch (error) {
+        status = 'failed';
         return {
-          status: 'failed',
+          status,
           error: `リポジトリツリーの取得に失敗しました: ${error}`,
         };
       }
@@ -252,9 +254,9 @@ export const createGetRepositoryTreeTool = (client: GitLabClient) => {
  */
 export const createRepositoryTools = (client: GitLabClient) => {
   return {
-    getFileContent: createGetFileContentTool(client),
-    getRawFile: createGetRawFileTool(client),
-    getBlameFile: createGeBlameFileTool(client),
-    getRepositoryTree: createGetRepositoryTreeTool(client),
+    getGitLabFileContent: createGetFileContentTool(client),
+    getGitLabRawFile: createGetRawFileTool(client),
+    getGitLabBlameFile: createGeBlameFileTool(client),
+    getGitLabRepositoryTree: createGetRepositoryTreeTool(client),
   };
 };

@@ -6,7 +6,7 @@
 import { z } from 'zod';
 import { createTool } from '@mastra/core/tools';
 import { RedmineClient } from './redmineClient';
-import { createBaseToolResponseSchema } from '../types';
+import { createBaseToolResponseSchema, RunToolStatus } from '../types';
 import {
   IssueFilter,
   RedmineIssueData,
@@ -14,10 +14,6 @@ import {
   RedmineIssueListResponse,
   RedmineIssueDetailResponse,
   RedmineCreateIssueResponse,
-  IssuesListResponse,
-  IssueDetailResponse,
-  CreateIssueResponse,
-  UpdateIssueResponse,
 } from './types';
 
 /**
@@ -64,7 +60,8 @@ export const createGetIssuesListTool = (client: RedmineClient) => {
         issues: z.array(z.any()),
       }),
     ),
-    execute: async ({ context }): Promise<IssuesListResponse> => {
+    execute: async ({ context }) => {
+      let status: RunToolStatus = 'failed';
       const filters: IssueFilter = {};
 
       // フィルター条件の設定
@@ -189,15 +186,17 @@ export const createGetIssuesListTool = (client: RedmineClient) => {
           offset += limit;
         }
 
+        status = 'success';
         return {
-          status: 'success',
+          status,
           result: {
             issues: all,
           },
         };
       } catch (error) {
+        status = 'failed';
         return {
-          status: 'failed',
+          status,
           error: `チケット一覧の取得に失敗しました: ${error}`,
         };
       }
@@ -229,7 +228,8 @@ export const createGetIssueDetailTool = (client: RedmineClient) => {
         issue: z.any(),
       }),
     ),
-    execute: async ({ context }): Promise<IssueDetailResponse> => {
+    execute: async ({ context }) => {
+      let status: RunToolStatus = 'failed';
       try {
         // 含める関連情報の設定
         const includes = context.include?.join(',') || '';
@@ -241,15 +241,17 @@ export const createGetIssueDetailTool = (client: RedmineClient) => {
           'GET',
         );
 
+        status = 'success';
         return {
-          status: 'success',
+          status,
           result: {
             issue: response.issue,
           },
         };
       } catch (error) {
+        status = 'failed';
         return {
-          status: 'failed',
+          status,
           error: `チケット詳細の取得に失敗しました: ${error}`,
         };
       }
@@ -301,7 +303,8 @@ export const createCreateIssueTool = (client: RedmineClient) => {
         created_issue: z.any(),
       }),
     ),
-    execute: async ({ context }): Promise<CreateIssueResponse> => {
+    execute: async ({ context }) => {
+      let status: RunToolStatus = 'failed';
       // チケットデータの準備
       const issueData: RedmineIssueData = {
         project_id: context.project_id,
@@ -427,15 +430,17 @@ export const createCreateIssueTool = (client: RedmineClient) => {
           { issue: issueData },
         );
 
+        status = 'success';
         return {
-          status: 'success',
+          status,
           result: {
             created_issue: response.issue,
           },
         };
       } catch (error) {
+        status = 'failed';
         return {
-          status: 'failed',
+          status,
           error: `チケットの作成に失敗しました: ${error}`,
         };
       }
@@ -487,7 +492,8 @@ export const createUpdateIssueTool = (client: RedmineClient) => {
         updated_issue: z.any(),
       }),
     ),
-    execute: async ({ context }): Promise<UpdateIssueResponse> => {
+    execute: async ({ context }) => {
+      let status: RunToolStatus = 'failed';
       // 既存チケットの詳細を取得
       const existingIssue = await client.request<RedmineIssueDetailResponse>(
         `issues/${context.issue_id}.json`,
@@ -612,15 +618,17 @@ export const createUpdateIssueTool = (client: RedmineClient) => {
           'GET',
         );
 
+        status = 'success';
         return {
-          status: 'success',
+          status,
           result: {
             updated_issue: updatedIssue.issue,
           },
         };
       } catch (error) {
+        status = 'failed';
         return {
-          status: 'failed',
+          status,
           error: `チケットの更新に失敗しました: ${error}`,
         };
       }
@@ -635,9 +643,9 @@ export const createUpdateIssueTool = (client: RedmineClient) => {
  */
 export const createIssueTools = (client: RedmineClient) => {
   return {
-    getIssuesList: createGetIssuesListTool(client),
-    getIssueDetail: createGetIssueDetailTool(client),
-    createIssue: createCreateIssueTool(client),
-    updateIssue: createUpdateIssueTool(client),
+    getRedmineIssuesList: createGetIssuesListTool(client),
+    getRedmineIssueDetail: createGetIssueDetailTool(client),
+    createRedmineIssue: createCreateIssueTool(client),
+    updateRedmineIssue: createUpdateIssueTool(client),
   };
 };
