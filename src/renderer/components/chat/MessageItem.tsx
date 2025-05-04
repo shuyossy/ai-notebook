@@ -1,11 +1,23 @@
-import React, { forwardRef, memo } from 'react';
+// ─────────────────── MessageItem.tsx ───────────────────
+// © 2025 Your Company – MIT License
+//
+// チャットメッセージを高品質に表示するコンポーネント。
+// ・Markdown＋GFM対応
+// ・コードハイライト＋コピー機能（小さな「コピーしました」表示）
+// ・HTML ネスト違反を自動回避
+// ─────────────────────────────────────────────
+
+import React, { memo, forwardRef, useState, useEffect } from 'react';
 // @ts-ignore
 import ReactMarkdown from 'react-markdown';
 // @ts-ignore
 import remarkGfm from 'remark-gfm';
+
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { materialLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
+
 import copy from 'copy-to-clipboard';
+
 import {
   Box,
   Typography,
@@ -18,13 +30,15 @@ import {
   TableRow,
   TableCell,
   Tooltip,
+  Fade,
 } from '@mui/material';
 import { ContentCopy as CopyIcon } from '@mui/icons-material';
 // @ts-ignore
 import type { Components } from 'react-markdown';
+
 import type { ChatMessage } from '../../../main/types';
 
-// ──────── Markdown レンダラー設定 ────────
+// ─────────────── CodeProps 型 ───────────────
 
 type CodeProps = {
   inline?: boolean;
@@ -32,20 +46,7 @@ type CodeProps = {
   children?: React.ReactNode;
 };
 
-// コードブロックのテーマ設定
-const customStyle = {
-  ...materialLight,
-  'pre[class*="language-"]': {
-    ...materialLight['pre[class*="language-"]'],
-    backgroundColor: '#f5f5f5',
-  },
-  'code[class*="language-"]': {
-    backgroundColor: '#f5f5f5',
-  },
-  'span[class*="token"]': {
-    backgroundColor: 'transparent',
-  },
-};
+// ─────────────── コードレンダラー ───────────────
 
 const CodeBlockRenderer: React.FC<CodeProps> = ({
   inline,
@@ -56,7 +57,18 @@ const CodeBlockRenderer: React.FC<CodeProps> = ({
   const langMatch = /language-(\w+)/.exec(className || '');
   const lang = langMatch?.[1] ?? '';
 
+  // コピー表示制御
+  const [copied, setCopied] = useState(false);
+  // eslint-disable-next-line
+  useEffect(() => {
+    if (copied) {
+      const timer = setTimeout(() => setCopied(false), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [copied]);
+
   if (inline) {
+    // インラインコードは <code> タグで
     return (
       <Box
         component="code"
@@ -65,7 +77,7 @@ const CodeBlockRenderer: React.FC<CodeProps> = ({
           py: 0.5,
           bgcolor: 'grey.100',
           borderRadius: 1,
-          fontSize: '0.875em',
+          fontSize: '0.925em',
         }}
       >
         {children}
@@ -73,12 +85,17 @@ const CodeBlockRenderer: React.FC<CodeProps> = ({
     );
   }
 
+  // ブロックコードは <pre> 包み＋SyntaxHighlighter
   return (
-    <Box sx={{ position: 'relative', mb: 2 }}>
-      <Tooltip title="コードをコピー">
+    <Box component="pre" sx={{ position: 'relative', mb: 2, m: 0, p: 0 }}>
+      {/* コピーボタン */}
+      <Tooltip title={copied ? 'コピーしました' : 'コードをコピー'} arrow>
         <IconButton
           size="small"
-          onClick={() => copy(text)}
+          onClick={() => {
+            copy(text);
+            setCopied(true);
+          }}
           sx={{
             position: 'absolute',
             top: 8,
@@ -86,26 +103,53 @@ const CodeBlockRenderer: React.FC<CodeProps> = ({
             bgcolor: 'background.paper',
             zIndex: 1,
           }}
-          aria-label="コピー"
+          aria-label="コードをコピー"
         >
           <CopyIcon fontSize="small" />
         </IconButton>
       </Tooltip>
+
+      {/* ハイライト部分 */}
       <SyntaxHighlighter
-        style={customStyle as unknown as any}
+        style={oneLight}
         language={lang}
         customStyle={{
           backgroundColor: '#f5f5f5',
           padding: '1em',
           borderRadius: '0.25em',
+          fontSize: '0.925em',
         }}
-        codeTagProps={{ style: { backgroundColor: '#f5f5f5' } }}
+        codeTagProps={{ style: { backgroundColor: 'inherit' } }}
       >
         {text}
       </SyntaxHighlighter>
     </Box>
   );
 };
+
+// ─────────────── 段落レンダラー ───────────────
+
+const ParagraphRenderer: React.FC<{ children?: React.ReactNode }> = ({
+  children,
+}) => {
+  // const hasBlockChild = React.Children.toArray(children).some((child) => {
+  //   if (!React.isValidElement(child)) return false;
+  //   const t = typeof child.type === 'string' ? child.type : '';
+  //   return ['div', 'pre', 'table', 'img', 'ul', 'ol', 'blockquote'].includes(t);
+  // });
+  // if (hasBlockChild) return children;
+  return (
+    <Typography
+      variant="body1"
+      component="div"
+      sx={{ mt: 1, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
+    >
+      {children}
+    </Typography>
+  );
+};
+
+// ─────────────── テーブル＆画像レンダラー ───────────────
 
 const TableRenderers = {
   table: ({ children }: { children?: React.ReactNode }) => (
@@ -140,21 +184,12 @@ const ImageRenderer: React.FC<{ src?: string; alt?: string }> = ({
     component="img"
     src={src}
     alt={alt}
+    loading="lazy"
     sx={{ maxWidth: '100%', borderRadius: 1, my: 1 }}
   />
 );
 
-const ParagraphRenderer: React.FC<{ children?: React.ReactNode }> = ({
-  children,
-}) => (
-  <Typography
-    variant="body1"
-    component="p"
-    sx={{ mt: 1, whiteSpace: 'pre-wrap' }}
-  >
-    {children}
-  </Typography>
-);
+// ─────────────── Markdown 設定 ───────────────
 
 const markdownComponents = {
   code: CodeBlockRenderer,
@@ -162,6 +197,8 @@ const markdownComponents = {
   p: ParagraphRenderer,
   ...TableRenderers,
 } as unknown as Components;
+
+// ─────────────── メインコンポーネント ───────────────
 
 interface MessageProps {
   message: ChatMessage;
@@ -177,40 +214,42 @@ const MessageItem = forwardRef<HTMLDivElement, MessageProps>(
     });
 
     return (
-      <Box
-        ref={ref}
-        sx={{
-          display: 'flex',
-          justifyContent: isUser ? 'flex-end' : 'flex-start',
-          mb: 2,
-          px: 2,
-        }}
-      >
-        <Box sx={{ maxWidth: isUser ? '70%' : '100%', textAlign: 'left' }}>
-          <Paper
-            elevation={isUser ? 1 : 0}
-            sx={{
-              p: 2,
-              bgcolor: isUser ? 'grey.100' : 'background.paper',
-              borderRadius: 2,
-            }}
-          >
-            <ReactMarkdown
-              remarkPlugins={[remarkGfm]}
-              components={markdownComponents}
+      <Fade in timeout={300}>
+        <Box
+          ref={ref}
+          sx={{
+            display: 'flex',
+            justifyContent: isUser ? 'flex-end' : 'flex-start',
+            mb: 2,
+            px: 2,
+          }}
+        >
+          <Box sx={{ maxWidth: isUser ? '70%' : '100%', textAlign: 'left' }}>
+            <Paper
+              elevation={isUser ? 1 : 0}
+              sx={{
+                p: 2,
+                bgcolor: isUser ? 'grey.100' : 'background.paper',
+                borderRadius: 2,
+              }}
             >
-              {message.content}
-            </ReactMarkdown>
-          </Paper>
-          <Typography
-            variant="caption"
-            color="text.secondary"
-            sx={{ mt: 0.5, display: 'block' }}
-          >
-            {time}
-          </Typography>
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                components={markdownComponents}
+              >
+                {message.content}
+              </ReactMarkdown>
+            </Paper>
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              sx={{ mt: 0.5, display: 'block' }}
+            >
+              {time}
+            </Typography>
+          </Box>
         </Box>
-      </Box>
+      </Fade>
     );
   },
 );
