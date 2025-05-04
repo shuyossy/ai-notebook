@@ -12,7 +12,6 @@ import {
   MergeRequestDiscussions,
   MergeRequestNotes,
 } from '@gitbeaker/rest';
-import { z } from 'zod';
 
 /**
  * GitLabクライアント設定のインターフェース
@@ -108,6 +107,23 @@ export class GitLabClient {
       mergeRequestNotes: this.mergeRequestNotes,
     };
   }
+
+  /**
+   * GitLab APIとの疎通確認を行う
+   * @returns APIアクセスに成功した場合はtrue
+   * @throws APIアクセスに失敗した場合はエラー
+   */
+  async testConnection(): Promise<boolean> {
+    try {
+      // 最も基本的なAPIを呼び出し
+      const { gitlab } = this.getApiResources();
+      await gitlab.Users.showCurrentUser();
+      return true;
+    } catch (error) {
+      console.error('GitLab API疎通確認に失敗:', error);
+      throw new Error('GitLab APIへの接続に失敗しました');
+    }
+  }
 }
 
 /**
@@ -120,11 +136,3 @@ export const createGitLabClient = (
 ): GitLabClient => {
   return new GitLabClient(config);
 };
-
-/**
- * GitLabClient設定のZodスキーマ
- */
-export const gitlabClientConfigSchema = z.object({
-  host: z.string().url('有効なGitLab APIのURLを入力してください'),
-  token: z.string().min(1, 'GitLabのトークンを入力してください'),
-});

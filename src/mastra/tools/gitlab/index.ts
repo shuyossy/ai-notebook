@@ -2,11 +2,8 @@
  * GitLab操作ツールのメインファイル
  * GitLabクライアントとGitLab操作用のツール群を提供
  */
-import {
-  GitLabClient,
-  createGitLabClient,
-  gitlabClientConfigSchema,
-} from './gitlabClient';
+import { GitLabClient, createGitLabClient } from './gitlabClient';
+import { GitLabSchema } from '../../../main/types/settingsSchema';
 import { createRepositoryTools } from './repositoryTools';
 import { createMergeRequestTools } from './mergeRequestTools';
 
@@ -38,14 +35,29 @@ export const createGitLabTools = (config: { host: string; token: string }) => {
  * @returns Mastraで使用可能なGitLab操作ツール
  */
 export const setupGitLabTools = (config: { host: string; token: string }) => {
-  // 設定値を検証
-  const validationResult = gitlabClientConfigSchema.safeParse(config);
-  if (!validationResult.success) {
-    throw new Error(`GitLab設定が不正です: ${validationResult.error.message}`);
-  }
+  return (async () => {
+    // settingsSchemaによる設定値の検証
+    const validationResult = GitLabSchema.safeParse({
+      endpoint: config.host,
+      apiKey: config.token,
+    });
+    if (!validationResult.success) {
+      throw new Error(`GitLab設定が不正です: ${validationResult.error.message}`);
+    }
 
-  // GitLab操作ツール一式を作成
-  return createGitLabTools(config);
+    // GitLabクライアントを作成
+    const client = createGitLabClient(config);
+
+    // API疎通確認
+    try {
+      await client.testConnection();
+    } catch (error: any) {
+      throw new Error(`GitLab APIへの接続確認に失敗しました: ${error.message}`);
+    }
+
+    // GitLab操作ツール一式を作成
+    return createGitLabTools(config);
+  })();
 };
 
-export { GitLabClient, createGitLabClient, gitlabClientConfigSchema };
+export { GitLabClient, createGitLabClient };

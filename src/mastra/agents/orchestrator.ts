@@ -68,7 +68,7 @@ export const getOrchestrator = async (): Promise<{
     if (redmineApiKey && redmineEndpoint) {
       try {
         // Redmineクライアントの初期化
-        redmineTools = setupRedmineTools({
+        redmineTools = await setupRedmineTools({
           apiKey: redmineApiKey,
           apiUrl: redmineEndpoint,
         });
@@ -96,7 +96,7 @@ export const getOrchestrator = async (): Promise<{
     if (gitlabApiKey && gitlabEndpoint) {
       try {
         // Gitlabクライアントの初期化
-        gitlabTools = setupGitLabTools({
+        gitlabTools = await setupGitLabTools({
           token: gitlabApiKey,
           host: gitlabEndpoint,
         });

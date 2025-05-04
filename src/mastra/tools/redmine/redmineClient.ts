@@ -293,6 +293,22 @@ export class RedmineClient {
     );
     return response.custom_fields;
   }
+
+  /**
+   * Redmine APIとの疎通確認を行う
+   * @returns APIアクセスに成功した場合はtrue
+   * @throws APIアクセスに失敗した場合はエラー
+   */
+  async testConnection(): Promise<boolean> {
+    try {
+      // 最も基本的なAPIを呼び出し
+      await this.request('issues.json?limit=1', 'GET');
+      return true;
+    } catch (error) {
+      console.error('Redmine API疎通確認に失敗:', error);
+      throw new Error('Redmine APIへの接続に失敗しました');
+    }
+  }
 }
 
 /**

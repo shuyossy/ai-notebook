@@ -8,8 +8,8 @@ import { z } from 'zod';
 import {
   RedmineClient,
   createRedmineClient,
-  redmineClientConfigSchema,
 } from './redmineClient';
+import { RedmineSchema } from '../../../main/types/settingsSchema';
 import { createIssueTools } from './issueTools';
 
 /**
@@ -95,16 +95,31 @@ export const setupRedmineTools = (config: {
   apiUrl: string;
   apiKey: string;
 }) => {
-  // 設定値を検証
-  const validationResult = redmineClientConfigSchema.safeParse(config);
-  if (!validationResult.success) {
-    throw new Error(`Redmine設定が不正です: ${validationResult.error.message}`);
-  }
+  return (async () => {
+    // settingsSchemaによる設定値の検証
+    const validationResult = RedmineSchema.safeParse({
+      endpoint: config.apiUrl,
+      apiKey: config.apiKey,
+    });
+    if (!validationResult.success) {
+      throw new Error(`Redmine設定が不正です: ${validationResult.error.message}`);
+    }
 
-  // Redmine操作ツール一式を作成
-  return createRedmineTools(config);
+    // Redmineクライアントを作成
+    const client = createRedmineClient(config);
+
+    // API疎通確認
+    try {
+      await client.testConnection();
+    } catch (error: any) {
+      throw new Error(`Redmine APIへの接続確認に失敗しました: ${error.message}`);
+    }
+
+    // Redmine操作ツール一式を作成
+    return createRedmineTools(config);
+  })();
 };
 
 // 型定義とクライアントをエクスポート
 export * from './types';
-export { RedmineClient, createRedmineClient, redmineClientConfigSchema };
+export { RedmineClient, createRedmineClient };
