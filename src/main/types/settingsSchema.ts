@@ -85,7 +85,8 @@ export const McpStoreSchema = z.object({
         if (!result.success) {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
-            message: 'MCP設定形式が不正です: ' +
+            message:
+              'MCP設定形式が不正です: ' +
               result.error.errors.map((err) => err.message).join(', '),
           });
           return z.NEVER;

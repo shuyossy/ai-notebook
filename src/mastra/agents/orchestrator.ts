@@ -40,8 +40,9 @@ export const getOrchestrator = async (): Promise<{
         alertMessages.push({
           id: uuid(),
           type: 'warning',
-          content: `Redmineクライアントの初期化に失敗しました:\n ${error}`,
+          content: `Redmineクライアントの初期化に失敗しました\n設定を確認してください`,
         });
+        console.error('Redmineクライアントの初期化に失敗しました:', error);
       }
     } else {
       console.warn(
@@ -67,8 +68,9 @@ export const getOrchestrator = async (): Promise<{
         alertMessages.push({
           id: uuid(),
           type: 'warning',
-          content: `Gitlabクライアントの初期化に失敗しました:\n ${error}`,
+          content: `Gitlabクライアントの初期化に失敗しました\n設定を確認してください`,
         });
+        console.error('Gitlabクライアントの初期化に失敗しました:', error);
       }
     } else {
       console.warn(
@@ -95,8 +97,9 @@ export const getOrchestrator = async (): Promise<{
         alertMessages.push({
           id: uuid(),
           type: 'warning',
-          content: `MCPサーバーとの接続に失敗しました: ${error}`,
+          content: `MCPサーバーとの接続に失敗しました\nログについては./mcp.logをご確認ください`,
         });
+        console.error('MCPサーバーの初期化に失敗しました:', error);
       }
     }
 

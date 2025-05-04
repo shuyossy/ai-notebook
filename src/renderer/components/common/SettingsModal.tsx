@@ -26,11 +26,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
   const {
     settings,
     validationErrors,
-    saving,
     error,
     updateField,
     saveSettings,
     isValid,
+    saving,
   } = useSettingsStore();
 
   // 設定を更新する

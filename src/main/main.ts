@@ -63,6 +63,11 @@ const updateMastraStatus = (
   }
 };
 
+const initMastraStatus = () => {
+  mastraStatus.state = 'initializing';
+  mastraStatus.messages = [];
+};
+
 /**
  * メッセージIDを指定して削除する
  */
@@ -89,7 +94,7 @@ export const getMastra = (): Mastra => {
  */
 const initializeMastra = async (): Promise<void> => {
   try {
-    updateMastraStatus('initializing');
+    initMastraStatus();
 
     // 開発環境か本番環境かによってログレベルを切り替え
     const logLevel = process.env.NODE_ENV === 'production' ? 'info' : 'debug';
@@ -571,8 +576,8 @@ app.on('window-all-closed', () => {
 });
 
 const initialize = async () => {
-  createWindow();
   await initStore();
+  createWindow();
   await initializeMastra(); // Mastraの初期化を追加
   setupStoreHandlers();
   setupChatHandlers();

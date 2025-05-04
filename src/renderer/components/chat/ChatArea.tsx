@@ -1,10 +1,66 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Divider, Typography } from '@mui/material';
 import { useChat } from '@ai-sdk/react';
+import { Box, Divider, Typography, Alert } from '@mui/material';
+import { v4 as uuid } from 'uuid';
+import useAgentStatus from '../../hooks/useAgentStatus';
 import MessageList from './MessageList';
 import MessageInput from './MessageInput';
 import { chatService } from '../../services/chatService';
 import { ChatMessage } from '../../../main/types';
+import { useAgentStore } from '../../stores/agentStore';
+
+interface AlertMessage {
+  id: string;
+  type: 'success' | 'info' | 'warning' | 'error' | undefined;
+  content: string;
+}
+interface AlertManagerProps {
+  additionalAlerts: AlertMessage[] | undefined;
+  closeAdditionalAlerts?: (id: string) => void;
+}
+const AlertManager: React.FC<AlertManagerProps> = ({
+  additionalAlerts,
+  closeAdditionalAlerts,
+}) => {
+  const { status, closeMessage } = useAgentStore();
+  return (
+    <Box
+      sx={{
+        position: 'absolute',
+        top: 20,
+        left: '50%',
+        transform: 'translateX(-50%)',
+        width: 'fit-content',
+        maxWidth: '80%',
+        zIndex: 1000,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 1,
+      }}
+    >
+      {status.messages.map((message) => (
+        <Alert
+          key={message.id}
+          severity={message.type}
+          sx={{ whiteSpace: 'pre-line' }}
+          onClose={() => closeMessage(message.id)}
+        >
+          {message.content}
+        </Alert>
+      ))}
+      {additionalAlerts?.map((alert) => (
+        <Alert
+          key={alert.id}
+          severity={alert.type}
+          sx={{ whiteSpace: 'pre-line' }}
+          onClose={() => closeAdditionalAlerts?.(alert.id)}
+        >
+          {alert.content}
+        </Alert>
+      ))}
+    </Box>
+  );
+};
 
 // ai-sdk提供のcreateDataStreamResponseを使ってストリーミングレスポンスを取得する場合の関数
 // なぜか適切なヘッダが付与されないので、利用しない
@@ -95,9 +151,24 @@ interface ChatAreaProps {
   selectedRoomId: string | null;
 }
 
+// プレースホルダーテキストを取得する関数
+const getPlaceholderText = (
+  status: string,
+  isInitializing: boolean,
+): string => {
+  if (isInitializing) return 'AIエージェント起動中';
+  if (status === 'submitted') return 'メッセージ送信中…';
+  return 'メッセージを入力してください';
+};
+
 const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
   const [loading, setLoading] = useState(false);
   const [initialMessages, setInitialMessages] = useState<ChatMessage[]>([]);
+  // useChatからのエラーを表示するための状態
+  const [additionalAlerts, setAdditionalAlerts] = useState<AlertMessage[]>([]);
+  const { status: agentStatus } = useAgentStatus();
+
+  const isAgentInitializing = agentStatus.state === 'initializing';
 
   // メッセージ履歴を取得
   const fetchMessages = async (roomId: string) => {
@@ -151,6 +222,25 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
       },
     });
 
+  // useChatのエラーをアラートとして表示
+  useEffect(() => {
+    if (error) {
+      setAdditionalAlerts((prev) => [
+        ...prev,
+        {
+          id: uuid(),
+          type: 'error',
+          content: error.message,
+        },
+      ]);
+    }
+  }, [error]);
+
+  // メッセージアラートが閉じられる際の挙動
+  const closeAdditionalAlerts = (id: string) => {
+    setAdditionalAlerts((prev) => prev.filter((alert) => alert.id !== id));
+  };
+
   return (
     <Box
       sx={{
@@ -158,13 +248,17 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
         height: '100vh',
         display: 'flex',
         flexDirection: 'column',
-        position: 'fixed',
+        position: 'relative',
         right: 0,
         top: 0,
         bottom: 0,
         overflow: 'hidden',
       }}
     >
+      <AlertManager
+        additionalAlerts={additionalAlerts}
+        closeAdditionalAlerts={closeAdditionalAlerts}
+      />
       {selectedRoomId ? (
         <>
           {/* メッセージリスト */}
@@ -177,20 +271,19 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
             handleSubmit={handleSubmit}
             handleInputChange={handleInputChange}
             message={input}
-            disabled={status === 'submitted' || status === 'streaming'}
-            placeholder={
-              // eslint-disable-next-line
-              status === 'submitted'
-                ? 'メッセージ送信中…'
-                : 'メッセージを入力してください'
+            disabled={
+              status === 'submitted' ||
+              status === 'streaming' ||
+              isAgentInitializing
             }
+            placeholder={getPlaceholderText(status, isAgentInitializing)}
           />
 
-          {error && (
+          {/* {error && !isAgentInitializing && (
             <Typography color="error" sx={{ p: 1, textAlign: 'center' }}>
               エラーが発生しました: {error.message}
             </Typography>
-          )}
+          )} */}
         </>
       ) : (
         <Box

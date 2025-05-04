@@ -7,6 +7,7 @@ import {
   type ValidationError,
 } from '../../main/types/settingsSchema';
 import { useElectronStore } from './useElectronStore';
+import { useAgentStore } from '../stores/agentStore';
 
 /**
  * 設定値の型安全な管理と検証を行うフック
@@ -106,6 +107,7 @@ const useSettingsStore = () => {
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { setUpdatedFlg } = useAgentStore();
 
   /**
    * バリデーションエラーの種類を判定
@@ -227,6 +229,10 @@ const useSettingsStore = () => {
         setMcpStore(settings.mcp),
       ]);
 
+      // 設定保存後にMastraを再初期化
+      await window.electron.agent.reinitialize();
+      setUpdatedFlg(true);
+
       return true;
     } catch (err) {
       setError(
@@ -248,12 +254,12 @@ const useSettingsStore = () => {
   return {
     settings,
     validationErrors,
-    saving,
     loading,
     error,
     updateField,
     saveSettings,
     isValid,
+    saving,
   };
 };
 
