@@ -1,5 +1,5 @@
 import { Agent } from '@mastra/core/agent';
-import { MCPConfiguration } from '@mastra/mcp';
+import { MCPConfiguration, LogMessage } from '@mastra/mcp';
 import { v4 as uuid } from 'uuid';
 import { ORCHESTRATOR_SYSTEM_PROMPT } from './prompts';
 import { sourceListTool, querySourceTool } from '../tools/sourcesTools';
@@ -87,9 +87,20 @@ export const getOrchestrator = async (): Promise<{
       try {
         const parsedConfig = JSON.parse(mcpConfig.serverConfigText);
         const validatedConfig = McpSchema.parse(parsedConfig);
+        // それぞれのサーバ設定にログを設定
+        const validatedConfigWithLoggerOption = Object.fromEntries(
+          Object.entries(validatedConfig).map(([key, value]) => [
+            key,
+            {
+              ...value,
+              logger: (logMessage: LogMessage) =>
+                console.log('custom log: ', logMessage),
+            },
+          ]),
+        );
         const mcp = new MCPConfiguration({
           id: uuid(),
-          servers: validatedConfig,
+          servers: validatedConfigWithLoggerOption,
         });
         mcpTools = await mcp.getTools();
         console.log('MCPサーバーの初期化に成功しました。');
