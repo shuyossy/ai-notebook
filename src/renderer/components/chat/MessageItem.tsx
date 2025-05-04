@@ -1,13 +1,4 @@
-// ─────────────────── MessageItem.tsx ───────────────────
-// © 2025 Your Company – MIT License
-//
-// チャットメッセージを高品質に表示するコンポーネント。
-// ・Markdown＋GFM対応
-// ・コードハイライト＋コピー機能（小さな「コピーしました」表示）
-// ・HTML ネスト違反を自動回避
-// ─────────────────────────────────────────────
-
-import React, { memo, forwardRef, useState, useEffect } from 'react';
+import React, { memo, forwardRef, useState, useEffect, useRef } from 'react';
 // @ts-ignore
 import ReactMarkdown from 'react-markdown';
 // @ts-ignore
@@ -35,8 +26,77 @@ import {
 import { ContentCopy as CopyIcon } from '@mui/icons-material';
 // @ts-ignore
 import type { Components } from 'react-markdown';
-
 import type { ChatMessage } from '../../../main/types';
+
+// ─────────────── Mermaid 図レンダラー ───────────────
+type MermaidProps = { chart: string };
+
+const MermaidDiagram: React.FC<MermaidProps> = ({ chart }) => {
+  // SVG 文字列を保持するステート。変数名を svgContent に変更して衝突回避
+  const [svgContent, setSvgContent] = useState<string>('');
+
+  // 安全な ID を初回レンダリング時に一度だけ生成
+  const idRef = useRef<string>(
+    // 日時＋ランダム文字列を結合し、CSS セレクタで使えない文字を除去
+    `mermaid-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`.replace(
+      /[^a-zA-Z0-9_-]/g,
+      '',
+    ),
+  );
+
+  useEffect(() => {
+    let isMounted = true;
+
+    (async () => {
+      // クライアント側でのみ mermaid をロード
+      const mermaid = (await import('mermaid')).default;
+      mermaid.initialize({
+        startOnLoad: false,
+        securityLevel: 'loose',
+        theme: 'default',
+      });
+
+      try {
+        // destructure 時に名前を変える
+        const { svg: generatedSvg } = await mermaid.render(
+          idRef.current,
+          chart,
+        );
+        if (isMounted) {
+          setSvgContent(generatedSvg);
+        }
+      } catch (error) {
+        console.error('Mermaid render failed', error);
+        if (isMounted) {
+          setSvgContent(
+            `<pre style="color:red;white-space:pre-wrap">Mermaid render error:\n${String(
+              error,
+            )}</pre>`,
+          );
+        }
+      }
+    })();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [chart]);
+
+  return (
+    <Box
+      sx={{
+        width: '100%',
+        overflowX: 'auto',
+        my: 2,
+        display: 'flex',
+        justifyContent: 'center',
+        '& svg': { maxWidth: '100%' },
+      }}
+      // dangerouslySetInnerHTML で SVG を描画
+      dangerouslySetInnerHTML={{ __html: svgContent }}
+    />
+  );
+};
 
 // ─────────────── CodeProps 型 ───────────────
 
@@ -47,7 +107,9 @@ type CodeProps = {
 };
 
 // ─────────────── コードレンダラー ───────────────
-
+//
+// language-mermaid の場合は MermaidDiagram に委ねる
+//
 const CodeBlockRenderer: React.FC<CodeProps> = ({
   inline,
   className,
@@ -56,7 +118,6 @@ const CodeBlockRenderer: React.FC<CodeProps> = ({
   const text = String(children ?? '').replace(/\n$/, '');
   const langMatch = /language-(\w+)/.exec(className || '');
   const lang = langMatch?.[1] ?? '';
-
   // コピー表示制御
   const [copied, setCopied] = useState(false);
   // eslint-disable-next-line
@@ -67,8 +128,13 @@ const CodeBlockRenderer: React.FC<CodeProps> = ({
     }
   }, [copied]);
 
+  // Mermaid ブロックを検知したら専用レンダラーへ
+  if (!inline && lang === 'mermaid') {
+    return <MermaidDiagram chart={text} />;
+  }
+
   if (inline) {
-    // インラインコードは <code> タグで
+    // インラインコード
     return (
       <Box
         component="code"
@@ -85,7 +151,7 @@ const CodeBlockRenderer: React.FC<CodeProps> = ({
     );
   }
 
-  // ブロックコードは <pre> 包み＋SyntaxHighlighter
+  // ブロックコードは SyntaxHighlighter へ
   return (
     <Box component="pre" sx={{ position: 'relative', mb: 2, m: 0, p: 0 }}>
       {/* コピーボタン */}
@@ -131,23 +197,15 @@ const CodeBlockRenderer: React.FC<CodeProps> = ({
 
 const ParagraphRenderer: React.FC<{ children?: React.ReactNode }> = ({
   children,
-}) => {
-  // const hasBlockChild = React.Children.toArray(children).some((child) => {
-  //   if (!React.isValidElement(child)) return false;
-  //   const t = typeof child.type === 'string' ? child.type : '';
-  //   return ['div', 'pre', 'table', 'img', 'ul', 'ol', 'blockquote'].includes(t);
-  // });
-  // if (hasBlockChild) return children;
-  return (
-    <Typography
-      variant="body1"
-      component="div"
-      sx={{ mt: 1, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
-    >
-      {children}
-    </Typography>
-  );
-};
+}) => (
+  <Typography
+    variant="body1"
+    component="div"
+    sx={{ mt: 1, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
+  >
+    {children}
+  </Typography>
+);
 
 // ─────────────── テーブル＆画像レンダラー ───────────────
 

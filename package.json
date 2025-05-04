@@ -112,6 +112,7 @@
     "electron-updater": "^6.3.9",
     "lucide-react": "^0.503.0",
     "mastra": "^0.4.9",
+    "mermaid": "^11.6.0",
     "postcss": "^8.5.3",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
