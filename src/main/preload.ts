@@ -6,6 +6,26 @@ import { IpcChannels, IpcResponsePayload, IpcEventPayload } from './types/ipc';
 export type Channels = (typeof IpcChannels)[keyof typeof IpcChannels];
 
 const electronHandler = {
+  agent: {
+    // Mastraの状態を取得する
+    getStatus: (): Promise<
+      IpcResponsePayload<typeof IpcChannels.GET_AGENT_STATUS>
+    > => {
+      return ipcRenderer.invoke(IpcChannels.GET_AGENT_STATUS);
+    },
+    // Mastraを再初期化する
+    reinitialize: async (): Promise<
+      IpcResponsePayload<typeof IpcChannels.REINITIALIZE_AGENT>
+    > => {
+      return ipcRenderer.invoke(IpcChannels.REINITIALIZE_AGENT);
+    },
+    // Mastraのメッセージを削除する
+    removeMessage: async (
+      messageId: string,
+    ): Promise<IpcResponsePayload<typeof IpcChannels.REINITIALIZE_AGENT>> => {
+      return ipcRenderer.invoke(IpcChannels.REMOVE_AGENT_MESSAGE, messageId);
+    },
+  },
   fs: {
     access: async (path: string): Promise<boolean> => {
       return ipcRenderer.invoke(IpcChannels.FS_CHECK_PATH_EXISTS, path);

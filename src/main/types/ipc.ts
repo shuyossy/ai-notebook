@@ -1,10 +1,16 @@
-import type { ChatMessage, ChatRoom } from '.';
+import type { ChatMessage, ChatRoom, AgentBootStatus } from '.';
 import type { Source } from '../../db/schema';
 
 /**
  * IPC通信で使用するチャネル名の定義
  */
 export const IpcChannels = {
+  // Agent関連
+  GET_AGENT_STATUS: 'get-agent-status',
+  AGENT_STATUS_CHANGED: 'agent-status-changed',
+  REINITIALIZE_AGENT: 'reinitialize-agent',
+  REMOVE_AGENT_MESSAGE: 'remove-agent-message',
+
   // ストア関連
   GET_STORE_VALUE: 'get-store-value',
   SET_STORE_VALUE: 'set-store-value',
@@ -36,6 +42,10 @@ export type IpcChannel = (typeof IpcChannels)[keyof typeof IpcChannels];
  * 各チャネルごとにリクエストとレスポンスの型を厳密に定義
  */
 export type IpcRequestPayloadMap = {
+  // Mastra関連
+  [IpcChannels.REINITIALIZE_AGENT]: undefined;
+  [IpcChannels.REMOVE_AGENT_MESSAGE]: string; // message id
+
   // ファイルシステム関連
   [IpcChannels.FS_CHECK_PATH_EXISTS]: string;
 
@@ -60,6 +70,11 @@ export type IpcRequestPayloadMap = {
 };
 
 export type IpcResponsePayloadMap = {
+  // Mastra関連
+  [IpcChannels.GET_AGENT_STATUS]: AgentBootStatus;
+  [IpcChannels.REINITIALIZE_AGENT]: { success: boolean; error?: string };
+  [IpcChannels.REMOVE_AGENT_MESSAGE]: { success: boolean; error?: string };
+
   // ファイルシステム関連
   [IpcChannels.FS_CHECK_PATH_EXISTS]: boolean;
 

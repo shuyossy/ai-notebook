@@ -20,6 +20,7 @@ import { eq } from 'drizzle-orm';
 import { sourceRegistrationWorkflow } from '../mastra/workflows/sourceRegistration';
 import { type Source } from '../db/schema';
 import { IpcChannels, IpcResponsePayloadMap } from './types/ipc';
+import { AgentBootStatus, AgentBootMessage } from './types';
 import { sources } from '../db/schema';
 import getDb from '../db';
 import SourceRegistrationManager from '../mastra/workflows/sourceRegistrationManager';
@@ -36,8 +37,40 @@ class AppUpdater {
   }
 }
 
-// Mastraのインスタンスを保持する変数
+// Mastraのインスタンスと状態を保持する変数
 let mastraInstance: Mastra | null = null;
+const mastraStatus: AgentBootStatus = {
+  state: 'initializing',
+  messages: [],
+};
+
+/**
+ * Mastraの状態を変更し、レンダラーに通知する
+ */
+const updateMastraStatus = (
+  newState: AgentBootStatus['state'],
+  message?: AgentBootMessage,
+) => {
+  mastraStatus.state = newState;
+
+  if (message) {
+    const newMessage: AgentBootMessage = {
+      id: crypto.randomUUID(),
+      type: message.type,
+      content: message.content,
+    };
+    mastraStatus.messages.push(newMessage);
+  }
+};
+
+/**
+ * メッセージIDを指定して削除する
+ */
+const removeMessage = (messageId: string) => {
+  mastraStatus.messages = mastraStatus.messages.filter(
+    (msg) => msg.id !== messageId,
+  );
+};
 
 /**
  * Mastraインスタンスを取得する関数
@@ -56,6 +89,8 @@ export const getMastra = (): Mastra => {
  */
 const initializeMastra = async (): Promise<void> => {
   try {
+    updateMastraStatus('initializing');
+
     // 開発環境か本番環境かによってログレベルを切り替え
     const logLevel = process.env.NODE_ENV === 'production' ? 'info' : 'debug';
 
@@ -66,23 +101,27 @@ const initializeMastra = async (): Promise<void> => {
     });
 
     // オーケストレーターエージェントを取得
-    const orchestratorAgent = await getOrchestrator();
+    const { agent, alertMessages } = await getOrchestrator();
 
     // Mastraインスタンスを初期化
     mastraInstance = new Mastra({
-      agents: { orchestratorAgent },
+      agents: { orchestratorAgent: agent },
       workflows: { sourceRegistrationWorkflow },
       logger,
     });
 
+    // 起動メッセージを更新
+    alertMessages.forEach((message) => {
+      mastraStatus.messages.push(message);
+    });
+
     console.log('Mastraインスタンスの初期化が完了しました');
+    updateMastraStatus('ready');
   } catch (error) {
     console.error('Mastraの初期化に失敗しました:', error);
-    throw error;
   }
 };
 
-// ストアのIPC通信ハンドラーを設定
 const setupStoreHandlers = () => {
   ipcMain.handle(
     IpcChannels.GET_STORE_VALUE,
@@ -113,6 +152,54 @@ const setupStoreHandlers = () => {
     },
   );
 };
+
+/**
+ * Mastraの状態を取得するIPCハンドラ
+ */
+// Mastraの状態取得ハンドラ
+ipcMain.handle(
+  IpcChannels.GET_AGENT_STATUS,
+  (): IpcResponsePayloadMap[typeof IpcChannels.GET_AGENT_STATUS] =>
+    mastraStatus,
+);
+
+// メッセージ削除ハンドラ
+ipcMain.handle(
+  IpcChannels.REMOVE_AGENT_MESSAGE,
+  (
+    _,
+    messageId: string,
+  ): IpcResponsePayloadMap[typeof IpcChannels.REMOVE_AGENT_MESSAGE] => {
+    let success = false;
+    let error: string | undefined;
+    try {
+      removeMessage(messageId);
+      success = true;
+    } catch (err) {
+      success = false;
+      error = (err as Error).message;
+    }
+    return { success, error };
+  },
+);
+
+// Mastraの再初期化ハンドラ
+ipcMain.handle(
+  IpcChannels.REINITIALIZE_AGENT,
+  async (): Promise<
+    IpcResponsePayloadMap[typeof IpcChannels.REINITIALIZE_AGENT]
+  > => {
+    try {
+      await initializeMastra();
+      return { success: true };
+    } catch (error) {
+      return {
+        success: false,
+        error: (error as Error).message,
+      };
+    }
+  },
+);
 
 // チャット関連のIPCハンドラー
 const setupChatHandlers = () => {

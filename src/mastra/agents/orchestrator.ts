@@ -6,31 +6,73 @@ import { sourceListTool, querySourceTool } from '../tools/sourcesTools';
 import { createAgent } from './config/agent';
 import { getStore } from '../../main/store';
 import { setupRedmineTools } from '../tools/redmine';
+import { setupGitLabTools } from '../tools/gitlab';
 import { McpSchema } from '../../main/types/schema';
+import { AgentBootMessage } from '../../main/types';
 
 const ORCHESTRATOR_NAME = 'orchestrator';
 
 /**
  * オーケストレーターエージェントを取得または作成する
  */
-export const getOrchestrator = async (): Promise<Agent> => {
+export const getOrchestrator = async (): Promise<{
+  agent: Agent;
+  alertMessages: AgentBootMessage[];
+}> => {
+  const alertMessages: AgentBootMessage[] = [];
+  let agent: Agent | null = null;
   try {
     // Redinmeツールの登録
     // APIキーとエンドポイントが登録されていた場合は登録する
     const store = getStore();
-    const { apiKey, endpoint } = store.get('redmine');
+    const redmineApiKey = store.get('redmine').apiKey;
+    const redmineEndpoint = store.get('redmine').endpoint;
     let redmineTools = {};
-    if (apiKey && endpoint) {
+    if (redmineApiKey && redmineEndpoint) {
       try {
         // Redmineクライアントの初期化
-        redmineTools = setupRedmineTools({ apiKey, apiUrl: endpoint });
+        redmineTools = setupRedmineTools({
+          apiKey: redmineApiKey,
+          apiUrl: redmineEndpoint,
+        });
         console.log('Redmineクライアントの初期化に成功しました。');
       } catch (error) {
-        console.error('Redmineクライアントの初期化に失敗:', error);
+        alertMessages.push({
+          id: uuid(),
+          type: 'warning',
+          content: `Redmineクライアントの初期化に失敗しました:\n ${error}`,
+        });
       }
     } else {
       console.warn(
         'Redmine APIキーまたはエンドポイントが設定されていません。Redmineツールは登録されません。',
+      );
+    }
+
+    // Gitlabツールの登録
+    // GitlabのAPIキーとエンドポイントが登録されていた場合は登録する
+    const gitlabStore = store.get('gitlab');
+    const gitlabApiKey = gitlabStore.apiKey;
+    const gitlabEndpoint = gitlabStore.endpoint;
+    let gitlabTools = {};
+    if (gitlabApiKey && gitlabEndpoint) {
+      try {
+        // Gitlabクライアントの初期化
+        gitlabTools = setupGitLabTools({
+          token: gitlabApiKey,
+          host: gitlabEndpoint,
+        });
+        console.log('Gitlabクライアントの初期化に成功しました。');
+      } catch (error) {
+        alertMessages.push({
+          id: uuid(),
+          type: 'warning',
+          content: `Gitlabクライアントの初期化に失敗しました:\n ${error}`,
+        });
+      }
+    } else {
+      console.warn(
+        'Gitlab APIキーまたはエンドポイントが設定されていません。Gitlabツールは登録されません。',
       );
     }
 
@@ -50,21 +92,23 @@ export const getOrchestrator = async (): Promise<Agent> => {
         mcpTools = await mcp.getTools();
         console.log('MCPサーバーの初期化に成功しました。');
       } catch (error) {
-        console.error(
-          'MCPサーバー設定の検証またはツールの取得に失敗しました:',
-          error,
-        );
+        alertMessages.push({
+          id: uuid(),
+          type: 'warning',
+          content: `MCPサーバーとの接続に失敗しました: ${error}`,
+        });
       }
     }
 
     // エージェントの作成
-    const agent = createAgent({
+    agent = createAgent({
       name: ORCHESTRATOR_NAME,
       instructions: ORCHESTRATOR_SYSTEM_PROMPT,
       tools: {
         sourceListTool,
         querySourceTool,
         ...redmineTools,
+        ...gitlabTools,
         ...mcpTools,
       },
       memoryConfig: {
@@ -111,15 +155,18 @@ export const getOrchestrator = async (): Promise<Agent> => {
         },
       },
     });
-
-    return agent;
-  } catch (error: unknown) {
-    const errorMessage =
-      error instanceof Error ? error.message : '不明なエラー';
-    throw new Error(
-      `オーケストレーターエージェントの初期化に失敗しました: ${errorMessage}`,
-    );
+  } catch (error) {
+    alertMessages.push({
+      id: uuid(),
+      type: 'error',
+      content: `AIエージェントの初期化に失敗しました\nAIエージェントを再起動するにはアプリを再起動してください:\n ${error}`,
+    });
+    throw error;
   }
+  return {
+    agent,
+    alertMessages,
+  };
 };
 
 export default getOrchestrator;

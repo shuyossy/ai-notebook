@@ -19,3 +19,17 @@ export type ChatRoom = StorageThreadType;
  * チャットメッセージの型（Mastraの型を利用）
  */
 export type ChatMessage = AiMessageType;
+
+// Mastraの状態管理用の型定義
+export type AgentBootState = 'initializing' | 'ready' | 'error';
+
+export type AgentBootMessage = {
+  id: string;
+  type: 'info' | 'warning' | 'error';
+  content: string;
+};
+
+export type AgentBootStatus = {
+  state: AgentBootState;
+  messages: AgentBootMessage[];
+};
