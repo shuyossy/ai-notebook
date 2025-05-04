@@ -5,10 +5,7 @@
 
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
-import {
-  RedmineClient,
-  createRedmineClient,
-} from './redmineClient';
+import { RedmineClient, createRedmineClient } from './redmineClient';
 import { RedmineSchema } from '../../../main/types/settingsSchema';
 import { createIssueTools } from './issueTools';
 
@@ -102,7 +99,9 @@ export const setupRedmineTools = (config: {
       apiKey: config.apiKey,
     });
     if (!validationResult.success) {
-      throw new Error(`Redmine設定が不正です: ${validationResult.error.message}`);
+      throw new Error(
+        `Redmine設定が不正です: ${validationResult.error.message}`,
+      );
     }
 
     // Redmineクライアントを作成
@@ -112,7 +111,9 @@ export const setupRedmineTools = (config: {
     try {
       await client.testConnection();
     } catch (error: any) {
-      throw new Error(`Redmine APIへの接続確認に失敗しました: ${error.message}`);
+      throw new Error(
+        `Redmine APIへの接続確認に失敗しました: ${error.message}`,
+      );
     }
 
     // Redmine操作ツール一式を作成

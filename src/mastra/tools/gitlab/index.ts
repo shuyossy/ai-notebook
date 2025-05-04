@@ -42,7 +42,9 @@ export const setupGitLabTools = (config: { host: string; token: string }) => {
       apiKey: config.token,
     });
     if (!validationResult.success) {
-      throw new Error(`GitLab設定が不正です: ${validationResult.error.message}`);
+      throw new Error(
+        `GitLab設定が不正です: ${validationResult.error.message}`,
+      );
     }
 
     // GitLabクライアントを作成
