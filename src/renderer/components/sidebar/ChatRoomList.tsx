@@ -8,6 +8,7 @@ import {
   Typography,
   Box,
   Tooltip,
+  CircularProgress,
 } from '@mui/material';
 import { MoreVert as MoreIcon } from '@mui/icons-material';
 import type { ChatRoom } from '../../../main/types';
@@ -17,6 +18,7 @@ interface ChatRoomListProps {
   selectedRoomId: string | null;
   onRoomSelect: (roomId: string) => void;
   onMenuOpen: (event: React.MouseEvent<HTMLElement>, roomId: string) => void;
+  loading?: boolean;
 }
 
 function ChatRoomList({
@@ -24,12 +26,26 @@ function ChatRoomList({
   selectedRoomId,
   onRoomSelect,
   onMenuOpen,
+  loading,
 }: ChatRoomListProps) {
+  // ローディング中は「チャット履歴取得中」とスピナーを表示
+  if (loading) {
+    return (
+      <Box sx={{ p: 3, textAlign: 'center' }}>
+        <CircularProgress size={24} sx={{ mb: 1 }} />
+        <Typography variant="body2" color="text.secondary">
+          チャット履歴取得中
+        </Typography>
+      </Box>
+    );
+  }
+
+  // チャットルームがない場合は「チャットルームがありません」と表示
   if (rooms.length === 0) {
     return (
       <Box sx={{ p: 3, textAlign: 'center' }}>
         <Typography variant="body2" color="text.secondary">
-          チャットがありません
+          チャット履歴がありません
         </Typography>
       </Box>
     );

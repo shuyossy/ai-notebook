@@ -14,7 +14,7 @@ export const chatService = {
       return rooms || [];
     } catch (error) {
       console.error('チャットルーム一覧の取得に失敗しました:', error);
-      return [];
+      throw error;
     }
   },
 

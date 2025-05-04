@@ -25,6 +25,7 @@ function Sidebar({
   const [chatRooms, setChatRooms] = useState<ChatRoom[]>([]);
   const [menuAnchorEl, setMenuAnchorEl] = useState<null | HTMLElement>(null);
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   // チャットルーム一覧を取得
   const fetchChatRooms = useCallback(async () => {
@@ -36,8 +37,10 @@ function Sidebar({
           new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
       );
       setChatRooms(sortedRooms);
+      setLoading(false);
     } catch (error) {
       console.error(error);
+      setLoading(true);
     }
   }, []);
 
@@ -136,6 +139,7 @@ function Sidebar({
           selectedRoomId={selectedRoomId}
           onRoomSelect={onRoomSelect}
           onMenuOpen={handleMenuOpen}
+          loading={loading}
         />
       </Box>
 
