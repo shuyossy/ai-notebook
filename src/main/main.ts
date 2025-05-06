@@ -255,6 +255,14 @@ const setupChatHandlers = () => {
           execute(writer) {
             stream.mergeIntoDataStream(writer);
           },
+          onError(error) {
+            // エラーが発生したときの処理
+            console.error('ストリーミング中にエラーが発生:', error);
+            if (error == null) return 'unknown error';
+            if (typeof error === 'string') return error;
+            if (error instanceof Error) return error.message;
+            return JSON.stringify(error);
+          },
         });
 
         // テキストストリームを処理
@@ -266,7 +274,7 @@ const setupChatHandlers = () => {
 
         return { success: true };
       } catch (error) {
-        console.error('AIエージェントとの通信中にエラーが発生:', error);
+        console.error('メッセージ送信中にエラーが発生:', error);
         event.sender.send(IpcChannels.CHAT_ERROR, {
           message: `${(error as Error).message}`,
         });
