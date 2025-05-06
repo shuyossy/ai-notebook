@@ -11,6 +11,7 @@ import AccordionSummary from '@mui/material/AccordionSummary';
 import AccordionDetails from '@mui/material/AccordionDetails';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import SearchIcon from '@mui/icons-material/Search';
+import SmartToyOutlinedIcon from '@mui/icons-material/SmartToyOutlined';
 import {
   Box,
   Typography,
@@ -29,6 +30,7 @@ import { ContentCopy as CopyIcon } from '@mui/icons-material';
 // @ts-ignore
 import type { Components } from 'react-markdown';
 import type { ChatMessage } from '../../../main/types';
+import { TOOL_NAME_DISPLAY_MAP } from '../../../mastra/tools/toolDisplayConfig';
 
 // ─────────────── Mermaid 図レンダラー ───────────────
 type MermaidProps = { chart: string };
@@ -291,14 +293,16 @@ const renderPart = (part: NonNullable<ChatMessage['parts']>[number]) => {
       return (
         <Accordion sx={{ width: '100%' }} key={ti.toolCallId}>
           <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-            {ti.toolName === 'querySourceTool' ? (
-              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+              {ti.toolName === 'querySourceTool' ? (
                 <SearchIcon sx={{ mr: 1 }} />
-                {`ソース検索：${ti.args.path || ''}`}
-              </Box>
-            ) : (
-              ti.toolName
-            )}
+              ) : (
+                <SmartToyOutlinedIcon sx={{ mr: 1 }} />
+              )}
+              {ti.toolName === 'querySourceTool'
+                ? `ソース検索：${ti.args.path || ''}`
+                : TOOL_NAME_DISPLAY_MAP[ti.toolName] || `MCP: ${ti.toolName}`}
+            </Box>
           </AccordionSummary>
           <AccordionDetails>
             <Box
