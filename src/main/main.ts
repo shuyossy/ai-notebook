@@ -234,7 +234,7 @@ const setupChatHandlers = () => {
         // メッセージをストリーミングで送信
         const stream = await orchestratorAgent.stream(content, {
           resourceId: 'user', // 固定のリソースID
-          instructions: getOrchestratorSystemPrompt(
+          instructions: await getOrchestratorSystemPrompt(
             mastraStatus.tools ?? {
               redmine: false,
               gitlab: false,

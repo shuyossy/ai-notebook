@@ -1,4 +1,51 @@
+import { eq } from 'drizzle-orm';
 import { getStore } from '../../main/store';
+import { sources, topics } from '../../db/schema';
+import getDb from '../../db';
+
+/**
+ * データベースからソース情報を取得する
+ */
+const getSourcesInfoByMDList = async () => {
+  const db = await getDb();
+  // 有効なソースのみ取得
+  const sourceList = await db
+    .select()
+    .from(sources)
+    .where(eq(sources.isEnabled, 1))
+    .orderBy(sources.title);
+
+  // 各ソースのトピックを取得
+  const sourceWithTopicList = await Promise.all(
+    sourceList.map(async (source) => {
+      const topicsList = await db
+        .select()
+        .from(topics)
+        .where(eq(topics.sourceId, source.id))
+        .orderBy(topics.name);
+
+      return {
+        title: source.title,
+        path: source.path,
+        summary: source.summary,
+        topics: topicsList.map((topic) => ({
+          name: topic.name,
+          summary: topic.summary,
+        })),
+      };
+    }),
+  );
+
+  return sourceWithTopicList
+    .map(
+      (sourceWithTopic) => `  - タイトル:${sourceWithTopic.title}
+    - パス:${sourceWithTopic.summary}
+    - トピック一覧:
+  ${sourceWithTopic.topics.map((topic) => `      - トピック: ${topic.name} 要約: ${topic.summary}`).join('\n')}
+`,
+    )
+    .join('\n');
+};
 
 /**
  * ソース解析用のシステムプロンプト
@@ -28,21 +75,33 @@ export const TOPIC_SUMMARY_SYSTEM_PROMPT = `
 `;
 
 /**
+ * トピックと要約を抽出するためのシステムプロンプト
+ */
+export const EXTRACT_TOPIC_AND_SUMMARY_SYSTEM_PROMPT = `
+あなたは文書分析の専門家です。与えられた文書を分析し、含まれる重要なトピックを抽出してください。
+トピックは文書の内容から漏れなく抽出してください。
+少なくとも5以上のトピックを抽出してください。
+次に、抽出したトピックに基づいて、それぞれのトピックに関する要約を生成してください。
+要約はトピックに関連する重要な情報を全て含めてください。
+`;
+
+/**
  * オーケストレーションAIエージェントのシステムプロンプトを生成する
  * @param config ツールの有効/無効を指定する設定オブジェクト
  * @returns システムプロンプト文字列
  */
-export const getOrchestratorSystemPrompt = (config: {
+export const getOrchestratorSystemPrompt = async (config: {
   redmine: boolean;
   gitlab: boolean;
   mcp: boolean;
-}): string => {
+}): Promise<string> => {
   const store = getStore();
+
+  const sourceListMD = await getSourcesInfoByMDList();
 
   const prompt = `
 あなたは優秀なAIアシスタントです。
 ユーザから与えられた質問やタスクに対して最適な対応を実行します。
-
 
 以下のツールを使用できます：
 - ソース情報検索ツール
@@ -52,8 +111,7 @@ export const getOrchestratorSystemPrompt = (config: {
   - updateWorkingMemory：スレッドに関する内容や作業時の手順やメモに関するWorkingMemoryを更新します。
 ${
   config.redmine
-    ? `
-- redmine操作ツール
+    ? `- redmine操作ツール
   - getRedmineInfo：Redmineインスタンスの基本情報（登録されているプロジェクト・トラッカー・ステータス・優先度の一覧など）を取得します。他のredmine操作ツールを利用する前に、このツールを実行してプロジェクト・トラッカー・ステータス・優先度等に関する正確な情報を取得してください（他Redmine操作ツールではinputとして正確な情報を与える必要があるため）。
   - getRedmineIssuesList：Redmineのプロジェクトのチケット一覧を取得します。ステータス、トラッカー、担当者、バージョンで絞り込み可能です。
   - getRedmineIssueDetail：Redmineの特定のチケット詳細を取得します。
@@ -63,8 +121,7 @@ ${
 }
 ${
   config.gitlab
-    ? `
-- GitLab操作ツール
+    ? `- GitLab操作ツール
   - getGitLabFileContent：GitLabプロジェクト(リポジトリ)内の特定ファイルに関する情報（名前、サイズ、内容など）を受け取ることができます。ファイルの内容は Base64 エンコードされています。
   - getGitLabRawFile：GitLabプロジェクト(リポジトリ)の特定のファイルを生で取得します（エンコードはされていません）。
   - getGitLabBlameFile：GitLabプロジェクト(リポジトリ)の特定ファイルのblameファイルを取得します
@@ -76,8 +133,7 @@ ${
 }
 ${
   config.mcp
-    ? `
-- MCP（Model Context Protocol）サーバ提供ツール
+    ? `- MCP（Model Context Protocol）サーバ提供ツール
   - 登録されているMCPサーバーが提供する各種ツールやリソースを利用できます。
   - サーバー固有のツールやリソースにアクセスし、外部APIとの連携や拡張機能を実行できます。`
     : ''
@@ -85,11 +141,13 @@ ${
 
 ※ツール利用時の注意事項
 - 共通
-  - これらのツールは何度でも任意のタイミングで利用可能
+  - ツールは何度でも任意のタイミングで利用可能
+- ソース情報検索ツール
+  - 登録されているソースの一覧とその要約、トピックは以下の通り
+${sourceListMD}
 ${
   config.redmine
-    ? `
-- redmine操作ツール
+    ? `- redmine操作ツール
   - RedmineのURLはこちら：${store.get('redmine').endpoint}
   - トラッカーの利用方針は以下の通り（あくまで方針であり、ユーザから明確にトラッカーの種類など提示された場合はそちらに従うこと）
     - 中日程：プロジェクト全体のフェーズ分けなどで利用する
@@ -99,8 +157,7 @@ ${
 }
 ${
   config.gitlab
-    ? `
-- GitLab操作ツール
+    ? `- GitLab操作ツール
   - GitLabのURLはこちら：${store.get('gitlab').endpoint}
   - プロジェクト(リポジトリ)を指定する際はプロジェクトIDまたはURLエンコードされたパスが必要になるが、URLエンコードされたパスは以下のように取得できる
     - 例えば、プロジェクト(リポジトリ)のURLが${store.get('gitlab').endpoint}/groupA/groupB/projectの場合、URLエンコードされたパスはgroupA%2FgroupB%2Fprojectとなる(/ は%2F で表されます)`

@@ -2,7 +2,7 @@ import { Agent } from '@mastra/core/agent';
 import { MCPConfiguration, LogMessage } from '@mastra/mcp';
 import { v4 as uuid } from 'uuid';
 import { writeFileSync } from 'fs';
-import { sourceListTool, querySourceTool } from '../tools/sourcesTools';
+import { querySourceTool } from '../tools/sourcesTools';
 import { createAgent } from './config/agent';
 import { getStore } from '../../main/store';
 import { setupRedmineTools } from '../tools/redmine';
@@ -100,7 +100,6 @@ export const getOrchestrator = async (): Promise<{
 
     // Gitlabツールの登録
     // GitlabのAPIキーとエンドポイントが登録されていた場合は登録する
-    // Gitlabツールの登録
     const gitlabStore = store.get('gitlab');
     const gitlabApiKey = gitlabStore.apiKey;
     const gitlabEndpoint = gitlabStore.endpoint;
@@ -129,7 +128,6 @@ export const getOrchestrator = async (): Promise<{
       );
     }
 
-    // MCP設定の取得
     // MCP設定の取得
     const mcpConfig = store.get('mcp');
 
@@ -174,7 +172,7 @@ export const getOrchestrator = async (): Promise<{
       name: ORCHESTRATOR_NAME,
       instructions: '', // 空の指示を設定（streamメソッド時に動的に設定するため）
       tools: {
-        sourceListTool,
+        // sourceListTool,
         querySourceTool,
         ...redmineTools,
         ...gitlabTools,

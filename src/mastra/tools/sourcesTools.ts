@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { Agent } from '@mastra/core/agent';
 import { createTool } from '@mastra/core/tools';
 import { eq, and } from 'drizzle-orm';
-import { sources, topics } from '../../db/schema';
+import { sources } from '../../db/schema';
 import getDb from '../../db/index';
 import FileExtractor from '../../main/utils/fileExtractor';
 import { getSourceQuerySystemPrompt } from '../agents/prompts';
@@ -13,78 +13,78 @@ import { createBaseToolResponseSchema, RunToolStatus } from './types';
  * ソース一覧表示ツール
  * データベースに保存されているソースとそのトピックを一覧表示する
  */
-export const sourceListTool = createTool({
-  id: 'sourceListTool',
-  description: '登録されているソースの一覧とその要約、トピックを表示する',
-  outputSchema: createBaseToolResponseSchema(
-    z.object({
-      sources: z.array(
-        z.object({
-          id: z.number(),
-          title: z.string(),
-          summary: z.string(),
-          topics: z.array(
-            z.object({
-              name: z.string(),
-              summary: z.string(),
-            }),
-          ),
-        }),
-      ),
-    }),
-  ),
-  execute: async () => {
-    let status: RunToolStatus = 'failed';
-    try {
-      const db = await getDb();
-      // ソースの一覧を取得（将来的にisEnabled=trueのみに絞り込む）
-      const sourcesList = await db
-        .select()
-        .from(sources)
-        .where(eq(sources.isEnabled, 1))
-        .orderBy(sources.title);
+// export const sourceListTool = createTool({
+//   id: 'sourceListTool',
+//   description: '登録されているソースの一覧とその要約、トピックを表示する',
+//   outputSchema: createBaseToolResponseSchema(
+//     z.object({
+//       sources: z.array(
+//         z.object({
+//           id: z.number(),
+//           title: z.string(),
+//           summary: z.string(),
+//           topics: z.array(
+//             z.object({
+//               name: z.string(),
+//               summary: z.string(),
+//             }),
+//           ),
+//         }),
+//       ),
+//     }),
+//   ),
+//   execute: async () => {
+//     let status: RunToolStatus = 'failed';
+//     try {
+//       const db = await getDb();
+//       // ソースの一覧を取得（将来的にisEnabled=trueのみに絞り込む）
+//       const sourcesList = await db
+//         .select()
+//         .from(sources)
+//         .where(eq(sources.isEnabled, 1))
+//         .orderBy(sources.title);
 
-      // 各ソースのトピックを取得して結果を整形
-      const result = await Promise.all(
-        sourcesList.map(async (source) => {
-          const topicsList = await db
-            .select()
-            .from(topics)
-            .where(eq(topics.sourceId, source.id))
-            .orderBy(topics.name);
+//       // 各ソースのトピックを取得して結果を整形
+//       const result = await Promise.all(
+//         sourcesList.map(async (source) => {
+//           const topicsList = await db
+//             .select()
+//             .from(topics)
+//             .where(eq(topics.sourceId, source.id))
+//             .orderBy(topics.name);
 
-          return {
-            id: source.id,
-            path: source.path,
-            title: source.title,
-            summary: source.summary,
-            topics: topicsList.map((topic) => ({
-              name: topic.name,
-              summary: topic.summary,
-            })),
-          };
-        }),
-      );
-      status = 'success';
-      return {
-        status,
-        result: {
-          sources: result,
-        },
-      };
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error
-          ? `${error.message}\n${error.stack}`
-          : String(error);
-      status = 'failed';
-      return {
-        status,
-        error: `ソース一覧の取得に失敗しました: ${errorMessage}`,
-      };
-    }
-  },
-});
+//           return {
+//             id: source.id,
+//             path: source.path,
+//             title: source.title,
+//             summary: source.summary,
+//             topics: topicsList.map((topic) => ({
+//               name: topic.name,
+//               summary: topic.summary,
+//             })),
+//           };
+//         }),
+//       );
+//       status = 'success';
+//       return {
+//         status,
+//         result: {
+//           sources: result,
+//         },
+//       };
+//     } catch (error) {
+//       const errorMessage =
+//         error instanceof Error
+//           ? `${error.message}\n${error.stack}`
+//           : String(error);
+//       status = 'failed';
+//       return {
+//         status,
+//         error: `ソース一覧の取得に失敗しました: ${errorMessage}`,
+//       };
+//     }
+//   },
+// });
 
 /**
  * ソースクエリツール
