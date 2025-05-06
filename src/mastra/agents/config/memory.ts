@@ -1,10 +1,12 @@
 import { Memory } from '@mastra/memory';
+import { TokenLimiter } from '@mastra/memory/processors';
 import { LibSQLStore } from '@mastra/core/storage/libsql';
 import { toAbsoluteFileURL } from '@/main/utils/util';
 import { getStore } from '../../../main/store';
 
 // メモリオプションの型定義
 export interface MemoryConfig {
+  tokenLimit?: number;
   lastMessages?: number;
   semanticRecall?: boolean;
   workingMemory?: {
@@ -41,6 +43,9 @@ export const createMemory = (config: MemoryConfig = {}): Memory => {
 
   return new Memory({
     options,
+    processors: config.tokenLimit
+      ? [new TokenLimiter(config.tokenLimit)]
+      : undefined,
     storage: new LibSQLStore({
       config: {
         url: toAbsoluteFileURL(dbSetting.dir, 'memory.db'),
