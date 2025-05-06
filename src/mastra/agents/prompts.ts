@@ -106,7 +106,7 @@ export const getOrchestratorSystemPrompt = async (config: {
 
 以下のツールを使用できます：
 - ソース情報検索ツール
-  - sourceQueryTool：指定されたソースの内容に基づいて専門家(別のAIエージェント)が質問に回答します。
+  - sourceQueryTool：指定されたソースの内容に基づいて専門家(別のAIエージェント)が質問に回答します。一度の複数の質問を実行することができます
 - メモリ更新ツール
   - updateWorkingMemory：スレッドに関する内容や作業時の手順やメモに関するWorkingMemoryを更新します。
 ${

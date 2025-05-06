@@ -96,14 +96,19 @@ export const querySourceTool = createTool({
   inputSchema: z.object({
     sourceId: z.number().describe('対象のソースID:必須'),
     path: z.string().describe('ソースファイルのパス:必須'),
-    query: z.string().describe('検索内容や質問:必須'),
+    queries: z.array(z.string()).describe('検索内容や質問のリスト:必須'),
   }),
   outputSchema: createBaseToolResponseSchema(
     z.object({
-      answer: z.string(),
+      answers: z.array(
+        z.object({
+          query: z.string(),
+          answer: z.string(),
+        }),
+      ),
     }),
   ),
-  execute: async ({ context: { sourceId, query } }) => {
+  execute: async ({ context: { sourceId, queries } }) => {
     let status: RunToolStatus = 'failed';
     try {
       const db = await getDb();
@@ -133,12 +138,17 @@ export const querySourceTool = createTool({
         model: openAICompatibleModel(),
       });
 
-      const answer = (await sourceExpertAgent.generate(query)).text;
+      const answers = await Promise.all(
+        queries.map(async (query) => ({
+          query,
+          answer: (await sourceExpertAgent.generate(query)).text,
+        })),
+      );
       status = 'success';
       return {
         status,
         result: {
-          answer,
+          answers,
         },
       };
     } catch (error) {
