@@ -198,6 +198,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
       api: '/api/chat',
       fetch: customFetch,
       initialMessages,
+      experimental_throttle: 75,
       experimental_prepareRequestBody: (request) => {
         // Ensure messages array is not empty and get the last message
         const lastMessage =

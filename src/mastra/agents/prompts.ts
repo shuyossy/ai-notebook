@@ -25,6 +25,7 @@ const getSourcesInfoByMDList = async () => {
         .orderBy(topics.name);
 
       return {
+        id: source.id,
         title: source.title,
         path: source.path,
         summary: source.summary,
@@ -38,7 +39,8 @@ const getSourcesInfoByMDList = async () => {
 
   return sourceWithTopicList
     .map(
-      (sourceWithTopic) => `  - タイトル:${sourceWithTopic.title}
+      (sourceWithTopic) => `  - ID:${sourceWithTopic.id}
+    - タイトル:${sourceWithTopic.title}
     - パス:${sourceWithTopic.path}
     - 要約:${sourceWithTopic.summary}
     - トピック一覧:
