@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, memo } from 'react';
 import { useChat } from '@ai-sdk/react';
 import { Box, Divider, Typography, Alert } from '@mui/material';
 import { v4 as uuid } from 'uuid';
@@ -18,49 +18,48 @@ interface AlertManagerProps {
   additionalAlerts: AlertMessage[] | undefined;
   closeAdditionalAlerts?: (id: string) => void;
 }
-const AlertManager: React.FC<AlertManagerProps> = ({
-  additionalAlerts,
-  closeAdditionalAlerts,
-}) => {
-  const { status, closeMessage } = useAgentStore();
-  return (
-    <Box
-      sx={{
-        position: 'absolute',
-        top: 20,
-        left: '50%',
-        transform: 'translateX(-50%)',
-        width: 'fit-content',
-        maxWidth: '80%',
-        zIndex: 1000,
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 1,
-      }}
-    >
-      {status.messages?.map((message) => (
-        <Alert
-          key={message.id}
-          severity={message.type}
-          sx={{ whiteSpace: 'pre-line' }}
-          onClose={() => closeMessage(message.id)}
-        >
-          {message.content}
-        </Alert>
-      ))}
-      {additionalAlerts?.map((alert) => (
-        <Alert
-          key={alert.id}
-          severity={alert.type}
-          sx={{ whiteSpace: 'pre-line' }}
-          onClose={() => closeAdditionalAlerts?.(alert.id)}
-        >
-          {alert.content}
-        </Alert>
-      ))}
-    </Box>
-  );
-};
+const AlertManager: React.FC<AlertManagerProps> = memo(
+  ({ additionalAlerts, closeAdditionalAlerts }: AlertManagerProps) => {
+    const { status, closeMessage } = useAgentStore();
+    return (
+      <Box
+        sx={{
+          position: 'absolute',
+          top: 20,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          width: 'fit-content',
+          maxWidth: '80%',
+          zIndex: 1000,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 1,
+        }}
+      >
+        {status.messages?.map((message) => (
+          <Alert
+            key={message.id}
+            severity={message.type}
+            sx={{ whiteSpace: 'pre-line' }}
+            onClose={() => closeMessage(message.id)}
+          >
+            {message.content}
+          </Alert>
+        ))}
+        {additionalAlerts?.map((alert) => (
+          <Alert
+            key={alert.id}
+            severity={alert.type}
+            sx={{ whiteSpace: 'pre-line' }}
+            onClose={() => closeAdditionalAlerts?.(alert.id)}
+          >
+            {alert.content}
+          </Alert>
+        ))}
+      </Box>
+    );
+  },
+);
 
 // ai-sdk提供のcreateDataStreamResponseを使ってストリーミングレスポンスを取得する場合の関数
 // なぜか適切なヘッダが付与されないので、利用しない

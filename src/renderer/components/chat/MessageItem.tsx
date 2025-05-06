@@ -3,12 +3,14 @@ import React, { memo, forwardRef, useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 // @ts-ignore
 import remarkGfm from 'remark-gfm';
-
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
-
 import copy from 'copy-to-clipboard';
-
+import Accordion from '@mui/material/Accordion';
+import AccordionSummary from '@mui/material/AccordionSummary';
+import AccordionDetails from '@mui/material/AccordionDetails';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import SearchIcon from '@mui/icons-material/Search';
 import {
   Box,
   Typography,
@@ -256,6 +258,88 @@ const markdownComponents = {
   ...TableRenderers,
 } as unknown as Components;
 
+// ─────────────── ai-sdk・UIMessageのpartsレンダー用コンポーネント ───────────────
+
+const renderPart = (part: NonNullable<ChatMessage['parts']>[number]) => {
+  if (!part) return null;
+  switch (part.type) {
+    case 'text': {
+      return (
+        <Box sx={{ mb: 2, py: 2 }}>
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+            components={markdownComponents}
+          >
+            {part.text}
+          </ReactMarkdown>
+        </Box>
+      );
+    }
+    case 'tool-invocation': {
+      const ti = part.toolInvocation;
+      // if (ti.toolName === 'sourceListTool') return null; // 任意で除外
+      if (ti.toolName === 'updateWorkingMemory') {
+        return (
+          <Box key={ti.toolCallId} mb={1}>
+            <Typography variant="caption" color="text.secondary">
+              メモリ更新中
+            </Typography>
+          </Box>
+        );
+      }
+
+      return (
+        <Accordion sx={{ width: '100%' }} key={ti.toolCallId}>
+          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+            {ti.toolName === 'querySourceTool' ? (
+              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                <SearchIcon sx={{ mr: 1 }} />
+                {`ソース検索：${ti.args.path || ''}`}
+              </Box>
+            ) : (
+              ti.toolName
+            )}
+          </AccordionSummary>
+          <AccordionDetails>
+            <Box
+              p={1}
+              sx={{
+                bgcolor: 'grey.100',
+                borderRadius: 1,
+                whiteSpace: 'pre-wrap',
+              }}
+            >
+              {`Args: ${JSON.stringify(ti.args, null, 2)}\n`}
+              {
+                // eslint-disable-next-line
+                ti.state === 'call'
+                  ? '実行中...'
+                  : ti.state === 'result'
+                    ? `Result: ${JSON.stringify(ti.result, null, 2)}`
+                    : ''
+              }
+            </Box>
+          </AccordionDetails>
+        </Accordion>
+      );
+    }
+    case 'reasoning': {
+      return (
+        <Typography
+          variant="caption"
+          sx={{ fontStyle: 'italic', whiteSpace: 'pre-wrap' }}
+        >
+          {part.reasoning}
+        </Typography>
+      );
+    }
+    /* StepStartUIPart, FileUIPart, SourceUIPart なども同様に分岐 */
+
+    default:
+      return null;
+  }
+};
+
 // ─────────────── メインコンポーネント ───────────────
 
 interface MessageProps {
@@ -265,11 +349,6 @@ interface MessageProps {
 const MessageItem = forwardRef<HTMLDivElement, MessageProps>(
   ({ message }, ref) => {
     const isUser = message.role === 'user';
-    const date = message.createdAt ? new Date(message.createdAt) : new Date();
-    const time = date.toLocaleTimeString([], {
-      hour: '2-digit',
-      minute: '2-digit',
-    });
 
     return (
       <Fade in timeout={300}>
@@ -278,33 +357,28 @@ const MessageItem = forwardRef<HTMLDivElement, MessageProps>(
           sx={{
             display: 'flex',
             justifyContent: isUser ? 'flex-end' : 'flex-start',
-            mb: 2,
             px: 2,
           }}
         >
-          <Box sx={{ maxWidth: isUser ? '70%' : '100%', textAlign: 'left' }}>
+          <Box
+            sx={{
+              maxWidth: isUser ? '70%' : '100%',
+              width: isUser ? undefined : '100%',
+              textAlign: 'left',
+            }}
+          >
             <Paper
               elevation={isUser ? 1 : 0}
               sx={{
-                p: 2,
+                px: 2,
                 bgcolor: isUser ? 'grey.100' : 'background.paper',
                 borderRadius: 2,
               }}
             >
-              <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
-                components={markdownComponents}
-              >
-                {message.content}
-              </ReactMarkdown>
+              {message.parts?.length
+                ? message.parts.map(renderPart)
+                : renderPart({ type: 'text', text: message.content ?? '' })}
             </Paper>
-            <Typography
-              variant="caption"
-              color="text.secondary"
-              sx={{ mt: 0.5, display: 'block' }}
-            >
-              {time}
-            </Typography>
           </Box>
         </Box>
       </Fade>
