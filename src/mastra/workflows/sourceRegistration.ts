@@ -165,6 +165,15 @@ const extractTopicAndSummaryStep = new Step({
       );
       const db = await getDb();
       await db.insert(dbTopics).values(values);
+
+      // 成功時の更新
+      await db
+        .update(sources)
+        .set({
+          status: 'completed' as const,
+          error: null,
+        })
+        .where(eq(sources.id, sourceId));
       status = 'success';
     } catch (error) {
       const errorDetail =

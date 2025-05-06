@@ -38,7 +38,7 @@ const AlertManager: React.FC<AlertManagerProps> = ({
         gap: 1,
       }}
     >
-      {status.messages.map((message) => (
+      {status.messages?.map((message) => (
         <Alert
           key={message.id}
           severity={message.type}

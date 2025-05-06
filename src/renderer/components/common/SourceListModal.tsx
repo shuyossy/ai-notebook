@@ -236,7 +236,15 @@ function SourceListModal({
             <TableHead>
               <TableRow>
                 <TableCell padding="checkbox">
-                  <Tooltip title="AIが回答時に利用するソースを選択してください、チェックした内容は即時に反映されます">
+                  <Tooltip
+                    title={
+                      <span style={{ whiteSpace: 'pre-line' }}>
+                        {
+                          'AIが回答時に利用するソースを選択してください\nチェックした内容は即時に反映されます'
+                        }
+                      </span>
+                    }
+                  >
                     <Checkbox
                       indeterminate={
                         Object.values(checkedSources).some(
@@ -273,7 +281,15 @@ function SourceListModal({
                   }}
                 >
                   <TableCell padding="checkbox">
-                    <Tooltip title="AIが回答時に利用するソースを選択してください\nチェックした内容は即時に反映されます">
+                    <Tooltip
+                      title={
+                        <span style={{ whiteSpace: 'pre-line' }}>
+                          {
+                            'AIが回答時に利用するソースを選択してください\nチェックした内容は即時に反映されます'
+                          }
+                        </span>
+                      }
+                    >
                       <Checkbox
                         checked={checkedSources[source.id] || false}
                         onChange={() => handleSourceCheckChange(source.id)}

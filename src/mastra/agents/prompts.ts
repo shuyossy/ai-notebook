@@ -39,7 +39,8 @@ const getSourcesInfoByMDList = async () => {
   return sourceWithTopicList
     .map(
       (sourceWithTopic) => `  - タイトル:${sourceWithTopic.title}
-    - パス:${sourceWithTopic.summary}
+    - パス:${sourceWithTopic.path}
+    - 要約:${sourceWithTopic.summary}
     - トピック一覧:
   ${sourceWithTopic.topics.map((topic) => `      - トピック: ${topic.name} 要約: ${topic.summary}`).join('\n')}
 `,
@@ -61,7 +62,7 @@ export const SOURCE_ANALYSIS_SYSTEM_PROMPT = `
  */
 export const TOPIC_EXTRACTION_SYSTEM_PROMPT = `
 あなたは文書分析の専門家です。与えられた文書を分析し、含まれる重要なトピックを抽出してください。
-トピックは文書の内容から漏れなく抽出してください。
+トピックは文書の内容から抜け漏れなく抽出してください。
 
 少なくとも5以上のトピックを抽出してください。
 `;
@@ -78,11 +79,11 @@ export const TOPIC_SUMMARY_SYSTEM_PROMPT = `
  * トピックと要約を抽出するためのシステムプロンプト
  */
 export const EXTRACT_TOPIC_AND_SUMMARY_SYSTEM_PROMPT = `
-あなたは文書分析の専門家です。与えられた文書を分析し、含まれる重要なトピックを抽出してください。
-トピックは文書の内容から漏れなく抽出してください。
+あなたは文書分析の専門家です。与えられた文書を分析し、含まれるトピックを**全て**抽出してください。
+トピックは文書の内容から**抜け漏れなく**抽出してください。
 少なくとも5以上のトピックを抽出してください。
 次に、抽出したトピックに基づいて、それぞれのトピックに関する要約を生成してください。
-要約はトピックに関連する重要な情報を全て含めてください。
+要約はトピックに関連する重要な情報を**全て**含めてください。
 `;
 
 /**
@@ -105,7 +106,6 @@ export const getOrchestratorSystemPrompt = async (config: {
 
 以下のツールを使用できます：
 - ソース情報検索ツール
-  - sourceListTool：登録されているソースの一覧とその要約、トピックを表示します。
   - sourceQueryTool：指定されたソースの内容に基づいて専門家(別のAIエージェント)が質問に回答します。
 - メモリ更新ツール
   - updateWorkingMemory：スレッドに関する内容や作業時の手順やメモに関するWorkingMemoryを更新します。
@@ -142,9 +142,6 @@ ${
 ※ツール利用時の注意事項
 - 共通
   - ツールは何度でも任意のタイミングで利用可能
-- ソース情報検索ツール
-  - 登録されているソースの一覧とその要約、トピックは以下の通り
-${sourceListMD}
 ${
   config.redmine
     ? `- redmine操作ツール
@@ -163,6 +160,10 @@ ${
     - 例えば、プロジェクト(リポジトリ)のURLが${store.get('gitlab').endpoint}/groupA/groupB/projectの場合、URLエンコードされたパスはgroupA%2FgroupB%2Fprojectとなる(/ は%2F で表されます)`
     : ''
 }
+- ソース情報検索ツール
+  - 登録されているソースの一覧とその要約、トピックは以下の通り
+  ※以下の内容はあくまでソース情報を要約したものである。ソース情報（の詳細）を正確に把握するためには、sourceQueryToolを利用してソース情報を取得すること
+${sourceListMD}
 `;
   return prompt;
 };
