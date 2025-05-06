@@ -92,7 +92,8 @@ import { createBaseToolResponseSchema, RunToolStatus } from './types';
  */
 export const querySourceTool = createTool({
   id: 'sourceQueryTool',
-  description: '特定のソースファイルの内容に基づいて質問に回答する',
+  description:
+    '登録されたソースの内容に基づいて専門家(別のAIエージェント)が質問に回答します。一度の複数の質問を実行することができます',
   inputSchema: z.object({
     sourceId: z.number().describe('対象のソースID:必須'),
     path: z.string().describe('ソースファイルのパス:必須'),

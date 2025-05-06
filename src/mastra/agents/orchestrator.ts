@@ -179,6 +179,7 @@ export const getOrchestrator = async (): Promise<{
         ...mcpTools,
       },
       memoryConfig: {
+        tokenLimit: 7500,
         lastMessages: 40,
         semanticRecall: false,
         threads: {
