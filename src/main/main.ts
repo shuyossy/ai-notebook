@@ -20,7 +20,8 @@ import { eq } from 'drizzle-orm';
 import { sourceRegistrationWorkflow } from '../mastra/workflows/sourceRegistration';
 import { type Source } from '../db/schema';
 import { IpcChannels, IpcResponsePayloadMap } from './types/ipc';
-import { AgentBootStatus, AgentBootMessage } from './types';
+import { AgentBootStatus, AgentBootMessage, AgentToolStatus } from './types';
+import { getOrchestratorSystemPrompt } from '../mastra/agents/prompts';
 import { sources } from '../db/schema';
 import getDb from '../db';
 import SourceRegistrationManager from '../mastra/workflows/sourceRegistrationManager';
@@ -42,6 +43,11 @@ let mastraInstance: Mastra | null = null;
 const mastraStatus: AgentBootStatus = {
   state: 'initializing',
   messages: [],
+  tools: {
+    redmine: false,
+    gitlab: false,
+    mcp: false,
+  },
 };
 
 /**
@@ -50,6 +56,7 @@ const mastraStatus: AgentBootStatus = {
 const updateMastraStatus = (
   newState: AgentBootStatus['state'],
   message?: AgentBootMessage,
+  tools?: AgentToolStatus,
 ) => {
   mastraStatus.state = newState;
 
@@ -59,7 +66,11 @@ const updateMastraStatus = (
       type: message.type,
       content: message.content,
     };
-    mastraStatus.messages.push(newMessage);
+    mastraStatus.messages?.push(newMessage);
+  }
+
+  if (tools) {
+    mastraStatus.tools = tools;
   }
 };
 
@@ -72,7 +83,7 @@ const initMastraStatus = () => {
  * メッセージIDを指定して削除する
  */
 const removeMessage = (messageId: string) => {
-  mastraStatus.messages = mastraStatus.messages.filter(
+  mastraStatus.messages = mastraStatus.messages?.filter(
     (msg) => msg.id !== messageId,
   );
 };
@@ -106,7 +117,7 @@ const initializeMastra = async (): Promise<void> => {
     });
 
     // オーケストレーターエージェントを取得
-    const { agent, alertMessages } = await getOrchestrator();
+    const { agent, alertMessages, toolStatus } = await getOrchestrator();
 
     // Mastraインスタンスを初期化
     mastraInstance = new Mastra({
@@ -117,11 +128,11 @@ const initializeMastra = async (): Promise<void> => {
 
     // 起動メッセージを更新
     alertMessages.forEach((message) => {
-      mastraStatus.messages.push(message);
+      mastraStatus.messages?.push(message);
     });
 
     console.log('Mastraインスタンスの初期化が完了しました');
-    updateMastraStatus('ready');
+    updateMastraStatus('ready', undefined, toolStatus);
   } catch (error) {
     console.error('Mastraの初期化に失敗しました:', error);
   }
@@ -223,6 +234,13 @@ const setupChatHandlers = () => {
         // メッセージをストリーミングで送信
         const stream = await orchestratorAgent.stream(content, {
           resourceId: 'user', // 固定のリソースID
+          instructions: getOrchestratorSystemPrompt(
+            mastraStatus.tools ?? {
+              redmine: false,
+              gitlab: false,
+              mcp: false,
+            },
+          ),
           threadId: roomId, // チャットルームIDをスレッドIDとして使用
           maxSteps: 30, // ツールの利用上限
           onFinish: () => {

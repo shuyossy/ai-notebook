@@ -2,7 +2,6 @@ import { Agent } from '@mastra/core/agent';
 import { MCPConfiguration, LogMessage } from '@mastra/mcp';
 import { v4 as uuid } from 'uuid';
 import { writeFileSync } from 'fs';
-import { getOrchestratorSystemPrompt } from './prompts';
 import { sourceListTool, querySourceTool } from '../tools/sourcesTools';
 import { createAgent } from './config/agent';
 import { getStore } from '../../main/store';
@@ -55,9 +54,18 @@ const deleteLogFile = (): void => {
 export const getOrchestrator = async (): Promise<{
   agent: Agent;
   alertMessages: AgentBootMessage[];
+  toolStatus: {
+    redmine: boolean;
+    gitlab: boolean;
+    mcp: boolean;
+  };
 }> => {
   const alertMessages: AgentBootMessage[] = [];
   let agent: Agent | null = null;
+  let redmineTools = {};
+  let gitlabTools = {};
+  let mcpTools = {};
+
   try {
     const store = getStore();
 
@@ -65,7 +73,6 @@ export const getOrchestrator = async (): Promise<{
     // APIキーとエンドポイントが登録されていた場合は登録する
     const redmineApiKey = store.get('redmine').apiKey;
     const redmineEndpoint = store.get('redmine').endpoint;
-    let redmineTools = {};
     if (redmineApiKey && redmineEndpoint) {
       try {
         // Redmineクライアントの初期化
@@ -93,10 +100,10 @@ export const getOrchestrator = async (): Promise<{
 
     // Gitlabツールの登録
     // GitlabのAPIキーとエンドポイントが登録されていた場合は登録する
+    // Gitlabツールの登録
     const gitlabStore = store.get('gitlab');
     const gitlabApiKey = gitlabStore.apiKey;
     const gitlabEndpoint = gitlabStore.endpoint;
-    let gitlabTools = {};
     if (gitlabApiKey && gitlabEndpoint) {
       try {
         // Gitlabクライアントの初期化
@@ -123,8 +130,8 @@ export const getOrchestrator = async (): Promise<{
     }
 
     // MCP設定の取得
+    // MCP設定の取得
     const mcpConfig = store.get('mcp');
-    let mcpTools = {};
 
     // MCPツールの登録
     if (mcpConfig?.serverConfigText && mcpConfig.serverConfigText !== '{}') {
@@ -165,11 +172,7 @@ export const getOrchestrator = async (): Promise<{
     // エージェントの作成
     agent = createAgent({
       name: ORCHESTRATOR_NAME,
-      instructions: getOrchestratorSystemPrompt({
-        redmine: !!redmineTools && Object.keys(redmineTools).length > 0,
-        gitlab: !!gitlabTools && Object.keys(gitlabTools).length > 0,
-        mcp: !!mcpTools && Object.keys(mcpTools).length > 0,
-      }),
+      instructions: '', // 空の指示を設定（streamメソッド時に動的に設定するため）
       tools: {
         sourceListTool,
         querySourceTool,
@@ -232,6 +235,11 @@ export const getOrchestrator = async (): Promise<{
   return {
     agent,
     alertMessages,
+    toolStatus: {
+      redmine: !!redmineTools && Object.keys(redmineTools).length > 0,
+      gitlab: !!gitlabTools && Object.keys(gitlabTools).length > 0,
+      mcp: !!mcpTools && Object.keys(mcpTools).length > 0,
+    },
   };
 };
 

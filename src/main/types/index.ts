@@ -29,7 +29,20 @@ export type AgentBootMessage = {
   content: string;
 };
 
+/**
+ * エージェントのツール状態を表す型
+ */
+export type AgentToolStatus = {
+  redmine: boolean;
+  gitlab: boolean;
+  mcp: boolean;
+};
+
+/**
+ * エージェントのブート状態を表す型
+ */
 export type AgentBootStatus = {
   state: AgentBootState;
-  messages: AgentBootMessage[];
+  messages?: AgentBootMessage[];
+  tools?: AgentToolStatus;
 };
