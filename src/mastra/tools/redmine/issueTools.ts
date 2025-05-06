@@ -25,7 +25,7 @@ export const createGetIssuesListTool = (client: RedmineClient) => {
   return createTool({
     id: 'redmine-get-issues-list',
     description:
-      'Redmineのチケット一覧を取得します。ステータス、トラッカー、担当者、バージョンで絞り込み可能です。',
+      'Redmineのプロジェクトのチケット一覧を取得します。ステータス、トラッカー、担当者、バージョンで絞り込み可能です。',
     inputSchema: z.object({
       project_id: z
         .union([z.string(), z.number()])
@@ -267,7 +267,7 @@ export const createGetIssueDetailTool = (client: RedmineClient) => {
 export const createCreateIssueTool = (client: RedmineClient) => {
   return createTool({
     id: 'redmine-create-issue',
-    description: 'Redmineに新しいチケットを作成します。',
+    description: 'Redmineのプロジェクトに新しいチケットを作成します。',
     inputSchema: z.object({
       project_id: z
         .union([z.string(), z.number()])

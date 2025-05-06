@@ -2,7 +2,7 @@ import { Agent } from '@mastra/core/agent';
 import { MCPConfiguration, LogMessage } from '@mastra/mcp';
 import { v4 as uuid } from 'uuid';
 import { writeFileSync } from 'fs';
-import { ORCHESTRATOR_SYSTEM_PROMPT } from './prompts';
+import { getOrchestratorSystemPrompt } from './prompts';
 import { sourceListTool, querySourceTool } from '../tools/sourcesTools';
 import { createAgent } from './config/agent';
 import { getStore } from '../../main/store';
@@ -59,9 +59,10 @@ export const getOrchestrator = async (): Promise<{
   const alertMessages: AgentBootMessage[] = [];
   let agent: Agent | null = null;
   try {
+    const store = getStore();
+
     // Redinmeツールの登録
     // APIキーとエンドポイントが登録されていた場合は登録する
-    const store = getStore();
     const redmineApiKey = store.get('redmine').apiKey;
     const redmineEndpoint = store.get('redmine').endpoint;
     let redmineTools = {};
@@ -164,7 +165,11 @@ export const getOrchestrator = async (): Promise<{
     // エージェントの作成
     agent = createAgent({
       name: ORCHESTRATOR_NAME,
-      instructions: ORCHESTRATOR_SYSTEM_PROMPT,
+      instructions: getOrchestratorSystemPrompt({
+        redmine: !!redmineTools && Object.keys(redmineTools).length > 0,
+        gitlab: !!gitlabTools && Object.keys(gitlabTools).length > 0,
+        mcp: !!mcpTools && Object.keys(mcpTools).length > 0,
+      }),
       tools: {
         sourceListTool,
         querySourceTool,

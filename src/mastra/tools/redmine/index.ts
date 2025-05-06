@@ -27,7 +27,7 @@ export const createRedmineTools = (config: {
   const getRedmineInfo = createTool({
     id: 'redmine-get-info',
     description:
-      'Redmineインスタンスの基本情報（プロジェクト、ユーザー、トラッカー、ステータスなど）を取得します。',
+      'Redmineインスタンスの基本情報（プロジェクト、トラッカー、ステータス、優先度など）を取得します。',
     inputSchema: z.object({}),
     outputSchema: z.object({
       projects: z.array(

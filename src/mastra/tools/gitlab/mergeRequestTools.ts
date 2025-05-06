@@ -16,7 +16,8 @@ import { createBaseToolResponseSchema, RunToolStatus } from '../types';
 export const createGetMergeRequestDetailTool = (client: GitLabClient) => {
   return createTool({
     id: 'gitlab-get-merge-request-detail',
-    description: 'GitLabの特定のマージリクエスト詳細を取得します。',
+    description:
+      'GitLabプロジェクト(リポジトリ)の特定のマージリクエスト詳細を取得します。',
     inputSchema: z.object({
       project_id: z
         .union([z.string(), z.number()])
@@ -69,7 +70,8 @@ export const createGetMergeRequestDetailTool = (client: GitLabClient) => {
 export const createAddMergeRequestCommentTool = (client: GitLabClient) => {
   return createTool({
     id: 'gitlab-add-merge-request-comment',
-    description: 'GitLabのマージリクエストにコメントを追加します。',
+    description:
+      'GitLabプロジェクト(リポジトリ)のマージリクエストにコメントを追加します。',
     inputSchema: z.object({
       project_id: z
         .union([z.string(), z.number()])
@@ -123,7 +125,7 @@ export const createAddMergeRequestDiffCommentTool = (client: GitLabClient) => {
   return createTool({
     id: 'gitlab-add-merge-request-diff-comment',
     description:
-      'GitLabのマージリクエストの差分（Diff）にコメントを追加します。',
+      'GitLabプロジェクト(リポジトリ)のマージリクエストの差分（Diff）にコメントを追加します。',
     inputSchema: z.object({
       project_id: z
         .union([z.string(), z.number()])

@@ -1,5 +1,5 @@
 /**
- * GitLabリポジトリ操作ツール
+ * GitLabプロジェクト(リポジトリ)操作ツール
  * ブランチ一覧取得・作成、タグ一覧取得、ファイルの取得、リポジトリツリー参照、コミット履歴取得などの操作を提供
  */
 
@@ -17,7 +17,7 @@ export const createGetFileContentTool = (client: GitLabClient) => {
   return createTool({
     id: 'gitlab-get-file-content',
     description:
-      '名前、サイズ、内容のようなリポジトリ内のファイルに関する情報を受け取ることができます。ファイルの内容は Base64 エンコードされています。',
+      'GitLabプロジェクト(リポジトリ)内の特定ファイルに関する情報（名前、サイズ、内容など）を受け取ることができます。ファイルの内容は Base64 エンコードされています。',
     inputSchema: z.object({
       project_id: z
         .union([z.string(), z.number()])
@@ -73,7 +73,7 @@ export const createGetRawFileTool = (client: GitLabClient) => {
   return createTool({
     id: 'gitlab-get-raw-file',
     description:
-      'GitLabリポジトリの特定のファイルを生で取得します（エンコードはされていません）',
+      'GitLabプロジェクト(リポジトリ)の特定のファイルを生で取得します（エンコードはされていません）',
     inputSchema: z.object({
       project_id: z
         .union([z.string(), z.number()])
@@ -128,7 +128,8 @@ export const createGetRawFileTool = (client: GitLabClient) => {
 export const createGeBlameFileTool = (client: GitLabClient) => {
   return createTool({
     id: 'gitlab-get-blame-file',
-    description: 'GitLabリポジトリの特定のblameファイルを取得します',
+    description:
+      'GitLabプロジェクト(リポジトリ)の特定ファイルのblameファイルを取得します',
     inputSchema: z.object({
       project_id: z
         .union([z.string(), z.number()])
@@ -191,7 +192,8 @@ export const createGeBlameFileTool = (client: GitLabClient) => {
 export const createGetRepositoryTreeTool = (client: GitLabClient) => {
   return createTool({
     id: 'gitlab-get-repository-tree',
-    description: 'GitLabリポジトリのディレクトリ構造（ツリー）を取得します。',
+    description:
+      'GitLabプロジェクト(リポジトリ)の全体ディレクトリ構造（ツリー）を取得します。',
     inputSchema: z.object({
       project_id: z
         .union([z.string(), z.number()])
