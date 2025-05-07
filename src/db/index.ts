@@ -1,4 +1,7 @@
+import { app } from 'electron';
+import { join } from 'path';
 import { drizzle, type LibSQLDatabase } from 'drizzle-orm/libsql';
+import { migrate } from 'drizzle-orm/libsql/migrator';
 import * as schema from './schema';
 import { getStore } from '../main/store';
 import { toAbsoluteFileURL } from '../main/utils/util';
@@ -8,6 +11,12 @@ type Database = LibSQLDatabase<typeof schema>;
 
 // データベース接続とORMインスタンスの作成
 const initializeDatabase = async () => {
+  // packaged時は ASAR 内 resources/app.asar/migrations
+  const migrationsPath = app.isPackaged
+    ? join(process.resourcesPath, 'app.asar', 'drizzle', 'migrations')
+    : join(__dirname, '..', '..', 'drizzle', 'migrations');
+  console.log('migrationsPath', migrationsPath);
+
   // ストアからデータベースの設定を取得
   const store = getStore();
 
@@ -17,8 +26,24 @@ const initializeDatabase = async () => {
     url: toAbsoluteFileURL(store.get('database').dir, 'source.db'),
   });
 
-  // Drizzle ORMインスタンスを作成
-  return drizzle(client, { schema });
+  // drizzle-ormインスタンス
+  const db = drizzle(client, { schema });
+
+  try {
+    // データベースの存在チェック
+    await client.execute('SELECT 1 FROM sources LIMIT 1');
+    await client.execute('SELECT 1 FROM topics LIMIT 1');
+    // eslint-disable-next-line
+  } catch (error) {
+    // データベースが存在しない場合、マイグレーションを実行
+    console.log('データベースが存在しないため、初期化を実行します');
+    await migrate(db, {
+      migrationsFolder: migrationsPath,
+    });
+    console.log('マイグレーションが完了しました');
+  }
+
+  return db;
 };
 
 // メインプロセスでのみデータベースを初期化
@@ -30,6 +55,14 @@ const getDb = async (): Promise<Database> => {
     dbInstance = await initializeDatabase();
   }
   return dbInstance!;
+};
+
+// データベースのリフレッシュ
+export const refreshDb = async () => {
+  if (dbInstance) {
+    dbInstance = undefined;
+    dbInstance = await initializeDatabase();
+  }
 };
 
 // データベースモジュールのデフォルトエクスポート

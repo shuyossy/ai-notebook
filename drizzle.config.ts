@@ -7,7 +7,7 @@ if (!process.env.DATABASE_DIR) {
 
 export default {
   schema: './src/db/schema.ts',
-  out: './drizzle',
+  out: './drizzle/migrations',
   dialect: 'sqlite',
   dbCredentials: {
     url: new URL('source.db', process.env.DATABASE_DIR).href,

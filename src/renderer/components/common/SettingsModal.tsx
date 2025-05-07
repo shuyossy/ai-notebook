@@ -80,7 +80,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         <Grid container spacing={3}>
           <Box sx={{ width: '100%', mb: 1 }}>
             <Typography variant="h6" gutterBottom>
-              データベース設定
+              データベース設定(チャット履歴やソース情報の保存先)
             </Typography>
             <TextField
               fullWidth

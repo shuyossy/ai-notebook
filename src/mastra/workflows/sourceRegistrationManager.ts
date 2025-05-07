@@ -15,8 +15,6 @@ export default class SourceRegistrationManager {
   // eslint-disable-next-line
   private static instance: SourceRegistrationManager | null = null;
 
-  private readonly registerDir: string;
-
   /**
    * シングルトンインスタンスを取得するメソッド
    */
@@ -28,20 +26,14 @@ export default class SourceRegistrationManager {
   }
 
   /**
-   * 環境変数から設定を読み込む非公開コンストラクタ
-   */
-  private constructor() {
-    const store = getStore();
-    this.registerDir = store.get('source').registerDir;
-  }
-
-  /**
    * ディレクトリ内の全てのファイルを登録
    */
   public async registerAllFiles(excludeRegisteredFile = true): Promise<void> {
     try {
+      const store = getStore();
+      const { registerDir } = store.get('source');
       // ディレクトリ内のファイル一覧を取得
-      let files = await this.readDirectoryRecursively(this.registerDir);
+      let files = await this.readDirectoryRecursively(registerDir);
 
       // DB接続を一度だけ確立
       const db = await getDb();

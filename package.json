@@ -103,6 +103,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "copy-to-clipboard": "^3.3.3",
+    "copy-webpack-plugin": "^13.0.0",
     "dotenv": "^16.5.0",
     "drizzle-kit": "^0.31.0",
     "drizzle-orm": "^0.42.0",
@@ -209,7 +210,8 @@
     "files": [
       "dist",
       "node_modules",
-      "package.json"
+      "package.json",
+      "drizzle"
     ],
     "mac": {
       "sign": ".erb/scripts/notarize.js",
