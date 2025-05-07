@@ -1,5 +1,5 @@
 {
-  "name": "ai-notebook",
+  "name": "aikata",
   "version": "0.1.0",
   "license": "MIT",
   "main": "./.erb/dll/main.bundle.dev.js",
@@ -203,8 +203,8 @@
     "webpack-merge": "^6.0.1"
   },
   "build": {
-    "productName": "ElectronReact",
-    "appId": "org.erb.ElectronReact",
+    "productName": "AIKATA",
+    "appId": "AIKATA",
     "asar": true,
     "asarUnpack": "**\\*.{node,dll}",
     "files": [
@@ -261,12 +261,7 @@
     },
     "extraResources": [
       "./assets/**"
-    ],
-    "publish": {
-      "provider": "github",
-      "owner": "electron-react-boilerplate",
-      "repo": "electron-react-boilerplate"
-    }
+    ]
   },
   "devEngines": {
     "runtime": {

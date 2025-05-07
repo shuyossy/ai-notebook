@@ -52,7 +52,7 @@ const deleteLogFile = (): void => {
  * オーケストレーターエージェントを取得または作成する
  */
 export const getOrchestrator = async (): Promise<{
-  agent: Agent;
+  agent: Agent | null;
   alertMessages: AgentBootMessage[];
   toolStatus: {
     redmine: boolean;
@@ -236,9 +236,8 @@ export const getOrchestrator = async (): Promise<{
     alertMessages.push({
       id: uuid(),
       type: 'error',
-      content: `AIエージェントの初期化に失敗しました\nAIエージェントを再起動するにはアプリを再起動してください:\n ${error}`,
+      content: `AIエージェントの初期化に失敗しました\n設定を再確認してください:\n ${error}`,
     });
-    throw error;
   }
   return {
     agent,

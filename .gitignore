@@ -43,3 +43,4 @@ source
 db
 local_docker
 mcp.log
+electron-store

@@ -119,16 +119,20 @@ const initializeMastra = async (): Promise<void> => {
     // オーケストレーターエージェントを取得
     const { agent, alertMessages, toolStatus } = await getOrchestrator();
 
+    // 起動メッセージを更新
+    alertMessages.forEach((message) => {
+      mastraStatus.messages?.push(message);
+    });
+
+    if (!agent) {
+      throw new Error('オーケストレーターエージェントの取得に失敗しました');
+    }
+
     // Mastraインスタンスを初期化
     mastraInstance = new Mastra({
       agents: { orchestratorAgent: agent },
       workflows: { sourceRegistrationWorkflow },
       logger,
-    });
-
-    // 起動メッセージを更新
-    alertMessages.forEach((message) => {
-      mastraStatus.messages?.push(message);
     });
 
     console.log('Mastraインスタンスの初期化が完了しました');
