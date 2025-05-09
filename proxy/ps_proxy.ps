@@ -1,0 +1,136 @@
+<#
+.SYNOPSIS
+  HTTP で受けたリクエストを、最初のパスセグメントをホスト名に置き換えて HTTPS 先へ転送するバイパスプロキシ
+
+.PARAMETER Port
+  待ち受けポート（省略時: 8080）
+
+.EXAMPLE
+  # デフォルト 8080 番で起動
+  .\HttpToHttpsProxy.ps1
+
+  # 9090 番で起動
+  .\HttpToHttpsProxy.ps1 -Port 9090
+#>
+param(
+    [int]$Port = 8080
+)
+
+# HttpListener を作成し、任意のホスト（*）・指定ポートを追加
+$listener = [System.Net.HttpListener]::new()
+$prefix = "http://*:$Port/"
+$listener.Prefixes.Add($prefix)
+Write-Host "▶ プロキシ待ち受け中: $prefix" -ForegroundColor Green
+
+try {
+    $listener.Start()
+} catch {
+    Write-Error "HttpListener の起動に失敗しました。管理者権限で実行するか、netsh http add urlacl で URL ACL を設定してください。"
+    exit 1
+}
+
+# HttpClient を一度だけ生成して再利用
+$client = [System.Net.Http.HttpClient]::new()
+
+while ($listener.IsListening) {
+    # リクエストを待機（シンプル版：１リクエストずつ順番に処理）
+    $context = $listener.GetContext()
+
+    # --- 1) 受信リクエスト情報を取得 ---
+    $req  = $context.Request
+    $res  = $context.Response
+
+    # RawUrl 例: "/aaa/bbb?foo=1"
+    $raw = $req.RawUrl
+
+    # --- 2) パスを分割し、最初のセグメントをホスト名に ---
+    #    RawUrl を「?」で分割してパス部分のみ取り出し
+    $pathPart = ($raw.Split('?')[0]).TrimStart('/')
+    $segments = if ($pathPart) { $pathPart.Split('/') } else { @() }
+
+    if ($segments.Count -lt 1) {
+        # パスが空（"/" のみ）の場合は 400 Bad Request
+        $res.StatusCode = 400
+        $res.StatusDescription = "Bad Request"
+        $res.Close()
+        continue
+    }
+
+    # 先頭セグメントがバイパス先ホスト
+    $targetHost = $segments[0]
+    # 残りのパスを再構築
+    if ($segments.Count -gt 1) {
+        $remainingPath = '/' + ($segments[1..($segments.Count - 1)] -join '/')
+    } else {
+        $remainingPath = '/'
+    }
+    # クエリ文字列（含む "?" または空文字）
+    $query = $req.Url.Query  # 例: "?foo=1" or ""
+
+    # --- 3) 転送先 URI を組み立て ---
+    $targetUriString = "https://$targetHost$remainingPath$query"
+    # PowerShell 上で Uri 型に変換
+    $targetUri = [System.Uri]::new($targetUriString)
+
+    # --- 4) HttpRequestMessage を作成し、メソッド／ヘッダ／ボディをコピー ---
+    # メソッドを動的にセット（GET/POST/etc）
+    $method = New-Object System.Net.Http.HttpMethod($req.HttpMethod)
+    $forwardReq = [System.Net.Http.HttpRequestMessage]::new($method, $targetUri)
+
+    # ◆ ヘッダーをコピー（Host, Content-* は除外し、必要なら別途設定）
+    foreach ($name in $req.Headers.AllKeys) {
+        $lower = $name.ToLower()
+        if ($lower -eq 'host' -or $lower.StartsWith('content-')) { continue }
+        foreach ($val in $req.Headers.GetValues($name)) {
+            # TryAddWithoutValidation で不正なヘッダ名にも寛容に対応
+            $null = $forwardReq.Headers.TryAddWithoutValidation($name, $val)
+        }
+    }
+
+    # ◆ ボディがあればバイト列でコピーし、Content-Type を再設定
+    if ($req.HasEntityBody) {
+        $len    = $req.ContentLength64
+        $buffer = New-Object byte[] $len
+        $req.InputStream.Read($buffer, 0, $len) | Out-Null
+
+        $byteContent = [System.Net.Http.ByteArrayContent]::new($buffer, 0, $len)
+        if ($req.ContentType) {
+            $mt = [System.Net.Http.Headers.MediaTypeHeaderValue]::Parse($req.ContentType)
+            $byteContent.Headers.ContentType = $mt
+        }
+        $forwardReq.Content = $byteContent
+    }
+
+    # --- 5) リクエストを送信し、レスポンスを待機 ---
+    try {
+        $respMsg = $client.SendAsync($forwardReq).Result
+    } catch {
+        # 送信失敗時は 502 Bad Gateway
+        $res.StatusCode = 502
+        $res.StatusDescription = "Bad Gateway"
+        $res.Close()
+        continue
+    }
+
+    # --- 6) クライアントへステータス・ヘッダ・ボディを返却 ---
+    $res.StatusCode        = [int]$respMsg.StatusCode
+    $res.StatusDescription = $respMsg.ReasonPhrase
+
+    # ヘッダ（Content-* も含む）をすべて転写
+    foreach ($h in $respMsg.Headers) {
+        $res.Headers[$h.Key] = ($h.Value -join ',')
+    }
+    foreach ($h in $respMsg.Content.Headers) {
+        $res.Headers[$h.Key] = ($h.Value -join ',')
+    }
+
+    # ボディ書き込み
+    $bodyBytes = $respMsg.Content.ReadAsByteArrayAsync().Result
+    $res.OutputStream.Write($bodyBytes, 0, $bodyBytes.Length)
+
+    # クローズして次のリクエストへ
+    $res.Close()
+}
+
+# プロセス中断時などにリスナーを停止
+$listener.Stop()
