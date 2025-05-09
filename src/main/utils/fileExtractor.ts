@@ -27,25 +27,12 @@ interface FileExtractionError extends Error {
  * 多様なファイル形式からテキストを抽出するユーティリティクラス
  */
 export default class FileExtractor {
-  /**
-   * 処理可能なファイル形式
-   */
+  /** 処理可能な拡張子 */
   private static readonly SUPPORTED_EXTENSIONS = [
-    '.txt',
-    '.doc',
-    '.docx',
-    '.xls',
-    '.xlsx',
-    '.ppt',
-    '.pptx',
-    '.pdf',
+    '.txt', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.pdf',
   ];
 
-  /**
-   * ファイル形式に基づいてテキストを抽出する
-   * @param filePath ファイルパス
-   * @returns 抽出結果
-   */
+  /** メイン API */
   public static async extractText(filePath: string): Promise<ExtractionResult> {
     const extension = path.extname(filePath).toLowerCase();
 
@@ -74,24 +61,19 @@ export default class FileExtractor {
     } catch (error) {
       throw this.createError(
         'extraction_failed',
-        `${filePath}のテキスト抽出に失敗しました: ${(error as Error).message}`,
+        `${filePath} のテキスト抽出に失敗しました: ${(error as Error).message}`,
         filePath,
         extension,
       );
     }
   }
 
-  /**
-   * ファイル形式別のテキスト抽出処理
-   */
-  private static async extractContentByType(
-    filePath: string,
-    extension: string,
-  ): Promise<string> {
-    switch (extension) {
+  /** 種別ごとの振り分け */
+  private static async extractContentByType(filePath: string, ext: string): Promise<string> {
+    switch (ext) {
       case '.docx':
       case '.doc':
-        return this.extractFromDoc(filePath);
+        return this.extractFromWord(filePath);
       case '.xlsx':
       case '.xls':
         return this.extractFromExcel(filePath);
@@ -105,13 +87,10 @@ export default class FileExtractor {
     }
   }
 
-  /**
-   * テキストファイルからテキストを抽出する
-   */
+  /** .txt */
   private static async extractFromTxt(filePath: string): Promise<string> {
     try {
-      const content = await fs.readFile(filePath, 'utf-8');
-      return content;
+      return await fs.readFile(filePath, 'utf-8');
     } catch (error) {
       throw this.createError(
         'txt_extraction_failed',
@@ -122,58 +101,117 @@ export default class FileExtractor {
     }
   }
 
+  /* ------------------------------------------------------------------ */
+  /*  以下はすべて winax + Office COM オートメーションで実装            */
+  /* ------------------------------------------------------------------ */
+
   /**
-   * Word文書からテキストを抽出する (モック)
+   * Word / RTF / PDF (Word が PDF を開ける場合)
    */
-  // eslint-disable-next-line
-  private static async extractFromDoc(filePath: string): Promise<string> {
-    // 注: 実際の実装ではdocx-parserなどのライブラリを使用
-    return 'Word文書からのテキスト抽出はモック実装です。';
+  private static async extractFromWord(filePath: string): Promise<string> {
+    const winax = await import('winax');
+    const word = new winax.Object('Word.Application', { activate: false });
+    try {
+      word.Visible = false;
+      const doc = word.Documents.Open(filePath, false, true); // read-only
+      const text: string = doc.Content.Text;                     // Word VBA: Document.Content.Text  [oai_citation:0‡Microsoft Learn](https://learn.microsoft.com/en-us/office/vba/api/word.document.content?utm_source=chatgpt.com) [oai_citation:1‡Microsoft Learn](https://learn.microsoft.com/en-us/office/vba/api/word.range.text?utm_source=chatgpt.com)
+      doc.Close(false);
+      return text.replace(/\r/g, '\n').trim();
+    } finally {
+      word.Quit();
+      winax.release(word);
+    }
   }
 
   /**
-   * Excelファイルからテキストを抽出する (モック)
+   * Excel (.xls / .xlsx)
    */
-  // eslint-disable-next-line
   private static async extractFromExcel(filePath: string): Promise<string> {
-    // 注: 実際の実装ではxlsx-populateなどのライブラリを使用
-    return 'Excelファイルからのテキスト抽出はモック実装です。';
+    const winax = await import('winax');
+    const excel = new winax.Object('Excel.Application', { activate: false });
+    try {
+      excel.Visible = false;
+      const wb = excel.Workbooks.Open(filePath, false, true); // read-only
+      let out = '';
+      for (let i = 1; i <= wb.Worksheets.Count; i++) {
+        const sheet = wb.Worksheets.Item(i);
+        const used = sheet.UsedRange;                           // Worksheet.UsedRange  [oai_citation:2‡Microsoft Learn](https://learn.microsoft.com/en-us/office/vba/api/excel.worksheet.usedrange?utm_source=chatgpt.com)
+        if (!used) continue;
+        const values = used.Value;                              // Range.Value ⇒ 2D 配列  [oai_citation:3‡Microsoft Learn](https://learn.microsoft.com/en-us/office/vba/api/excel.range.value?utm_source=chatgpt.com)
+        if (Array.isArray(values)) {
+          for (const row of values) {
+            out += (row as unknown[]).map(v => (v ?? '')).join('\t') + '\n';
+          }
+        } else if (values !== undefined && values !== null) {
+          out += `${values}\n`;
+        }
+      }
+      wb.Close(false);
+      return out.trim();
+    } finally {
+      excel.Quit();
+      winax.release(excel);
+    }
   }
 
   /**
-   * PowerPointファイルからテキストを抽出する (モック)
+   * PowerPoint (.ppt / .pptx)
    */
-  private static async extractFromPowerPoint(
-    // eslint-disable-next-line
-    filePath: string,
-  ): Promise<string> {
-    // 注: 実際の実装ではpptxgenjs-to-textなどのライブラリを使用
-    return 'PowerPointファイルからのテキスト抽出はモック実装です。';
+  private static async extractFromPowerPoint(filePath: string): Promise<string> {
+    const winax = await import('winax');
+    const ppt = new winax.Object('PowerPoint.Application', { activate: false });
+    try {
+      ppt.Visible = false;
+      const pres = ppt.Presentations.Open(filePath, false, true, false);
+      let out = '';
+      for (let i = 1; i <= pres.Slides.Count; i++) {
+        const slide = pres.Slides.Item(i);
+        for (let j = 1; j <= slide.Shapes.Count; j++) {
+          const shape = slide.Shapes.Item(j);
+          if (shape.HasTextFrame && shape.TextFrame.HasText) {   // Shape.TextFrame.HasText  [oai_citation:4‡Microsoft Learn](https://learn.microsoft.com/en-us/office/vba/api/powerpoint.shape.textframe?utm_source=chatgpt.com)
+            out += shape.TextFrame.TextRange.Text + '\n';
+          }
+        }
+      }
+      pres.Close();
+      return out.trim();
+    } finally {
+      ppt.Quit();
+      winax.release(ppt);
+    }
   }
 
   /**
-   * PDFファイルからテキストを抽出する (モック)
+   * PDF (Word で開ける場合のみ)
    */
-  // eslint-disable-next-line
   private static async extractFromPdf(filePath: string): Promise<string> {
-    // 注: 実際の実装ではpdf-parse-jsなどのライブラリを使用
-    return 'PDFファイルからのテキスト抽出はモック実装です。';
+    try {
+      // Word が PDF を読み取れる場合はそのまま利用
+      return await this.extractFromWord(filePath);
+    } catch (e) {
+      throw this.createError(
+        'pdf_extraction_failed',
+        'Word 経由で PDF を開けませんでした。Acrobat COM など別手段が必要です。',
+        filePath,
+        '.pdf',
+      );
+    }
   }
 
-  /**
-   * エラーオブジェクトを作成する
-   */
+  /* ------------------------------------------------------------------ */
+
+  /** 共通エラーヘルパ */
   private static createError(
     code: string,
     message: string,
     filePath: string,
     fileType: string,
   ): FileExtractionError {
-    const error = new Error(message) as FileExtractionError;
-    error.code = code;
-    error.filePath = filePath;
-    error.fileType = fileType;
-    error.name = 'FileExtractionError';
-    return error;
+    const err = new Error(message) as FileExtractionError;
+    err.code = code;
+    err.filePath = filePath;
+    err.fileType = fileType;
+    err.name = 'FileExtractionError';
+    return err;
   }
 }
