@@ -1,41 +1,44 @@
 import { app } from 'electron';
 import { join } from 'path';
-import { drizzle, type LibSQLDatabase } from 'drizzle-orm/libsql';
-import { migrate } from 'drizzle-orm/libsql/migrator';
+// better-sqlite3 をインポート
+import Database from 'better-sqlite3';
+// better-sqlite3 用の Drizzle ドライバをインポート
+import { drizzle, type BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
+// マイグレーション実行用の関数をインポート
+import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import * as schema from './schema';
 import { getStore } from '../main/store';
-import { toAbsoluteFileURL } from '../main/utils/util';
 
-// データベースの型定義
-type Database = LibSQLDatabase<typeof schema>;
+// Drizzle ORM のデータベース型定義
+type DatabaseType = BetterSQLite3Database<typeof schema>;
 
-// データベース接続とORMインスタンスの作成
-const initializeDatabase = async () => {
-  // packaged時は ASAR 内 resources/app.asar/migrations
+/**
+ * データベース初期化処理
+ */
+const initializeDatabase = async (): Promise<DatabaseType> => {
+  // packaged 時と開発時でマイグレーションパスを切り替え
   const migrationsPath = app.isPackaged
     ? join(process.resourcesPath, 'app.asar', 'drizzle', 'migrations')
     : join(__dirname, '..', '..', 'drizzle', 'migrations');
   console.log('migrationsPath', migrationsPath);
 
-  // ストアからデータベースの設定を取得
+  // ストアから DB ディレクトリを取得
   const store = getStore();
+  const dbDir = store.get('database').dir as string;
+  // SQLite ファイルへのパス
+  const dbPath = join(dbDir, 'source.db');
 
-  // データベース接続クライアントを作成
-  const { createClient } = await import('@libsql/client');
-  const client = createClient({
-    url: toAbsoluteFileURL(store.get('database').dir, 'source.db'),
-  });
-
-  // drizzle-ormインスタンス
-  const db = drizzle(client, { schema });
+  // better-sqlite3 クライアントを作成
+  const sqliteClient = new Database(dbPath);
+  // Drizzle ORM インスタンスを生成
+  const db = drizzle({ client: sqliteClient, schema }); // 
 
   try {
-    // データベースの存在チェック
-    await client.execute('SELECT 1 FROM sources LIMIT 1');
-    await client.execute('SELECT 1 FROM topics LIMIT 1');
-    // eslint-disable-next-line
+    // テーブルが存在するか簡易チェック
+    await db.execute('SELECT 1 FROM sources LIMIT 1');
+    await db.execute('SELECT 1 FROM topics LIMIT 1');
   } catch (error) {
-    // データベースが存在しない場合、マイグレーションを実行
+    // 存在しなければマイグレーションを実行
     console.log('データベースが存在しないため、初期化を実行します');
     await migrate(db, {
       migrationsFolder: migrationsPath,
@@ -46,24 +49,25 @@ const initializeDatabase = async () => {
   return db;
 };
 
-// メインプロセスでのみデータベースを初期化
-let dbInstance: Database | undefined;
+// シングルトンで DB インスタンスを保持
+let dbInstance: DatabaseType | undefined;
 
-// データベースインスタンスを取得する関数
-const getDb = async (): Promise<Database> => {
+/**
+ * 初期化済みの Drizzle ORM インスタンスを返却
+ */
+export const getDb = async (): Promise<DatabaseType> => {
   if (!dbInstance) {
     dbInstance = await initializeDatabase();
   }
   return dbInstance!;
 };
 
-// データベースのリフレッシュ
-export const refreshDb = async () => {
-  if (dbInstance) {
-    dbInstance = undefined;
-    dbInstance = await initializeDatabase();
-  }
+/**
+ * DB を再初期化してマイグレーションし直す
+ */
+export const refreshDb = async (): Promise<void> => {
+  dbInstance = undefined;
+  dbInstance = await initializeDatabase();
 };
 
-// データベースモジュールのデフォルトエクスポート
 export default getDb;
