@@ -1,6 +1,5 @@
 import path, { join } from 'path';
 import { app } from 'electron';
-import { toAbsolutePath } from './utils/util';
 // 設定の型定義
 export interface StoreSchema {
   database: {

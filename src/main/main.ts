@@ -239,33 +239,84 @@ const setupChatHandlers = () => {
         const orchestratorAgent = mastra.getAgent('orchestratorAgent');
 
         // メッセージをストリーミングで送信
-        const stream = await orchestratorAgent.stream(content, {
-          resourceId: 'user', // 固定のリソースID
-          toolCallStreaming: true,
-          instructions: await getOrchestratorSystemPrompt(
-            mastraStatus.tools ?? {
-              redmine: false,
-              gitlab: false,
-              mcp: false,
-            },
-          ),
-          threadId: roomId, // チャットルームIDをスレッドIDとして使用
-          maxSteps: 30, // ツールの利用上限
-          onFinish: () => {
-            // ストリーミングが完了したときの処理
-            // フロントエンドに完了通知を送信
-            event.sender.send(IpcChannels.CHAT_COMPLETE);
-          },
-        });
+        // const stream = await orchestratorAgent.stream(content, {
+        //   resourceId: 'user', // 固定のリソースID
+        //   toolCallStreaming: true,
+        //   instructions: await getOrchestratorSystemPrompt(
+        //     mastraStatus.tools ?? {
+        //       redmine: false,
+        //       gitlab: false,
+        //       mcp: false,
+        //     },
+        //   ),
+        //   threadId: roomId, // チャットルームIDをスレッドIDとして使用
+        //   maxSteps: 30, // ツールの利用上限
+        //   onFinish: () => {
+        //     // ストリーミングが完了したときの処理
+        //     // フロントエンドに完了通知を送信
+        //     event.sender.send(IpcChannels.CHAT_COMPLETE);
+        //   },
+        // });
+
+        // // DataStreamを生成
+        // const dataStream = createDataStream({
+        //   execute(writer) {
+        //     stream.mergeIntoDataStream(writer);
+        //   },
+        //   onError(error) {
+        //     // エラーが発生したときの処理
+        //     console.error('ストリーミング中にエラーが発生:', error);
+        //     if (error == null) return 'unknown error';
+        //     if (typeof error === 'string') return error;
+        //     if (error instanceof Error) return error.message;
+        //     return JSON.stringify(error);
+        //   },
+        // });
 
         // DataStreamを生成
         const dataStream = createDataStream({
-          execute(writer) {
-            stream.mergeIntoDataStream(writer);
+          async execute(writer) {
+            // ストリーミングの開始を通知（このデータは利用されない、あくまで通知するためだけ）
+            writer.writeMessageAnnotation({
+              type: 'status',
+              value: 'processing',
+            });
+            // streaming falseの場合のメッセージ送信処理
+            const res = await orchestratorAgent.generate(content, {
+              resourceId: 'user', // 固定のリソースID
+              instructions: await getOrchestratorSystemPrompt(
+                mastraStatus.tools ?? {
+                  redmine: false,
+                  gitlab: false,
+                  mcp: false,
+                },
+              ),
+              threadId: roomId, // チャットルームIDをスレッドIDとして使用
+              maxSteps: 30, // ツールの利用上限
+              onStepFinish: (stepResult) => {
+                console.log('onStepFinish', stepResult);
+                // https://ai-sdk.dev/docs/ai-sdk-ui/stream-protocol
+                // 上記を参考にai-sdkのストリームプロトコルに従ってメッセージを送信
+                writer.write(`0:${JSON.stringify(stepResult.text)}\n`);
+                stepResult.toolCalls.forEach((toolCall) => {
+                  writer.write(`9:${JSON.stringify(toolCall)}\n`);
+                });
+                stepResult.toolResults.forEach((toolResult) => {
+                  writer.write(`a:${JSON.stringify(toolResult)}\n`);
+                });
+                writer.write(
+                  `e:${JSON.stringify({ finishReason: stepResult.finishReason, ...stepResult.usage })}\n`,
+                );
+              },
+            });
+            writer.write(
+              `d:${JSON.stringify({ finishReason: res.finishReason, ...res.usage })}\n`,
+            );
+            event.sender.send(IpcChannels.CHAT_COMPLETE);
           },
           onError(error) {
             // エラーが発生したときの処理
-            console.error('ストリーミング中にエラーが発生:', error);
+            console.error('テキスト生成中にエラーが発生:', error);
             if (error == null) return 'unknown error';
             if (typeof error === 'string') return error;
             if (error instanceof Error) return error.message;
@@ -276,6 +327,7 @@ const setupChatHandlers = () => {
         // テキストストリームを処理
         // @ts-ignore
         for await (const chunk of dataStream) {
+          console.log('ストリーミングデータ:', chunk);
           // チャンクをフロントエンドに送信
           event.sender.send(IpcChannels.CHAT_STREAM, chunk);
         }

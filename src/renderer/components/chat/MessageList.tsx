@@ -51,13 +51,13 @@ const MessageList: React.FC<MessageListProps> = ({
           sx={{
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'flex-start',
+            justifyContent: 'center',
             mt: 1,
           }}
         >
-          <CircularProgress size={20} />
-          <Box component="span" sx={{ ml: 1, fontSize: '0.875rem' }}>
-            応答中…
+          <CircularProgress size={24} />
+          <Box component="span" sx={{ ml: 1 }}>
+            AIKATA作業中…
           </Box>
         </Box>
       )}
