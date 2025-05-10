@@ -2,7 +2,7 @@
  * Webpack config for production electron main process
  */
 
-import path from 'path';
+import path, { join } from 'path';
 import webpack from 'webpack';
 import { merge } from 'webpack-merge';
 import TerserPlugin from 'terser-webpack-plugin';
@@ -74,6 +74,13 @@ const configuration: webpack.Configuration = {
         {
           from: path.resolve(__dirname, '../../drizzle'),
           to: path.resolve(__dirname, '../../release/app/drizzle'),
+        },
+        {
+          from: join(
+            path.dirname(require.resolve('pdfjs-dist/package.json')),
+            'legacy/build/pdf.worker.mjs',
+          ),
+          to: 'pdf.worker.mjs', // 出力先 (resources に入る)
         },
       ],
     }),

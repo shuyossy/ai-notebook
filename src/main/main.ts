@@ -503,6 +503,10 @@ const initializeSourceRegistration = async () => {
   console.log('ソースファイルの初期登録を開始します...');
   const registrationManager = SourceRegistrationManager.getInstance();
 
+  // 処理中のソースを削除
+  await registrationManager.clearProcessingSources();
+  console.log('処理中のソースを削除しました');
+
   // ソース登録を実行
   await registrationManager.registerAllFiles();
   console.log('ソースファイルの初期登録が完了しました');
