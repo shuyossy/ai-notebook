@@ -69,32 +69,6 @@ const useSettingsStore = () => {
     mcp: { serverConfigText: '{}' },
   });
 
-  // ストアからの値の更新を監視
-  useEffect(() => {
-    if (!loading) {
-      setSettings({
-        database: databaseStore ?? { dir: '' },
-        source: sourceStore ?? { registerDir: './source' },
-        api: apiStore ?? { key: '', url: '', model: '' },
-        redmine: redmineStore ?? { endpoint: '', apiKey: '' },
-        gitlab: gitlabStore ?? { endpoint: '', apiKey: '' },
-        mcp: {
-          serverConfigText: mcpStore.serverConfigText ?? {
-            serverConfigText: '{}',
-          },
-        },
-      });
-    }
-  }, [
-    databaseStore,
-    sourceStore,
-    apiStore,
-    redmineStore,
-    gitlabStore,
-    mcpStore,
-    loading,
-  ]);
-
   // バリデーションエラーの状態管理
   const [validationErrors, setValidationErrors] = useState<ValidationState>({
     database: {},
@@ -168,6 +142,40 @@ const useSettingsStore = () => {
     },
     [],
   );
+
+  // ストアからの値の更新を監視
+  useEffect(() => {
+    if (!loading) {
+      const newSettings = {
+        database: databaseStore ?? { dir: '' },
+        source: sourceStore ?? { registerDir: './source' },
+        api: apiStore ?? { key: '', url: '', model: '' },
+        redmine: redmineStore ?? { endpoint: '', apiKey: '' },
+        gitlab: gitlabStore ?? { endpoint: '', apiKey: '' },
+        mcp: {
+          serverConfigText: mcpStore.serverConfigText ?? {
+            serverConfigText: '{}',
+          },
+        },
+      };
+
+      setSettings(newSettings);
+
+      // 各セクションのバリデーションを実行
+      Object.entries(newSettings).forEach(([section, value]) => {
+        validateSection(section as keyof Settings, value);
+      });
+    }
+  }, [
+    databaseStore,
+    sourceStore,
+    apiStore,
+    redmineStore,
+    gitlabStore,
+    mcpStore,
+    loading,
+    validateSection,
+  ]);
 
   /**
    * フィールドの更新処理
