@@ -60,8 +60,13 @@ const getDb = async (): Promise<Database> => {
 // データベースのリフレッシュ
 export const refreshDb = async () => {
   if (dbInstance) {
-    dbInstance = undefined;
-    dbInstance = await initializeDatabase();
+    // @ts-ignore
+    dbInstance.$client.close();
+    // @ts-ignore
+    if (dbInstance.$client.closed) {
+      dbInstance = undefined;
+      dbInstance = await initializeDatabase();
+    }
   }
 };
 

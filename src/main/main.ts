@@ -10,7 +10,7 @@
  */
 import path from 'path';
 import fs from 'fs/promises';
-import { app, BrowserWindow, shell, ipcMain } from 'electron';
+import { app, BrowserWindow, shell, ipcMain, crashReporter } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import log from 'electron-log';
 import { Mastra } from '@mastra/core';
@@ -611,6 +611,13 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit();
   }
+});
+
+crashReporter.start({
+  // ミニダンプをアップロードしない設定
+  submitURL: '',
+  uploadToServer: false,
+  compress: true,
 });
 
 const initialize = async () => {
