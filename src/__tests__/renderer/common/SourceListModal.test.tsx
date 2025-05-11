@@ -99,17 +99,35 @@ describe('SourceListModal Component', () => {
       sources: mockSources,
     });
 
-    // コンポーネントをレンダリング
-    render(<SourceListModal {...defaultProps} />);
+    const props = {
+      ...defaultProps,
+    };
 
-    // ソースデータが取得されるまで待機
-    await waitFor(() => {
-      window.electron.source.getSources;
-    });
+    // コンポーネントをレンダリング
+    render(
+      <SourceListModal
+        open={props.open}
+        processing={props.processing}
+        onClose={props.onClose}
+        onReloadSources={props.onReloadSources}
+        onStatusUpdate={props.onStatusUpdate}
+        showSnackbar={props.showSnackbar}
+      />,
+    );
 
     // 進める
     act(() => {
       jest.advanceTimersByTime(3000);
+    });
+
+    // ソースデータが取得されるまで待機
+    await waitFor(() => {
+      expect(window.electron.source.getSources).toHaveBeenCalled();
+    });
+
+    // テーブルの内容がレンダリングされるまで待機
+    await waitFor(() => {
+      expect(screen.queryAllByRole('checkbox').length).toBeGreaterThan(1);
     });
 
     // 各ソースが表示されていることを確認
@@ -130,15 +148,28 @@ describe('SourceListModal Component', () => {
 
   // テスト2: ソースのリロードボタンが機能すること
   test('ソースのリロードボタンが機能すること', async () => {
+    const props = {
+      ...defaultProps,
+    };
+
     // コンポーネントをレンダリング
-    render(<SourceListModal {...defaultProps} />);
+    render(
+      <SourceListModal
+        open={props.open}
+        processing={props.processing}
+        onClose={props.onClose}
+        onReloadSources={props.onReloadSources}
+        onStatusUpdate={props.onStatusUpdate}
+        showSnackbar={props.showSnackbar}
+      />,
+    );
 
     // リロードボタンをクリック
     const reloadButton = screen.getByText('ソース読み込み');
     fireEvent.click(reloadButton);
 
     // onReloadSourcesが呼ばれたことを確認
-    expect(defaultProps.onReloadSources).toHaveBeenCalled();
+    expect(props.onReloadSources).toHaveBeenCalled();
   });
 
   // テスト3: 処理中はUI要素が無効化されること
@@ -149,12 +180,36 @@ describe('SourceListModal Component', () => {
       sources: mockSources,
     });
 
+    const props = {
+      ...defaultProps,
+      processing: true,
+    };
+
     // 処理中状態でコンポーネントをレンダリング
-    render(<SourceListModal {...defaultProps} processing={true} />);
+    render(
+      <SourceListModal
+        open={props.open}
+        processing={props.processing}
+        onClose={props.onClose}
+        onReloadSources={props.onReloadSources}
+        onStatusUpdate={props.onStatusUpdate}
+        showSnackbar={props.showSnackbar}
+      />,
+    );
+
+    // 進める
+    act(() => {
+      jest.advanceTimersByTime(3000);
+    });
 
     // ソースデータが取得されるまで待機
     await waitFor(() => {
-      window.electron.source.getSources;
+      expect(window.electron.source.getSources).toHaveBeenCalled();
+    });
+
+    // テーブルの内容がレンダリングされるまで待機
+    await waitFor(() => {
+      expect(screen.queryAllByRole('checkbox').length).toBeGreaterThan(1);
     });
 
     // リロードボタンが無効化されていることを確認
@@ -166,6 +221,108 @@ describe('SourceListModal Component', () => {
     expect(allCheckboxes.length).toBeGreaterThan(0);
 
     for (const checkbox of allCheckboxes) {
+      expect(checkbox).toBeDisabled();
+    }
+  });
+
+  // テスト4: ソースのチェックボックスが1つでも選択された場合、リロードボタンと他のチェックボックスが無効化されること
+  test('ソースのチェックボックスが1つでも選択された場合、リロードボタンと他のチェックボックスが無効化されること', async () => {
+    const props = {
+      ...defaultProps,
+    };
+
+    // モックデータをセットアップ
+    window.electron.source.getSources = jest.fn().mockResolvedValue({
+      success: true,
+      sources: mockSources,
+    });
+
+    // コンポーネントをレンダリング
+    render(
+      <SourceListModal
+        open={props.open}
+        processing={props.processing}
+        onClose={props.onClose}
+        onReloadSources={props.onReloadSources}
+        onStatusUpdate={props.onStatusUpdate}
+        showSnackbar={props.showSnackbar}
+      />,
+    );
+
+    // 進める
+    act(() => {
+      jest.advanceTimersByTime(3000);
+    });
+
+    // ソースデータが取得されるまで待機
+    await waitFor(() => {
+      expect(window.electron.source.getSources).toHaveBeenCalled();
+    });
+
+    // テーブルの内容がレンダリングされるまで待機
+    await waitFor(() => {
+      expect(screen.queryAllByRole('checkbox').length).toBeGreaterThan(1);
+    });
+
+    // 1つのチェックボックスを選択
+    const checkboxes = screen.getAllByRole('checkbox');
+    fireEvent.click(checkboxes[1]); // 最初のチェックボックス（全選択以外）を選択
+
+    // リロードボタンが無効化されていることを確認
+    const reloadButton = screen.getByText('ソース読み込み');
+    expect(reloadButton).toBeDisabled();
+
+    // すべてのチェックボックスが無効化されていることを確認
+    for (const checkbox of checkboxes) {
+      expect(checkbox).toBeDisabled();
+    }
+  });
+
+  // テスト5: 全選択チェックボックスが選択された場合、すべてのソースのチェックボックスが無効化されること
+  test('全選択チェックボックスが選択された場合、すべてのソースのチェックボックスが無効化されること', async () => {
+    const props = {
+      ...defaultProps,
+    };
+
+    // モックデータをセットアップ
+    window.electron.source.getSources = jest.fn().mockResolvedValue({
+      success: true,
+      sources: mockSources,
+    });
+
+    // コンポーネントをレンダリング
+    render(
+      <SourceListModal
+        open={props.open}
+        processing={props.processing}
+        onClose={props.onClose}
+        onReloadSources={props.onReloadSources}
+        onStatusUpdate={props.onStatusUpdate}
+        showSnackbar={props.showSnackbar}
+      />,
+    );
+
+    // 進める
+    act(() => {
+      jest.advanceTimersByTime(3000);
+    });
+
+    // ソースデータが取得されるまで待機
+    await waitFor(() => {
+      expect(window.electron.source.getSources).toHaveBeenCalled();
+    });
+
+    // テーブルの内容がレンダリングされるまで待機
+    await waitFor(() => {
+      expect(screen.queryAllByRole('checkbox').length).toBeGreaterThan(1);
+    });
+
+    // 全選択チェックボックスを選択
+    const checkboxes = screen.getAllByRole('checkbox');
+    fireEvent.click(checkboxes[0]); // 全選択チェックボックス
+
+    // すべてのチェックボックスが無効化されていることを確認
+    for (const checkbox of checkboxes) {
       expect(checkbox).toBeDisabled();
     }
   });
