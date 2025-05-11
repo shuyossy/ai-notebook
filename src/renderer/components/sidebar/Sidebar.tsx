@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Box, Menu, MenuItem, Divider, AlertColor } from '@mui/material';
 import { v4 as uuidv4 } from 'uuid';
 import SourceListModal from '../common/SourceListModal';
+import SettingsModal from '../common/SettingsModal';
 import { ChatRoom } from '../../../main/types';
 import { chatService } from '../../services/chatService';
 import SidebarHeader from './SidebarHeader';
@@ -11,7 +12,6 @@ import SidebarFooter from './SidebarFooter';
 interface SidebarProps {
   selectedRoomId: string | null;
   onRoomSelect: (roomId: string) => void;
-  onSettingsClick: () => void;
   onReloadSources: () => void; // ソース読み込み処理を実行する関数
   showSnackbar: (message: string, severity: AlertColor) => void;
 }
@@ -19,11 +19,11 @@ interface SidebarProps {
 function Sidebar({
   selectedRoomId,
   onRoomSelect,
-  onSettingsClick,
   onReloadSources,
   showSnackbar,
 }: SidebarProps) {
   const [isSourceListOpen, setIsSourceListOpen] = useState(false);
+  const [settingsHasError, setSettingsHasError] = useState(false);
   const [sourceStatus, setSourceStatus] = useState<{
     processing: boolean;
     enabledCount: number;
@@ -32,6 +32,12 @@ function Sidebar({
   const [menuAnchorEl, setMenuAnchorEl] = useState<null | HTMLElement>(null);
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+
+  const onSettingsUpdated = useCallback(() => {
+    // 設定更新完了時の処理
+    showSnackbar('設定を更新しました', 'success');
+  }, [showSnackbar]);
 
   // チャットルーム一覧を取得
   const fetchChatRooms = useCallback(async () => {
@@ -110,6 +116,11 @@ function Sidebar({
     return () => clearInterval(interval);
   }, [refreshChatRooms]);
 
+  // 設定モーダルを開く
+  const handleSettingsClick = () => {
+    setIsSettingsModalOpen(true);
+  };
+
   return (
     <Box
       sx={{
@@ -150,9 +161,10 @@ function Sidebar({
       </Box>
 
       <SidebarFooter
-        onSettingsClick={onSettingsClick}
+        onSettingsClick={handleSettingsClick}
         onOpenSourceList={() => setIsSourceListOpen(true)}
         sourceStatus={sourceStatus}
+        settingsHasError={settingsHasError}
       />
 
       {/* ソース一覧モーダル */}
@@ -163,6 +175,14 @@ function Sidebar({
         onReloadSources={onReloadSources}
         onStatusUpdate={setSourceStatus}
         showSnackbar={showSnackbar}
+      />
+
+      {/* 設定モーダル */}
+      <SettingsModal
+        open={isSettingsModalOpen}
+        onClose={() => setIsSettingsModalOpen(false)}
+        onSettingsUpdated={onSettingsUpdated}
+        onValidChange={(isValid) => setSettingsHasError(!isValid)}
       />
 
       {/* チャットルームメニュー */}

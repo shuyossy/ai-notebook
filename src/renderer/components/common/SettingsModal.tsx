@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import {
   Button,
   TextField,
@@ -17,12 +17,14 @@ interface SettingsModalProps {
   open: boolean;
   onClose: () => void;
   onSettingsUpdated: () => void;
+  onValidChange: (isValid: boolean) => void;
 }
 
 const SettingsModal: React.FC<SettingsModalProps> = ({
   open,
   onClose,
   onSettingsUpdated,
+  onValidChange,
 }) => {
   const {
     settings,
@@ -33,6 +35,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     isValid,
     saving,
   } = useSettingsStore();
+
+  // isValidが変更されたらonValidChangeを呼び出す
+  useEffect(() => {
+    onValidChange(!isValid);
+  }, [isValid, onValidChange]);
 
   // 設定を更新する
   const handleSave = async () => {

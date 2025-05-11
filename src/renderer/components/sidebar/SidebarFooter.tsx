@@ -18,12 +18,14 @@ interface SidebarFooterProps {
     processing: boolean;
     enabledCount: number;
   };
+  settingsHasError: boolean;
 }
 
 function SidebarFooter({
   onSettingsClick,
   onOpenSourceList,
   sourceStatus,
+  settingsHasError,
 }: SidebarFooterProps) {
   const getBadgeContent = () => {
     if (sourceStatus.processing) {
@@ -61,9 +63,21 @@ function SidebarFooter({
           </Badge>
         </Tooltip>
         <Tooltip title="設定">
-          <IconButton onClick={onSettingsClick}>
-            <SettingsIcon />
-          </IconButton>
+          <Badge
+            badgeContent="!"
+            color="error"
+            invisible={!settingsHasError}
+            sx={{
+              '& .MuiBadge-badge': {
+                minWidth: '17px',
+                height: '17px',
+              },
+            }}
+          >
+            <IconButton onClick={onSettingsClick}>
+              <SettingsIcon />
+            </IconButton>
+          </Badge>
         </Tooltip>
       </Box>
     </Box>
