@@ -3,6 +3,7 @@ import { MCPConfiguration, LogMessage } from '@mastra/mcp';
 import { v4 as uuid } from 'uuid';
 import { writeFileSync } from 'fs';
 import { querySourceTool } from '../tools/sourcesTools';
+import { createStagehandTools } from '../tools/stagehand';
 import { createAgent } from './config/agent';
 import { getStore } from '../../main/store';
 import { setupRedmineTools } from '../tools/redmine';
@@ -174,6 +175,7 @@ export const getOrchestrator = async (): Promise<{
       tools: {
         // sourceListTool,
         querySourceTool,
+        ...createStagehandTools(),
         ...redmineTools,
         ...gitlabTools,
         ...mcpTools,

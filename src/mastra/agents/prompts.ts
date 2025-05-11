@@ -129,6 +129,11 @@ export const getOrchestratorSystemPrompt = async (config: {
   - sourceQueryTool：登録されたソースの内容に基づいて専門家(別のAIエージェント)が質問に回答します。一度の複数の質問を実行することができます
 - メモリ更新ツール
   - updateWorkingMemory：スレッドに関する内容や作業時の手順やメモに関するWorkingMemoryを更新します。
+- Web操作ツール(Stagehandを利用して、他のAIエージェントがブラウザ操作を実行します)
+  - stagehandActTool：Webページ上で指定した操作を実行する（例えば、ボタンクリックやフォーム入力など）
+  - stagehandObserveTool：Webページ上の要素を検出・特定する
+  - stagehandExtractTool：Webページからデータを抽出する
+  - stagehandNavigateTool：明示的に指定されたURLに遷移する
 ${
   config.redmine
     ? `- redmine操作ツール
