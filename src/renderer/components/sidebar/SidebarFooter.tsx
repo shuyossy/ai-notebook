@@ -66,6 +66,7 @@ function SidebarFooter({
           <Badge
             badgeContent="!"
             color="error"
+            overlap="circular"
             invisible={!settingsHasError}
             sx={{
               '& .MuiBadge-badge': {

@@ -38,7 +38,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
 
   // isValidが変更されたらonValidChangeを呼び出す
   useEffect(() => {
-    onValidChange(!isValid);
+    onValidChange(isValid);
   }, [isValid, onValidChange]);
 
   // 設定を更新する
