@@ -1,6 +1,11 @@
+import { app } from 'electron';
+import path, { join } from 'path';
+import fs from 'node:fs';
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
-import { Stagehand } from '@browserbasehq/stagehand';
+import { Stagehand, LogLine } from '@browserbasehq/stagehand';
+import openAICompatibleModel from '../../agents/model/openAICompatible';
+import { AISdkClient } from './aisdkClient';
 
 class StagehandSessionManager {
   private static instance: StagehandSessionManager;
@@ -24,6 +29,61 @@ class StagehandSessionManager {
     return StagehandSessionManager.instance;
   }
 
+  public static createStagehand(): Stagehand {
+    return new Stagehand({
+      llmClient: new AISdkClient({ model: openAICompatibleModel() }),
+      env: 'LOCAL',
+      verbose: 2,
+      enableCaching: false,
+      logger: (logLine: LogLine) => {
+        console.log(`[${logLine.category}] ${logLine.message}`);
+      },
+      localBrowserLaunchOptions: {
+        // headless: false, // Launches the browser in headless mode.
+        executablePath: 'C:/Users/shuyo/vscode_workspace/ai-notebook/chrome.exe'
+        // executablePath: app.isPackaged
+        //   ? join(process.resourcesPath, 'app.asar', 'chrome.exe')
+        //   : join(__dirname, '..', '..', 'chrome.exe'), // Custom path to the Chrome executable.
+        // args: ['--no-sandbox', '--disable-setuid-sandbox'], // Additional launch arguments.
+        // env: { NODE_ENV: 'production' }, // Environment variables for the browser process.
+        // handleSIGHUP: true,
+        // handleSIGINT: true,
+        // handleSIGTERM: true,
+        // ignoreDefaultArgs: false, // or specify an array of arguments to ignore.
+        // tracesDir: path.join(app.getPath('userData'), 'stagehand', 'trace'), // Directory to store trace files.
+        // userDataDir: path.join(app.getPath('userData'), 'stagehand', 'data'), // Custom user data directory.
+        // acceptDownloads: true,
+        // downloadsPath: path.join(
+        //   app.getPath('userData'),
+        //   'stagehand',
+        //   'downloads',
+        // ), // Custom downloads directory.
+        // geolocation: { latitude: 37.7749, longitude: -122.4194, accuracy: 10 },
+        // permissions: ['geolocation', 'notifications'],
+        // locale: 'ja-JP',
+        // viewport: { width: 1280, height: 720 },
+        // deviceScaleFactor: 1,
+        // hasTouch: false,
+        // ignoreHTTPSErrors: true,
+        // recordVideo: {
+        //   dir: '/path/to/videos',
+        //   size: { width: 1280, height: 720 },
+        // },
+        // recordHar: {
+        //   path: '/path/to/har.har',
+        //   mode: 'full',
+        //   omitContent: false,
+        //   content: 'embed',
+        //   urlFilter: '.*',
+        // },
+        // chromiumSandbox: true,
+        // devtools: true,
+        // bypassCSP: false,
+        // cdpUrl: 'http://localhost:9222',
+      },
+    });
+  }
+
   /**
    * Ensure Stagehand is initialized and return the instance
    */
@@ -34,11 +94,7 @@ class StagehandSessionManager {
       // Initialize if not already initialized
       if (!this.stagehand || !this.initialized) {
         console.log('Creating new Stagehand instance');
-        this.stagehand = new Stagehand({
-          apiKey: process.env.BROWSERBASE_API_KEY!,
-          projectId: process.env.BROWSERBASE_PROJECT_ID!,
-          env: 'BROWSERBASE',
-        });
+        this.stagehand = StagehandSessionManager.createStagehand();
 
         try {
           console.log('Initializing Stagehand...');
@@ -68,11 +124,7 @@ class StagehandSessionManager {
             error.message.includes('context destroyed'))
         ) {
           console.log('Browser session expired, reinitializing Stagehand...');
-          this.stagehand = new Stagehand({
-            apiKey: process.env.BROWSERBASE_API_KEY!,
-            projectId: process.env.BROWSERBASE_PROJECT_ID!,
-            env: 'BROWSERBASE',
-          });
+          this.stagehand = StagehandSessionManager.createStagehand();
           await this.stagehand.init();
           this.initialized = true;
           return this.stagehand;

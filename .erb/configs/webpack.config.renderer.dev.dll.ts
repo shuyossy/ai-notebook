@@ -23,7 +23,15 @@ const configuration: webpack.Configuration = {
 
   target: 'electron-renderer',
 
-  externals: ['fsevents', 'crypto-browserify'],
+  externals: [
+    'fsevents',
+    'crypto-browserify',
+    'playwright',
+    'playwright-core',
+    '@playwright/test',
+    'chromium-bidi',
+    '@browserbasehq/stagehand',
+  ],
 
   /**
    * Use `module` from `webpack.config.renderer.dev.js`

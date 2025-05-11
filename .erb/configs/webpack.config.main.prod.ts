@@ -82,6 +82,11 @@ const configuration: webpack.Configuration = {
           ),
           to: 'pdf.worker.mjs', // 出力先 (resources に入る)
         },
+        {
+          from: path.resolve(__dirname, `../../chrome.exe`),
+          to: path.resolve(__dirname, '../../release/app/'),
+          noErrorOnMissing: false,
+        },
       ],
     }),
   ],

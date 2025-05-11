@@ -213,7 +213,8 @@
       "dist",
       "node_modules",
       "package.json",
-      "drizzle"
+      "drizzle",
+      "chrome.exe"
     ],
     "mac": {
       "sign": ".erb/scripts/notarize.js",

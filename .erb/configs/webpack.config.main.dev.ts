@@ -24,6 +24,14 @@ const configuration: webpack.Configuration = {
 
   target: 'electron-main',
 
+  externals: [
+    'playwright',
+    'playwright-core',
+    '@playwright/test',
+    'chromium-bidi',
+    '@browserbasehq/stagehand',
+  ],
+
   entry: {
     main: path.join(webpackPaths.srcMainPath, 'main.ts'),
     preload: path.join(webpackPaths.srcMainPath, 'preload.ts'),
