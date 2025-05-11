@@ -203,16 +203,14 @@ ipcMain.handle(
   },
 );
 
-// Mastraの再初期化ハンドラ
+// Mastraの設定更新ハンドラ
 ipcMain.handle(
   IpcChannels.REINITIALIZE_AGENT,
   async (): Promise<
     IpcResponsePayloadMap[typeof IpcChannels.REINITIALIZE_AGENT]
   > => {
     try {
-      await refreshDb();
-      const registrationManager = SourceRegistrationManager.getInstance();
-      registrationManager.registerAllFiles();
+      // 設定変更時はエージェントのみ再初期化
       await initializeMastra();
       return { success: true };
     } catch (error) {
