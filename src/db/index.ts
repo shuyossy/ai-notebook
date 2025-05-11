@@ -57,13 +57,5 @@ const getDb = async (): Promise<Database> => {
   return dbInstance!;
 };
 
-// データベースのリフレッシュ
-export const refreshDb = async () => {
-  if (dbInstance) {
-    dbInstance = undefined;
-    dbInstance = await initializeDatabase();
-  }
-};
-
 // データベースモジュールのデフォルトエクスポート
 export default getDb;

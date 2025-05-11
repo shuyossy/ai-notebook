@@ -19,8 +19,15 @@ export interface MemoryConfig {
   };
 }
 
-// メモリインスタンスの作成
-export const createMemory = (config: MemoryConfig = {}): Memory => {
+// メモリインスタンスをキャッシュ
+let memoryInstance: Memory | undefined;
+
+// メモリインスタンスの作成・取得
+export const getMemory = (config: MemoryConfig = {}): Memory => {
+  if (memoryInstance) {
+    return memoryInstance;
+  }
+
   const store = getStore();
   const dbSetting = store.get('database');
 
@@ -41,7 +48,7 @@ export const createMemory = (config: MemoryConfig = {}): Memory => {
     },
   };
 
-  return new Memory({
+  memoryInstance = new Memory({
     options,
     processors: config.tokenLimit
       ? [new TokenLimiter(config.tokenLimit)]
@@ -52,4 +59,11 @@ export const createMemory = (config: MemoryConfig = {}): Memory => {
       },
     }),
   });
+
+  return memoryInstance;
+};
+
+// メモリインスタンスのリセット（主にテスト用）
+export const resetMemory = () => {
+  memoryInstance = undefined;
 };

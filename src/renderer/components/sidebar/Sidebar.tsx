@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Box, Menu, MenuItem, Divider } from '@mui/material';
+import { Box, Menu, MenuItem, Divider, AlertColor } from '@mui/material';
 import { v4 as uuidv4 } from 'uuid';
 import SourceListModal from '../common/SourceListModal';
 import { ChatRoom } from '../../../main/types';
@@ -13,6 +13,7 @@ interface SidebarProps {
   onRoomSelect: (roomId: string) => void;
   onSettingsClick: () => void;
   onReloadSources: () => void; // ソース読み込み処理を実行する関数
+  showSnackbar: (message: string, severity: AlertColor) => void;
 }
 
 function Sidebar({
@@ -20,8 +21,13 @@ function Sidebar({
   onRoomSelect,
   onSettingsClick,
   onReloadSources,
+  showSnackbar,
 }: SidebarProps) {
   const [isSourceListOpen, setIsSourceListOpen] = useState(false);
+  const [sourceStatus, setSourceStatus] = useState<{
+    processing: boolean;
+    enabledCount: number;
+  }>({ processing: false, enabledCount: 0 });
   const [chatRooms, setChatRooms] = useState<ChatRoom[]>([]);
   const [menuAnchorEl, setMenuAnchorEl] = useState<null | HTMLElement>(null);
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
@@ -146,13 +152,17 @@ function Sidebar({
       <SidebarFooter
         onSettingsClick={onSettingsClick}
         onOpenSourceList={() => setIsSourceListOpen(true)}
+        sourceStatus={sourceStatus}
       />
 
       {/* ソース一覧モーダル */}
       <SourceListModal
         open={isSourceListOpen}
+        processing={sourceStatus.processing}
         onClose={() => setIsSourceListOpen(false)}
         onReloadSources={onReloadSources}
+        onStatusUpdate={setSourceStatus}
+        showSnackbar={showSnackbar}
       />
 
       {/* チャットルームメニュー */}

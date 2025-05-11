@@ -26,6 +26,21 @@ export default class SourceRegistrationManager {
   }
 
   /**
+   * アプリ起動時に、処理中のソースを全て削除する
+   */
+  public async clearProcessingSources(): Promise<void> {
+    try {
+      const db = await getDb();
+      await db
+        .delete(sources)
+        .where(inArray(sources.status, ['completed', 'idle', 'processing']));
+    } catch (error) {
+      console.error('処理中のソースの削除に失敗しました', error);
+      throw error;
+    }
+  }
+
+  /**
    * ディレクトリ内の全てのファイルを登録
    */
   public async registerAllFiles(excludeRegisteredFile = true): Promise<void> {
@@ -62,25 +77,31 @@ export default class SourceRegistrationManager {
         return;
       }
 
-      // 登録対象のファイルをフィルタリング
+      // 登録対象のファイルをフィルタリング（直列版）
       if (excludeRegisteredFile) {
-        files = await Promise.all(
-          files.map(async (filePath) => {
-            const existingSource = await db
-              .select()
-              .from(sources)
-              .where(
-                and(
-                  eq(sources.path, filePath),
-                  inArray(sources.status, ['completed', 'idle', 'processing']),
-                ),
-              );
-            // 登録済みかつ完了状態のファイルは除外
-            return existingSource.length === 0 ? filePath : null;
-          }),
-        ).then((results) =>
-          results.filter((filePath): filePath is string => filePath !== null),
-        );
+        const filteredFiles: string[] = []; // 最終的に残すファイルを格納する配列
+
+        // files 配列を１つずつ順番に処理
+        for (const filePath of files) {
+          // DB に同じパスで status が completed/idle/processing のレコードがあるか問い合わせ
+          const existingSource = await db
+            .select()
+            .from(sources)
+            .where(
+              and(
+                eq(sources.path, filePath),
+                inArray(sources.status, ['completed', 'idle', 'processing']),
+              ),
+            );
+
+          // レコードが見つからなかった（＝未登録 or ステータス未完了）ファイルだけ残す
+          if (existingSource.length === 0) {
+            filteredFiles.push(filePath);
+          }
+          // あれば何もしない（除外）
+        }
+
+        files = filteredFiles;
       }
 
       // 登録対象のファイルが存在しない場合は早期リターン
@@ -173,6 +194,14 @@ export default class SourceRegistrationManager {
                 success: false,
                 filePath,
               });
+              await db
+                .update(sources)
+                .set({
+                  status: 'failed' as const,
+                  error:
+                    error instanceof Error ? error.message : '不明なエラー',
+                })
+                .where(eq(sources.path, filePath));
             }
             // 次のイテレーションに結果配列を渡す
             return resultList;
@@ -202,7 +231,7 @@ export default class SourceRegistrationManager {
     // map して Promise<string[]> の配列を作成
     const nested = await Promise.all(
       items.map(async (item) => {
-        const fullPath = path.join(dirPath, item.name);
+        const fullPath = path.resolve(path.join(dirPath, item.name));
         if (item.isDirectory()) {
           return this.readDirectoryRecursively(fullPath);
         }

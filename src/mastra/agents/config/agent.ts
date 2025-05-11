@@ -1,7 +1,7 @@
 import { Agent } from '@mastra/core/agent';
 import { getStore } from '../../../main/store';
 import openAICompatibleModel from '../model/openAICompatible';
-import { MemoryConfig, createMemory } from './memory';
+import { MemoryConfig, getMemory } from './memory';
 
 // エージェント設定のinterface
 export interface AgentConfig {
@@ -25,6 +25,6 @@ export const createAgent = (config: AgentConfig): Agent => {
     instructions: config.instructions,
     tools: config.tools,
     model: openAICompatibleModel(),
-    memory: createMemory(config.memoryConfig),
+    memory: getMemory(config.memoryConfig),
   });
 };

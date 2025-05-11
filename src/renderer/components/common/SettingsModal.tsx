@@ -6,6 +6,7 @@ import {
   Typography,
   Box,
   CircularProgress,
+  Alert,
 } from '@mui/material';
 import Modal from './Modal';
 import { McpSchemaType } from '../../../main/types/schema';
@@ -80,40 +81,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         <Grid container spacing={3}>
           <Box sx={{ width: '100%', mb: 1 }}>
             <Typography variant="h6" gutterBottom>
-              データベース設定(チャット履歴やソース情報の保存先)
-            </Typography>
-            <TextField
-              fullWidth
-              label="データベースパス"
-              value={settings.database.dir}
-              onChange={(e) => handleChange('database', 'dir', e.target.value)}
-              error={!!validationErrors.database?.dir}
-              helperText={validationErrors.database?.dir?.message}
-              margin="normal"
-              variant="outlined"
-            />
-          </Box>
-
-          <Box sx={{ width: '100%', mb: 1 }}>
-            <Typography variant="h6" gutterBottom>
-              ソース設定
-            </Typography>
-            <TextField
-              fullWidth
-              label="ソース登録ディレクトリ"
-              value={settings.source.registerDir}
-              onChange={(e) =>
-                handleChange('source', 'registerDir', e.target.value)
-              }
-              error={!!validationErrors.source?.registerDir}
-              helperText={validationErrors.source?.registerDir?.message}
-              margin="normal"
-              variant="outlined"
-            />
-          </Box>
-
-          <Box sx={{ width: '100%', mb: 1 }}>
-            <Typography variant="h6" gutterBottom>
               API設定
             </Typography>
             <TextField
@@ -150,6 +117,24 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
 
           <Box sx={{ width: '100%', mb: 1 }}>
             <Typography variant="h6" gutterBottom>
+              ソース設定
+            </Typography>
+            <TextField
+              fullWidth
+              label="ソース登録ディレクトリ"
+              value={settings.source.registerDir}
+              onChange={(e) =>
+                handleChange('source', 'registerDir', e.target.value)
+              }
+              error={!!validationErrors.source?.registerDir}
+              helperText={validationErrors.source?.registerDir?.message}
+              margin="normal"
+              variant="outlined"
+            />
+          </Box>
+
+          <Box sx={{ width: '100%', mb: 1 }}>
+            <Typography variant="h6" gutterBottom>
               Redmine設定
             </Typography>
             <TextField
@@ -176,6 +161,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
               margin="normal"
               variant="outlined"
             />
+            <Alert severity="warning" sx={{ mt: 1 }}>
+              設定を反映させるにはアプリのソースの再読み込みが必要です
+            </Alert>
           </Box>
 
           <Box sx={{ width: '100%', mb: 1 }}>
@@ -248,6 +236,25 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                 )}
               </pre>
             </Typography>
+          </Box>
+
+          <Box sx={{ width: '100%', mb: 1 }}>
+            <Typography variant="h6" gutterBottom>
+              データベース設定(チャット履歴やソース情報の保存先)
+            </Typography>
+            <TextField
+              fullWidth
+              label="データベースパス"
+              value={settings.database.dir}
+              onChange={(e) => handleChange('database', 'dir', e.target.value)}
+              error={!!validationErrors.database?.dir}
+              helperText={validationErrors.database?.dir?.message}
+              margin="normal"
+              variant="outlined"
+            />
+            <Alert severity="warning" sx={{ mt: 1 }}>
+              設定を反映させるにはアプリの再起動が必要です
+            </Alert>
           </Box>
         </Grid>
       </Box>

@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { getStore } from '../../main/store';
 import { sources, topics } from '../../db/schema';
 import getDb from '../../db';
@@ -12,7 +12,7 @@ const getSourcesInfoByMDList = async () => {
   const sourceList = await db
     .select()
     .from(sources)
-    .where(eq(sources.isEnabled, 1))
+    .where(and(eq(sources.isEnabled, 1), eq(sources.status, 'completed')))
     .orderBy(sources.title);
 
   // 各ソースのトピックを取得
@@ -117,7 +117,7 @@ export const getOrchestratorSystemPrompt = async (config: {
 また、ユーザは参考して欲しいソースを登録することができます。与えられた質問やタスクに関連する情報がある場合、そのソースの内容に基づいて質問や依頼事項に対して対応してください
 
 質問や依頼事項に対応する際には、以下の点に注意してください
-- 不明点が少しでもある場合は必ずユーザに質問し、確認が取れるまで実作業を開始しないこと。 
+- 不明点が少しでもある場合は必ずユーザに質問し、確認が取れるまで実作業を開始しないこと。
 - 質問に対して、まずは登録されているソースの情報を利用できるか検討すること
 - 検討の結果、ソースから得られる内容がユーザの質問の意図に沿わない場合は、無理にその内容を使わないこと
 - WorkingMemoryの内容は常に最新化されているように注意すること

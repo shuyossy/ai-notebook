@@ -2,10 +2,11 @@
  * Webpack config for development electron main process
  */
 
-import path from 'path';
+import path, { join } from 'path';
 import webpack from 'webpack';
 import { BundleAnalyzerPlugin } from 'webpack-bundle-analyzer';
 import { merge } from 'webpack-merge';
+import CopyPlugin from 'copy-webpack-plugin';
 import checkNodeEnv from '../scripts/check-node-env';
 import baseConfig from './webpack.config.base';
 import webpackPaths from './webpack.paths';
@@ -46,6 +47,18 @@ const configuration: webpack.Configuration = {
 
     new webpack.DefinePlugin({
       'process.type': '"browser"',
+    }),
+
+    new CopyPlugin({
+      patterns: [
+        {
+          from: join(
+            path.dirname(require.resolve('pdfjs-dist/package.json')),
+            'legacy/build/pdf.worker.mjs',
+          ),
+          to: 'pdf.worker.mjs', // 出力先 (resources に入る)
+        },
+      ],
     }),
   ],
 

@@ -10,7 +10,7 @@
  */
 import path from 'path';
 import fs from 'fs/promises';
-import { app, BrowserWindow, shell, ipcMain } from 'electron';
+import { app, BrowserWindow, shell, ipcMain, crashReporter } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import log from 'electron-log';
 import { Mastra } from '@mastra/core';
@@ -23,7 +23,7 @@ import { IpcChannels, IpcResponsePayloadMap } from './types/ipc';
 import { AgentBootStatus, AgentBootMessage, AgentToolStatus } from './types';
 import { getOrchestratorSystemPrompt } from '../mastra/agents/prompts';
 import { sources } from '../db/schema';
-import getDb, { refreshDb } from '../db';
+import getDb from '../db';
 import SourceRegistrationManager from '../mastra/workflows/sourceRegistrationManager';
 import { getOrchestrator } from '../mastra/agents/orchestrator';
 import MenuBuilder from './menu';
@@ -203,16 +203,14 @@ ipcMain.handle(
   },
 );
 
-// Mastraの再初期化ハンドラ
+// Mastraの設定更新ハンドラ
 ipcMain.handle(
   IpcChannels.REINITIALIZE_AGENT,
   async (): Promise<
     IpcResponsePayloadMap[typeof IpcChannels.REINITIALIZE_AGENT]
   > => {
     try {
-      await refreshDb();
-      const registrationManager = SourceRegistrationManager.getInstance();
-      registrationManager.registerAllFiles();
+      // 設定変更時はエージェントのみ再初期化
       await initializeMastra();
       return { success: true };
     } catch (error) {
@@ -555,6 +553,10 @@ const initializeSourceRegistration = async () => {
   console.log('ソースファイルの初期登録を開始します...');
   const registrationManager = SourceRegistrationManager.getInstance();
 
+  // 処理中のソースを削除
+  await registrationManager.clearProcessingSources();
+  console.log('処理中のソースを削除しました');
+
   // ソース登録を実行
   await registrationManager.registerAllFiles();
   console.log('ソースファイルの初期登録が完了しました');
@@ -659,6 +661,13 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit();
   }
+});
+
+crashReporter.start({
+  // ミニダンプをアップロードしない設定
+  submitURL: '',
+  uploadToServer: false,
+  compress: true,
 });
 
 const initialize = async () => {
