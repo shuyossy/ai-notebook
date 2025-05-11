@@ -10,7 +10,6 @@ import {
 import './App.css';
 import Sidebar from './components/sidebar/Sidebar';
 import ChatArea from './components/chat/ChatArea';
-import SettingsModal from './components/common/SettingsModal';
 import SnackbarNotification from './components/common/SnackbarNotification';
 import { sourceService } from './services/sourceService';
 
@@ -55,7 +54,6 @@ const theme = createTheme({
 
 function App() {
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
-  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [snackbar, setSnackbar] = useState<{
     open: boolean;
     message: string;
@@ -69,11 +67,6 @@ function App() {
   // チャットルーム選択ハンドラ
   const handleRoomSelect = (roomId: string) => {
     setSelectedRoomId(roomId);
-  };
-
-  // 設定ボタンクリックハンドラ
-  const handleSettingsClick = () => {
-    setIsSettingsModalOpen(true);
   };
 
   // スナックバー表示ヘルパー
@@ -108,11 +101,6 @@ function App() {
     }
   };
 
-  // 設定更新完了ハンドラ
-  const handleSettingsUpdated = () => {
-    showSnackbar('設定を更新しました', 'success');
-  };
-
   // スナックバーを閉じる
   const handleCloseSnackbar = () => {
     setSnackbar((prev) => ({ ...prev, open: false }));
@@ -136,20 +124,12 @@ function App() {
                 <Sidebar
                   selectedRoomId={selectedRoomId}
                   onRoomSelect={handleRoomSelect}
-                  onSettingsClick={handleSettingsClick}
                   onReloadSources={handleReloadSources}
                   showSnackbar={showSnackbar}
                 />
 
                 {/* メインコンテンツ */}
                 <ChatArea selectedRoomId={selectedRoomId} />
-
-                {/* モーダル */}
-                <SettingsModal
-                  open={isSettingsModalOpen}
-                  onClose={() => setIsSettingsModalOpen(false)}
-                  onSettingsUpdated={handleSettingsUpdated}
-                />
 
                 {/* 通知 */}
                 <SnackbarNotification
