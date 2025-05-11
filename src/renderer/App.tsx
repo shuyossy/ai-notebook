@@ -138,6 +138,7 @@ function App() {
                   onRoomSelect={handleRoomSelect}
                   onSettingsClick={handleSettingsClick}
                   onReloadSources={handleReloadSources}
+                  showSnackbar={showSnackbar}
                 />
 
                 {/* メインコンテンツ */}

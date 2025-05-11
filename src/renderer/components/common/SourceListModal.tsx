@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
+  AlertColor,
   Modal,
   Box,
   Typography,
@@ -34,6 +35,7 @@ interface SourceListModalProps {
     processing: boolean;
     enabledCount: number;
   }) => void;
+  showSnackbar: (message: string, severity: AlertColor) => void;
 }
 
 function SourceListModal({
@@ -42,6 +44,7 @@ function SourceListModal({
   onClose,
   onReloadSources,
   onStatusUpdate,
+  showSnackbar,
 }: SourceListModalProps): React.ReactElement {
   const [sources, setSources] = useState<Source[]>([]);
   const [checkedSources, setCheckedSources] = useState<{
@@ -73,6 +76,16 @@ function SourceListModal({
       );
     } catch (error) {
       console.error('ソース状態の更新に失敗しました:', error);
+      const targetSource = sources.find((s) => s.id === sourceId);
+      showSnackbar(
+        `${targetSource?.path || 'ソース'}の有効化/無効化に失敗しました`,
+        'error',
+      );
+      // チェック状態を元に戻す
+      setCheckedSources((prev) => ({
+        ...prev,
+        [sourceId]: !newCheckedState[sourceId],
+      }));
     }
   };
 
@@ -98,6 +111,12 @@ function SourceListModal({
         await window.electron.source.updateSourceEnabled(source.id, newValue);
       } catch (error) {
         console.error('ソース状態の更新に失敗しました:', error);
+        showSnackbar(`${source.path}の有効化/無効化に失敗しました`, 'error');
+        // エラーが発生したソースのチェック状態を元に戻す
+        setCheckedSources((prev) => ({
+          ...prev,
+          [source.id]: !newValue,
+        }));
       }
     });
   };

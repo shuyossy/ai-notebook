@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Box, Menu, MenuItem, Divider } from '@mui/material';
+import { Box, Menu, MenuItem, Divider, AlertColor } from '@mui/material';
 import { v4 as uuidv4 } from 'uuid';
 import SourceListModal from '../common/SourceListModal';
 import { ChatRoom } from '../../../main/types';
@@ -13,6 +13,7 @@ interface SidebarProps {
   onRoomSelect: (roomId: string) => void;
   onSettingsClick: () => void;
   onReloadSources: () => void; // ソース読み込み処理を実行する関数
+  showSnackbar: (message: string, severity: AlertColor) => void;
 }
 
 function Sidebar({
@@ -20,6 +21,7 @@ function Sidebar({
   onRoomSelect,
   onSettingsClick,
   onReloadSources,
+  showSnackbar,
 }: SidebarProps) {
   const [isSourceListOpen, setIsSourceListOpen] = useState(false);
   const [sourceStatus, setSourceStatus] = useState<{
@@ -160,6 +162,7 @@ function Sidebar({
         onClose={() => setIsSourceListOpen(false)}
         onReloadSources={onReloadSources}
         onStatusUpdate={setSourceStatus}
+        showSnackbar={showSnackbar}
       />
 
       {/* チャットルームメニュー */}
