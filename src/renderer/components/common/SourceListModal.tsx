@@ -119,12 +119,17 @@ function SourceListModal({
 
     if (open) {
       // 初回データ取得
-      fetchSources();
-
-      // processingステータスがある場合は5秒ごとに更新
-      if (processing) {
-        intervalId = setInterval(fetchSources, 3000);
-      }
+      fetchSources()
+        .then(() => {
+          // processingステータスがある場合は5秒ごとに更新
+          if (processing) {
+            intervalId = setInterval(fetchSources, 3000);
+          }
+          return null;
+        })
+        .catch((error) => {
+          console.error('ソースデータの取得に失敗しました:', error);
+        });
     }
 
     return () => {

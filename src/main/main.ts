@@ -23,7 +23,7 @@ import { IpcChannels, IpcResponsePayloadMap } from './types/ipc';
 import { AgentBootStatus, AgentBootMessage, AgentToolStatus } from './types';
 import { getOrchestratorSystemPrompt } from '../mastra/agents/prompts';
 import { sources } from '../db/schema';
-import getDb, { refreshDb } from '../db';
+import getDb from '../db';
 import SourceRegistrationManager from '../mastra/workflows/sourceRegistrationManager';
 import { getOrchestrator } from '../mastra/agents/orchestrator';
 import MenuBuilder from './menu';

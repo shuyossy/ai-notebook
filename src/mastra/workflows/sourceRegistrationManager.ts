@@ -31,7 +31,9 @@ export default class SourceRegistrationManager {
   public async clearProcessingSources(): Promise<void> {
     try {
       const db = await getDb();
-      await db.delete(sources).where(inArray(sources.status, ['completed', 'idle', 'processing']));
+      await db
+        .delete(sources)
+        .where(inArray(sources.status, ['completed', 'idle', 'processing']));
     } catch (error) {
       console.error('処理中のソースの削除に失敗しました', error);
       throw error;
@@ -77,7 +79,7 @@ export default class SourceRegistrationManager {
 
       // 登録対象のファイルをフィルタリング（直列版）
       if (excludeRegisteredFile) {
-        const filteredFiles: string[] = [];  // 最終的に残すファイルを格納する配列
+        const filteredFiles: string[] = []; // 最終的に残すファイルを格納する配列
 
         // files 配列を１つずつ順番に処理
         for (const filePath of files) {
@@ -101,7 +103,6 @@ export default class SourceRegistrationManager {
 
         files = filteredFiles;
       }
-
 
       // 登録対象のファイルが存在しない場合は早期リターン
       if (files.length === 0) {
@@ -193,6 +194,14 @@ export default class SourceRegistrationManager {
                 success: false,
                 filePath,
               });
+              await db
+                .update(sources)
+                .set({
+                  status: 'failed' as const,
+                  error:
+                    error instanceof Error ? error.message : '不明なエラー',
+                })
+                .where(eq(sources.path, filePath));
             }
             // 次のイテレーションに結果配列を渡す
             return resultList;

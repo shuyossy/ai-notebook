@@ -57,18 +57,5 @@ const getDb = async (): Promise<Database> => {
   return dbInstance!;
 };
 
-// データベースのリフレッシュ
-export const refreshDb = async () => {
-  if (dbInstance) {
-    // @ts-ignore
-    dbInstance.$client.close();
-    // @ts-ignore
-    if (dbInstance.$client.closed) {
-      dbInstance = undefined;
-      dbInstance = await initializeDatabase();
-    }
-  }
-};
-
 // データベースモジュールのデフォルトエクスポート
 export default getDb;
