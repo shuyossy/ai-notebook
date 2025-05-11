@@ -50,6 +50,9 @@ function SourceListModal({
   const [checkedSources, setCheckedSources] = useState<{
     [key: number]: boolean;
   }>({});
+  const [updatingSources, setUpdatingSources] = useState<Set<number>>(
+    new Set(),
+  );
 
   // チェック状態の更新
   useEffect(() => {
@@ -65,9 +68,15 @@ function SourceListModal({
 
   // チェックボックスの変更ハンドラ
   const handleSourceCheckChange = async (sourceId: number) => {
+    // 更新中の場合は処理をスキップ
+    if (processing || updatingSources.size > 0) return;
+
     const newCheckedState = { ...checkedSources };
     newCheckedState[sourceId] = !checkedSources[sourceId];
     setCheckedSources(newCheckedState);
+
+    // 更新中状態に追加
+    setUpdatingSources((prev) => new Set(prev).add(sourceId));
 
     try {
       const { success, error } =
@@ -88,11 +97,21 @@ function SourceListModal({
       }
     } catch (err) {
       console.error('ソース状態の更新に失敗しました:', err);
+    } finally {
+      // 更新中状態から削除
+      setUpdatingSources((prev) => {
+        const next = new Set(prev);
+        next.delete(sourceId);
+        return next;
+      });
     }
   };
 
   // 全選択/全解除の切り替えハンドラ
   const handleSelectAllChange = () => {
+    // 更新中の場合は処理をスキップ
+    if (processing || updatingSources.size > 0) return;
+
     const someUnchecked = Object.values(checkedSources).some(
       (checked) => !checked,
     );
@@ -106,6 +125,9 @@ function SourceListModal({
       newCheckedState[source.id] = newValue;
     });
     setCheckedSources(newCheckedState);
+
+    // 全てのソースを更新中状態に追加
+    setUpdatingSources(new Set(sources.map((source) => source.id)));
 
     // 各ソースの状態を更新
     sources.forEach(async (source) => {
@@ -123,8 +145,21 @@ function SourceListModal({
             [source.id]: !newValue,
           }));
         }
+
+        // 完了したソースを更新中状態から削除
+        setUpdatingSources((prev) => {
+          const next = new Set(prev);
+          next.delete(source.id);
+          return next;
+        });
       } catch (err) {
         console.error('ソース状態の更新に失敗しました:', err);
+        // エラー時もソースを更新中状態から削除
+        setUpdatingSources((prev) => {
+          const next = new Set(prev);
+          next.delete(source.id);
+          return next;
+        });
       }
     });
   };
@@ -246,7 +281,7 @@ function SourceListModal({
             <Button
               variant="contained"
               onClick={handleReloadClick}
-              disabled={processing}
+              disabled={processing || updatingSources.size > 0}
               startIcon={<SyncIcon />}
             >
               {processing ? '処理中...' : 'ソース読み込み'}
@@ -284,6 +319,7 @@ function SourceListModal({
                         )
                       }
                       onChange={handleSelectAllChange}
+                      disabled={processing || updatingSources.size > 0}
                     />
                   </Tooltip>
                 </TableCell>
@@ -316,6 +352,7 @@ function SourceListModal({
                       <Checkbox
                         checked={checkedSources[source.id] || false}
                         onChange={() => handleSourceCheckChange(source.id)}
+                        disabled={processing || updatingSources.size > 0}
                       />
                     </Tooltip>
                   </TableCell>
