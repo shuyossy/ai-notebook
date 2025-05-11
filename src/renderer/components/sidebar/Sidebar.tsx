@@ -22,6 +22,10 @@ function Sidebar({
   onReloadSources,
 }: SidebarProps) {
   const [isSourceListOpen, setIsSourceListOpen] = useState(false);
+  const [sourceStatus, setSourceStatus] = useState<{
+    processing: boolean;
+    enabledCount: number;
+  }>({ processing: false, enabledCount: 0 });
   const [chatRooms, setChatRooms] = useState<ChatRoom[]>([]);
   const [menuAnchorEl, setMenuAnchorEl] = useState<null | HTMLElement>(null);
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
@@ -146,13 +150,16 @@ function Sidebar({
       <SidebarFooter
         onSettingsClick={onSettingsClick}
         onOpenSourceList={() => setIsSourceListOpen(true)}
+        sourceStatus={sourceStatus}
       />
 
       {/* ソース一覧モーダル */}
       <SourceListModal
         open={isSourceListOpen}
+        processing={sourceStatus.processing}
         onClose={() => setIsSourceListOpen(false)}
         onReloadSources={onReloadSources}
+        onStatusUpdate={setSourceStatus}
       />
 
       {/* チャットルームメニュー */}

@@ -3,7 +3,6 @@ import {
   Modal,
   Box,
   Typography,
-  IconButton,
   Button,
   TableContainer,
   Table,
@@ -28,27 +27,32 @@ import { Source } from '../../../db/schema';
 
 interface SourceListModalProps {
   open: boolean;
+  processing: boolean;
   onClose: () => void;
   onReloadSources: () => void;
+  onStatusUpdate: (status: {
+    processing: boolean;
+    enabledCount: number;
+  }) => void;
 }
 
 function SourceListModal({
   open,
+  processing,
   onClose,
   onReloadSources,
+  onStatusUpdate,
 }: SourceListModalProps): React.ReactElement {
   const [sources, setSources] = useState<Source[]>([]);
-  const [processing, setProcessing] = useState(false);
   const [checkedSources, setCheckedSources] = useState<{
     [key: number]: boolean;
   }>({});
 
-  // チェック状態の初期化
+  // チェック状態の更新
   useEffect(() => {
-    // すべてのソースのチェック状態をtrueで初期化
     const initialCheckedState = sources.reduce(
       (acc, source) => {
-        acc[source.id] = true;
+        acc[source.id] = source.isEnabled === 1;
         return acc;
       },
       {} as { [key: number]: boolean },
@@ -100,50 +104,38 @@ function SourceListModal({
 
   // ソースデータの定期更新（processingステータスがある場合のみ）
   useEffect(() => {
-    let intervalId: ReturnType<typeof setInterval>;
-
     const fetchSources = async () => {
       try {
         const response = await window.electron.source.getSources();
         const responseSources: Source[] = response.sources || [];
         setSources(responseSources);
-        setProcessing(
-          responseSources.some(
-            (s: Source) => s.status === 'idle' || s.status === 'processing',
-          ),
+        const newProcessing = responseSources.some(
+          (s: Source) => s.status === 'idle' || s.status === 'processing',
         );
+        // 状態更新
+        const enabledCount = responseSources.filter(
+          (s: Source) => s.isEnabled === 1 && s.status === 'completed',
+        ).length;
+        onStatusUpdate({ processing: newProcessing, enabledCount });
       } catch (error) {
         console.error('ソースデータの取得に失敗しました:', error);
       }
     };
 
-    if (open) {
-      // 初回データ取得
-      fetchSources()
-        .then(() => {
-          // processingステータスがある場合は5秒ごとに更新
-          if (processing) {
-            intervalId = setInterval(fetchSources, 3000);
-          }
-          return null;
-        })
-        .catch((error) => {
-          console.error('ソースデータの取得に失敗しました:', error);
-        });
-    }
+    const intervalId = setInterval(fetchSources, 3000);
 
     return () => {
       if (intervalId) {
         clearInterval(intervalId);
       }
     };
-  }, [open, processing]);
+  }, [open, checkedSources, onStatusUpdate]);
 
   const handleReloadClick = () => {
     onReloadSources();
   };
 
-  const getStatusIcon = (status: Source['status']) => {
+  const getStatusIcon = (status: Source['status'], error?: Source['error']) => {
     switch (status) {
       case 'completed':
         return (
@@ -157,13 +149,15 @@ function SourceListModal({
         );
       case 'failed':
         return (
-          <Chip
-            icon={<ErrorIcon />}
-            label="エラー"
-            color="error"
-            size="small"
-            variant="outlined"
-          />
+          <Tooltip title={error ?? '不明なエラー'}>
+            <Chip
+              icon={<ErrorIcon />}
+              label="エラー"
+              color="error"
+              size="small"
+              variant="outlined"
+            />
+          </Tooltip>
         );
       case 'processing':
         return (
@@ -224,10 +218,7 @@ function SourceListModal({
           <Tooltip title="ソース登録ディレクトリ内のファイル内容と同期します">
             <Button
               variant="contained"
-              onClick={() => {
-                setProcessing(true);
-                handleReloadClick();
-              }}
+              onClick={handleReloadClick}
               disabled={processing}
               startIcon={<SyncIcon />}
             >
@@ -304,14 +295,7 @@ function SourceListModal({
                   <TableCell>{source.path}</TableCell>
                   <TableCell>{source.title}</TableCell>
                   <TableCell>
-                    {getStatusIcon(source.status)}
-                    {source.error && (
-                      <Tooltip title={source.error}>
-                        <IconButton size="small" color="error">
-                          <ErrorIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                    )}
+                    {getStatusIcon(source.status, source.error)}
                   </TableCell>
                   <TableCell>
                     {new Date(source.updatedAt).toLocaleString()}
