@@ -70,22 +70,24 @@ function SourceListModal({
     setCheckedSources(newCheckedState);
 
     try {
-      await window.electron.source.updateSourceEnabled(
-        sourceId,
-        newCheckedState[sourceId],
-      );
-    } catch (error) {
-      console.error('ソース状態の更新に失敗しました:', error);
-      const targetSource = sources.find((s) => s.id === sourceId);
-      showSnackbar(
-        `${targetSource?.path || 'ソース'}の有効化/無効化に失敗しました`,
-        'error',
-      );
-      // チェック状態を元に戻す
-      setCheckedSources((prev) => ({
-        ...prev,
-        [sourceId]: !newCheckedState[sourceId],
-      }));
+      const { success, error } =
+        await window.electron.source.updateSourceEnabled(
+          sourceId,
+          newCheckedState[sourceId],
+        );
+      if (!success) {
+        showSnackbar(
+          `${sources.find((s) => s.id === sourceId)?.path}の有効化/無効化に失敗しました: ${error}`,
+          'error',
+        );
+        // チェック状態を元に戻す
+        setCheckedSources((prev) => ({
+          ...prev,
+          [sourceId]: !newCheckedState[sourceId],
+        }));
+      }
+    } catch (err) {
+      console.error('ソース状態の更新に失敗しました:', err);
     }
   };
 
@@ -108,15 +110,21 @@ function SourceListModal({
     // 各ソースの状態を更新
     sources.forEach(async (source) => {
       try {
-        await window.electron.source.updateSourceEnabled(source.id, newValue);
-      } catch (error) {
-        console.error('ソース状態の更新に失敗しました:', error);
-        showSnackbar(`${source.path}の有効化/無効化に失敗しました`, 'error');
-        // エラーが発生したソースのチェック状態を元に戻す
-        setCheckedSources((prev) => ({
-          ...prev,
-          [source.id]: !newValue,
-        }));
+        const { success, error } =
+          await window.electron.source.updateSourceEnabled(source.id, newValue);
+        if (!success) {
+          showSnackbar(
+            `${source.path}の有効化/無効化に失敗しました: ${error}`,
+            'error',
+          );
+          // チェック状態を元に戻す
+          setCheckedSources((prev) => ({
+            ...prev,
+            [source.id]: !newValue,
+          }));
+        }
+      } catch (err) {
+        console.error('ソース状態の更新に失敗しました:', err);
       }
     });
   };

@@ -131,6 +131,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
               margin="normal"
               variant="outlined"
             />
+            <Alert severity="warning" sx={{ mt: 1 }}>
+              設定を反映させるにはアプリのソースの再読み込みが必要です
+            </Alert>
           </Box>
 
           <Box sx={{ width: '100%', mb: 1 }}>
@@ -161,9 +164,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
               margin="normal"
               variant="outlined"
             />
-            <Alert severity="warning" sx={{ mt: 1 }}>
-              設定を反映させるにはアプリのソースの再読み込みが必要です
-            </Alert>
           </Box>
 
           <Box sx={{ width: '100%', mb: 1 }}>
