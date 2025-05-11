@@ -292,7 +292,6 @@ const setupChatHandlers = () => {
               threadId: roomId, // チャットルームIDをスレッドIDとして使用
               maxSteps: 30, // ツールの利用上限
               onStepFinish: (stepResult) => {
-                console.log('onStepFinish', stepResult);
                 // https://ai-sdk.dev/docs/ai-sdk-ui/stream-protocol
                 // 上記を参考にai-sdkのストリームプロトコルに従ってメッセージを送信
                 writer.write(`0:${JSON.stringify(stepResult.text)}\n`);
@@ -325,7 +324,6 @@ const setupChatHandlers = () => {
         // テキストストリームを処理
         // @ts-ignore
         for await (const chunk of dataStream) {
-          console.log('ストリーミングデータ:', chunk);
           // チャンクをフロントエンドに送信
           event.sender.send(IpcChannels.CHAT_STREAM, chunk);
         }
