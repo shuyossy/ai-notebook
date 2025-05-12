@@ -1,363 +1,459 @@
-diff --git a/.eslintrc.js b/.eslintrc.js
-index ec5ff9463..7d8010a77 100644
---- a/.eslintrc.js
-+++ b/.eslintrc.js
-@@ -15,6 +15,7 @@ module.exports = {
-     'no-unused-vars': 'off',
-     '@typescript-eslint/no-unused-vars': 'error',
-     'no-console': 'off',
-+    'no-await-in-loop': 'off',
-     'react/require-default-props': 'off', // パラメータのデストラクチャリングでデフォルト値を設定する方式を許可
-     'react/function-component-definition': [
-       'error',
+diff --git a/src/main/main.ts b/src/main/main.ts
+index 5fc7835a5..2f0094a41 100644
+--- a/src/main/main.ts
++++ b/src/main/main.ts
+@@ -29,6 +29,7 @@ import { getOrchestrator } from '../mastra/agents/orchestrator';
+ import MenuBuilder from './menu';
+ import { resolveHtmlPath } from './utils/util';
+ import { initStore, getStore } from './store';
++import { RedmineBaseInfo } from '../mastra/tools/redmine';
+ 
+ class AppUpdater {
+   constructor() {
+@@ -49,6 +50,8 @@ const mastraStatus: AgentBootStatus = {
+     mcp: false,
+   },
+ };
++// Redmineの基本情報を保持する変数
++let redmineBaseInfo: RedmineBaseInfo | null = null;
+ 
+ /**
+  * Mastraの状態を変更し、レンダラーに通知する
+@@ -117,7 +120,11 @@ const initializeMastra = async (): Promise<void> => {
+     });
+ 
+     // オーケストレーターエージェントを取得
+-    const { agent, alertMessages, toolStatus } = await getOrchestrator();
++    const { agent, alertMessages, toolStatus, redmineInfo } =
++      await getOrchestrator();
++
++    // Redmineの基本情報を保存
++    redmineBaseInfo = redmineInfo;
+ 
+     // 起動メッセージを更新
+     alertMessages.forEach((message) => {
+@@ -288,6 +295,7 @@ const setupChatHandlers = () => {
+                   gitlab: false,
+                   mcp: false,
+                 },
++                redmineBaseInfo,
+               ),
+               threadId: roomId, // チャットルームIDをスレッドIDとして使用
+               maxSteps: 30, // ツールの利用上限
+diff --git a/src/mastra/agents/orchestrator.ts b/src/mastra/agents/orchestrator.ts
+index 6525fea58..6ffab93db 100644
+--- a/src/mastra/agents/orchestrator.ts
++++ b/src/mastra/agents/orchestrator.ts
+@@ -5,7 +5,11 @@ import { writeFileSync } from 'fs';
+ import { querySourceTool } from '../tools/sourcesTools';
+ import { createAgent } from './config/agent';
+ import { getStore } from '../../main/store';
+-import { setupRedmineTools } from '../tools/redmine';
++import {
++  setupRedmineTools,
++  createRedmineClient,
++  RedmineBaseInfo,
++} from '../tools/redmine';
+ import { setupGitLabTools } from '../tools/gitlab';
+ import { McpSchema } from '../../main/types/schema';
+ import { AgentBootMessage } from '../../main/types';
+@@ -59,27 +63,34 @@ export const getOrchestrator = async (): Promise<{
+     gitlab: boolean;
+     mcp: boolean;
+   };
++  redmineInfo: RedmineBaseInfo | null;
+ }> => {
+   const alertMessages: AgentBootMessage[] = [];
+   let agent: Agent | null = null;
+   let redmineTools = {};
+   let gitlabTools = {};
+   let mcpTools = {};
++  let redmineInfo: RedmineBaseInfo | null = null;
+ 
+   try {
+     const store = getStore();
+ 
+-    // Redinmeツールの登録
++    // Redmineツールの登録
+     // APIキーとエンドポイントが登録されていた場合は登録する
+     const redmineApiKey = store.get('redmine').apiKey;
+     const redmineEndpoint = store.get('redmine').endpoint;
+     if (redmineApiKey && redmineEndpoint) {
+       try {
+-        // Redmineクライアントの初期化
+-        redmineTools = await setupRedmineTools({
++        // Redmineクライアントを作成
++        const client = createRedmineClient({
+           apiKey: redmineApiKey,
+           apiUrl: redmineEndpoint,
+         });
++
++        // 基本情報の取得
++        redmineInfo = await client.getBaseInfo();
++        // 作成したクライアントを使ってツールを初期化
++        redmineTools = await setupRedmineTools(client);
+         alertMessages.push({
+           id: uuid(),
+           type: 'info',
+@@ -91,6 +102,7 @@ export const getOrchestrator = async (): Promise<{
+           type: 'warning',
+           content: `Redmineクライアントの初期化に失敗しました\n設定を確認してください\n${error}`,
+         });
++        redmineInfo = null;
+       }
+     } else {
+       console.warn(
+@@ -247,6 +259,7 @@ export const getOrchestrator = async (): Promise<{
+       gitlab: !!gitlabTools && Object.keys(gitlabTools).length > 0,
+       mcp: !!mcpTools && Object.keys(mcpTools).length > 0,
+     },
++    redmineInfo,
+   };
+ };
+ 
 diff --git a/src/mastra/agents/prompts.ts b/src/mastra/agents/prompts.ts
-index a783a4eb8..50701d02e 100644
+index 50701d02e..3b529b4e0 100644
 --- a/src/mastra/agents/prompts.ts
 +++ b/src/mastra/agents/prompts.ts
-@@ -166,6 +166,8 @@ ${
+@@ -2,6 +2,7 @@ import { eq, and } from 'drizzle-orm';
+ import { getStore } from '../../main/store';
+ import { sources, topics } from '../../db/schema';
+ import getDb from '../../db';
++import { RedmineBaseInfo } from '../tools/redmine';
+ 
+ /**
+  * データベースからソース情報を取得する
+@@ -93,11 +94,14 @@ export const EXTRACT_TOPIC_AND_SUMMARY_SYSTEM_PROMPT = `
+  * @param config ツールの有効/無効を指定する設定オブジェクト
+  * @returns システムプロンプト文字列
+  */
+-export const getOrchestratorSystemPrompt = async (config: {
+-  redmine: boolean;
+-  gitlab: boolean;
+-  mcp: boolean;
+-}): Promise<string> => {
++export const getOrchestratorSystemPrompt = async (
++  config: {
++    redmine: boolean;
++    gitlab: boolean;
++    mcp: boolean;
++  },
++  redmineInfo: RedmineBaseInfo | null,
++): Promise<string> => {
+   const store = getStore();
+ 
+   const sourceListMD = await getSourcesInfoByMDList();
+@@ -136,7 +140,8 @@ ${
+   - getRedmineIssuesList：Redmineのプロジェクトのチケット一覧を取得します。ステータス、トラッカー、担当者、バージョンで絞り込み可能です。
+   - getRedmineIssueDetail：Redmineの特定のチケット詳細を取得します。
+   - createRedmineIssue：Redmineに新しいチケットを作成します。
+-  - updateRedmineIssue：Redmineの既存チケットを更新します。`
++  - updateRedmineIssue：Redmineの既存チケットを更新します。
++`
+     : ''
+ }
+ ${
+@@ -162,6 +167,12 @@ ${
+ ※ツール利用時の注意事項
+ - 共通
+   - ツールは何度でも任意のタイミングで利用可能
++- ソース情報検索ツール
++  - 質問の内容によっては同一のソースに対して複数回sourceQueryToolを利用して情報を収集すること
++  - 質問の内容によっては複数のソースに対してsourceQueryToolを利用して、十分な情報を収集すること
++  - 登録されているソースの一覧とその要約、トピックは以下の通り
++  ※以下の内容はあくまでソース情報を要約したものである。ソース情報（の詳細）を正確に把握するためには、sourceQueryToolを利用してソース情報を取得すること
++${sourceListMD}
+ ${
    config.redmine
      ? `- redmine操作ツール
-   - RedmineのURLはこちら：${store.get('redmine').endpoint}
-+  - Redmineのプロジェクトを指定する際はプロジェクトID、プロジェクト名またはプロジェクト識別子が必要になるが、プロジェクトの識別子は以下のように取得できる
-+    - 例えば、プロジェクトのURLが${store.get('redmine').endpoint}/projects/myprjの場合、プロジェクトの識別子はmyprjとなる(/projects/直後の部分)
+@@ -171,23 +182,24 @@ ${
    - トラッカーの利用方針は以下の通り（あくまで方針であり、ユーザから明確にトラッカーの種類など提示された場合はそちらに従うこと）
      - 中日程：プロジェクト全体のフェーズ分けなどで利用する
      - 作業計画：プロジェクトの各フェーズ内で実施する作業の計画を立てるために利用する
+-    - 生産計画・タスク：プロジェクトの各フェーズ内の各作業毎に実施するタスクを管理するために利用する。生産計画は他者によるチェック（再鑑）が必要な場合に利用する。タスクは他者によるチェック（再鑑）が不要な場合に利用する。生産計画・タスクチケットの子チケットとして生産計画・タスクを持つ（ネストさせる）ことが可能。`
++    - 生産計画・タスク：プロジェクトの各フェーズ内の各作業毎に実施するタスクを管理するために利用する。生産計画は他者によるチェック（再鑑）が必要な場合に利用する。タスクは他者によるチェック（再鑑）が不要な場合に利用する。生産計画・タスクチケットの子チケットとして生産計画・タスクを持つ（ネストさせる）ことが可能。
++  - Redmineの基本情報は次の通り：
++    - トラッカー一覧：
++${redmineInfo?.trackers.map(t => `      - ${t.name} (ID: ${t.id})`).join('\n')}
++    - ステータス一覧：
++${redmineInfo?.statuses.map(s => `      - ${s.name} (ID: ${s.id})`).join('\n')}
++    - 優先度一覧：
++${redmineInfo?.priorities.map(p => `      - ${p.name} (ID: ${p.id})`).join('\n')}`
+     : ''
+ }
+ ${
+   config.gitlab
+     ? `- GitLab操作ツール
+   - GitLabのURLはこちら：${store.get('gitlab').endpoint}
+-  - プロジェクト(リポジトリ)を指定する際はプロジェクトIDまたはURLエンコードされたパスが必要になるが、URLエンコードされたパスは以下のように取得できる
+-    - 例えば、プロジェクト(リポジトリ)のURLが${store.get('gitlab').endpoint}/groupA/groupB/projectの場合、URLエンコードされたパスはgroupA%2FgroupB%2Fprojectとなる(/ は%2F で表されます)`
++  - プロジェクト(リポジトリ)を指定する際はプロジェクトIDまたはプロジェクトの非エンコードパスが必要です
++    - 例えば、プロジェクト(リポジトリ)のURLが${store.get('gitlab').endpoint}/groupA/groupB/projectの場合、プロジェクトの非エンコードパスはgroupA/groupB/projectとなります`
+     : ''
+ }
+-- ソース情報検索ツール
+-  - 質問の内容によっては同一のソースに対して複数回sourceQueryToolを利用して情報を収集すること
+-  - 質問の内容によっては複数のソースに対してsourceQueryToolを利用して、十分な情報を収集すること
+-  - 登録されているソースの一覧とその要約、トピックは以下の通り
+-  ※以下の内容はあくまでソース情報を要約したものである。ソース情報（の詳細）を正確に把握するためには、sourceQueryToolを利用してソース情報を取得すること
+-${sourceListMD}
+ `;
+   return prompt;
+ };
+diff --git a/src/mastra/tools/gitlab/mergeRequestTools.ts b/src/mastra/tools/gitlab/mergeRequestTools.ts
+index 3f7344ade..9f5cd23cd 100644
+--- a/src/mastra/tools/gitlab/mergeRequestTools.ts
++++ b/src/mastra/tools/gitlab/mergeRequestTools.ts
+@@ -21,7 +21,7 @@ export const createGetMergeRequestDetailTool = (client: GitLabClient) => {
+     inputSchema: z.object({
+       project_id: z
+         .union([z.string(), z.number()])
+-        .describe('プロジェクトIDまたはURLエンコードされたパス:必須'),
++        .describe('プロジェクトIDまたはプロジェクトの非エンコードパス:必須'),
+       merge_request_iid: z
+         .number()
+         .describe('マージリクエストのIID（プロジェクト内ID）:必須'),
+@@ -75,7 +75,7 @@ export const createAddMergeRequestCommentTool = (client: GitLabClient) => {
+     inputSchema: z.object({
+       project_id: z
+         .union([z.string(), z.number()])
+-        .describe('プロジェクトIDまたはURLエンコードされたパス:必須'),
++        .describe('プロジェクトIDまたはプロジェクトの非エンコードパス:必須'),
+       merge_request_iid: z
+         .number()
+         .describe('マージリクエストのIID（プロジェクト内ID）:必須'),
+@@ -129,7 +129,7 @@ export const createAddMergeRequestDiffCommentTool = (client: GitLabClient) => {
+     inputSchema: z.object({
+       project_id: z
+         .union([z.string(), z.number()])
+-        .describe('プロジェクトIDまたはURLエンコードされたパス:必須'),
++        .describe('プロジェクトIDまたはプロジェクトの非エンコードパス:必須'),
+       merge_request_iid: z
+         .number()
+         .describe('マージリクエストのIID（プロジェクト内ID）:必須'),
+diff --git a/src/mastra/tools/gitlab/repositoryTools.ts b/src/mastra/tools/gitlab/repositoryTools.ts
+index 4e370ee01..080175a3a 100644
+--- a/src/mastra/tools/gitlab/repositoryTools.ts
++++ b/src/mastra/tools/gitlab/repositoryTools.ts
+@@ -21,11 +21,11 @@ export const createGetFileContentTool = (client: GitLabClient) => {
+     inputSchema: z.object({
+       project_id: z
+         .union([z.string(), z.number()])
+-        .describe('プロジェクトIDまたはURLエンコードされたパス:必須'),
++        .describe('プロジェクトIDまたはプロジェクトの非エンコードパス:必須'),
+       file_path: z
+         .string()
+         .describe(
+-          'リポジトリルートからの相対パスで、URLエンコード済みであること（例えばpath%2Fto%2Ffile.rb）:必須',
++          'ファイルパス（リポジトリルートからの非エンコードの相対パス）:必須',
+         ),
+       ref: z.string().describe('リファレンス（ブランチ名、タグ名）:必須'),
+     }),
+@@ -77,11 +77,11 @@ export const createGetRawFileTool = (client: GitLabClient) => {
+     inputSchema: z.object({
+       project_id: z
+         .union([z.string(), z.number()])
+-        .describe('プロジェクトIDまたはURLエンコードされたパス:必須'),
++        .describe('プロジェクトIDまたはプロジェクトの非エンコードパス:必須'),
+       file_path: z
+         .string()
+         .describe(
+-          'ファイルパス（リポジトリルートからの相対パスで、URLエンコード済みであること（例えばpath%2Fto%2Ffile.rb）:必須',
++          'ファイルパス（リポジトリルートからの非エンコードの相対パス）:必須',
+         ),
+       ref: z.string().describe('リファレンス（ブランチ名、タグ名）:必須'),
+     }),
+@@ -133,11 +133,11 @@ export const createGeBlameFileTool = (client: GitLabClient) => {
+     inputSchema: z.object({
+       project_id: z
+         .union([z.string(), z.number()])
+-        .describe('プロジェクトIDまたはURLエンコードされたパス:必須'),
++        .describe('プロジェクトIDまたはプロジェクトの非エンコードパス:必須'),
+       file_path: z
+         .string()
+         .describe(
+-          'ファイルパス（リポジトリルートからの相対パスで、URLエンコード済みであること（例えばpath%2Fto%2Ffile.rb））:必須',
++          'ファイルパス（リポジトリルートからの非エンコードの相対パス）:必須',
+         ),
+       ref: z.string().describe('リファレンス（ブランチ名、タグ名）:必須'),
+       range: z
+@@ -197,7 +197,7 @@ export const createGetRepositoryTreeTool = (client: GitLabClient) => {
+     inputSchema: z.object({
+       project_id: z
+         .union([z.string(), z.number()])
+-        .describe('プロジェクトIDまたはURLエンコードされたパス:必須'),
++        .describe('プロジェクトIDまたはプロジェクトの非エンコードパス:必須'),
+       path: z
+         .string()
+         .optional()
 diff --git a/src/mastra/tools/redmine/index.ts b/src/mastra/tools/redmine/index.ts
-index f16f2c052..963d61113 100644
+index 963d61113..2ce11d20b 100644
 --- a/src/mastra/tools/redmine/index.ts
 +++ b/src/mastra/tools/redmine/index.ts
-@@ -30,12 +30,6 @@ export const createRedmineTools = (config: {
-       'Redmineインスタンスの基本情報（プロジェクト、トラッカー、ステータス、優先度など）を取得します。',
-     inputSchema: z.object({}),
-     outputSchema: z.object({
--      projects: z.array(
--        z.object({
--          id: z.number(),
--          name: z.string(),
--        }),
--      ),
-       trackers: z.array(
-         z.object({
-           id: z.number(),
-@@ -57,15 +51,13 @@ export const createRedmineTools = (config: {
-     }),
-     execute: async () => {
-       // 各種マスタ情報を取得
--      const [projects, trackers, statuses, priorities] = await Promise.all([
--        client.getProjects(),
-+      const [trackers, statuses, priorities] = await Promise.all([
-         client.getTrackers(),
-         client.getStatuses(),
-         client.getPriorities(),
-       ]);
+@@ -5,8 +5,11 @@
  
-       return {
--        projects,
-         trackers,
-         statuses,
-         priorities,
-diff --git a/src/mastra/tools/redmine/issueTools.ts b/src/mastra/tools/redmine/issueTools.ts
-index d1fd16d08..2c735f14a 100644
---- a/src/mastra/tools/redmine/issueTools.ts
-+++ b/src/mastra/tools/redmine/issueTools.ts
-@@ -29,7 +29,9 @@ export const createGetIssuesListTool = (client: RedmineClient) => {
-     inputSchema: z.object({
-       project_id: z
-         .union([z.string(), z.number()])
--        .describe('プロジェクトIDまたはプロジェクト名:必須'),
-+        .describe(
-+          'プロジェクトID、プロジェクト名、またはプロジェクト識別子:必須',
-+        ),
-       status_id: z
-         .union([z.string(), z.number(), z.enum(['open', 'closed', '*'])])
-         .optional()
-@@ -167,30 +169,19 @@ export const createGetIssuesListTool = (client: RedmineClient) => {
-           }
-         });
+ import { createTool } from '@mastra/core/tools';
+ import { z } from 'zod';
+-import { RedmineClient, createRedmineClient } from './redmineClient';
+-import { RedmineSchema } from '../../../main/types/settingsSchema';
++import {
++  RedmineClient,
++  RedmineClientConfig,
++  createRedmineClient,
++} from './redmineClient';
+ import { createIssueTools } from './issueTools';
  
--        // ページネーション
--        const limit = 100;
--        let offset = 0;
--        // すべてのチケットを格納する配列
--        let all: any[] = [];
-+        // API リクエストの実行
-+        const path = `issues.json?${queryParams.toString()}`;
-         // eslint-disable-next-line
--        while (true) {
--          // API リクエストの実行
--          const path = `issues.json?${queryParams.toString()}&limit=${limit}&offset=${offset}`;
--          // eslint-disable-next-line
--          const response = await client.request<RedmineIssueListResponse>(
--            path,
--            'GET',
--          );
--          all = all.concat(response.issues);
--          if (all.length >= response.total_count) break;
--          offset += limit;
--        }
-+        const response = await client.request<RedmineIssueListResponse>(
-+          path,
-+          'GET',
-+        );
+ /**
+@@ -14,12 +17,7 @@ import { createIssueTools } from './issueTools';
+  * @param config Redmine APIクライアント設定
+  * @returns Redmine操作ツール一式
+  */
+-export const createRedmineTools = (config: {
+-  apiUrl: string;
+-  apiKey: string;
+-}) => {
+-  const client = createRedmineClient(config);
+-
++export const createRedmineTools = (client: RedmineClient) => {
+   // 各ツールグループを作成
+   const issueTools = createIssueTools(client);
  
-         status = 'success';
-         return {
-           status,
-           result: {
--            issues: all,
-+            issues: response.issues,
-           },
-         };
-       } catch (error) {
-@@ -271,7 +262,9 @@ export const createCreateIssueTool = (client: RedmineClient) => {
-     inputSchema: z.object({
-       project_id: z
-         .union([z.string(), z.number()])
--        .describe('プロジェクトIDまたはプロジェクト名:必須'),
-+        .describe(
-+          'プロジェクトID、プロジェクト名、またはプロジェクト識別子:必須',
-+        ),
-       subject: z.string().describe('チケットのタイトル:必須'),
-       description: z.string().optional().describe('チケットの説明:任意'),
-       tracker_id: z
+@@ -77,39 +75,31 @@ export const createRedmineTools = (config: {
+ 
+ /**
+  * Mastra用のRedmine操作ツールを設定・初期化する
+- * @param config Redmine API接続設定
++ * @param config Redmine API接続設定、またはRedmineClientインスタンス
+  * @returns Mastraで使用可能なRedmine操作ツール
+  */
+-export const setupRedmineTools = (config: {
+-  apiUrl: string;
+-  apiKey: string;
+-}) => {
+-  return (async () => {
+-    // settingsSchemaによる設定値の検証
+-    const validationResult = RedmineSchema.safeParse({
+-      endpoint: config.apiUrl,
+-      apiKey: config.apiKey,
+-    });
+-    if (!validationResult.success) {
+-      throw new Error(
+-        `Redmine設定が不正です: ${validationResult.error.message}`,
+-      );
+-    }
++export const setupRedmineTools = async (
++  config: RedmineClientConfig | RedmineClient,
++): Promise<ReturnType<typeof createRedmineTools>> => {
++  let client: RedmineClient;
+ 
++  if (config instanceof RedmineClient) {
++    client = config;
++  } else {
+     // Redmineクライアントを作成
+-    const client = createRedmineClient(config);
++    client = createRedmineClient(config);
++  }
+ 
+-    // API疎通確認
+-    try {
+-      await client.testConnection();
+-      // eslint-disable-next-line
+-    } catch (error: any) {
+-      throw new Error(`Redmine APIへの接続確認に失敗しました`);
+-    }
++  // API疎通確認
++  try {
++    await client.testConnection();
++    // eslint-disable-next-line
++  } catch (error: any) {
++    throw new Error(`Redmine APIへの接続確認に失敗しました`);
++  }
+ 
+-    // Redmine操作ツール一式を作成
+-    return createRedmineTools(config);
+-  })();
++  // Redmine操作ツール一式を作成
++  return createRedmineTools(client);
+ };
+ 
+ // 型定義とクライアントをエクスポート
 diff --git a/src/mastra/tools/redmine/redmineClient.ts b/src/mastra/tools/redmine/redmineClient.ts
-index 9a697398a..14a301855 100644
+index 14a301855..f8317d3d5 100644
 --- a/src/mastra/tools/redmine/redmineClient.ts
 +++ b/src/mastra/tools/redmine/redmineClient.ts
-@@ -4,8 +4,7 @@
+@@ -4,7 +4,8 @@
   */
  
  import { z } from 'zod';
--
--type RedmineHeaders = Record<string, string>;
-+import { RedmineProject } from './types';
+-import { RedmineProject } from './types';
++import { RedmineProject, RedmineBaseInfo } from './types';
++import { RedmineSchema } from '../../../main/types/settingsSchema';
  
  /**
   * Redmineクライアント設定のインターフェース
-@@ -39,7 +38,7 @@ export class RedmineClient {
-   private readonly apiKey: string;
- 
-   // キャッシュ: プロジェクト、トラッカー、ステータスなど
--  private projectsCache: NameIdMapping[] = [];
-+  private projectsCache: RedmineProject[] = [];
- 
-   private trackersCache: NameIdMapping[] = [];
- 
-@@ -56,53 +55,119 @@ export class RedmineClient {
+@@ -207,6 +208,21 @@ export class RedmineClient {
+     throw new Error(`Unable to resolve ID for: ${value}`);
    }
  
++  /**
++   * キャッシュされた基本情報を一括で取得する
++   */
++  async getBaseInfo(): Promise<RedmineBaseInfo> {
++    const trackers = await this.getTrackers();
++    const statuses = await this.getStatuses();
++    const priorities = await this.getPriorities();
++
++    return {
++      trackers,
++      statuses,
++      priorities,
++    };
++  }
++
    /**
--   * RedmineのRESTリクエストを実行する
--   * @param path APIパス
--   * @param method HTTPメソッド
--   * @param data リクエストデータ
--   * @returns レスポンスデータ
-+   * Redmine の REST API リクエストメソッド
-+   *  - GET  の場合 : limit / offset を使って全件取得（最大 100 件ずつ）
-+   *  - POST/PUT の場合 : 1 回だけ実行
-    */
-   async request<T = any>(
-     path: string,
-     method: 'GET' | 'POST' | 'PUT',
-     data: any = undefined,
-   ): Promise<T> {
--    const url = new URL(path, this.apiUrl);
--
--    const headers: RedmineHeaders = {
-+    /**
-+     * --------------------------
-+     *  共通ヘッダーと fetch オプション
-+     * --------------------------
-+     */
-+    const commonHeaders: Record<string, string> = {
-       'Content-Type': 'application/json',
-       'X-Redmine-API-Key': this.apiKey,
-     };
- 
--    const options = {
--      method,
--      headers,
--      body: data ? JSON.stringify(data) : undefined,
--    };
--
--    try {
--      const response = await fetch(url.toString(), options);
--
-+    /**
-+     * ---------------------------------------------
-+     * 1. GET 以外は従来どおり 1 回だけ実行して終了
-+     * ---------------------------------------------
-+     */
-+    if (method !== 'GET') {
-+      const url = new URL(path, this.apiUrl);
-+      const response = await fetch(url.toString(), {
-+        method,
-+        headers: commonHeaders,
-+        body: data ? JSON.stringify(data) : undefined,
-+      });
-       if (!response.ok) {
-         throw new Error(
-           `Redmine API Error: ${response.status} ${response.statusText}`,
-         );
-       }
-+      if (response.status === 204) {
-+        return {} as T;
-+      }
-+      return (await response.json()) as T;
-+    }
-+
-+    /**
-+     * ---------------------------------------
-+     * 2. ここから GET（一覧取得）のページネーション処理
-+     * ---------------------------------------
-+     */
-+    const limit = 100; // 1 リクエスト最大件数（Redmine の上限）
-+    let offset = 0; // 現在の取得開始位置
-+    let aggregatedJson: any = null; // マージ後に返却する JSON
-+    let arrayKey: string | null = null; // projects / issues / users など配列が入るキー
-+
-+    while (true) {
-+      // URL に limit / offset を付与（既に付いていれば上書き）
-+      const url = new URL(path, this.apiUrl);
-+      url.searchParams.set('limit', limit.toString());
-+      url.searchParams.set('offset', offset.toString());
-+
-+      // リクエスト実行
-+      const res = await fetch(url.toString(), {
-+        method,
-+        headers: commonHeaders,
-+      });
-+      if (!res.ok) {
-+        throw new Error(`Redmine API Error: ${res.status} ${res.statusText}`);
-+      }
-+      const json = (await res.json()) as Record<string, any>;
-+
-+      /**
-+       * 2-1. 1 ページ目：返却 JSON の「配列キー」と total_count を特定
-+       *  - Redmine の一覧 API は必ず
-+       *       {
-+       *         "<resource_plural>": [...array...],
-+       *         "total_count": 123,
-+       *         "limit": 100,
-+       *         "offset": 0
-+       *       }
-+       *    の形で返る。
-+       */
-+      if (arrayKey === null) {
-+        arrayKey =
-+          Object.keys(json).find((k) => Array.isArray(json[k])) || null;
-+        if (!arrayKey) {
-+          // 配列キーが見つからない ⇒ そもそも一覧 API ではない
-+          return json as T;
-+        }
-+        // 返却用オブジェクトのひな形を作成（total_count 等も保持）
-+        aggregatedJson = { ...json, [arrayKey]: [...json[arrayKey]] };
-+      } else {
-+        // 2 ページ目以降は対象配列だけマージ
-+        aggregatedJson[arrayKey].push(...json[arrayKey]);
-+      }
- 
--      // 更新処理（PUT）の場合、204ステータスかつコンテンツが返らないため空オブジェクトを返す
-+      // 現在取得済み件数
-+      const currentCount: number = aggregatedJson[arrayKey].length;
-+      const total: number | undefined = aggregatedJson.total_count; // 無いエンドポイントもある
-+
-+      // ---------------------------------
-+      // ループ終了判定
-+      //   1) total_count がある     → 取得済 >= total_count
-+      //   2) total_count が無い場合 → 返却件数 < limit（＝最終ページ）
-+      // ---------------------------------
-       if (
--        response.status === 204 ||
--        !response.headers.get('content-length') ||
--        response.headers.get('transfer-encoding')?.includes('chunked')
-+        (total !== undefined && currentCount >= total) ||
-+        json[arrayKey].length < limit
-       ) {
--        return {} as T;
-+        break;
-       }
- 
--      return await response.json();
--    } catch (error) {
--      console.error('Redmine API Request failed:', error);
--      throw error;
-+      offset += limit; // 次ページへ
-     }
-+
-+    return aggregatedJson as T;
-   }
- 
-   /**
-@@ -114,7 +179,7 @@ export class RedmineClient {
-   // eslint-disable-next-line
-   async resolveId(
-     value: number | string,
--    mappings: NameIdMapping[],
-+    mappings: (NameIdMapping | RedmineProject)[],
-   ): Promise<number> {
-     // 既にIDなら変換不要
-     if (typeof value === 'number') {
-@@ -126,10 +191,15 @@ export class RedmineClient {
-       return Number(value);
-     }
- 
--    // 名前からIDを検索
--    const found = mappings.find(
--      (item) => item.name.toLowerCase() === value.toLowerCase(),
--    );
-+    // 名前またはidentifierからIDを検索
-+    const found = mappings.find((item) => {
-+      const lowercaseValue = value.toLowerCase();
-+      const nameMatch = item.name.toLowerCase() === lowercaseValue;
-+      const identifierMatch =
-+        'identifier' in item &&
-+        item.identifier.toLowerCase() === lowercaseValue;
-+      return nameMatch || identifierMatch;
-+    });
-     if (found) {
-       return found.id;
-     }
-@@ -141,7 +211,7 @@ export class RedmineClient {
     * プロジェクト一覧を取得してIDマッピングを返す
     * @returns プロジェクトの名前とIDのマッピング配列
-    */
--  async getProjects(): Promise<NameIdMapping[]> {
-+  async getProjects(): Promise<RedmineProject[]> {
-     if (this.projectsCache.length > 0) {
-       return this.projectsCache;
-     }
-@@ -150,6 +220,7 @@ export class RedmineClient {
-       projects: Array<{
-         id: number;
-         name: string;
-+        identifier: string;
-       }>;
-     }
+@@ -391,6 +407,14 @@ export class RedmineClient {
+ export const createRedmineClient = (
+   config: RedmineClientConfig,
+ ): RedmineClient => {
++  // settingsSchemaによる設定値の検証
++  const validationResult = RedmineSchema.safeParse({
++    endpoint: config.apiUrl,
++    apiKey: config.apiKey,
++  });
++  if (!validationResult.success) {
++    throw new Error(`Redmine設定が不正です: ${validationResult.error.message}`);
++  }
+   return new RedmineClient(config);
+ };
  
-@@ -160,6 +231,7 @@ export class RedmineClient {
-     this.projectsCache = response.projects.map((project) => ({
-       id: project.id,
-       name: project.name,
-+      identifier: project.identifier,
-     }));
- 
-     return this.projectsCache;
 diff --git a/src/mastra/tools/redmine/types.ts b/src/mastra/tools/redmine/types.ts
-index b5395371c..2d14dad5c 100644
+index 2d14dad5c..65ce90508 100644
 --- a/src/mastra/tools/redmine/types.ts
 +++ b/src/mastra/tools/redmine/types.ts
-@@ -1,3 +1,12 @@
+@@ -52,6 +52,24 @@ export interface IssueFilter {
+   sort?: string;
+ }
+ 
 +/**
-+ * Redmineプロジェクト情報
++ * Redmine基本情報
 + */
-+export interface RedmineProject {
-+  id: number;
-+  name: string;
-+  identifier: string;
++export interface RedmineBaseInfo {
++  trackers: Array<{
++    id: number;
++    name: string;
++  }>;
++  statuses: Array<{
++    id: number;
++    name: string;
++  }>;
++  priorities: Array<{
++    id: number;
++    name: string;
++  }>;
 +}
 +
  /**
-  * Redmineチケット作成/更新用の共通データ
+  * Redmineチケット一覧取得APIの返り値
   */
