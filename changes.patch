@@ -1,2433 +1,363 @@
-diff --git a/.erb/configs/webpack.config.main.dev.ts b/.erb/configs/webpack.config.main.dev.ts
-index 33082d4d7..59282bfee 100644
---- a/.erb/configs/webpack.config.main.dev.ts
-+++ b/.erb/configs/webpack.config.main.dev.ts
-@@ -2,10 +2,11 @@
-  * Webpack config for development electron main process
-  */
- 
--import path from 'path';
-+import path, { join } from 'path';
- import webpack from 'webpack';
- import { BundleAnalyzerPlugin } from 'webpack-bundle-analyzer';
- import { merge } from 'webpack-merge';
-+import CopyPlugin from 'copy-webpack-plugin';
- import checkNodeEnv from '../scripts/check-node-env';
- import baseConfig from './webpack.config.base';
- import webpackPaths from './webpack.paths';
-@@ -47,6 +48,18 @@ const configuration: webpack.Configuration = {
-     new webpack.DefinePlugin({
-       'process.type': '"browser"',
-     }),
-+
-+    new CopyPlugin({
-+      patterns: [
-+        {
-+          from: join(
-+            path.dirname(require.resolve('pdfjs-dist/package.json')),
-+            'legacy/build/pdf.worker.mjs',
-+          ),
-+          to: 'pdf.worker.mjs', // 出力先 (resources に入る)
-+        },
-+      ],
-+    }),
-   ],
- 
-   /**
-diff --git a/.erb/configs/webpack.config.main.prod.ts b/.erb/configs/webpack.config.main.prod.ts
-index 9a5a911c4..6ce80e934 100644
---- a/.erb/configs/webpack.config.main.prod.ts
-+++ b/.erb/configs/webpack.config.main.prod.ts
-@@ -2,7 +2,7 @@
-  * Webpack config for production electron main process
-  */
- 
--import path from 'path';
-+import path, { join } from 'path';
- import webpack from 'webpack';
- import { merge } from 'webpack-merge';
- import TerserPlugin from 'terser-webpack-plugin';
-@@ -75,6 +75,13 @@ const configuration: webpack.Configuration = {
-           from: path.resolve(__dirname, '../../drizzle'),
-           to: path.resolve(__dirname, '../../release/app/drizzle'),
-         },
-+        {
-+          from: join(
-+            path.dirname(require.resolve('pdfjs-dist/package.json')),
-+            'legacy/build/pdf.worker.mjs',
-+          ),
-+          to: 'pdf.worker.mjs', // 出力先 (resources に入る)
-+        },
-       ],
-     }),
-   ],
-diff --git a/drizzle.config.ts b/drizzle.config.ts
-index 5e7ce9d66..cbe5d3ee4 100644
---- a/drizzle.config.ts
-+++ b/drizzle.config.ts
-@@ -1,15 +1,21 @@
- import type { Config } from 'drizzle-kit';
- import 'dotenv/config';
-+import { toAbsoluteFileURL } from './src/main/utils/util';
- 
- if (!process.env.DATABASE_DIR) {
--  throw new Error('DATABASE_URL環境変数が設定されていません');
-+  throw new Error('DATABASE_DIR環境変数が設定されていません');
- }
- 
-+console.log(
-+  'DATABASE_URL',
-+  toAbsoluteFileURL(process.env.DATABASE_DIR, 'source.db'),
-+);
-+
- export default {
-   schema: './src/db/schema.ts',
-   out: './drizzle/migrations',
-   dialect: 'sqlite',
-   dbCredentials: {
--    url: new URL('source.db', process.env.DATABASE_DIR).href,
-+    url: toAbsoluteFileURL(process.env.DATABASE_DIR, 'source.db'),
-   },
- } satisfies Config;
-diff --git a/package-lock.json b/package-lock.json
-index ae7db5fc8..91938b64e 100644
---- a/package-lock.json
-+++ b/package-lock.json
-@@ -41,6 +41,7 @@
-         "lucide-react": "^0.503.0",
-         "mastra": "^0.4.9",
-         "mermaid": "^11.6.0",
-+        "pdfjs-dist": "^5.2.133",
-         "postcss": "^8.5.3",
-         "react": "^19.0.0",
-         "react-dom": "^19.0.0",
-@@ -5870,6 +5871,207 @@
-         "node": ">=10"
-       }
-     },
-+    "node_modules/@mapbox/node-pre-gyp": {
-+      "version": "1.0.11",
-+      "resolved": "https://registry.npmjs.org/@mapbox/node-pre-gyp/-/node-pre-gyp-1.0.11.tgz",
-+      "integrity": "sha512-Yhlar6v9WQgUp/He7BdgzOz8lqMQ8sU+jkCq7Wx8Myc5YFJLbEe7lgui/V7G1qB1DJykHSGwreceSaD60Y0PUQ==",
-+      "dev": true,
-+      "license": "BSD-3-Clause",
-+      "optional": true,
-+      "peer": true,
-+      "dependencies": {
-+        "detect-libc": "^2.0.0",
-+        "https-proxy-agent": "^5.0.0",
-+        "make-dir": "^3.1.0",
-+        "node-fetch": "^2.6.7",
-+        "nopt": "^5.0.0",
-+        "npmlog": "^5.0.1",
-+        "rimraf": "^3.0.2",
-+        "semver": "^7.3.5",
-+        "tar": "^6.1.11"
-+      },
-+      "bin": {
-+        "node-pre-gyp": "bin/node-pre-gyp"
-+      }
-+    },
-+    "node_modules/@mapbox/node-pre-gyp/node_modules/are-we-there-yet": {
-+      "version": "2.0.0",
-+      "resolved": "https://registry.npmjs.org/are-we-there-yet/-/are-we-there-yet-2.0.0.tgz",
-+      "integrity": "sha512-Ci/qENmwHnsYo9xKIcUJN5LeDKdJ6R1Z1j9V/J5wyq8nh/mYPEpIKJbBZXtZjG04HiK7zV/p6Vs9952MrMeUIw==",
-+      "deprecated": "This package is no longer supported.",
-+      "dev": true,
-+      "license": "ISC",
-+      "optional": true,
-+      "peer": true,
-+      "dependencies": {
-+        "delegates": "^1.0.0",
-+        "readable-stream": "^3.6.0"
-+      },
-+      "engines": {
-+        "node": ">=10"
-+      }
-+    },
-+    "node_modules/@mapbox/node-pre-gyp/node_modules/gauge": {
-+      "version": "3.0.2",
-+      "resolved": "https://registry.npmjs.org/gauge/-/gauge-3.0.2.tgz",
-+      "integrity": "sha512-+5J6MS/5XksCuXq++uFRsnUd7Ovu1XenbeuIuNRJxYWjgQbPuFhT14lAvsWfqfAmnwluf1OwMjz39HjfLPci0Q==",
-+      "deprecated": "This package is no longer supported.",
-+      "dev": true,
-+      "license": "ISC",
-+      "optional": true,
-+      "peer": true,
-+      "dependencies": {
-+        "aproba": "^1.0.3 || ^2.0.0",
-+        "color-support": "^1.1.2",
-+        "console-control-strings": "^1.0.0",
-+        "has-unicode": "^2.0.1",
-+        "object-assign": "^4.1.1",
-+        "signal-exit": "^3.0.0",
-+        "string-width": "^4.2.3",
-+        "strip-ansi": "^6.0.1",
-+        "wide-align": "^1.1.2"
-+      },
-+      "engines": {
-+        "node": ">=10"
-+      }
-+    },
-+    "node_modules/@mapbox/node-pre-gyp/node_modules/make-dir": {
-+      "version": "3.1.0",
-+      "resolved": "https://registry.npmjs.org/make-dir/-/make-dir-3.1.0.tgz",
-+      "integrity": "sha512-g3FeP20LNwhALb/6Cz6Dd4F2ngze0jz7tbzrD2wAV+o9FeNHe4rL+yK2md0J/fiSf1sa1ADhXqi5+oVwOM/eGw==",
-+      "dev": true,
-+      "license": "MIT",
-+      "optional": true,
-+      "peer": true,
-+      "dependencies": {
-+        "semver": "^6.0.0"
-+      },
-+      "engines": {
-+        "node": ">=8"
-+      },
-+      "funding": {
-+        "url": "https://github.com/sponsors/sindresorhus"
-+      }
-+    },
-+    "node_modules/@mapbox/node-pre-gyp/node_modules/make-dir/node_modules/semver": {
-+      "version": "6.3.1",
-+      "resolved": "https://registry.npmjs.org/semver/-/semver-6.3.1.tgz",
-+      "integrity": "sha512-BR7VvDCVHO+q2xBEWskxS6DJE1qRnb7DxzUrogb71CWoSficBxYsiAGd+Kl0mmq/MprG9yArRkyrQxTO6XjMzA==",
-+      "dev": true,
-+      "license": "ISC",
-+      "optional": true,
-+      "peer": true,
-+      "bin": {
-+        "semver": "bin/semver.js"
-+      }
-+    },
-+    "node_modules/@mapbox/node-pre-gyp/node_modules/node-fetch": {
-+      "version": "2.7.0",
-+      "resolved": "https://registry.npmjs.org/node-fetch/-/node-fetch-2.7.0.tgz",
-+      "integrity": "sha512-c4FRfUm/dbcWZ7U+1Wq0AwCyFL+3nt2bEw05wfxSz+DWpWsitgmSgYmy2dQdWyKC1694ELPqMs/YzUSNozLt8A==",
-+      "dev": true,
-+      "license": "MIT",
-+      "optional": true,
-+      "peer": true,
-+      "dependencies": {
-+        "whatwg-url": "^5.0.0"
-+      },
-+      "engines": {
-+        "node": "4.x || >=6.0.0"
-+      },
-+      "peerDependencies": {
-+        "encoding": "^0.1.0"
-+      },
-+      "peerDependenciesMeta": {
-+        "encoding": {
-+          "optional": true
-+        }
-+      }
-+    },
-+    "node_modules/@mapbox/node-pre-gyp/node_modules/nopt": {
-+      "version": "5.0.0",
-+      "resolved": "https://registry.npmjs.org/nopt/-/nopt-5.0.0.tgz",
-+      "integrity": "sha512-Tbj67rffqceeLpcRXrT7vKAN8CwfPeIBgM7E6iBkmKLV7bEMwpGgYLGv0jACUsECaa/vuxP0IjEont6umdMgtQ==",
-+      "dev": true,
-+      "license": "ISC",
-+      "optional": true,
-+      "peer": true,
-+      "dependencies": {
-+        "abbrev": "1"
-+      },
-+      "bin": {
-+        "nopt": "bin/nopt.js"
-+      },
-+      "engines": {
-+        "node": ">=6"
-+      }
-+    },
-+    "node_modules/@mapbox/node-pre-gyp/node_modules/npmlog": {
-+      "version": "5.0.1",
-+      "resolved": "https://registry.npmjs.org/npmlog/-/npmlog-5.0.1.tgz",
-+      "integrity": "sha512-AqZtDUWOMKs1G/8lwylVjrdYgqA4d9nu8hc+0gzRxlDb1I10+FHBGMXs6aiQHFdCUUlqH99MUMuLfzWDNDtfxw==",
-+      "deprecated": "This package is no longer supported.",
-+      "dev": true,
-+      "license": "ISC",
-+      "optional": true,
-+      "peer": true,
-+      "dependencies": {
-+        "are-we-there-yet": "^2.0.0",
-+        "console-control-strings": "^1.1.0",
-+        "gauge": "^3.0.0",
-+        "set-blocking": "^2.0.0"
-+      }
-+    },
-+    "node_modules/@mapbox/node-pre-gyp/node_modules/rimraf": {
-+      "version": "3.0.2",
-+      "resolved": "https://registry.npmjs.org/rimraf/-/rimraf-3.0.2.tgz",
-+      "integrity": "sha512-JZkJMZkAGFFPP2YqXZXPbMlMBgsxzE8ILs4lMIX/2o0L9UBw9O/Y3o6wFw/i9YLapcUJWwqbi3kdxIPdC62TIA==",
-+      "deprecated": "Rimraf versions prior to v4 are no longer supported",
-+      "dev": true,
-+      "license": "ISC",
-+      "optional": true,
-+      "peer": true,
-+      "dependencies": {
-+        "glob": "^7.1.3"
-+      },
-+      "bin": {
-+        "rimraf": "bin.js"
-+      },
-+      "funding": {
-+        "url": "https://github.com/sponsors/isaacs"
-+      }
-+    },
-+    "node_modules/@mapbox/node-pre-gyp/node_modules/tr46": {
-+      "version": "0.0.3",
-+      "resolved": "https://registry.npmjs.org/tr46/-/tr46-0.0.3.tgz",
-+      "integrity": "sha512-N3WMsuqV66lT30CrXNbEjx4GEwlow3v6rr4mCcv6prnfwhS01rkgyFdjPNBYd9br7LpXV1+Emh01fHnq2Gdgrw==",
-+      "dev": true,
-+      "license": "MIT",
-+      "optional": true,
-+      "peer": true
-+    },
-+    "node_modules/@mapbox/node-pre-gyp/node_modules/webidl-conversions": {
-+      "version": "3.0.1",
-+      "resolved": "https://registry.npmjs.org/webidl-conversions/-/webidl-conversions-3.0.1.tgz",
-+      "integrity": "sha512-2JAn3z8AR6rjK8Sm8orRC0h/bcl/DqL7tRPdGZ4I1CjdF+EaMLmYxBHyXuKL849eucPFhvBoxMsflfOb8kxaeQ==",
-+      "dev": true,
-+      "license": "BSD-2-Clause",
-+      "optional": true,
-+      "peer": true
-+    },
-+    "node_modules/@mapbox/node-pre-gyp/node_modules/whatwg-url": {
-+      "version": "5.0.0",
-+      "resolved": "https://registry.npmjs.org/whatwg-url/-/whatwg-url-5.0.0.tgz",
-+      "integrity": "sha512-saE57nupxk6v3HY35+jzBwYa0rKSy0XR8JSxZPwgLr7ys0IBzhGviA1/TUGJLmSVqs8pb9AnvICXEuOHLprYTw==",
-+      "dev": true,
-+      "license": "MIT",
-+      "optional": true,
-+      "peer": true,
-+      "dependencies": {
-+        "tr46": "~0.0.3",
-+        "webidl-conversions": "^3.0.0"
-+      }
-+    },
-     "node_modules/@mastra/core": {
-       "version": "0.8.3",
-       "resolved": "https://registry.npmjs.org/@mastra/core/-/core-0.8.3.tgz",
-@@ -7078,6 +7280,188 @@
-       "integrity": "sha512-Oe56aUPnkHyyDxxkvqtd7KkdQP5uIUfHxd5XTb3wE9d/kRnZLmKbDB0GWk919tdQ+mxxPtG6EAs6RMT6i1qtHg==",
-       "license": "MIT"
-     },
-+    "node_modules/@napi-rs/canvas": {
-+      "version": "0.1.70",
-+      "resolved": "https://registry.npmjs.org/@napi-rs/canvas/-/canvas-0.1.70.tgz",
-+      "integrity": "sha512-nD6NGa4JbNYSZYsTnLGrqe9Kn/lCkA4ybXt8sx5ojDqZjr2i0TWAHxx/vhgfjX+i3hCdKWufxYwi7CfXqtITSA==",
-+      "license": "MIT",
-+      "optional": true,
-+      "engines": {
-+        "node": ">= 10"
-+      },
-+      "optionalDependencies": {
-+        "@napi-rs/canvas-android-arm64": "0.1.70",
-+        "@napi-rs/canvas-darwin-arm64": "0.1.70",
-+        "@napi-rs/canvas-darwin-x64": "0.1.70",
-+        "@napi-rs/canvas-linux-arm-gnueabihf": "0.1.70",
-+        "@napi-rs/canvas-linux-arm64-gnu": "0.1.70",
-+        "@napi-rs/canvas-linux-arm64-musl": "0.1.70",
-+        "@napi-rs/canvas-linux-riscv64-gnu": "0.1.70",
-+        "@napi-rs/canvas-linux-x64-gnu": "0.1.70",
-+        "@napi-rs/canvas-linux-x64-musl": "0.1.70",
-+        "@napi-rs/canvas-win32-x64-msvc": "0.1.70"
-+      }
-+    },
-+    "node_modules/@napi-rs/canvas-android-arm64": {
-+      "version": "0.1.70",
-+      "resolved": "https://registry.npmjs.org/@napi-rs/canvas-android-arm64/-/canvas-android-arm64-0.1.70.tgz",
-+      "integrity": "sha512-I/YOuQ0wbkVYxVaYtCgN42WKTYxNqFA0gTcTrHIGG1jfpDSyZWII/uHcjOo4nzd19io6Y4+/BqP8E5hJgf9OmQ==",
-+      "cpu": [
-+        "arm64"
-+      ],
-+      "license": "MIT",
-+      "optional": true,
-+      "os": [
-+        "android"
-+      ],
-+      "engines": {
-+        "node": ">= 10"
-+      }
-+    },
-+    "node_modules/@napi-rs/canvas-darwin-arm64": {
-+      "version": "0.1.70",
-+      "resolved": "https://registry.npmjs.org/@napi-rs/canvas-darwin-arm64/-/canvas-darwin-arm64-0.1.70.tgz",
-+      "integrity": "sha512-4pPGyXetHIHkw2TOJHujt3mkCP8LdDu8+CT15ld9Id39c752RcI0amDHSuMLMQfAjvusA9B5kKxazwjMGjEJpQ==",
-+      "cpu": [
-+        "arm64"
-+      ],
-+      "license": "MIT",
-+      "optional": true,
-+      "os": [
-+        "darwin"
-+      ],
-+      "engines": {
-+        "node": ">= 10"
-+      }
-+    },
-+    "node_modules/@napi-rs/canvas-darwin-x64": {
-+      "version": "0.1.70",
-+      "resolved": "https://registry.npmjs.org/@napi-rs/canvas-darwin-x64/-/canvas-darwin-x64-0.1.70.tgz",
-+      "integrity": "sha512-+2N6Os9LbkmDMHL+raknrUcLQhsXzc5CSXRbXws9C3pv/mjHRVszQ9dhFUUe9FjfPhCJznO6USVdwOtu7pOrzQ==",
-+      "cpu": [
-+        "x64"
-+      ],
-+      "license": "MIT",
-+      "optional": true,
-+      "os": [
-+        "darwin"
-+      ],
-+      "engines": {
-+        "node": ">= 10"
-+      }
-+    },
-+    "node_modules/@napi-rs/canvas-linux-arm-gnueabihf": {
-+      "version": "0.1.70",
-+      "resolved": "https://registry.npmjs.org/@napi-rs/canvas-linux-arm-gnueabihf/-/canvas-linux-arm-gnueabihf-0.1.70.tgz",
-+      "integrity": "sha512-QjscX9OaKq/990sVhSMj581xuqLgiaPVMjjYvWaCmAJRkNQ004QfoSMEm3FoTqM4DRoquP8jvuEXScVJsc1rqQ==",
-+      "cpu": [
-+        "arm"
-+      ],
-+      "license": "MIT",
-+      "optional": true,
-+      "os": [
-+        "linux"
-+      ],
-+      "engines": {
-+        "node": ">= 10"
-+      }
-+    },
-+    "node_modules/@napi-rs/canvas-linux-arm64-gnu": {
-+      "version": "0.1.70",
-+      "resolved": "https://registry.npmjs.org/@napi-rs/canvas-linux-arm64-gnu/-/canvas-linux-arm64-gnu-0.1.70.tgz",
-+      "integrity": "sha512-LNakMOwwqwiHIwMpnMAbFRczQMQ7TkkMyATqFCOtUJNlE6LPP/QiUj/mlFrNbUn/hctqShJ60gWEb52ZTALbVw==",
-+      "cpu": [
-+        "arm64"
-+      ],
-+      "license": "MIT",
-+      "optional": true,
-+      "os": [
-+        "linux"
-+      ],
-+      "engines": {
-+        "node": ">= 10"
-+      }
-+    },
-+    "node_modules/@napi-rs/canvas-linux-arm64-musl": {
-+      "version": "0.1.70",
-+      "resolved": "https://registry.npmjs.org/@napi-rs/canvas-linux-arm64-musl/-/canvas-linux-arm64-musl-0.1.70.tgz",
-+      "integrity": "sha512-wBTOllEYNfJCHOdZj9v8gLzZ4oY3oyPX8MSRvaxPm/s7RfEXxCyZ8OhJ5xAyicsDdbE5YBZqdmaaeP5+xKxvtg==",
-+      "cpu": [
-+        "arm64"
-+      ],
-+      "license": "MIT",
-+      "optional": true,
-+      "os": [
-+        "linux"
-+      ],
-+      "engines": {
-+        "node": ">= 10"
-+      }
-+    },
-+    "node_modules/@napi-rs/canvas-linux-riscv64-gnu": {
-+      "version": "0.1.70",
-+      "resolved": "https://registry.npmjs.org/@napi-rs/canvas-linux-riscv64-gnu/-/canvas-linux-riscv64-gnu-0.1.70.tgz",
-+      "integrity": "sha512-GVUUPC8TuuFqHip0rxHkUqArQnlzmlXmTEBuXAWdgCv85zTCFH8nOHk/YCF5yo0Z2eOm8nOi90aWs0leJ4OE5Q==",
-+      "cpu": [
-+        "riscv64"
-+      ],
-+      "license": "MIT",
-+      "optional": true,
-+      "os": [
-+        "linux"
-+      ],
-+      "engines": {
-+        "node": ">= 10"
-+      }
-+    },
-+    "node_modules/@napi-rs/canvas-linux-x64-gnu": {
-+      "version": "0.1.70",
-+      "resolved": "https://registry.npmjs.org/@napi-rs/canvas-linux-x64-gnu/-/canvas-linux-x64-gnu-0.1.70.tgz",
-+      "integrity": "sha512-/kvUa2lZRwGNyfznSn5t1ShWJnr/m5acSlhTV3eXECafObjl0VBuA1HJw0QrilLpb4Fe0VLywkpD1NsMoVDROQ==",
-+      "cpu": [
-+        "x64"
-+      ],
-+      "license": "MIT",
-+      "optional": true,
-+      "os": [
-+        "linux"
-+      ],
-+      "engines": {
-+        "node": ">= 10"
-+      }
-+    },
-+    "node_modules/@napi-rs/canvas-linux-x64-musl": {
-+      "version": "0.1.70",
-+      "resolved": "https://registry.npmjs.org/@napi-rs/canvas-linux-x64-musl/-/canvas-linux-x64-musl-0.1.70.tgz",
-+      "integrity": "sha512-aqlv8MLpycoMKRmds7JWCfVwNf1fiZxaU7JwJs9/ExjTD8lX2KjsO7CTeAj5Cl4aEuzxUWbJPUUE2Qu9cZ1vfg==",
-+      "cpu": [
-+        "x64"
-+      ],
-+      "license": "MIT",
-+      "optional": true,
-+      "os": [
-+        "linux"
-+      ],
-+      "engines": {
-+        "node": ">= 10"
-+      }
-+    },
-+    "node_modules/@napi-rs/canvas-win32-x64-msvc": {
-+      "version": "0.1.70",
-+      "resolved": "https://registry.npmjs.org/@napi-rs/canvas-win32-x64-msvc/-/canvas-win32-x64-msvc-0.1.70.tgz",
-+      "integrity": "sha512-Q9QU3WIpwBTVHk4cPfBjGHGU4U0llQYRXgJtFtYqqGNEOKVN4OT6PQ+ve63xwIPODMpZ0HHyj/KLGc9CWc3EtQ==",
-+      "cpu": [
-+        "x64"
-+      ],
-+      "license": "MIT",
-+      "optional": true,
-+      "os": [
-+        "win32"
-+      ],
-+      "engines": {
-+        "node": ">= 10"
-+      }
-+    },
-     "node_modules/@neon-rs/load": {
-       "version": "0.0.4",
-       "resolved": "https://registry.npmjs.org/@neon-rs/load/-/load-0.0.4.tgz",
-@@ -14664,6 +15048,24 @@
-       ],
-       "license": "CC-BY-4.0"
-     },
-+    "node_modules/canvas": {
-+      "version": "2.11.2",
-+      "resolved": "https://registry.npmjs.org/canvas/-/canvas-2.11.2.tgz",
-+      "integrity": "sha512-ItanGBMrmRV7Py2Z+Xhs7cT+FNt5K0vPL4p9EZ/UX/Mu7hFbkxSjKF2KVtPwX7UYWp7dRKnrTvReflgrItJbdw==",
-+      "dev": true,
-+      "hasInstallScript": true,
-+      "license": "MIT",
-+      "optional": true,
-+      "peer": true,
-+      "dependencies": {
-+        "@mapbox/node-pre-gyp": "^1.0.0",
-+        "nan": "^2.17.0",
-+        "simple-get": "^3.0.3"
-+      },
-+      "engines": {
-+        "node": ">=6"
-+      }
-+    },
-     "node_modules/ccount": {
-       "version": "2.0.1",
-       "resolved": "https://registry.npmjs.org/ccount/-/ccount-2.0.1.tgz",
-@@ -26671,6 +27073,15 @@
-         "url": "https://github.com/sponsors/raouldeheer"
-       }
-     },
-+    "node_modules/nan": {
-+      "version": "2.22.2",
-+      "resolved": "https://registry.npmjs.org/nan/-/nan-2.22.2.tgz",
-+      "integrity": "sha512-DANghxFkS1plDdRsX0X9pm0Z6SJNN6gBdtXfanwoZ8hooC5gosGFSBGRYHUVPz1asKA/kMRqDRdHrluZ61SpBQ==",
-+      "dev": true,
-+      "license": "MIT",
-+      "optional": true,
-+      "peer": true
-+    },
-     "node_modules/nanoid": {
-       "version": "3.3.11",
-       "resolved": "https://registry.npmjs.org/nanoid/-/nanoid-3.3.11.tgz",
-@@ -27725,6 +28136,18 @@
-         "node": ">=0.12"
-       }
-     },
-+    "node_modules/pdfjs-dist": {
-+      "version": "5.2.133",
-+      "resolved": "https://registry.npmjs.org/pdfjs-dist/-/pdfjs-dist-5.2.133.tgz",
-+      "integrity": "sha512-abE6ZWDxztt+gGFzfm4bX2ggfxUk9wsDEoFzIJm9LozaY3JdXR7jyLK4Bjs+XLXplCduuWS1wGhPC4tgTn/kzg==",
-+      "license": "Apache-2.0",
-+      "engines": {
-+        "node": ">=20.16.0 || >=22.3.0"
-+      },
-+      "optionalDependencies": {
-+        "@napi-rs/canvas": "^0.1.67"
-+      }
-+    },
-     "node_modules/pe-library": {
-       "version": "0.4.1",
-       "resolved": "https://registry.npmjs.org/pe-library/-/pe-library-0.4.1.tgz",
-@@ -31295,6 +31718,73 @@
-       "dev": true,
-       "license": "ISC"
-     },
-+    "node_modules/simple-concat": {
-+      "version": "1.0.1",
-+      "resolved": "https://registry.npmjs.org/simple-concat/-/simple-concat-1.0.1.tgz",
-+      "integrity": "sha512-cSFtAPtRhljv69IK0hTVZQ+OfE9nePi/rtJmw5UjHeVyVroEqJXP1sFztKUy1qU+xvz3u/sfYJLa947b7nAN2Q==",
-+      "dev": true,
-+      "funding": [
-+        {
-+          "type": "github",
-+          "url": "https://github.com/sponsors/feross"
-+        },
-+        {
-+          "type": "patreon",
-+          "url": "https://www.patreon.com/feross"
-+        },
-+        {
-+          "type": "consulting",
-+          "url": "https://feross.org/support"
-+        }
-+      ],
-+      "license": "MIT",
-+      "optional": true,
-+      "peer": true
-+    },
-+    "node_modules/simple-get": {
-+      "version": "3.1.1",
-+      "resolved": "https://registry.npmjs.org/simple-get/-/simple-get-3.1.1.tgz",
-+      "integrity": "sha512-CQ5LTKGfCpvE1K0n2us+kuMPbk/q0EKl82s4aheV9oXjFEz6W/Y7oQFVJuU6QG77hRT4Ghb5RURteF5vnWjupA==",
-+      "dev": true,
-+      "license": "MIT",
-+      "optional": true,
-+      "peer": true,
-+      "dependencies": {
-+        "decompress-response": "^4.2.0",
-+        "once": "^1.3.1",
-+        "simple-concat": "^1.0.0"
-+      }
-+    },
-+    "node_modules/simple-get/node_modules/decompress-response": {
-+      "version": "4.2.1",
-+      "resolved": "https://registry.npmjs.org/decompress-response/-/decompress-response-4.2.1.tgz",
-+      "integrity": "sha512-jOSne2qbyE+/r8G1VU+G/82LBs2Fs4LAsTiLSHOCOMZQl2OKZ6i8i4IyHemTe+/yIXOtTcRQMzPcgyhoFlqPkw==",
-+      "dev": true,
-+      "license": "MIT",
-+      "optional": true,
-+      "peer": true,
-+      "dependencies": {
-+        "mimic-response": "^2.0.0"
-+      },
-+      "engines": {
-+        "node": ">=8"
-+      }
-+    },
-+    "node_modules/simple-get/node_modules/mimic-response": {
-+      "version": "2.1.0",
-+      "resolved": "https://registry.npmjs.org/mimic-response/-/mimic-response-2.1.0.tgz",
-+      "integrity": "sha512-wXqjST+SLt7R009ySCglWBCFpjUygmCIfD790/kVbiGmUgfYGuB14PiTd5DwVxSV4NcYHjzMkoj5LjQZwTQLEA==",
-+      "dev": true,
-+      "license": "MIT",
-+      "optional": true,
-+      "peer": true,
-+      "engines": {
-+        "node": ">=8"
-+      },
-+      "funding": {
-+        "url": "https://github.com/sponsors/sindresorhus"
-+      }
-+    },
-     "node_modules/simple-update-notifier": {
-       "version": "2.0.0",
-       "resolved": "https://registry.npmjs.org/simple-update-notifier/-/simple-update-notifier-2.0.0.tgz",
-diff --git a/package.json b/package.json
-index 4d88b0d1c..f88611837 100644
---- a/package.json
-+++ b/package.json
-@@ -114,6 +114,7 @@
-     "lucide-react": "^0.503.0",
-     "mastra": "^0.4.9",
-     "mermaid": "^11.6.0",
-+    "pdfjs-dist": "^5.2.133",
-     "postcss": "^8.5.3",
-     "react": "^19.0.0",
-     "react-dom": "^19.0.0",
-diff --git a/src/db/index.ts b/src/db/index.ts
-index becf1cf37..80efb8ffa 100644
---- a/src/db/index.ts
-+++ b/src/db/index.ts
-@@ -57,13 +57,5 @@ const getDb = async (): Promise<Database> => {
-   return dbInstance!;
- };
- 
--// データベースのリフレッシュ
--export const refreshDb = async () => {
--  if (dbInstance) {
--    dbInstance = undefined;
--    dbInstance = await initializeDatabase();
--  }
--};
--
- // データベースモジュールのデフォルトエクスポート
- export default getDb;
-diff --git a/src/main/main.ts b/src/main/main.ts
-index 816153256..5fc7835a5 100644
---- a/src/main/main.ts
-+++ b/src/main/main.ts
-@@ -10,7 +10,7 @@
-  */
- import path from 'path';
- import fs from 'fs/promises';
--import { app, BrowserWindow, shell, ipcMain } from 'electron';
-+import { app, BrowserWindow, shell, ipcMain, crashReporter } from 'electron';
- import { autoUpdater } from 'electron-updater';
- import log from 'electron-log';
- import { Mastra } from '@mastra/core';
-@@ -23,7 +23,7 @@ import { IpcChannels, IpcResponsePayloadMap } from './types/ipc';
- import { AgentBootStatus, AgentBootMessage, AgentToolStatus } from './types';
- import { getOrchestratorSystemPrompt } from '../mastra/agents/prompts';
- import { sources } from '../db/schema';
--import getDb, { refreshDb } from '../db';
-+import getDb from '../db';
- import SourceRegistrationManager from '../mastra/workflows/sourceRegistrationManager';
- import { getOrchestrator } from '../mastra/agents/orchestrator';
- import MenuBuilder from './menu';
-@@ -203,16 +203,14 @@ ipcMain.handle(
-   },
- );
- 
--// Mastraの再初期化ハンドラ
-+// Mastraの設定更新ハンドラ
- ipcMain.handle(
-   IpcChannels.REINITIALIZE_AGENT,
-   async (): Promise<
-     IpcResponsePayloadMap[typeof IpcChannels.REINITIALIZE_AGENT]
-   > => {
-     try {
--      await refreshDb();
--      const registrationManager = SourceRegistrationManager.getInstance();
--      registrationManager.registerAllFiles();
-+      // 設定変更時はエージェントのみ再初期化
-       await initializeMastra();
-       return { success: true };
-     } catch (error) {
-@@ -239,33 +237,83 @@ const setupChatHandlers = () => {
-         const orchestratorAgent = mastra.getAgent('orchestratorAgent');
- 
-         // メッセージをストリーミングで送信
--        const stream = await orchestratorAgent.stream(content, {
--          resourceId: 'user', // 固定のリソースID
--          toolCallStreaming: true,
--          instructions: await getOrchestratorSystemPrompt(
--            mastraStatus.tools ?? {
--              redmine: false,
--              gitlab: false,
--              mcp: false,
--            },
--          ),
--          threadId: roomId, // チャットルームIDをスレッドIDとして使用
--          maxSteps: 30, // ツールの利用上限
--          onFinish: () => {
--            // ストリーミングが完了したときの処理
--            // フロントエンドに完了通知を送信
--            event.sender.send(IpcChannels.CHAT_COMPLETE);
--          },
--        });
-+        // const stream = await orchestratorAgent.stream(content, {
-+        //   resourceId: 'user', // 固定のリソースID
-+        //   toolCallStreaming: true,
-+        //   instructions: await getOrchestratorSystemPrompt(
-+        //     mastraStatus.tools ?? {
-+        //       redmine: false,
-+        //       gitlab: false,
-+        //       mcp: false,
-+        //     },
-+        //   ),
-+        //   threadId: roomId, // チャットルームIDをスレッドIDとして使用
-+        //   maxSteps: 30, // ツールの利用上限
-+        //   onFinish: () => {
-+        //     // ストリーミングが完了したときの処理
-+        //     // フロントエンドに完了通知を送信
-+        //     event.sender.send(IpcChannels.CHAT_COMPLETE);
-+        //   },
-+        // });
-+
-+        // // DataStreamを生成
-+        // const dataStream = createDataStream({
-+        //   execute(writer) {
-+        //     stream.mergeIntoDataStream(writer);
-+        //   },
-+        //   onError(error) {
-+        //     // エラーが発生したときの処理
-+        //     console.error('ストリーミング中にエラーが発生:', error);
-+        //     if (error == null) return 'unknown error';
-+        //     if (typeof error === 'string') return error;
-+        //     if (error instanceof Error) return error.message;
-+        //     return JSON.stringify(error);
-+        //   },
-+        // });
- 
-         // DataStreamを生成
-         const dataStream = createDataStream({
--          execute(writer) {
--            stream.mergeIntoDataStream(writer);
-+          async execute(writer) {
-+            // ストリーミングの開始を通知（このデータは利用されない、あくまで通知するためだけ）
-+            writer.writeMessageAnnotation({
-+              type: 'status',
-+              value: 'processing',
-+            });
-+            // streaming falseの場合のメッセージ送信処理
-+            const res = await orchestratorAgent.generate(content, {
-+              resourceId: 'user', // 固定のリソースID
-+              instructions: await getOrchestratorSystemPrompt(
-+                mastraStatus.tools ?? {
-+                  redmine: false,
-+                  gitlab: false,
-+                  mcp: false,
-+                },
-+              ),
-+              threadId: roomId, // チャットルームIDをスレッドIDとして使用
-+              maxSteps: 30, // ツールの利用上限
-+              onStepFinish: (stepResult) => {
-+                // https://ai-sdk.dev/docs/ai-sdk-ui/stream-protocol
-+                // 上記を参考にai-sdkのストリームプロトコルに従ってメッセージを送信
-+                writer.write(`0:${JSON.stringify(stepResult.text)}\n`);
-+                stepResult.toolCalls.forEach((toolCall) => {
-+                  writer.write(`9:${JSON.stringify(toolCall)}\n`);
-+                });
-+                stepResult.toolResults.forEach((toolResult) => {
-+                  writer.write(`a:${JSON.stringify(toolResult)}\n`);
-+                });
-+                writer.write(
-+                  `e:${JSON.stringify({ finishReason: stepResult.finishReason, ...stepResult.usage })}\n`,
-+                );
-+              },
-+            });
-+            writer.write(
-+              `d:${JSON.stringify({ finishReason: res.finishReason, ...res.usage })}\n`,
-+            );
-+            event.sender.send(IpcChannels.CHAT_COMPLETE);
-           },
-           onError(error) {
-             // エラーが発生したときの処理
--            console.error('ストリーミング中にエラーが発生:', error);
-+            console.error('テキスト生成中にエラーが発生:', error);
-             if (error == null) return 'unknown error';
-             if (typeof error === 'string') return error;
-             if (error instanceof Error) return error.message;
-@@ -503,6 +551,10 @@ const initializeSourceRegistration = async () => {
-   console.log('ソースファイルの初期登録を開始します...');
-   const registrationManager = SourceRegistrationManager.getInstance();
- 
-+  // 処理中のソースを削除
-+  await registrationManager.clearProcessingSources();
-+  console.log('処理中のソースを削除しました');
-+
-   // ソース登録を実行
-   await registrationManager.registerAllFiles();
-   console.log('ソースファイルの初期登録が完了しました');
-@@ -609,6 +661,13 @@ app.on('window-all-closed', () => {
-   }
- });
- 
-+crashReporter.start({
-+  // ミニダンプをアップロードしない設定
-+  submitURL: '',
-+  uploadToServer: false,
-+  compress: true,
-+});
-+
- const initialize = async () => {
-   createWindow();
-   await initStore();
-diff --git a/src/main/store.ts b/src/main/store.ts
-index e30441b7b..e2d68a6c9 100644
---- a/src/main/store.ts
-+++ b/src/main/store.ts
-@@ -1,6 +1,5 @@
- import path, { join } from 'path';
- import { app } from 'electron';
--import { toAbsolutePath } from './utils/util';
- // 設定の型定義
- export interface StoreSchema {
-   database: {
-diff --git a/src/main/utils/fileExtractor.ts b/src/main/utils/fileExtractor.ts
-index 5cfe3f338..58297fe8e 100644
---- a/src/main/utils/fileExtractor.ts
-+++ b/src/main/utils/fileExtractor.ts
-@@ -1,9 +1,15 @@
-+/* eslint-disable */
- import fs from 'fs/promises';
-+import os from 'os';
- import path from 'path';
-+import { execFile } from 'child_process';
-+import { promisify } from 'util';
-+import { readFileSync } from 'fs';
-+import type { TextItem } from 'pdfjs-dist/types/src/display/api';
- 
--/**
-- * 抽出結果の型定義
-- */
-+const execFileP = promisify(execFile);
-+
-+/** 抽出結果の型定義 */
- export interface ExtractionResult {
-   content: string;
-   metadata: {
-@@ -14,22 +20,16 @@ export interface ExtractionResult {
-   };
- }
- 
--/**
-- * ファイル抽出エラーの型定義
-- */
-+/** ファイル抽出エラーの型定義 */
- interface FileExtractionError extends Error {
-   code: string;
-   filePath: string;
-   fileType: string;
- }
- 
--/**
-- * 多様なファイル形式からテキストを抽出するユーティリティクラス
-- */
-+/** 多様なファイル形式からテキストを抽出するユーティリティクラス */
- export default class FileExtractor {
--  /**
--   * 処理可能なファイル形式
--   */
-+  /** 処理可能な拡張子 */
-   private static readonly SUPPORTED_EXTENSIONS = [
-     '.txt',
-     '.doc',
-@@ -41,22 +41,24 @@ export default class FileExtractor {
-     '.pdf',
-   ];
- 
-+  /* ------------------------------------------------------------------ */
-+  /*  パブリック API                                                    */
-+  /* ------------------------------------------------------------------ */
-+
-   /**
--   * ファイル形式に基づいてテキストを抽出する
--   * @param filePath ファイルパス
--   * @returns 抽出結果
-+   * ファイルパスを受け取り、そのテキストとメタデータを返す
-    */
-   public static async extractText(filePath: string): Promise<ExtractionResult> {
-     const extension = path.extname(filePath).toLowerCase();
- 
--    if (!this.SUPPORTED_EXTENSIONS.includes(extension)) {
--      throw this.createError(
--        'unsupported_file_type',
--        'サポートされていないファイル形式です',
--        filePath,
--        extension,
--      );
--    }
-+    // if (!this.SUPPORTED_EXTENSIONS.includes(extension)) {
-+    //   throw this.createError(
-+    //     'unsupported_file_type',
-+    //     'サポートされていないファイル形式です',
-+    //     filePath,
-+    //     extension,
-+    //   );
-+    // }
- 
-     try {
-       const stats = await fs.stat(filePath);
-@@ -74,44 +76,42 @@ export default class FileExtractor {
-     } catch (error) {
-       throw this.createError(
-         'extraction_failed',
--        `${filePath}のテキスト抽出に失敗しました: ${(error as Error).message}`,
-+        `${filePath} のテキスト抽出に失敗しました: ${(error as Error).message}`,
-         filePath,
-         extension,
-       );
-     }
-   }
- 
--  /**
--   * ファイル形式別のテキスト抽出処理
--   */
-+  /* ------------------------------------------------------------------ */
-+  /*  拡張子別ハンドラ                                                  */
-+  /* ------------------------------------------------------------------ */
-+
-   private static async extractContentByType(
-     filePath: string,
--    extension: string,
-+    ext: string,
-   ): Promise<string> {
--    switch (extension) {
--      case '.docx':
-+    switch (ext) {
-       case '.doc':
--        return this.extractFromDoc(filePath);
--      case '.xlsx':
-+      case '.docx':
-+        return this.extractViaPowerShell(filePath, 'word');
-       case '.xls':
--        return this.extractFromExcel(filePath);
--      case '.pptx':
-+      case '.xlsx':
-+        return this.extractViaPowerShell(filePath, 'excel');
-       case '.ppt':
--        return this.extractFromPowerPoint(filePath);
-+      case '.pptx':
-+        return this.extractViaPowerShell(filePath, 'ppt');
-       case '.pdf':
-         return this.extractFromPdf(filePath);
--      default:
-+      default: // .txt
-         return this.extractFromTxt(filePath);
-     }
-   }
- 
--  /**
--   * テキストファイルからテキストを抽出する
--   */
-+  /** プレーンテキスト */
-   private static async extractFromTxt(filePath: string): Promise<string> {
-     try {
--      const content = await fs.readFile(filePath, 'utf-8');
--      return content;
-+      return await fs.readFile(filePath, 'utf-8');
-     } catch (error) {
-       throw this.createError(
-         'txt_extraction_failed',
-@@ -122,58 +122,212 @@ export default class FileExtractor {
-     }
-   }
- 
--  /**
--   * Word文書からテキストを抽出する (モック)
--   */
--  // eslint-disable-next-line
--  private static async extractFromDoc(filePath: string): Promise<string> {
--    // 注: 実際の実装ではdocx-parserなどのライブラリを使用
--    return 'Word文書からのテキスト抽出はモック実装です。';
--  }
-+  /* ------------------------------------------------------------------ */
-+  /*  PowerShell 実行ラッパ                                             */
-+  /* ------------------------------------------------------------------ */
- 
-   /**
--   * Excelファイルからテキストを抽出する (モック)
-+   * Office COM を PowerShell で呼び出してテキストを取得
-+   * @param filePath 対象ファイル
-+   * @param mode     word / excel / ppt / pdf
-    */
--  // eslint-disable-next-line
--  private static async extractFromExcel(filePath: string): Promise<string> {
--    // 注: 実際の実装ではxlsx-populateなどのライブラリを使用
--    return 'Excelファイルからのテキスト抽出はモック実装です。';
-+  private static async extractViaPowerShell(
-+    filePath: string,
-+    mode: 'word' | 'excel' | 'ppt' | 'pdf',
-+  ): Promise<string> {
-+    const psScript = this.buildPsScript(mode, filePath);
-+    const tmp = path.join(os.tmpdir(), `fx-${mode}-${Date.now()}.ps1`);
-+    /* ★ UTF-8 with BOM で書き込む ★ */
-+    await fs.writeFile(tmp, '\uFEFF' + psScript, { encoding: 'utf8' });
-+
-+    try {
-+      const { stdout } = await execFileP(
-+        'powershell.exe',
-+        ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', tmp],
-+        { encoding: 'utf8', maxBuffer: 1024 * 1024 * 20 }, // 20 MiB
-+      );
-+      return stdout.replace(/\r/g, '\n').trimEnd();
-+    } finally {
-+      await fs.unlink(tmp).catch(() => void 0); // 後始末
-+    }
-   }
- 
-   /**
--   * PowerPointファイルからテキストを抽出する (モック)
-+   * モード別に PowerShell スクリプト文字列を生成
-+   * （$Path 変数にファイルパスを直接埋め込む）
-    */
--  private static async extractFromPowerPoint(
--    // eslint-disable-next-line
--    filePath: string,
--  ): Promise<string> {
--    // 注: 実際の実装ではpptxgenjs-to-textなどのライブラリを使用
--    return 'PowerPointファイルからのテキスト抽出はモック実装です。';
-+  private static buildPsScript(mode: string, filePath: string): string {
-+    // パス中のシングルクォートは二重にしてエスケープ
-+    const safePath = filePath.replace(/'/g, "''");
-+
-+    const commonHeader = `
-+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-+$ErrorActionPreference = 'Stop'
-+$Path = '${safePath}'
-+`;
-+
-+    switch (mode) {
-+      /* ---------------------------- Word / PDF ---------------------- */
-+      case 'word':
-+        // case 'pdf': // PDFもword経由で処理できるが、確認ダイアログが出てしまうので、PDFは別途処理する
-+        return (
-+          commonHeader +
-+          `
-+try {
-+    $word = New-Object -ComObject Word.Application
-+    $word.Visible = $false
-+    $doc  = $word.Documents.Open($Path, \$false, \$true)
-+    $txt  = $doc.Content.Text                             # Document.Content.Text → Range.Text  [oai_citation:0‡Microsoft Learn](https://learn.microsoft.com/en-us/office/vba/api/word.document.content?utm_source=chatgpt.com) [oai_citation:1‡Microsoft Learn](https://learn.microsoft.com/en-us/office/vba/api/word.range.text?utm_source=chatgpt.com)
-+    $doc.Close()
-+    $word.Quit()
-+    Write-Output $txt
-+} finally {
-+    try { if ($doc)  { $doc.Close() } } catch {}
-+    try { if ($word) { $word.Quit() } } catch {}
-+}
-+`
-+        );
-+      /* ---------------------------- Excel --------------------------- */
-+      case 'excel':
-+        return (
-+          commonHeader +
-+          `
-+try {
-+    $excel = New-Object -ComObject Excel.Application
-+    $excel.Visible = $false
-+    $wb = $excel.Workbooks.Open($Path, \$false, \$true)
-+    $sb = New-Object System.Text.StringBuilder
-+    foreach ($ws in $wb.Worksheets) {
-+        $range = $ws.UsedRange                               # Worksheet.UsedRange  [oai_citation:2‡itbable.blogspot.com](https://itbable.blogspot.com/2013/06/find-used-range-in-excel-worksheet-with.html?utm_source=chatgpt.com)
-+        if ($null -ne $range) {
-+            $vals = $range.Value2                            # Range.Value2 ⇒ 2D Array  [oai_citation:3‡Microsoft Learn](https://learn.microsoft.com/en-us/office/vba/api/excel.range.value2?utm_source=chatgpt.com)
-+            if ($vals -is [System.Array]) {
-+                foreach ($row in $vals) {
-+                    if ($row -is [System.Array]) {
-+                        [void]$sb.AppendLine(($row -join "\t"))
-+                    } elseif ($row) {
-+                        [void]$sb.AppendLine($row)
-+                    }
-+                }
-+            } elseif ($vals) {
-+                [void]$sb.AppendLine($vals)
-+            }
-+        }
-+    }
-+    $wb.Close()
-+    $excel.Quit()
-+    Write-Output $sb.ToString()
-+} finally {
-+    try { if ($wb)    { $wb.Close() } }   catch {}
-+    try { if ($excel) { $excel.Quit() } } catch {}
-+}
-+`
-+        );
-+
-+      /* --------------------------- PowerPoint ----------------------- */
-+      case 'ppt':
-+        return (
-+          commonHeader +
-+          `
-+try {
-+    $ppt = New-Object -ComObject PowerPoint.Application
-+    $pres = $ppt.Presentations.Open($Path, \$false, \$true, \$false)
-+    $sb = New-Object System.Text.StringBuilder
-+    foreach ($slide in $pres.Slides) {
-+        foreach ($shape in $slide.Shapes) {
-+            if ($shape.HasTextFrame -and $shape.TextFrame.HasText) {    # Shape.HasTextFrame  [oai_citation:4‡Microsoft Learn](https://learn.microsoft.com/ja-jp/office/vba/api/powerpoint.shape.hastextframe?utm_source=chatgpt.com)
-+                [void]$sb.AppendLine($shape.TextFrame.TextRange.Text)
-+            }
-+        }
-+    }
-+    $pres.Close()
-+    $ppt.Quit()
-+    Write-Output $sb.ToString()
-+} finally {
-+    try { if ($pres) { $pres.Close() } } catch {}
-+    try { if ($ppt)  { $ppt.Quit() }  } catch {}
-+}
-+`
-+        );
-+
-+      default:
-+        throw new Error(`unsupported mode: ${mode}`);
-+    }
-   }
- 
-   /**
--   * PDFファイルからテキストを抽出する (モック)
-+   * 指定パスの PDF から全ページのテキストを抽出
-    */
--  // eslint-disable-next-line
-   private static async extractFromPdf(filePath: string): Promise<string> {
--    // 注: 実際の実装ではpdf-parse-jsなどのライブラリを使用
--    return 'PDFファイルからのテキスト抽出はモック実装です。';
-+    // PDF.js の ESM モジュールを動的に読み込む
-+    const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
-+    // 必要な関数とオプションを取得
-+    const { getDocument } = pdfjs;
-+
-+    // ファイルをバイナリデータとして読み込む
-+    const data = new Uint8Array(readFileSync(filePath));
-+
-+    // ドキュメントをロード
-+    const loadingTask = getDocument({ data });
-+    const pdf = await loadingTask.promise;
-+
-+    let result = '';
-+    // ページを順に処理
-+    for (let p = 1; p <= pdf.numPages; p++) {
-+      const page = await pdf.getPage(p);
-+      const { items } = await page.getTextContent();
-+
-+      // TextItem を Y（逆順）→X 昇順でソート
-+      const textItems = (items as TextItem[]).sort((a, b) => {
-+        const yA = a.transform[5],
-+          yB = b.transform[5];
-+        if (Math.abs(yA - yB) > 0.1) return yB - yA; // Y 座標が大きい（上）ものを先に
-+        return a.transform[4] - b.transform[4]; // X 座標で順序
-+      });
-+
-+      let lastY = Number.NaN;
-+      let lastX = 0;
-+      for (const item of textItems) {
-+        const x = item.transform[4],
-+          y = item.transform[5];
-+        // Y 座標が変わったら改行
-+        if (!isFinite(lastY) || Math.abs(y - lastY) > 2) {
-+          if (result !== '' && !result.endsWith('\n')) result += '\n';
-+          lastX = x;
-+        }
-+        // 同一行内でも X 差が文字高さの半分以上ならスペース
-+        const charHeight = Math.sqrt(
-+          item.transform[2] ** 2 + item.transform[3] ** 2,
-+        );
-+        if (x - lastX > charHeight * 0.5) {
-+          result += ' ';
-+        }
-+        result += item.str;
-+        lastY = y;
-+        lastX = x + (item.width ?? item.str.length * charHeight);
-+      }
-+      result += '\n\n'; // ページ間は空行
-+    }
-+
-+    await pdf.destroy();
-+    return result.trim();
-   }
- 
--  /**
--   * エラーオブジェクトを作成する
--   */
-+  /* ------------------------------------------------------------------ */
-+  /*  共通エラーヘルパ                                                  */
-+  /* ------------------------------------------------------------------ */
-+
-   private static createError(
-     code: string,
-     message: string,
-     filePath: string,
-     fileType: string,
-   ): FileExtractionError {
--    const error = new Error(message) as FileExtractionError;
--    error.code = code;
--    error.filePath = filePath;
--    error.fileType = fileType;
--    error.name = 'FileExtractionError';
--    return error;
-+    const err = new Error(message) as FileExtractionError;
-+    err.code = code;
-+    err.filePath = filePath;
-+    err.fileType = fileType;
-+    err.name = 'FileExtractionError';
-+    return err;
-   }
- }
-diff --git a/src/mastra/agents/config/agent.ts b/src/mastra/agents/config/agent.ts
-index a6e13d66d..8d06cf3dc 100644
---- a/src/mastra/agents/config/agent.ts
-+++ b/src/mastra/agents/config/agent.ts
-@@ -1,7 +1,7 @@
- import { Agent } from '@mastra/core/agent';
- import { getStore } from '../../../main/store';
- import openAICompatibleModel from '../model/openAICompatible';
--import { MemoryConfig, createMemory } from './memory';
-+import { MemoryConfig, getMemory } from './memory';
- 
- // エージェント設定のinterface
- export interface AgentConfig {
-@@ -25,6 +25,6 @@ export const createAgent = (config: AgentConfig): Agent => {
-     instructions: config.instructions,
-     tools: config.tools,
-     model: openAICompatibleModel(),
--    memory: createMemory(config.memoryConfig),
-+    memory: getMemory(config.memoryConfig),
-   });
- };
-diff --git a/src/mastra/agents/config/memory.ts b/src/mastra/agents/config/memory.ts
-index 1cdeb1212..e68e30071 100644
---- a/src/mastra/agents/config/memory.ts
-+++ b/src/mastra/agents/config/memory.ts
-@@ -19,8 +19,15 @@ export interface MemoryConfig {
-   };
- }
- 
--// メモリインスタンスの作成
--export const createMemory = (config: MemoryConfig = {}): Memory => {
-+// メモリインスタンスをキャッシュ
-+let memoryInstance: Memory | undefined;
-+
-+// メモリインスタンスの作成・取得
-+export const getMemory = (config: MemoryConfig = {}): Memory => {
-+  if (memoryInstance) {
-+    return memoryInstance;
-+  }
-+
-   const store = getStore();
-   const dbSetting = store.get('database');
- 
-@@ -41,7 +48,7 @@ export const createMemory = (config: MemoryConfig = {}): Memory => {
-     },
-   };
- 
--  return new Memory({
-+  memoryInstance = new Memory({
-     options,
-     processors: config.tokenLimit
-       ? [new TokenLimiter(config.tokenLimit)]
-@@ -52,4 +59,11 @@ export const createMemory = (config: MemoryConfig = {}): Memory => {
-       },
-     }),
-   });
-+
-+  return memoryInstance;
-+};
-+
-+// メモリインスタンスのリセット（主にテスト用）
-+export const resetMemory = () => {
-+  memoryInstance = undefined;
- };
-diff --git a/src/mastra/agents/model/aibow.ts b/src/mastra/agents/model/aibow.ts
-new file mode 100644
-index 000000000..3217458cb
---- /dev/null
-+++ b/src/mastra/agents/model/aibow.ts
-@@ -0,0 +1,162 @@
-+/**
-+ * src/mastra/agents/model/aibow.ts
-+ *
-+ * Aibow ― 独自エンドポイントを Vercel AI SDK / Mastra から利用する
-+ * LanguageModelV1 実装および Custom Provider 定義
-+ */
-+
-+import { customProvider, APICallError } from 'ai';
-+import type {
-+  LanguageModelV1,
-+  LanguageModelV1Prompt,
-+  LanguageModelV1FinishReason,
-+  LanguageModelV1CallOptions,
-+  LanguageModelV1CallWarning,
-+  LanguageModelV1StreamPart,
-+} from '@ai-sdk/provider';
-+
-+export interface AibowSettings {
-+  baseURL?: string;
-+  apiKey?: string;
-+  temperature?: number;
-+}
-+
-+function createAibowChatModel(
-+  modelId: string,
-+  defaultSettings: AibowSettings = {},
-+): LanguageModelV1 {
-+  return {
-+    specificationVersion: 'v1',
-+    provider: 'aibow',
-+    modelId,
-+    defaultObjectGenerationMode: undefined,
-+
-+    // ─── 非ストリーミング生成 ───────────────────────────────────
-+    async doGenerate(options: LanguageModelV1CallOptions) {
-+      // prefer-destructuring ルールに従い分割代入
-+      const { prompt }: { prompt: LanguageModelV1Prompt } = options;
-+      const {
-+        baseURL = process.env.AIBOW_API_BASE_URL,
-+        apiKey = process.env.AIBOW_API_KEY,
-+        temperature = defaultSettings.temperature ?? 1,
-+      } = defaultSettings;
-+
-+      const url = `${baseURL}/v1/chat`;
-+      const bodyObj = { messages: prompt, temperature };
-+      const body = JSON.stringify(bodyObj);
-+
-+      const res = await fetch(url, {
-+        method: 'POST',
-+        headers: {
-+          'Content-Type': 'application/json',
-+          ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
-+        },
-+        body,
-+      });
-+
-+      if (!res.ok) {
-+        const responseBody = await res.text();
-+        // APICallError に必須の message プロパティを含めて投げる
-+        throw new APICallError({
-+          message: responseBody,
-+          url,
-+          requestBodyValues: body,
-+          statusCode: res.status,
-+          responseHeaders: Object.fromEntries(res.headers.entries()),
-+          responseBody,
-+          isRetryable: res.status >= 500,
-+        });
-+      }
-+
-+      const { text } = (await res.json()) as { text: string };
-+
-+      return {
-+        text,
-+        finishReason: 'stop' as LanguageModelV1FinishReason,
-+        usage: { promptTokens: 0, completionTokens: 0 },
-+        rawCall: {
-+          rawPrompt: prompt,
-+          rawSettings: { baseURL, apiKey, temperature },
-+        },
-+        rawResponse: {
-+          headers: Object.fromEntries(res.headers.entries()),
-+        },
-+        warnings: [] as LanguageModelV1CallWarning[],
-+      };
-+    },
-+
-+    // ─── ストリーミング生成 ───────────────────────────────────
-+    async doStream(options: LanguageModelV1CallOptions) {
-+      const { prompt }: { prompt: LanguageModelV1Prompt } = options;
-+      const {
-+        baseURL = process.env.AIBOW_API_BASE_URL,
-+        apiKey = process.env.AIBOW_API_KEY,
-+        temperature = defaultSettings.temperature ?? 1,
-+      } = defaultSettings;
-+
-+      const url = `${baseURL}/v1/chat`;
-+      const bodyObj = { messages: prompt, temperature };
-+      const body = JSON.stringify(bodyObj);
-+
-+      const res = await fetch(url, {
-+        method: 'POST',
-+        headers: {
-+          'Content-Type': 'application/json',
-+          ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
-+        },
-+        body,
-+      });
-+
-+      if (!res.ok) {
-+        const responseBody = await res.text();
-+        throw new APICallError({
-+          message: responseBody,
-+          url,
-+          requestBodyValues: body,
-+          statusCode: res.status,
-+          responseHeaders: Object.fromEntries(res.headers.entries()),
-+          responseBody,
-+          isRetryable: res.status >= 500,
-+        });
-+      }
-+
-+      const fullText = await res.text();
-+
-+      // ReadableStream に文字単位で詰め替え
-+      const stream = new ReadableStream<LanguageModelV1StreamPart>({
-+        start(controller) {
-+          for (const ch of fullText) {
-+            controller.enqueue({ type: 'text-delta', textDelta: ch });
-+          }
-+          controller.enqueue({
-+            type: 'finish',
-+            finishReason: 'stop',
-+            usage: { promptTokens: 0, completionTokens: 0 },
-+          });
-+          controller.close();
-+        },
-+      });
-+
-+      return {
-+        stream,
-+        rawCall: {
-+          rawPrompt: prompt,
-+          rawSettings: { baseURL, apiKey, temperature },
-+        },
-+        rawResponse: {
-+          headers: Object.fromEntries(res.headers.entries()),
-+        },
-+        request: { body },
-+        warnings: [] as LanguageModelV1CallWarning[],
-+      };
-+    },
-+  };
-+}
-+
-+export const aibowProvider = customProvider({
-+  languageModels: {
-+    'aibow/plain': createAibowChatModel('aibow/plain'),
-+  },
-+});
-+
-+export const aibow = aibowProvider.languageModel('aibow/plain');
-diff --git a/src/mastra/agents/model/openAICompatible.ts b/src/mastra/agents/model/openAICompatible.ts
-index dd004d365..4cd7bbfa2 100644
---- a/src/mastra/agents/model/openAICompatible.ts
-+++ b/src/mastra/agents/model/openAICompatible.ts
-@@ -1,34 +1,30 @@
- import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
- import { getStore } from '../../../main/store';
- 
--let model: ReturnType<ReturnType<typeof createOpenAICompatible>['chatModel']>;
--
- const getOpenAICompatibleModel = () => {
--  if (!model) {
--    const store = getStore();
--    const apiConfig = {
--      key: store.get('api').key,
--      url: store.get('api').url,
--      model: store.get('api').model,
--    };
--
--    // API設定の確認
--    if (!apiConfig.key) {
--      throw new Error('APIキーが設定されていません');
--    }
--    if (!apiConfig.url) {
--      throw new Error('APIのURLが設定されていません');
--    }
--    if (!apiConfig.model) {
--      throw new Error('APIのモデル名が設定されていません');
--    }
-+  const store = getStore();
-+  const apiConfig = {
-+    key: store.get('api').key,
-+    url: store.get('api').url,
-+    model: store.get('api').model,
-+  };
- 
--    model = createOpenAICompatible({
--      name: 'openAICompatibleModel',
--      apiKey: apiConfig.key,
--      baseURL: apiConfig.url,
--    }).chatModel(apiConfig.model);
-+  // API設定の確認
-+  if (!apiConfig.key) {
-+    throw new Error('APIキーが設定されていません');
-+  }
-+  if (!apiConfig.url) {
-+    throw new Error('APIのURLが設定されていません');
-   }
-+  if (!apiConfig.model) {
-+    throw new Error('APIのモデル名が設定されていません');
-+  }
-+
-+  const model = createOpenAICompatible({
-+    name: 'openAICompatibleModel',
-+    apiKey: apiConfig.key,
-+    baseURL: apiConfig.url,
-+  }).chatModel(apiConfig.model);
-   return model;
- };
- 
+diff --git a/.eslintrc.js b/.eslintrc.js
+index ec5ff9463..7d8010a77 100644
+--- a/.eslintrc.js
++++ b/.eslintrc.js
+@@ -15,6 +15,7 @@ module.exports = {
+     'no-unused-vars': 'off',
+     '@typescript-eslint/no-unused-vars': 'error',
+     'no-console': 'off',
++    'no-await-in-loop': 'off',
+     'react/require-default-props': 'off', // パラメータのデストラクチャリングでデフォルト値を設定する方式を許可
+     'react/function-component-definition': [
+       'error',
 diff --git a/src/mastra/agents/prompts.ts b/src/mastra/agents/prompts.ts
-index 91e675bb0..a783a4eb8 100644
+index a783a4eb8..50701d02e 100644
 --- a/src/mastra/agents/prompts.ts
 +++ b/src/mastra/agents/prompts.ts
-@@ -1,4 +1,4 @@
--import { eq } from 'drizzle-orm';
-+import { eq, and } from 'drizzle-orm';
- import { getStore } from '../../main/store';
- import { sources, topics } from '../../db/schema';
- import getDb from '../../db';
-@@ -12,7 +12,7 @@ const getSourcesInfoByMDList = async () => {
-   const sourceList = await db
-     .select()
-     .from(sources)
--    .where(eq(sources.isEnabled, 1))
-+    .where(and(eq(sources.isEnabled, 1), eq(sources.status, 'completed')))
-     .orderBy(sources.title);
+@@ -166,6 +166,8 @@ ${
+   config.redmine
+     ? `- redmine操作ツール
+   - RedmineのURLはこちら：${store.get('redmine').endpoint}
++  - Redmineのプロジェクトを指定する際はプロジェクトID、プロジェクト名またはプロジェクト識別子が必要になるが、プロジェクトの識別子は以下のように取得できる
++    - 例えば、プロジェクトのURLが${store.get('redmine').endpoint}/projects/myprjの場合、プロジェクトの識別子はmyprjとなる(/projects/直後の部分)
+   - トラッカーの利用方針は以下の通り（あくまで方針であり、ユーザから明確にトラッカーの種類など提示された場合はそちらに従うこと）
+     - 中日程：プロジェクト全体のフェーズ分けなどで利用する
+     - 作業計画：プロジェクトの各フェーズ内で実施する作業の計画を立てるために利用する
+diff --git a/src/mastra/tools/redmine/index.ts b/src/mastra/tools/redmine/index.ts
+index f16f2c052..963d61113 100644
+--- a/src/mastra/tools/redmine/index.ts
++++ b/src/mastra/tools/redmine/index.ts
+@@ -30,12 +30,6 @@ export const createRedmineTools = (config: {
+       'Redmineインスタンスの基本情報（プロジェクト、トラッカー、ステータス、優先度など）を取得します。',
+     inputSchema: z.object({}),
+     outputSchema: z.object({
+-      projects: z.array(
+-        z.object({
+-          id: z.number(),
+-          name: z.string(),
+-        }),
+-      ),
+       trackers: z.array(
+         z.object({
+           id: z.number(),
+@@ -57,15 +51,13 @@ export const createRedmineTools = (config: {
+     }),
+     execute: async () => {
+       // 各種マスタ情報を取得
+-      const [projects, trackers, statuses, priorities] = await Promise.all([
+-        client.getProjects(),
++      const [trackers, statuses, priorities] = await Promise.all([
+         client.getTrackers(),
+         client.getStatuses(),
+         client.getPriorities(),
+       ]);
  
-   // 各ソースのトピックを取得
-@@ -117,7 +117,7 @@ export const getOrchestratorSystemPrompt = async (config: {
- また、ユーザは参考して欲しいソースを登録することができます。与えられた質問やタスクに関連する情報がある場合、そのソースの内容に基づいて質問や依頼事項に対して対応してください
+       return {
+-        projects,
+         trackers,
+         statuses,
+         priorities,
+diff --git a/src/mastra/tools/redmine/issueTools.ts b/src/mastra/tools/redmine/issueTools.ts
+index d1fd16d08..2c735f14a 100644
+--- a/src/mastra/tools/redmine/issueTools.ts
++++ b/src/mastra/tools/redmine/issueTools.ts
+@@ -29,7 +29,9 @@ export const createGetIssuesListTool = (client: RedmineClient) => {
+     inputSchema: z.object({
+       project_id: z
+         .union([z.string(), z.number()])
+-        .describe('プロジェクトIDまたはプロジェクト名:必須'),
++        .describe(
++          'プロジェクトID、プロジェクト名、またはプロジェクト識別子:必須',
++        ),
+       status_id: z
+         .union([z.string(), z.number(), z.enum(['open', 'closed', '*'])])
+         .optional()
+@@ -167,30 +169,19 @@ export const createGetIssuesListTool = (client: RedmineClient) => {
+           }
+         });
  
- 質問や依頼事項に対応する際には、以下の点に注意してください
--- 不明点が少しでもある場合は必ずユーザに質問し、確認が取れるまで実作業を開始しないこと。 
-+- 不明点が少しでもある場合は必ずユーザに質問し、確認が取れるまで実作業を開始しないこと。
- - 質問に対して、まずは登録されているソースの情報を利用できるか検討すること
- - 検討の結果、ソースから得られる内容がユーザの質問の意図に沿わない場合は、無理にその内容を使わないこと
- - WorkingMemoryの内容は常に最新化されているように注意すること
-diff --git a/src/mastra/workflows/sourceRegistrationManager.ts b/src/mastra/workflows/sourceRegistrationManager.ts
-index 792ff51a4..ba02bfc0e 100644
---- a/src/mastra/workflows/sourceRegistrationManager.ts
-+++ b/src/mastra/workflows/sourceRegistrationManager.ts
-@@ -25,6 +25,21 @@ export default class SourceRegistrationManager {
-     return SourceRegistrationManager.instance;
+-        // ページネーション
+-        const limit = 100;
+-        let offset = 0;
+-        // すべてのチケットを格納する配列
+-        let all: any[] = [];
++        // API リクエストの実行
++        const path = `issues.json?${queryParams.toString()}`;
+         // eslint-disable-next-line
+-        while (true) {
+-          // API リクエストの実行
+-          const path = `issues.json?${queryParams.toString()}&limit=${limit}&offset=${offset}`;
+-          // eslint-disable-next-line
+-          const response = await client.request<RedmineIssueListResponse>(
+-            path,
+-            'GET',
+-          );
+-          all = all.concat(response.issues);
+-          if (all.length >= response.total_count) break;
+-          offset += limit;
+-        }
++        const response = await client.request<RedmineIssueListResponse>(
++          path,
++          'GET',
++        );
+ 
+         status = 'success';
+         return {
+           status,
+           result: {
+-            issues: all,
++            issues: response.issues,
+           },
+         };
+       } catch (error) {
+@@ -271,7 +262,9 @@ export const createCreateIssueTool = (client: RedmineClient) => {
+     inputSchema: z.object({
+       project_id: z
+         .union([z.string(), z.number()])
+-        .describe('プロジェクトIDまたはプロジェクト名:必須'),
++        .describe(
++          'プロジェクトID、プロジェクト名、またはプロジェクト識別子:必須',
++        ),
+       subject: z.string().describe('チケットのタイトル:必須'),
+       description: z.string().optional().describe('チケットの説明:任意'),
+       tracker_id: z
+diff --git a/src/mastra/tools/redmine/redmineClient.ts b/src/mastra/tools/redmine/redmineClient.ts
+index 9a697398a..14a301855 100644
+--- a/src/mastra/tools/redmine/redmineClient.ts
++++ b/src/mastra/tools/redmine/redmineClient.ts
+@@ -4,8 +4,7 @@
+  */
+ 
+ import { z } from 'zod';
+-
+-type RedmineHeaders = Record<string, string>;
++import { RedmineProject } from './types';
+ 
+ /**
+  * Redmineクライアント設定のインターフェース
+@@ -39,7 +38,7 @@ export class RedmineClient {
+   private readonly apiKey: string;
+ 
+   // キャッシュ: プロジェクト、トラッカー、ステータスなど
+-  private projectsCache: NameIdMapping[] = [];
++  private projectsCache: RedmineProject[] = [];
+ 
+   private trackersCache: NameIdMapping[] = [];
+ 
+@@ -56,53 +55,119 @@ export class RedmineClient {
    }
  
-+  /**
-+   * アプリ起動時に、処理中のソースを全て削除する
-+   */
-+  public async clearProcessingSources(): Promise<void> {
-+    try {
-+      const db = await getDb();
-+      await db
-+        .delete(sources)
-+        .where(inArray(sources.status, ['completed', 'idle', 'processing']));
-+    } catch (error) {
-+      console.error('処理中のソースの削除に失敗しました', error);
-+      throw error;
-+    }
-+  }
-+
    /**
-    * ディレクトリ内の全てのファイルを登録
+-   * RedmineのRESTリクエストを実行する
+-   * @param path APIパス
+-   * @param method HTTPメソッド
+-   * @param data リクエストデータ
+-   * @returns レスポンスデータ
++   * Redmine の REST API リクエストメソッド
++   *  - GET  の場合 : limit / offset を使って全件取得（最大 100 件ずつ）
++   *  - POST/PUT の場合 : 1 回だけ実行
     */
-@@ -62,25 +77,31 @@ export default class SourceRegistrationManager {
-         return;
+   async request<T = any>(
+     path: string,
+     method: 'GET' | 'POST' | 'PUT',
+     data: any = undefined,
+   ): Promise<T> {
+-    const url = new URL(path, this.apiUrl);
+-
+-    const headers: RedmineHeaders = {
++    /**
++     * --------------------------
++     *  共通ヘッダーと fetch オプション
++     * --------------------------
++     */
++    const commonHeaders: Record<string, string> = {
+       'Content-Type': 'application/json',
+       'X-Redmine-API-Key': this.apiKey,
+     };
+ 
+-    const options = {
+-      method,
+-      headers,
+-      body: data ? JSON.stringify(data) : undefined,
+-    };
+-
+-    try {
+-      const response = await fetch(url.toString(), options);
+-
++    /**
++     * ---------------------------------------------
++     * 1. GET 以外は従来どおり 1 回だけ実行して終了
++     * ---------------------------------------------
++     */
++    if (method !== 'GET') {
++      const url = new URL(path, this.apiUrl);
++      const response = await fetch(url.toString(), {
++        method,
++        headers: commonHeaders,
++        body: data ? JSON.stringify(data) : undefined,
++      });
+       if (!response.ok) {
+         throw new Error(
+           `Redmine API Error: ${response.status} ${response.statusText}`,
+         );
        }
- 
--      // 登録対象のファイルをフィルタリング
-+      // 登録対象のファイルをフィルタリング（直列版）
-       if (excludeRegisteredFile) {
--        files = await Promise.all(
--          files.map(async (filePath) => {
--            const existingSource = await db
--              .select()
--              .from(sources)
--              .where(
--                and(
--                  eq(sources.path, filePath),
--                  inArray(sources.status, ['completed', 'idle', 'processing']),
--                ),
--              );
--            // 登録済みかつ完了状態のファイルは除外
--            return existingSource.length === 0 ? filePath : null;
--          }),
--        ).then((results) =>
--          results.filter((filePath): filePath is string => filePath !== null),
--        );
-+        const filteredFiles: string[] = []; // 最終的に残すファイルを格納する配列
-+
-+        // files 配列を１つずつ順番に処理
-+        for (const filePath of files) {
-+          // DB に同じパスで status が completed/idle/processing のレコードがあるか問い合わせ
-+          const existingSource = await db
-+            .select()
-+            .from(sources)
-+            .where(
-+              and(
-+                eq(sources.path, filePath),
-+                inArray(sources.status, ['completed', 'idle', 'processing']),
-+              ),
-+            );
-+
-+          // レコードが見つからなかった（＝未登録 or ステータス未完了）ファイルだけ残す
-+          if (existingSource.length === 0) {
-+            filteredFiles.push(filePath);
-+          }
-+          // あれば何もしない（除外）
-+        }
-+
-+        files = filteredFiles;
-       }
- 
-       // 登録対象のファイルが存在しない場合は早期リターン
-@@ -173,6 +194,14 @@ export default class SourceRegistrationManager {
-                 success: false,
-                 filePath,
-               });
-+              await db
-+                .update(sources)
-+                .set({
-+                  status: 'failed' as const,
-+                  error:
-+                    error instanceof Error ? error.message : '不明なエラー',
-+                })
-+                .where(eq(sources.path, filePath));
-             }
-             // 次のイテレーションに結果配列を渡す
-             return resultList;
-@@ -202,7 +231,7 @@ export default class SourceRegistrationManager {
-     // map して Promise<string[]> の配列を作成
-     const nested = await Promise.all(
-       items.map(async (item) => {
--        const fullPath = path.join(dirPath, item.name);
-+        const fullPath = path.resolve(path.join(dirPath, item.name));
-         if (item.isDirectory()) {
-           return this.readDirectoryRecursively(fullPath);
-         }
-diff --git a/src/renderer/App.tsx b/src/renderer/App.tsx
-index 51428fdb8..3adb6a0e8 100644
---- a/src/renderer/App.tsx
-+++ b/src/renderer/App.tsx
-@@ -10,7 +10,6 @@ import {
- import './App.css';
- import Sidebar from './components/sidebar/Sidebar';
- import ChatArea from './components/chat/ChatArea';
--import SettingsModal from './components/common/SettingsModal';
- import SnackbarNotification from './components/common/SnackbarNotification';
- import { sourceService } from './services/sourceService';
- 
-@@ -55,7 +54,6 @@ const theme = createTheme({
- 
- function App() {
-   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
--  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
-   const [snackbar, setSnackbar] = useState<{
-     open: boolean;
-     message: string;
-@@ -71,11 +69,6 @@ function App() {
-     setSelectedRoomId(roomId);
-   };
- 
--  // 設定ボタンクリックハンドラ
--  const handleSettingsClick = () => {
--    setIsSettingsModalOpen(true);
--  };
--
-   // スナックバー表示ヘルパー
-   const showSnackbar = (message: string, severity: AlertColor) => {
-     setSnackbar({
-@@ -108,11 +101,6 @@ function App() {
-     }
-   };
- 
--  // 設定更新完了ハンドラ
--  const handleSettingsUpdated = () => {
--    showSnackbar('設定を更新しました', 'success');
--  };
--
-   // スナックバーを閉じる
-   const handleCloseSnackbar = () => {
-     setSnackbar((prev) => ({ ...prev, open: false }));
-@@ -136,20 +124,13 @@ function App() {
-                 <Sidebar
-                   selectedRoomId={selectedRoomId}
-                   onRoomSelect={handleRoomSelect}
--                  onSettingsClick={handleSettingsClick}
-                   onReloadSources={handleReloadSources}
-+                  showSnackbar={showSnackbar}
-                 />
- 
-                 {/* メインコンテンツ */}
-                 <ChatArea selectedRoomId={selectedRoomId} />
- 
--                {/* モーダル */}
--                <SettingsModal
--                  open={isSettingsModalOpen}
--                  onClose={() => setIsSettingsModalOpen(false)}
--                  onSettingsUpdated={handleSettingsUpdated}
--                />
--
-                 {/* 通知 */}
-                 <SnackbarNotification
-                   open={snackbar.open}
-diff --git a/src/renderer/components/chat/MessageList.tsx b/src/renderer/components/chat/MessageList.tsx
-index 21a63d3cf..a6d2acc06 100644
---- a/src/renderer/components/chat/MessageList.tsx
-+++ b/src/renderer/components/chat/MessageList.tsx
-@@ -51,13 +51,13 @@ const MessageList: React.FC<MessageListProps> = ({
-           sx={{
-             display: 'flex',
-             alignItems: 'center',
--            justifyContent: 'flex-start',
-+            justifyContent: 'center',
-             mt: 1,
-           }}
-         >
--          <CircularProgress size={20} />
--          <Box component="span" sx={{ ml: 1, fontSize: '0.875rem' }}>
--            応答中…
-+          <CircularProgress size={24} />
-+          <Box component="span" sx={{ ml: 1 }}>
-+            AIKATA作業中…
-           </Box>
-         </Box>
-       )}
-diff --git a/src/renderer/components/common/SettingsModal.tsx b/src/renderer/components/common/SettingsModal.tsx
-index 065da41e2..d2fecb38b 100644
---- a/src/renderer/components/common/SettingsModal.tsx
-+++ b/src/renderer/components/common/SettingsModal.tsx
-@@ -1,4 +1,4 @@
--import React from 'react';
-+import React, { useEffect } from 'react';
- import {
-   Button,
-   TextField,
-@@ -6,6 +6,7 @@ import {
-   Typography,
-   Box,
-   CircularProgress,
-+  Alert,
- } from '@mui/material';
- import Modal from './Modal';
- import { McpSchemaType } from '../../../main/types/schema';
-@@ -16,12 +17,14 @@ interface SettingsModalProps {
-   open: boolean;
-   onClose: () => void;
-   onSettingsUpdated: () => void;
-+  onValidChange: (isValid: boolean) => void;
- }
- 
- const SettingsModal: React.FC<SettingsModalProps> = ({
-   open,
-   onClose,
-   onSettingsUpdated,
-+  onValidChange,
- }) => {
-   const {
-     settings,
-@@ -33,6 +36,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
-     saving,
-   } = useSettingsStore();
- 
-+  // isValidが変更されたらonValidChangeを呼び出す
-+  useEffect(() => {
-+    onValidChange(isValid);
-+  }, [isValid, onValidChange]);
-+
-   // 設定を更新する
-   const handleSave = async () => {
-     const success = await saveSettings();
-@@ -78,40 +86,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
-       )}
-       <Box sx={{ flexGrow: 1 }}>
-         <Grid container spacing={3}>
--          <Box sx={{ width: '100%', mb: 1 }}>
--            <Typography variant="h6" gutterBottom>
--              データベース設定(チャット履歴やソース情報の保存先)
--            </Typography>
--            <TextField
--              fullWidth
--              label="データベースパス"
--              value={settings.database.dir}
--              onChange={(e) => handleChange('database', 'dir', e.target.value)}
--              error={!!validationErrors.database?.dir}
--              helperText={validationErrors.database?.dir?.message}
--              margin="normal"
--              variant="outlined"
--            />
--          </Box>
--
--          <Box sx={{ width: '100%', mb: 1 }}>
--            <Typography variant="h6" gutterBottom>
--              ソース設定
--            </Typography>
--            <TextField
--              fullWidth
--              label="ソース登録ディレクトリ"
--              value={settings.source.registerDir}
--              onChange={(e) =>
--                handleChange('source', 'registerDir', e.target.value)
--              }
--              error={!!validationErrors.source?.registerDir}
--              helperText={validationErrors.source?.registerDir?.message}
--              margin="normal"
--              variant="outlined"
--            />
--          </Box>
--
-           <Box sx={{ width: '100%', mb: 1 }}>
-             <Typography variant="h6" gutterBottom>
-               API設定
-@@ -148,6 +122,27 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
-             />
-           </Box>
- 
-+          <Box sx={{ width: '100%', mb: 1 }}>
-+            <Typography variant="h6" gutterBottom>
-+              ソース設定
-+            </Typography>
-+            <TextField
-+              fullWidth
-+              label="ソース登録ディレクトリ"
-+              value={settings.source.registerDir}
-+              onChange={(e) =>
-+                handleChange('source', 'registerDir', e.target.value)
-+              }
-+              error={!!validationErrors.source?.registerDir}
-+              helperText={validationErrors.source?.registerDir?.message}
-+              margin="normal"
-+              variant="outlined"
-+            />
-+            <Alert severity="warning" sx={{ mt: 1 }}>
-+              設定を反映させるにはアプリのソースの再読み込みが必要です
-+            </Alert>
-+          </Box>
-+
-           <Box sx={{ width: '100%', mb: 1 }}>
-             <Typography variant="h6" gutterBottom>
-               Redmine設定
-@@ -249,6 +244,25 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
-               </pre>
-             </Typography>
-           </Box>
-+
-+          <Box sx={{ width: '100%', mb: 1 }}>
-+            <Typography variant="h6" gutterBottom>
-+              データベース設定(チャット履歴やソース情報の保存先)
-+            </Typography>
-+            <TextField
-+              fullWidth
-+              label="データベースパス"
-+              value={settings.database.dir}
-+              onChange={(e) => handleChange('database', 'dir', e.target.value)}
-+              error={!!validationErrors.database?.dir}
-+              helperText={validationErrors.database?.dir?.message}
-+              margin="normal"
-+              variant="outlined"
-+            />
-+            <Alert severity="warning" sx={{ mt: 1 }}>
-+              設定を反映させるにはアプリの再起動が必要です
-+            </Alert>
-+          </Box>
-         </Grid>
-       </Box>
-     </Modal>
-diff --git a/src/renderer/components/common/SourceListModal.tsx b/src/renderer/components/common/SourceListModal.tsx
-index f1b352d0e..a8ed158ca 100644
---- a/src/renderer/components/common/SourceListModal.tsx
-+++ b/src/renderer/components/common/SourceListModal.tsx
-@@ -1,9 +1,9 @@
- import React, { useEffect, useState } from 'react';
- import {
-+  AlertColor,
-   Modal,
-   Box,
-   Typography,
--  IconButton,
-   Button,
-   TableContainer,
-   Table,
-@@ -28,27 +28,37 @@ import { Source } from '../../../db/schema';
- 
- interface SourceListModalProps {
-   open: boolean;
-+  processing: boolean;
-   onClose: () => void;
-   onReloadSources: () => void;
-+  onStatusUpdate: (status: {
-+    processing: boolean;
-+    enabledCount: number;
-+  }) => void;
-+  showSnackbar: (message: string, severity: AlertColor) => void;
- }
- 
- function SourceListModal({
-   open,
-+  processing,
-   onClose,
-   onReloadSources,
-+  onStatusUpdate,
-+  showSnackbar,
- }: SourceListModalProps): React.ReactElement {
-   const [sources, setSources] = useState<Source[]>([]);
--  const [processing, setProcessing] = useState(false);
-   const [checkedSources, setCheckedSources] = useState<{
-     [key: number]: boolean;
-   }>({});
-+  const [updatingSources, setUpdatingSources] = useState<Set<number>>(
-+    new Set(),
-+  );
- 
--  // チェック状態の初期化
-+  // チェック状態の更新
-   useEffect(() => {
--    // すべてのソースのチェック状態をtrueで初期化
-     const initialCheckedState = sources.reduce(
-       (acc, source) => {
--        acc[source.id] = true;
-+        acc[source.id] = source.isEnabled === 1;
-         return acc;
-       },
-       {} as { [key: number]: boolean },
-@@ -58,22 +68,50 @@ function SourceListModal({
- 
-   // チェックボックスの変更ハンドラ
-   const handleSourceCheckChange = async (sourceId: number) => {
-+    // 更新中の場合は処理をスキップ
-+    if (processing || updatingSources.size > 0) return;
-+
-     const newCheckedState = { ...checkedSources };
-     newCheckedState[sourceId] = !checkedSources[sourceId];
-     setCheckedSources(newCheckedState);
- 
-+    // 更新中状態に追加
-+    setUpdatingSources((prev) => new Set(prev).add(sourceId));
-+
-     try {
--      await window.electron.source.updateSourceEnabled(
--        sourceId,
--        newCheckedState[sourceId],
--      );
--    } catch (error) {
--      console.error('ソース状態の更新に失敗しました:', error);
-+      const { success, error } =
-+        await window.electron.source.updateSourceEnabled(
-+          sourceId,
-+          newCheckedState[sourceId],
-+        );
-+      if (!success) {
-+        showSnackbar(
-+          `${sources.find((s) => s.id === sourceId)?.path}の有効化/無効化に失敗しました: ${error}`,
-+          'error',
-+        );
-+        // チェック状態を元に戻す
-+        setCheckedSources((prev) => ({
-+          ...prev,
-+          [sourceId]: !newCheckedState[sourceId],
-+        }));
++      if (response.status === 204) {
++        return {} as T;
 +      }
-+    } catch (err) {
-+      console.error('ソース状態の更新に失敗しました:', err);
-+    } finally {
-+      // 更新中状態から削除
-+      setUpdatingSources((prev) => {
-+        const next = new Set(prev);
-+        next.delete(sourceId);
-+        return next;
++      return (await response.json()) as T;
++    }
++
++    /**
++     * ---------------------------------------
++     * 2. ここから GET（一覧取得）のページネーション処理
++     * ---------------------------------------
++     */
++    const limit = 100; // 1 リクエスト最大件数（Redmine の上限）
++    let offset = 0; // 現在の取得開始位置
++    let aggregatedJson: any = null; // マージ後に返却する JSON
++    let arrayKey: string | null = null; // projects / issues / users など配列が入るキー
++
++    while (true) {
++      // URL に limit / offset を付与（既に付いていれば上書き）
++      const url = new URL(path, this.apiUrl);
++      url.searchParams.set('limit', limit.toString());
++      url.searchParams.set('offset', offset.toString());
++
++      // リクエスト実行
++      const res = await fetch(url.toString(), {
++        method,
++        headers: commonHeaders,
 +      });
-     }
-   };
- 
-   // 全選択/全解除の切り替えハンドラ
-   const handleSelectAllChange = () => {
-+    // 更新中の場合は処理をスキップ
-+    if (processing || updatingSources.size > 0) return;
++      if (!res.ok) {
++        throw new Error(`Redmine API Error: ${res.status} ${res.statusText}`);
++      }
++      const json = (await res.json()) as Record<string, any>;
 +
-     const someUnchecked = Object.values(checkedSources).some(
-       (checked) => !checked,
-     );
-@@ -88,57 +126,78 @@ function SourceListModal({
-     });
-     setCheckedSources(newCheckedState);
- 
-+    // 全てのソースを更新中状態に追加
-+    setUpdatingSources(new Set(sources.map((source) => source.id)));
-+
-     // 各ソースの状態を更新
-     sources.forEach(async (source) => {
-       try {
--        await window.electron.source.updateSourceEnabled(source.id, newValue);
--      } catch (error) {
--        console.error('ソース状態の更新に失敗しました:', error);
-+        const { success, error } =
-+          await window.electron.source.updateSourceEnabled(source.id, newValue);
-+        if (!success) {
-+          showSnackbar(
-+            `${source.path}の有効化/無効化に失敗しました: ${error}`,
-+            'error',
-+          );
-+          // チェック状態を元に戻す
-+          setCheckedSources((prev) => ({
-+            ...prev,
-+            [source.id]: !newValue,
-+          }));
++      /**
++       * 2-1. 1 ページ目：返却 JSON の「配列キー」と total_count を特定
++       *  - Redmine の一覧 API は必ず
++       *       {
++       *         "<resource_plural>": [...array...],
++       *         "total_count": 123,
++       *         "limit": 100,
++       *         "offset": 0
++       *       }
++       *    の形で返る。
++       */
++      if (arrayKey === null) {
++        arrayKey =
++          Object.keys(json).find((k) => Array.isArray(json[k])) || null;
++        if (!arrayKey) {
++          // 配列キーが見つからない ⇒ そもそも一覧 API ではない
++          return json as T;
 +        }
++        // 返却用オブジェクトのひな形を作成（total_count 等も保持）
++        aggregatedJson = { ...json, [arrayKey]: [...json[arrayKey]] };
++      } else {
++        // 2 ページ目以降は対象配列だけマージ
++        aggregatedJson[arrayKey].push(...json[arrayKey]);
++      }
+ 
+-      // 更新処理（PUT）の場合、204ステータスかつコンテンツが返らないため空オブジェクトを返す
++      // 現在取得済み件数
++      const currentCount: number = aggregatedJson[arrayKey].length;
++      const total: number | undefined = aggregatedJson.total_count; // 無いエンドポイントもある
 +
-+        // 完了したソースを更新中状態から削除
-+        setUpdatingSources((prev) => {
-+          const next = new Set(prev);
-+          next.delete(source.id);
-+          return next;
-+        });
-+      } catch (err) {
-+        console.error('ソース状態の更新に失敗しました:', err);
-+        // エラー時もソースを更新中状態から削除
-+        setUpdatingSources((prev) => {
-+          const next = new Set(prev);
-+          next.delete(source.id);
-+          return next;
-+        });
++      // ---------------------------------
++      // ループ終了判定
++      //   1) total_count がある     → 取得済 >= total_count
++      //   2) total_count が無い場合 → 返却件数 < limit（＝最終ページ）
++      // ---------------------------------
+       if (
+-        response.status === 204 ||
+-        !response.headers.get('content-length') ||
+-        response.headers.get('transfer-encoding')?.includes('chunked')
++        (total !== undefined && currentCount >= total) ||
++        json[arrayKey].length < limit
+       ) {
+-        return {} as T;
++        break;
        }
-     });
-   };
  
-   // ソースデータの定期更新（processingステータスがある場合のみ）
-   useEffect(() => {
--    let intervalId: ReturnType<typeof setInterval>;
--
-     const fetchSources = async () => {
-       try {
-         const response = await window.electron.source.getSources();
-         const responseSources: Source[] = response.sources || [];
-         setSources(responseSources);
--        setProcessing(
--          responseSources.some(
--            (s: Source) => s.status === 'idle' || s.status === 'processing',
--          ),
-+        const newProcessing = responseSources.some(
-+          (s: Source) => s.status === 'idle' || s.status === 'processing',
-         );
-+        // 状態更新
-+        const enabledCount = responseSources.filter(
-+          (s: Source) => s.isEnabled === 1 && s.status === 'completed',
-+        ).length;
-+        onStatusUpdate({ processing: newProcessing, enabledCount });
-       } catch (error) {
-         console.error('ソースデータの取得に失敗しました:', error);
-       }
-     };
- 
--    if (open) {
--      // 初回データ取得
--      fetchSources();
--
--      // processingステータスがある場合は5秒ごとに更新
--      if (processing) {
--        intervalId = setInterval(fetchSources, 3000);
--      }
--    }
-+    const intervalId = setInterval(fetchSources, 3000);
- 
-     return () => {
-       if (intervalId) {
-         clearInterval(intervalId);
-       }
-     };
--  }, [open, processing]);
-+  }, [open, checkedSources, onStatusUpdate]);
- 
-   const handleReloadClick = () => {
-     onReloadSources();
-   };
- 
--  const getStatusIcon = (status: Source['status']) => {
-+  const getStatusIcon = (status: Source['status'], error?: Source['error']) => {
-     switch (status) {
-       case 'completed':
-         return (
-@@ -152,13 +211,15 @@ function SourceListModal({
-         );
-       case 'failed':
-         return (
--          <Chip
--            icon={<ErrorIcon />}
--            label="エラー"
--            color="error"
--            size="small"
--            variant="outlined"
--          />
-+          <Tooltip title={error ?? '不明なエラー'}>
-+            <Chip
-+              icon={<ErrorIcon />}
-+              label="エラー"
-+              color="error"
-+              size="small"
-+              variant="outlined"
-+            />
-+          </Tooltip>
-         );
-       case 'processing':
-         return (
-@@ -219,11 +280,8 @@ function SourceListModal({
-           <Tooltip title="ソース登録ディレクトリ内のファイル内容と同期します">
-             <Button
-               variant="contained"
--              onClick={() => {
--                setProcessing(true);
--                handleReloadClick();
--              }}
--              disabled={processing}
-+              onClick={handleReloadClick}
-+              disabled={processing || updatingSources.size > 0}
-               startIcon={<SyncIcon />}
-             >
-               {processing ? '処理中...' : 'ソース読み込み'}
-@@ -261,6 +319,7 @@ function SourceListModal({
-                         )
-                       }
-                       onChange={handleSelectAllChange}
-+                      disabled={processing || updatingSources.size > 0}
-                     />
-                   </Tooltip>
-                 </TableCell>
-@@ -293,20 +352,14 @@ function SourceListModal({
-                       <Checkbox
-                         checked={checkedSources[source.id] || false}
-                         onChange={() => handleSourceCheckChange(source.id)}
-+                        disabled={processing || updatingSources.size > 0}
-                       />
-                     </Tooltip>
-                   </TableCell>
-                   <TableCell>{source.path}</TableCell>
-                   <TableCell>{source.title}</TableCell>
-                   <TableCell>
--                    {getStatusIcon(source.status)}
--                    {source.error && (
--                      <Tooltip title={source.error}>
--                        <IconButton size="small" color="error">
--                          <ErrorIcon fontSize="small" />
--                        </IconButton>
--                      </Tooltip>
--                    )}
-+                    {getStatusIcon(source.status, source.error)}
-                   </TableCell>
-                   <TableCell>
-                     {new Date(source.updatedAt).toLocaleString()}
-diff --git a/src/renderer/components/sidebar/Sidebar.tsx b/src/renderer/components/sidebar/Sidebar.tsx
-index 41df1a012..c65cd99af 100644
---- a/src/renderer/components/sidebar/Sidebar.tsx
-+++ b/src/renderer/components/sidebar/Sidebar.tsx
-@@ -1,7 +1,8 @@
- import React, { useState, useEffect, useCallback } from 'react';
--import { Box, Menu, MenuItem, Divider } from '@mui/material';
-+import { Box, Menu, MenuItem, Divider, AlertColor } from '@mui/material';
- import { v4 as uuidv4 } from 'uuid';
- import SourceListModal from '../common/SourceListModal';
-+import SettingsModal from '../common/SettingsModal';
- import { ChatRoom } from '../../../main/types';
- import { chatService } from '../../services/chatService';
- import SidebarHeader from './SidebarHeader';
-@@ -11,21 +12,32 @@ import SidebarFooter from './SidebarFooter';
- interface SidebarProps {
-   selectedRoomId: string | null;
-   onRoomSelect: (roomId: string) => void;
--  onSettingsClick: () => void;
-   onReloadSources: () => void; // ソース読み込み処理を実行する関数
-+  showSnackbar: (message: string, severity: AlertColor) => void;
- }
- 
- function Sidebar({
-   selectedRoomId,
-   onRoomSelect,
--  onSettingsClick,
-   onReloadSources,
-+  showSnackbar,
- }: SidebarProps) {
-   const [isSourceListOpen, setIsSourceListOpen] = useState(false);
-+  const [settingsHasError, setSettingsHasError] = useState(false);
-+  const [sourceStatus, setSourceStatus] = useState<{
-+    processing: boolean;
-+    enabledCount: number;
-+  }>({ processing: false, enabledCount: 0 });
-   const [chatRooms, setChatRooms] = useState<ChatRoom[]>([]);
-   const [menuAnchorEl, setMenuAnchorEl] = useState<null | HTMLElement>(null);
-   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
-   const [loading, setLoading] = useState(true);
-+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+-      return await response.json();
+-    } catch (error) {
+-      console.error('Redmine API Request failed:', error);
+-      throw error;
++      offset += limit; // 次ページへ
+     }
 +
-+  const onSettingsUpdated = useCallback(() => {
-+    // 設定更新完了時の処理
-+    showSnackbar('設定を更新しました', 'success');
-+  }, [showSnackbar]);
++    return aggregatedJson as T;
+   }
  
-   // チャットルーム一覧を取得
-   const fetchChatRooms = useCallback(async () => {
-@@ -104,6 +116,11 @@ function Sidebar({
-     return () => clearInterval(interval);
-   }, [refreshChatRooms]);
- 
-+  // 設定モーダルを開く
-+  const handleSettingsClick = () => {
-+    setIsSettingsModalOpen(true);
-+  };
-+
-   return (
-     <Box
-       sx={{
-@@ -144,15 +161,28 @@ function Sidebar({
-       </Box>
- 
-       <SidebarFooter
--        onSettingsClick={onSettingsClick}
-+        onSettingsClick={handleSettingsClick}
-         onOpenSourceList={() => setIsSourceListOpen(true)}
-+        sourceStatus={sourceStatus}
-+        settingsHasError={settingsHasError}
-       />
- 
-       {/* ソース一覧モーダル */}
-       <SourceListModal
-         open={isSourceListOpen}
-+        processing={sourceStatus.processing}
-         onClose={() => setIsSourceListOpen(false)}
-         onReloadSources={onReloadSources}
-+        onStatusUpdate={setSourceStatus}
-+        showSnackbar={showSnackbar}
-+      />
-+
-+      {/* 設定モーダル */}
-+      <SettingsModal
-+        open={isSettingsModalOpen}
-+        onClose={() => setIsSettingsModalOpen(false)}
-+        onSettingsUpdated={onSettingsUpdated}
-+        onValidChange={(isValid) => setSettingsHasError(!isValid)}
-       />
- 
-       {/* チャットルームメニュー */}
-diff --git a/src/renderer/components/sidebar/SidebarFooter.tsx b/src/renderer/components/sidebar/SidebarFooter.tsx
-index e3ff9d164..981136f42 100644
---- a/src/renderer/components/sidebar/SidebarFooter.tsx
-+++ b/src/renderer/components/sidebar/SidebarFooter.tsx
-@@ -1,31 +1,84 @@
- import React from 'react';
--import { Box, IconButton, Tooltip } from '@mui/material';
-+import {
-+  Box,
-+  IconButton,
-+  Tooltip,
-+  Badge,
-+  CircularProgress,
-+} from '@mui/material';
- import {
-   Settings as SettingsIcon,
--  FormatListBulleted as FormatListBulletedIcon,
-+  AttachFile as AttachFileIcon,
- } from '@mui/icons-material';
- 
- interface SidebarFooterProps {
-   onSettingsClick: () => void;
-   onOpenSourceList: () => void;
-+  sourceStatus: {
-+    processing: boolean;
-+    enabledCount: number;
-+  };
-+  settingsHasError: boolean;
- }
- 
- function SidebarFooter({
-   onSettingsClick,
-   onOpenSourceList,
-+  sourceStatus,
-+  settingsHasError,
- }: SidebarFooterProps) {
-+  const getBadgeContent = () => {
-+    if (sourceStatus.processing) {
-+      return (
-+        <CircularProgress
-+          size={12}
-+          thickness={4}
-+          sx={{ color: 'primary.main' }}
-+        />
-+      );
-+    }
-+    return sourceStatus.enabledCount >= 100
-+      ? '99+'
-+      : sourceStatus.enabledCount.toString();
-+  };
-+
-   return (
-     <Box sx={{ p: 1, borderTop: 1, borderColor: 'divider' }}>
-       <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-         <Tooltip title="ソース一覧を表示">
--          <IconButton onClick={onOpenSourceList}>
--            <FormatListBulletedIcon />
--          </IconButton>
-+          <Badge
-+            badgeContent={getBadgeContent()}
-+            overlap="circular"
-+            color={sourceStatus.processing ? 'default' : 'primary'}
-+            sx={{
-+              '& .MuiBadge-badge': {
-+                minWidth: '17px',
-+                height: '17px',
-+              },
-+            }}
-+          >
-+            <IconButton onClick={onOpenSourceList}>
-+              <AttachFileIcon />
-+            </IconButton>
-+          </Badge>
-         </Tooltip>
-         <Tooltip title="設定">
--          <IconButton onClick={onSettingsClick}>
--            <SettingsIcon />
--          </IconButton>
-+          <Badge
-+            badgeContent="!"
-+            color="error"
-+            overlap="circular"
-+            invisible={!settingsHasError}
-+            sx={{
-+              '& .MuiBadge-badge': {
-+                minWidth: '17px',
-+                height: '17px',
-+              },
-+            }}
-+          >
-+            <IconButton onClick={onSettingsClick}>
-+              <SettingsIcon />
-+            </IconButton>
-+          </Badge>
-         </Tooltip>
-       </Box>
-     </Box>
-diff --git a/src/renderer/hooks/useSettingsStore.ts b/src/renderer/hooks/useSettingsStore.ts
-index 3c4c43684..c510a9abe 100644
---- a/src/renderer/hooks/useSettingsStore.ts
-+++ b/src/renderer/hooks/useSettingsStore.ts
-@@ -69,32 +69,6 @@ const useSettingsStore = () => {
-     mcp: { serverConfigText: '{}' },
-   });
- 
--  // ストアからの値の更新を監視
--  useEffect(() => {
--    if (!loading) {
--      setSettings({
--        database: databaseStore ?? { dir: '' },
--        source: sourceStore ?? { registerDir: './source' },
--        api: apiStore ?? { key: '', url: '', model: '' },
--        redmine: redmineStore ?? { endpoint: '', apiKey: '' },
--        gitlab: gitlabStore ?? { endpoint: '', apiKey: '' },
--        mcp: {
--          serverConfigText: mcpStore.serverConfigText ?? {
--            serverConfigText: '{}',
--          },
--        },
--      });
--    }
--  }, [
--    databaseStore,
--    sourceStore,
--    apiStore,
--    redmineStore,
--    gitlabStore,
--    mcpStore,
--    loading,
--  ]);
--
-   // バリデーションエラーの状態管理
-   const [validationErrors, setValidationErrors] = useState<ValidationState>({
-     database: {},
-@@ -169,6 +143,40 @@ const useSettingsStore = () => {
-     [],
-   );
- 
-+  // ストアからの値の更新を監視
-+  useEffect(() => {
-+    if (!loading) {
-+      const newSettings = {
-+        database: databaseStore ?? { dir: '' },
-+        source: sourceStore ?? { registerDir: './source' },
-+        api: apiStore ?? { key: '', url: '', model: '' },
-+        redmine: redmineStore ?? { endpoint: '', apiKey: '' },
-+        gitlab: gitlabStore ?? { endpoint: '', apiKey: '' },
-+        mcp: {
-+          serverConfigText: mcpStore.serverConfigText ?? {
-+            serverConfigText: '{}',
-+          },
-+        },
-+      };
-+
-+      setSettings(newSettings);
-+
-+      // 各セクションのバリデーションを実行
-+      Object.entries(newSettings).forEach(([section, value]) => {
-+        validateSection(section as keyof Settings, value);
-+      });
-+    }
-+  }, [
-+    databaseStore,
-+    sourceStore,
-+    apiStore,
-+    redmineStore,
-+    gitlabStore,
-+    mcpStore,
-+    loading,
-+    validateSection,
-+  ]);
-+
    /**
-    * フィールドの更新処理
+@@ -114,7 +179,7 @@ export class RedmineClient {
+   // eslint-disable-next-line
+   async resolveId(
+     value: number | string,
+-    mappings: NameIdMapping[],
++    mappings: (NameIdMapping | RedmineProject)[],
+   ): Promise<number> {
+     // 既にIDなら変換不要
+     if (typeof value === 'number') {
+@@ -126,10 +191,15 @@ export class RedmineClient {
+       return Number(value);
+     }
+ 
+-    // 名前からIDを検索
+-    const found = mappings.find(
+-      (item) => item.name.toLowerCase() === value.toLowerCase(),
+-    );
++    // 名前またはidentifierからIDを検索
++    const found = mappings.find((item) => {
++      const lowercaseValue = value.toLowerCase();
++      const nameMatch = item.name.toLowerCase() === lowercaseValue;
++      const identifierMatch =
++        'identifier' in item &&
++        item.identifier.toLowerCase() === lowercaseValue;
++      return nameMatch || identifierMatch;
++    });
+     if (found) {
+       return found.id;
+     }
+@@ -141,7 +211,7 @@ export class RedmineClient {
+    * プロジェクト一覧を取得してIDマッピングを返す
+    * @returns プロジェクトの名前とIDのマッピング配列
     */
+-  async getProjects(): Promise<NameIdMapping[]> {
++  async getProjects(): Promise<RedmineProject[]> {
+     if (this.projectsCache.length > 0) {
+       return this.projectsCache;
+     }
+@@ -150,6 +220,7 @@ export class RedmineClient {
+       projects: Array<{
+         id: number;
+         name: string;
++        identifier: string;
+       }>;
+     }
+ 
+@@ -160,6 +231,7 @@ export class RedmineClient {
+     this.projectsCache = response.projects.map((project) => ({
+       id: project.id,
+       name: project.name,
++      identifier: project.identifier,
+     }));
+ 
+     return this.projectsCache;
+diff --git a/src/mastra/tools/redmine/types.ts b/src/mastra/tools/redmine/types.ts
+index b5395371c..2d14dad5c 100644
+--- a/src/mastra/tools/redmine/types.ts
++++ b/src/mastra/tools/redmine/types.ts
+@@ -1,3 +1,12 @@
++/**
++ * Redmineプロジェクト情報
++ */
++export interface RedmineProject {
++  id: number;
++  name: string;
++  identifier: string;
++}
++
+ /**
+  * Redmineチケット作成/更新用の共通データ
+  */
