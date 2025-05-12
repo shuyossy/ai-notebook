@@ -4,7 +4,8 @@
  */
 
 import { z } from 'zod';
-import { RedmineProject } from './types';
+import { RedmineProject, RedmineBaseInfo } from './types';
+import { RedmineSchema } from '../../../main/types/settingsSchema';
 
 /**
  * Redmineクライアント設定のインターフェース
@@ -208,6 +209,21 @@ export class RedmineClient {
   }
 
   /**
+   * キャッシュされた基本情報を一括で取得する
+   */
+  async getBaseInfo(): Promise<RedmineBaseInfo> {
+    const trackers = await this.getTrackers();
+    const statuses = await this.getStatuses();
+    const priorities = await this.getPriorities();
+
+    return {
+      trackers,
+      statuses,
+      priorities,
+    };
+  }
+
+  /**
    * プロジェクト一覧を取得してIDマッピングを返す
    * @returns プロジェクトの名前とIDのマッピング配列
    */
@@ -391,6 +407,14 @@ export class RedmineClient {
 export const createRedmineClient = (
   config: RedmineClientConfig,
 ): RedmineClient => {
+  // settingsSchemaによる設定値の検証
+  const validationResult = RedmineSchema.safeParse({
+    endpoint: config.apiUrl,
+    apiKey: config.apiKey,
+  });
+  if (!validationResult.success) {
+    throw new Error(`Redmine設定が不正です: ${validationResult.error.message}`);
+  }
   return new RedmineClient(config);
 };
 

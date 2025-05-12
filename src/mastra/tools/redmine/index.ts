@@ -5,8 +5,11 @@
 
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
-import { RedmineClient, createRedmineClient } from './redmineClient';
-import { RedmineSchema } from '../../../main/types/settingsSchema';
+import {
+  RedmineClient,
+  RedmineClientConfig,
+  createRedmineClient,
+} from './redmineClient';
 import { createIssueTools } from './issueTools';
 
 /**
@@ -14,12 +17,7 @@ import { createIssueTools } from './issueTools';
  * @param config Redmine APIクライアント設定
  * @returns Redmine操作ツール一式
  */
-export const createRedmineTools = (config: {
-  apiUrl: string;
-  apiKey: string;
-}) => {
-  const client = createRedmineClient(config);
-
+export const createRedmineTools = (client: RedmineClient) => {
   // 各ツールグループを作成
   const issueTools = createIssueTools(client);
 
@@ -77,39 +75,31 @@ export const createRedmineTools = (config: {
 
 /**
  * Mastra用のRedmine操作ツールを設定・初期化する
- * @param config Redmine API接続設定
+ * @param config Redmine API接続設定、またはRedmineClientインスタンス
  * @returns Mastraで使用可能なRedmine操作ツール
  */
-export const setupRedmineTools = (config: {
-  apiUrl: string;
-  apiKey: string;
-}) => {
-  return (async () => {
-    // settingsSchemaによる設定値の検証
-    const validationResult = RedmineSchema.safeParse({
-      endpoint: config.apiUrl,
-      apiKey: config.apiKey,
-    });
-    if (!validationResult.success) {
-      throw new Error(
-        `Redmine設定が不正です: ${validationResult.error.message}`,
-      );
-    }
+export const setupRedmineTools = async (
+  config: RedmineClientConfig | RedmineClient,
+): Promise<ReturnType<typeof createRedmineTools>> => {
+  let client: RedmineClient;
 
+  if (config instanceof RedmineClient) {
+    client = config;
+  } else {
     // Redmineクライアントを作成
-    const client = createRedmineClient(config);
+    client = createRedmineClient(config);
+  }
 
-    // API疎通確認
-    try {
-      await client.testConnection();
-      // eslint-disable-next-line
-    } catch (error: any) {
-      throw new Error(`Redmine APIへの接続確認に失敗しました`);
-    }
+  // API疎通確認
+  try {
+    await client.testConnection();
+    // eslint-disable-next-line
+  } catch (error: any) {
+    throw new Error(`Redmine APIへの接続確認に失敗しました`);
+  }
 
-    // Redmine操作ツール一式を作成
-    return createRedmineTools(config);
-  })();
+  // Redmine操作ツール一式を作成
+  return createRedmineTools(client);
 };
 
 // 型定義とクライアントをエクスポート

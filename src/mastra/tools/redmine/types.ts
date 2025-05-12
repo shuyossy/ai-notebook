@@ -53,6 +53,24 @@ export interface IssueFilter {
 }
 
 /**
+ * Redmine基本情報
+ */
+export interface RedmineBaseInfo {
+  trackers: Array<{
+    id: number;
+    name: string;
+  }>;
+  statuses: Array<{
+    id: number;
+    name: string;
+  }>;
+  priorities: Array<{
+    id: number;
+    name: string;
+  }>;
+}
+
+/**
  * Redmineチケット一覧取得APIの返り値
  */
 export interface RedmineIssueListResponse {

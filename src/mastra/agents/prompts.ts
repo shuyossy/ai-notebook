@@ -2,6 +2,7 @@ import { eq, and } from 'drizzle-orm';
 import { getStore } from '../../main/store';
 import { sources, topics } from '../../db/schema';
 import getDb from '../../db';
+import { RedmineBaseInfo } from '../tools/redmine';
 
 /**
  * データベースからソース情報を取得する
@@ -93,11 +94,14 @@ export const EXTRACT_TOPIC_AND_SUMMARY_SYSTEM_PROMPT = `
  * @param config ツールの有効/無効を指定する設定オブジェクト
  * @returns システムプロンプト文字列
  */
-export const getOrchestratorSystemPrompt = async (config: {
-  redmine: boolean;
-  gitlab: boolean;
-  mcp: boolean;
-}): Promise<string> => {
+export const getOrchestratorSystemPrompt = async (
+  config: {
+    redmine: boolean;
+    gitlab: boolean;
+    mcp: boolean;
+  },
+  redmineInfo: RedmineBaseInfo | null,
+): Promise<string> => {
   const store = getStore();
 
   const sourceListMD = await getSourcesInfoByMDList();
@@ -136,7 +140,8 @@ ${
   - getRedmineIssuesList：Redmineのプロジェクトのチケット一覧を取得します。ステータス、トラッカー、担当者、バージョンで絞り込み可能です。
   - getRedmineIssueDetail：Redmineの特定のチケット詳細を取得します。
   - createRedmineIssue：Redmineに新しいチケットを作成します。
-  - updateRedmineIssue：Redmineの既存チケットを更新します。`
+  - updateRedmineIssue：Redmineの既存チケットを更新します。
+`
     : ''
 }
 ${
@@ -162,6 +167,12 @@ ${
 ※ツール利用時の注意事項
 - 共通
   - ツールは何度でも任意のタイミングで利用可能
+- ソース情報検索ツール
+  - 質問の内容によっては同一のソースに対して複数回sourceQueryToolを利用して情報を収集すること
+  - 質問の内容によっては複数のソースに対してsourceQueryToolを利用して、十分な情報を収集すること
+  - 登録されているソースの一覧とその要約、トピックは以下の通り
+  ※以下の内容はあくまでソース情報を要約したものである。ソース情報（の詳細）を正確に把握するためには、sourceQueryToolを利用してソース情報を取得すること
+${sourceListMD}
 ${
   config.redmine
     ? `- redmine操作ツール
@@ -171,7 +182,14 @@ ${
   - トラッカーの利用方針は以下の通り（あくまで方針であり、ユーザから明確にトラッカーの種類など提示された場合はそちらに従うこと）
     - 中日程：プロジェクト全体のフェーズ分けなどで利用する
     - 作業計画：プロジェクトの各フェーズ内で実施する作業の計画を立てるために利用する
-    - 生産計画・タスク：プロジェクトの各フェーズ内の各作業毎に実施するタスクを管理するために利用する。生産計画は他者によるチェック（再鑑）が必要な場合に利用する。タスクは他者によるチェック（再鑑）が不要な場合に利用する。生産計画・タスクチケットの子チケットとして生産計画・タスクを持つ（ネストさせる）ことが可能。`
+    - 生産計画・タスク：プロジェクトの各フェーズ内の各作業毎に実施するタスクを管理するために利用する。生産計画は他者によるチェック（再鑑）が必要な場合に利用する。タスクは他者によるチェック（再鑑）が不要な場合に利用する。生産計画・タスクチケットの子チケットとして生産計画・タスクを持つ（ネストさせる）ことが可能。
+  - Redmineの基本情報は次の通り：
+    - トラッカー一覧：
+${redmineInfo?.trackers.map(t => `      - ${t.name} (ID: ${t.id})`).join('\n')}
+    - ステータス一覧：
+${redmineInfo?.statuses.map(s => `      - ${s.name} (ID: ${s.id})`).join('\n')}
+    - 優先度一覧：
+${redmineInfo?.priorities.map(p => `      - ${p.name} (ID: ${p.id})`).join('\n')}`
     : ''
 }
 ${
@@ -182,12 +200,6 @@ ${
     - 例えば、プロジェクト(リポジトリ)のURLが${store.get('gitlab').endpoint}/groupA/groupB/projectの場合、URLエンコードされたパスはgroupA%2FgroupB%2Fprojectとなる(/ は%2F で表されます)`
     : ''
 }
-- ソース情報検索ツール
-  - 質問の内容によっては同一のソースに対して複数回sourceQueryToolを利用して情報を収集すること
-  - 質問の内容によっては複数のソースに対してsourceQueryToolを利用して、十分な情報を収集すること
-  - 登録されているソースの一覧とその要約、トピックは以下の通り
-  ※以下の内容はあくまでソース情報を要約したものである。ソース情報（の詳細）を正確に把握するためには、sourceQueryToolを利用してソース情報を取得すること
-${sourceListMD}
 `;
   return prompt;
 };

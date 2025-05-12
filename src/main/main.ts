@@ -29,6 +29,7 @@ import { getOrchestrator } from '../mastra/agents/orchestrator';
 import MenuBuilder from './menu';
 import { resolveHtmlPath } from './utils/util';
 import { initStore, getStore } from './store';
+import { RedmineBaseInfo } from '../mastra/tools/redmine';
 
 class AppUpdater {
   constructor() {
@@ -49,6 +50,8 @@ const mastraStatus: AgentBootStatus = {
     mcp: false,
   },
 };
+// Redmineの基本情報を保持する変数
+let redmineBaseInfo: RedmineBaseInfo | null = null;
 
 /**
  * Mastraの状態を変更し、レンダラーに通知する
@@ -117,7 +120,11 @@ const initializeMastra = async (): Promise<void> => {
     });
 
     // オーケストレーターエージェントを取得
-    const { agent, alertMessages, toolStatus } = await getOrchestrator();
+    const { agent, alertMessages, toolStatus, redmineInfo } =
+      await getOrchestrator();
+
+    // Redmineの基本情報を保存
+    redmineBaseInfo = redmineInfo;
 
     // 起動メッセージを更新
     alertMessages.forEach((message) => {
@@ -288,6 +295,7 @@ const setupChatHandlers = () => {
                   gitlab: false,
                   mcp: false,
                 },
+                redmineBaseInfo,
               ),
               threadId: roomId, // チャットルームIDをスレッドIDとして使用
               maxSteps: 30, // ツールの利用上限

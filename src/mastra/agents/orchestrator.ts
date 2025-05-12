@@ -5,7 +5,11 @@ import { writeFileSync } from 'fs';
 import { querySourceTool } from '../tools/sourcesTools';
 import { createAgent } from './config/agent';
 import { getStore } from '../../main/store';
-import { setupRedmineTools } from '../tools/redmine';
+import {
+  setupRedmineTools,
+  createRedmineClient,
+  RedmineBaseInfo,
+} from '../tools/redmine';
 import { setupGitLabTools } from '../tools/gitlab';
 import { McpSchema } from '../../main/types/schema';
 import { AgentBootMessage } from '../../main/types';
@@ -59,27 +63,34 @@ export const getOrchestrator = async (): Promise<{
     gitlab: boolean;
     mcp: boolean;
   };
+  redmineInfo: RedmineBaseInfo | null;
 }> => {
   const alertMessages: AgentBootMessage[] = [];
   let agent: Agent | null = null;
   let redmineTools = {};
   let gitlabTools = {};
   let mcpTools = {};
+  let redmineInfo: RedmineBaseInfo | null = null;
 
   try {
     const store = getStore();
 
-    // Redinmeツールの登録
+    // Redmineツールの登録
     // APIキーとエンドポイントが登録されていた場合は登録する
     const redmineApiKey = store.get('redmine').apiKey;
     const redmineEndpoint = store.get('redmine').endpoint;
     if (redmineApiKey && redmineEndpoint) {
       try {
-        // Redmineクライアントの初期化
-        redmineTools = await setupRedmineTools({
+        // Redmineクライアントを作成
+        const client = createRedmineClient({
           apiKey: redmineApiKey,
           apiUrl: redmineEndpoint,
         });
+
+        // 基本情報の取得
+        redmineInfo = await client.getBaseInfo();
+        // 作成したクライアントを使ってツールを初期化
+        redmineTools = await setupRedmineTools(client);
         alertMessages.push({
           id: uuid(),
           type: 'info',
@@ -91,6 +102,7 @@ export const getOrchestrator = async (): Promise<{
           type: 'warning',
           content: `Redmineクライアントの初期化に失敗しました\n設定を確認してください\n${error}`,
         });
+        redmineInfo = null;
       }
     } else {
       console.warn(
@@ -247,6 +259,7 @@ export const getOrchestrator = async (): Promise<{
       gitlab: !!gitlabTools && Object.keys(gitlabTools).length > 0,
       mcp: !!mcpTools && Object.keys(mcpTools).length > 0,
     },
+    redmineInfo,
   };
 };
 
