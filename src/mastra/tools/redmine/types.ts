@@ -1,4 +1,13 @@
 /**
+ * Redmineプロジェクト情報
+ */
+export interface RedmineProject {
+  id: number;
+  name: string;
+  identifier: string;
+}
+
+/**
  * Redmineチケット作成/更新用の共通データ
  */
 interface RedmineIssueCommonData {

@@ -4,8 +4,7 @@
  */
 
 import { z } from 'zod';
-
-type RedmineHeaders = Record<string, string>;
+import { RedmineProject } from './types';
 
 /**
  * Redmineクライアント設定のインターフェース
@@ -39,7 +38,7 @@ export class RedmineClient {
   private readonly apiKey: string;
 
   // キャッシュ: プロジェクト、トラッカー、ステータスなど
-  private projectsCache: NameIdMapping[] = [];
+  private projectsCache: RedmineProject[] = [];
 
   private trackersCache: NameIdMapping[] = [];
 
@@ -180,7 +179,7 @@ export class RedmineClient {
   // eslint-disable-next-line
   async resolveId(
     value: number | string,
-    mappings: NameIdMapping[],
+    mappings: (NameIdMapping | RedmineProject)[],
   ): Promise<number> {
     // 既にIDなら変換不要
     if (typeof value === 'number') {
@@ -192,10 +191,15 @@ export class RedmineClient {
       return Number(value);
     }
 
-    // 名前からIDを検索
-    const found = mappings.find(
-      (item) => item.name.toLowerCase() === value.toLowerCase(),
-    );
+    // 名前またはidentifierからIDを検索
+    const found = mappings.find((item) => {
+      const lowercaseValue = value.toLowerCase();
+      const nameMatch = item.name.toLowerCase() === lowercaseValue;
+      const identifierMatch =
+        'identifier' in item &&
+        item.identifier.toLowerCase() === lowercaseValue;
+      return nameMatch || identifierMatch;
+    });
     if (found) {
       return found.id;
     }
@@ -207,7 +211,7 @@ export class RedmineClient {
    * プロジェクト一覧を取得してIDマッピングを返す
    * @returns プロジェクトの名前とIDのマッピング配列
    */
-  async getProjects(): Promise<NameIdMapping[]> {
+  async getProjects(): Promise<RedmineProject[]> {
     if (this.projectsCache.length > 0) {
       return this.projectsCache;
     }
@@ -216,6 +220,7 @@ export class RedmineClient {
       projects: Array<{
         id: number;
         name: string;
+        identifier: string;
       }>;
     }
 
@@ -226,6 +231,7 @@ export class RedmineClient {
     this.projectsCache = response.projects.map((project) => ({
       id: project.id,
       name: project.name,
+      identifier: project.identifier,
     }));
 
     return this.projectsCache;

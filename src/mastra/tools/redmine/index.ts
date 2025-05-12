@@ -30,12 +30,6 @@ export const createRedmineTools = (config: {
       'Redmineインスタンスの基本情報（プロジェクト、トラッカー、ステータス、優先度など）を取得します。',
     inputSchema: z.object({}),
     outputSchema: z.object({
-      projects: z.array(
-        z.object({
-          id: z.number(),
-          name: z.string(),
-        }),
-      ),
       trackers: z.array(
         z.object({
           id: z.number(),
@@ -57,15 +51,13 @@ export const createRedmineTools = (config: {
     }),
     execute: async () => {
       // 各種マスタ情報を取得
-      const [projects, trackers, statuses, priorities] = await Promise.all([
-        client.getProjects(),
+      const [trackers, statuses, priorities] = await Promise.all([
         client.getTrackers(),
         client.getStatuses(),
         client.getPriorities(),
       ]);
 
       return {
-        projects,
         trackers,
         statuses,
         priorities,

@@ -29,7 +29,9 @@ export const createGetIssuesListTool = (client: RedmineClient) => {
     inputSchema: z.object({
       project_id: z
         .union([z.string(), z.number()])
-        .describe('プロジェクトIDまたはプロジェクト名:必須'),
+        .describe(
+          'プロジェクトID、プロジェクト名、またはプロジェクト識別子:必須',
+        ),
       status_id: z
         .union([z.string(), z.number(), z.enum(['open', 'closed', '*'])])
         .optional()
@@ -260,7 +262,9 @@ export const createCreateIssueTool = (client: RedmineClient) => {
     inputSchema: z.object({
       project_id: z
         .union([z.string(), z.number()])
-        .describe('プロジェクトIDまたはプロジェクト名:必須'),
+        .describe(
+          'プロジェクトID、プロジェクト名、またはプロジェクト識別子:必須',
+        ),
       subject: z.string().describe('チケットのタイトル:必須'),
       description: z.string().optional().describe('チケットの説明:任意'),
       tracker_id: z
