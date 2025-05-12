@@ -196,8 +196,8 @@ ${
   config.gitlab
     ? `- GitLab操作ツール
   - GitLabのURLはこちら：${store.get('gitlab').endpoint}
-  - プロジェクト(リポジトリ)を指定する際はプロジェクトIDまたはURLエンコードされたパスが必要になるが、URLエンコードされたパスは以下のように取得できる
-    - 例えば、プロジェクト(リポジトリ)のURLが${store.get('gitlab').endpoint}/groupA/groupB/projectの場合、URLエンコードされたパスはgroupA%2FgroupB%2Fprojectとなる(/ は%2F で表されます)`
+  - プロジェクト(リポジトリ)を指定する際はプロジェクトIDまたはプロジェクトの非エンコードパスが必要です
+    - 例えば、プロジェクト(リポジトリ)のURLが${store.get('gitlab').endpoint}/groupA/groupB/projectの場合、プロジェクトの非エンコードパスはgroupA/groupB/projectとなります`
     : ''
 }
 `;

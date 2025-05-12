@@ -21,11 +21,11 @@ export const createGetFileContentTool = (client: GitLabClient) => {
     inputSchema: z.object({
       project_id: z
         .union([z.string(), z.number()])
-        .describe('プロジェクトIDまたはURLエンコードされたパス:必須'),
+        .describe('プロジェクトIDまたはプロジェクトの非エンコードパス:必須'),
       file_path: z
         .string()
         .describe(
-          'リポジトリルートからの相対パスで、URLエンコード済みであること（例えばpath%2Fto%2Ffile.rb）:必須',
+          'ファイルパス（リポジトリルートからの非エンコードの相対パス）:必須',
         ),
       ref: z.string().describe('リファレンス（ブランチ名、タグ名）:必須'),
     }),
@@ -77,11 +77,11 @@ export const createGetRawFileTool = (client: GitLabClient) => {
     inputSchema: z.object({
       project_id: z
         .union([z.string(), z.number()])
-        .describe('プロジェクトIDまたはURLエンコードされたパス:必須'),
+        .describe('プロジェクトIDまたはプロジェクトの非エンコードパス:必須'),
       file_path: z
         .string()
         .describe(
-          'ファイルパス（リポジトリルートからの相対パスで、URLエンコード済みであること（例えばpath%2Fto%2Ffile.rb）:必須',
+          'ファイルパス（リポジトリルートからの非エンコードの相対パス）:必須',
         ),
       ref: z.string().describe('リファレンス（ブランチ名、タグ名）:必須'),
     }),
@@ -133,11 +133,11 @@ export const createGeBlameFileTool = (client: GitLabClient) => {
     inputSchema: z.object({
       project_id: z
         .union([z.string(), z.number()])
-        .describe('プロジェクトIDまたはURLエンコードされたパス:必須'),
+        .describe('プロジェクトIDまたはプロジェクトの非エンコードパス:必須'),
       file_path: z
         .string()
         .describe(
-          'ファイルパス（リポジトリルートからの相対パスで、URLエンコード済みであること（例えばpath%2Fto%2Ffile.rb））:必須',
+          'ファイルパス（リポジトリルートからの非エンコードの相対パス）:必須',
         ),
       ref: z.string().describe('リファレンス（ブランチ名、タグ名）:必須'),
       range: z
@@ -197,7 +197,7 @@ export const createGetRepositoryTreeTool = (client: GitLabClient) => {
     inputSchema: z.object({
       project_id: z
         .union([z.string(), z.number()])
-        .describe('プロジェクトIDまたはURLエンコードされたパス:必須'),
+        .describe('プロジェクトIDまたはプロジェクトの非エンコードパス:必須'),
       path: z
         .string()
         .optional()

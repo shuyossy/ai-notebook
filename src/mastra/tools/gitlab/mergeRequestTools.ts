@@ -21,7 +21,7 @@ export const createGetMergeRequestDetailTool = (client: GitLabClient) => {
     inputSchema: z.object({
       project_id: z
         .union([z.string(), z.number()])
-        .describe('プロジェクトIDまたはURLエンコードされたパス:必須'),
+        .describe('プロジェクトIDまたはプロジェクトの非エンコードパス:必須'),
       merge_request_iid: z
         .number()
         .describe('マージリクエストのIID（プロジェクト内ID）:必須'),
@@ -75,7 +75,7 @@ export const createAddMergeRequestCommentTool = (client: GitLabClient) => {
     inputSchema: z.object({
       project_id: z
         .union([z.string(), z.number()])
-        .describe('プロジェクトIDまたはURLエンコードされたパス:必須'),
+        .describe('プロジェクトIDまたはプロジェクトの非エンコードパス:必須'),
       merge_request_iid: z
         .number()
         .describe('マージリクエストのIID（プロジェクト内ID）:必須'),
@@ -129,7 +129,7 @@ export const createAddMergeRequestDiffCommentTool = (client: GitLabClient) => {
     inputSchema: z.object({
       project_id: z
         .union([z.string(), z.number()])
-        .describe('プロジェクトIDまたはURLエンコードされたパス:必須'),
+        .describe('プロジェクトIDまたはプロジェクトの非エンコードパス:必須'),
       merge_request_iid: z
         .number()
         .describe('マージリクエストのIID（プロジェクト内ID）:必須'),
