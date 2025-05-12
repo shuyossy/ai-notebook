@@ -167,30 +167,19 @@ export const createGetIssuesListTool = (client: RedmineClient) => {
           }
         });
 
-        // ページネーション
-        const limit = 100;
-        let offset = 0;
-        // すべてのチケットを格納する配列
-        let all: any[] = [];
+        // API リクエストの実行
+        const path = `issues.json?${queryParams.toString()}`;
         // eslint-disable-next-line
-        while (true) {
-          // API リクエストの実行
-          const path = `issues.json?${queryParams.toString()}&limit=${limit}&offset=${offset}`;
-          // eslint-disable-next-line
-          const response = await client.request<RedmineIssueListResponse>(
-            path,
-            'GET',
-          );
-          all = all.concat(response.issues);
-          if (all.length >= response.total_count) break;
-          offset += limit;
-        }
+        const response = await client.request<RedmineIssueListResponse>(
+          path,
+          'GET',
+        );
 
         status = 'success';
         return {
           status,
           result: {
-            issues: all,
+            issues: response.issues,
           },
         };
       } catch (error) {

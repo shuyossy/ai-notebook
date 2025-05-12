@@ -56,53 +56,119 @@ export class RedmineClient {
   }
 
   /**
-   * RedmineのRESTリクエストを実行する
-   * @param path APIパス
-   * @param method HTTPメソッド
-   * @param data リクエストデータ
-   * @returns レスポンスデータ
+   * Redmine の REST API リクエストメソッド
+   *  - GET  の場合 : limit / offset を使って全件取得（最大 100 件ずつ）
+   *  - POST/PUT の場合 : 1 回だけ実行
    */
   async request<T = any>(
     path: string,
     method: 'GET' | 'POST' | 'PUT',
     data: any = undefined,
   ): Promise<T> {
-    const url = new URL(path, this.apiUrl);
-
-    const headers: RedmineHeaders = {
+    /**
+     * --------------------------
+     *  共通ヘッダーと fetch オプション
+     * --------------------------
+     */
+    const commonHeaders: Record<string, string> = {
       'Content-Type': 'application/json',
       'X-Redmine-API-Key': this.apiKey,
     };
 
-    const options = {
-      method,
-      headers,
-      body: data ? JSON.stringify(data) : undefined,
-    };
-
-    try {
-      const response = await fetch(url.toString(), options);
-
+    /**
+     * ---------------------------------------------
+     * 1. GET 以外は従来どおり 1 回だけ実行して終了
+     * ---------------------------------------------
+     */
+    if (method !== 'GET') {
+      const url = new URL(path, this.apiUrl);
+      const response = await fetch(url.toString(), {
+        method,
+        headers: commonHeaders,
+        body: data ? JSON.stringify(data) : undefined,
+      });
       if (!response.ok) {
         throw new Error(
           `Redmine API Error: ${response.status} ${response.statusText}`,
         );
       }
-
-      // 更新処理（PUT）の場合、204ステータスかつコンテンツが返らないため空オブジェクトを返す
-      if (
-        response.status === 204 ||
-        !response.headers.get('content-length') ||
-        response.headers.get('transfer-encoding')?.includes('chunked')
-      ) {
+      if (response.status === 204) {
         return {} as T;
       }
-
-      return await response.json();
-    } catch (error) {
-      console.error('Redmine API Request failed:', error);
-      throw error;
+      return (await response.json()) as T;
     }
+
+    /**
+     * ---------------------------------------
+     * 2. ここから GET（一覧取得）のページネーション処理
+     * ---------------------------------------
+     */
+    const limit = 100; // 1 リクエスト最大件数（Redmine の上限）
+    let offset = 0; // 現在の取得開始位置
+    let aggregatedJson: any = null; // マージ後に返却する JSON
+    let arrayKey: string | null = null; // projects / issues / users など配列が入るキー
+
+    while (true) {
+      // URL に limit / offset を付与（既に付いていれば上書き）
+      const url = new URL(path, this.apiUrl);
+      url.searchParams.set('limit', limit.toString());
+      url.searchParams.set('offset', offset.toString());
+
+      // リクエスト実行
+      const res = await fetch(url.toString(), {
+        method,
+        headers: commonHeaders,
+      });
+      if (!res.ok) {
+        throw new Error(`Redmine API Error: ${res.status} ${res.statusText}`);
+      }
+      const json = (await res.json()) as Record<string, any>;
+
+      /**
+       * 2-1. 1 ページ目：返却 JSON の「配列キー」と total_count を特定
+       *  - Redmine の一覧 API は必ず
+       *       {
+       *         "<resource_plural>": [...array...],
+       *         "total_count": 123,
+       *         "limit": 100,
+       *         "offset": 0
+       *       }
+       *    の形で返る。
+       */
+      if (arrayKey === null) {
+        arrayKey =
+          Object.keys(json).find((k) => Array.isArray(json[k])) || null;
+        if (!arrayKey) {
+          // 配列キーが見つからない ⇒ そもそも一覧 API ではない
+          return json as T;
+        }
+        // 返却用オブジェクトのひな形を作成（total_count 等も保持）
+        aggregatedJson = { ...json, [arrayKey]: [...json[arrayKey]] };
+      } else {
+        // 2 ページ目以降は対象配列だけマージ
+        aggregatedJson[arrayKey].push(...json[arrayKey]);
+      }
+
+      // 現在取得済み件数
+      const currentCount: number = aggregatedJson[arrayKey].length;
+      const total: number | undefined = aggregatedJson.total_count; // 無いエンドポイントもある
+
+      // ---------------------------------
+      // ループ終了判定
+      //   1) total_count がある     → 取得済 >= total_count
+      //   2) total_count が無い場合 → 返却件数 < limit（＝最終ページ）
+      // ---------------------------------
+      if (
+        (total !== undefined && currentCount >= total) ||
+        json[arrayKey].length < limit
+      ) {
+        break;
+      }
+
+      offset += limit; // 次ページへ
+    }
+
+    return aggregatedJson as T;
   }
 
   /**
