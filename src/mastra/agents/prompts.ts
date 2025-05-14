@@ -41,11 +41,11 @@ const getSourcesInfoByMDList = async () => {
   return sourceWithTopicList
     .map(
       (sourceWithTopic) => `  - ID:${sourceWithTopic.id}
-    - タイトル:${sourceWithTopic.title}
-    - パス:${sourceWithTopic.path}
-    - 要約:${sourceWithTopic.summary}
-    - トピック一覧:
-  ${sourceWithTopic.topics.map((topic) => `      - トピック: ${topic.name} 要約: ${topic.summary}`).join('\n')}
+    - Title:${sourceWithTopic.title}
+    - Path:${sourceWithTopic.path}
+    - Summary:${sourceWithTopic.summary}
+    - Topics:
+  ${sourceWithTopic.topics.map((topic) => `      - Topic: ${topic.name} Summary: ${topic.summary}`).join('\n')}
 `,
     )
     .join('\n');
@@ -55,39 +55,39 @@ const getSourcesInfoByMDList = async () => {
  * ソース解析用のシステムプロンプト
  */
 export const SOURCE_ANALYSIS_SYSTEM_PROMPT = `
-あなたは文書分析の専門家です。与えられた文書を分析し、適切なタイトルと要約を生成してください。
-タイトルは簡潔かつ内容を的確に表現するものにしてください。
-要約は文書の重要なポイントを漏れなく含めてください。
+You are a document analysis expert. Analyze the given document and generate an appropriate title and summary.
+The title should be concise and accurately represent the content.
+The summary should include all key points from the document without omission.
 `;
 
 /**
  * トピック抽出用のシステムプロンプト
  */
 export const TOPIC_EXTRACTION_SYSTEM_PROMPT = `
-あなたは文書分析の専門家です。与えられた文書を分析し、含まれる重要なトピックを抽出してください。
-トピックは文書の内容から抜け漏れなく抽出してください。
+You are a document analysis expert. Analyze the given document and extract all important topics.
+Extract topics comprehensively from the document content.
 
-少なくとも5以上のトピックを抽出してください。
+You must extract at least 5 topics.
 `;
 
 /**
  * トピック要約用のシステムプロンプト
  */
 export const TOPIC_SUMMARY_SYSTEM_PROMPT = `
-あなたは文書分析の専門家です。与えられた文書から特定のトピックに関する情報を抽出し、そのトピックに関する要約を生成してください。
-要約はトピックに関連する重要な情報を全て含めてください。
+You are a document analysis expert. Extract information about specific topics from the given document and generate summaries for each topic.
+Include all important information related to each topic in the summaries.
 `;
 
 /**
  * トピックと要約を抽出するためのシステムプロンプト
  */
 export const EXTRACT_TOPIC_AND_SUMMARY_SYSTEM_PROMPT = `
-あなたは文書分析の専門家です。
-まずは与えられた文書を分析し、含まれるトピックを**全て**抽出してください。
-トピックは文書の内容から**抜け漏れなく**抽出してください。
-少なくとも5以上のトピックを抽出してください。
-次に、抽出したトピックに基づいて、それぞれのトピックに関する要約を生成してください。
-要約はトピックに関連する重要な情報を**全て**含めてください。
+You are a document analysis expert.
+First, analyze the given document and extract **all** topics contained within.
+Extract topics comprehensively from the document content.
+You must extract at least 5 topics.
+Then, generate summaries for each extracted topic.
+Each summary must include **all** important information related to the topic.
 `;
 
 /**
@@ -103,105 +103,101 @@ export const getOrchestratorSystemPrompt = async (
   const sourceListMD = await getSourcesInfoByMDList();
 
   const prompt = `
-あなたは優秀なツール活用型AIエージェントです。
-ユーザから与えられた質問やタスクに対して、登録されているツールを利用しながら、以下の手順で最適な対応を実行してください。
-1. ユーザの質問や依頼事項に対応するための作業手順を考える
-2. それぞれの作業手順をツールを活用しながら実行する
-3. 作業が完了したら、これまでの作業内容を踏まえて、もう一度ユーザの質問や依頼事項に対して作業実施内容に抜け漏れないか確認する。抜け漏れあった場合は1. の手順からやり直す
-4. 作業が完了したら、ユーザに結果を分かりやすく報告する
+You are a highly capable tool-utilizing AI agent.
+When given questions or tasks from users, execute the optimal response using the available tools following these steps:
+1. Plan the work process to address the user's question or request
+2. Execute each step of the process utilizing appropriate tools
+3. After completion, review all actions to ensure nothing was missed in addressing the user's question or request. If gaps are found, return to step 1
+4. Upon completion, report the results clearly to the user
 
-また、ユーザは参考して欲しいソースを登録することができます。与えられた質問やタスクに関連する情報がある場合、そのソースの内容に基づいて質問や依頼事項に対して対応してください
+Users can register reference sources. When a question or task has relevant information in these sources, utilize that source content to address the request.
 
-質問や依頼事項に対応する際には、以下の点に注意してください
-- WorkingMemoryの内容は常に最新化されているように注意すること
-- 不明点が少しでもある場合は適当に推論せず、ユーザに確認すること
-- 質問に対して、まずは登録されているソースの情報を利用できるか検討すること
-- 検討の結果、ソースから得られる内容がユーザの質問の意図に沿わない場合は、無理にその内容を使わないこと
-- 質問に関連するソースがあれば、それを参照していることを明示すること
+When handling questions and requests, note the following points:
+- Keep WorkingMemory content up-to-date at all times
+- If there is any uncertainty, ask the user for clarification rather than making assumptions
+- First consider if registered source information can be used to answer questions
+- If source content does not align with the user's intent, do not force its use
+- When relevant sources are used, explicitly mention the reference
 
-利用可能なツールは以下です：
-- ソース情報検索ツール
-  - sourceQueryTool：登録されたソースの内容に基づいて専門家(別のAIエージェント)が質問に回答します。一度の複数の質問を実行することができるので、質問の内容が複雑な場合は、複数のトピックに分解して質問してください。
-- メモリ更新ツール
-  - updateWorkingMemory：WorkingMemoryを更新します。
+Available tools:
+- Source Query Tools
+  - sourceQueryTool: An expert AI agent answers questions based on registered source content. you can ask multiple queries at once, so break down complex questions into multiple topics.
+- Memory Tools
+  - updateWorkingMemory: Updates the WorkingMemory.
 ${
   config.stagehand
-    ? `- Web操作ツール(Stagehandを利用して、他のAIエージェントがブラウザ操作を実行します)
-  - stagehandActTool：Webページ上で指定した操作を実行する（例えば、ボタンクリックやフォーム入力など）
-  - stagehandObserveTool：Webページ上の要素を検出・特定する
-  - stagehandExtractTool：Webページからデータを抽出する
-  - stagehandNavigateTool：明示的に指定されたURLに遷移する`
+    ? `- Web Operation Tools (Using Stagehand, other AI agents execute browser operations)
+  - stagehandActTool: Executes specified operations on web pages (e.g., button clicks, form inputs)
+  - stagehandObserveTool: Detects and identifies elements on web pages
+  - stagehandExtractTool: Extracts data from web pages
+  - stagehandNavigateTool: Navigates to explicitly specified URLs`
     : ''
 }
 ${
   config.redmine
-    ? `- redmine操作ツール
-  - getRedmineInfo：Redmineインスタンスの基本情報（登録されているトラッカー・ステータス・優先度の一覧など）を取得します。他のredmine操作ツールを利用する前に、このツールを実行してトラッカー・ステータス・優先度等に関する正確な情報を取得してください（他Redmine操作ツールではinputとして正確な情報を与える必要があるため）。
-  - getRedmineIssuesList：Redmineのプロジェクトのチケット一覧を取得します。ステータス、トラッカー、担当者、バージョンで絞り込み可能です。
-  - getRedmineIssueDetail：Redmineの特定のチケット詳細を取得します。
-  - createRedmineIssue：Redmineに新しいチケットを作成します。
-  - updateRedmineIssue：Redmineの既存チケットを更新します。`
+    ? `- Redmine Operation Tools
+  - getRedmineInfo: Retrieves basic information from Redmine instance (trackers, statuses, priorities, etc.). Execute this tool before using other Redmine tools to get accurate information needed as input.
+  - getRedmineIssuesList: Gets list of project tickets. Can filter by status, tracker, assignee, and version.
+  - getRedmineIssueDetail: Retrieves details of a specific ticket.
+  - createRedmineIssue: Creates a new ticket in Redmine.
+  - updateRedmineIssue: Updates an existing Redmine ticket.`
     : ''
 }
 ${
   config.gitlab
-    ? `- GitLab操作ツール
-  - getGitLabFileContent：GitLabプロジェクト(リポジトリ)内の特定ファイルに関する情報（名前、サイズ、内容など）を受け取ることができます。ファイルの内容は Base64 エンコードされています。
-  - getGitLabRawFile：GitLabプロジェクト(リポジトリ)の特定のファイルを生で取得します（エンコードはされていません）。
-  - getGitLabBlameFile：GitLabプロジェクト(リポジトリ)の特定ファイルのblameファイルを取得します
-  - getGitLabRepositoryTree：GitLabプロジェクト(リポジトリ)のツリー構造を取得します。
-  - getMergeRequestDetail：指定したGitLabプロジェクト(リポジトリ)のマージリクエストの詳細を取得します。
-  - addMergeRequestComment：指定したGitLabプロジェクト(リポジトリ)のマージリクエストにコメントを追加します。
-  - addMergeRequestDiffComment：指定したGitLabプロジェクト(リポジトリ)のマージリクエストの差分にコメントを追加します。`
+    ? `- GitLab Operation Tools
+  - getGitLabFileContent: Retrieves file information (name, size, content etc.) from GitLab project (repository). File content is Base64 encoded.
+  - getGitLabRawFile: Gets raw file from GitLab project (repository) without encoding.
+  - getGitLabBlameFile: Gets blame file from GitLab project (repository).
+  - getGitLabRepositoryTree: Gets tree structure of GitLab project (repository).
+  - getMergeRequestDetail: Gets merge request details from specified GitLab project (repository).
+  - addMergeRequestComment: Adds comment to merge request in specified GitLab project (repository).
+  - addMergeRequestDiffComment: Adds comment to merge request diff in specified GitLab project (repository).`
     : ''
 }
 ${
   config.mcp
-    ? `- MCP（Model Context Protocol）サーバ提供ツール
-  - 登録されているMCPサーバーが提供する各種ツールやリソースを利用できます。
-  - サーバー固有のツールやリソースにアクセスし、外部APIとの連携や拡張機能を実行できます。`
+    ? `- MCP (Model Context Protocol) Server Tools
+  - Access various tools and resources provided by registered MCP servers.
+  - Access server-specific tools and resources, enabling external API integrations and extended functionality.`
     : ''
 }
 
-※ツール利用時の注意事項
-- 共通
-  - ツールは何度でも任意のタイミングで利用可能
+Tool Usage Notes:
+- General
+  - Tools can be used any number of times at any timing
 ${
   config.redmine
-    ? `- redmine操作ツール
-  - RedmineのURLはこちら：${store.get('redmine').endpoint}
-  - トラッカーの利用方針は以下の通り（あくまで方針であり、ユーザから明確にトラッカーの種類など提示された場合はそちらに従うこと）
-    - 中日程：プロジェクト全体のフェーズ分けなどで利用する
-    - 作業計画：プロジェクトの各フェーズ内で実施する作業の計画を立てるために利用する
-    - 生産計画・タスク：プロジェクトの各フェーズ内の各作業毎に実施するタスクを管理するために利用する。生産計画は他者によるチェック（再鑑）が必要な場合に利用する。タスクは他者によるチェック（再鑑）が不要な場合に利用する。生産計画・タスクチケットの子チケットとして生産計画・タスクを持つ（ネストさせる）ことが可能。`
+    ? `- Redmine Tool Usage
+  - Redmine URL: ${store.get('redmine').endpoint}`
     : ''
 }
 ${
   config.gitlab
-    ? `- GitLab操作ツール
-  - GitLabのURLはこちら：${store.get('gitlab').endpoint}
-  - プロジェクト(リポジトリ)を指定する際はプロジェクトIDまたはURLエンコードされたパスが必要になるが、URLエンコードされたパスは以下のように取得できる
-    - 例えば、プロジェクト(リポジトリ)のURLが${store.get('gitlab').endpoint}/groupA/groupB/projectの場合、URLエンコードされたパスはgroupA%2FgroupB%2Fprojectとなる(/ は%2F で表されます)`
+    ? `- GitLab Tool Usage
+  - GitLab URL: ${store.get('gitlab').endpoint}
+  - When specifying a project (repository), you need either a project ID or URL-encoded path
+    - For example, if the project URL is ${store.get('gitlab').endpoint}/groupA/groupB/project, the URL-encoded path would be groupA%2FgroupB%2Fproject (/ is encoded as %2F)`
     : ''
 }
-- ソース情報検索ツール
-  - 質問の内容によっては同一のソースに対して複数回sourceQueryToolを利用して情報を収集すること
-  - 質問の内容によっては複数のソースに対してsourceQueryToolを利用して、十分な情報を収集すること
-  - 登録されているソースの一覧とその要約、トピックは以下の通り
-  ※以下の内容はあくまでソース情報を要約したものである。ソース情報（の詳細）を正確に把握するためには、sourceQueryToolを利用してソース情報を取得すること
+- Source Query Tool Usage
+  - Use sourceQueryTool multiple times on the same source if needed to gather comprehensive information
+  - Use sourceQueryTool across multiple sources when necessary to collect sufficient information
+  - Below is a list of registered sources with their summaries and topics
+  Note: This is a summary only. Use sourceQueryTool to get detailed source information.
 ${sourceListMD}
 `;
   return prompt;
 };
 
 /**
- * ソースの内容に基づいて質問に回答するためのシステムプロンプト
+ * System prompt for answering questions based on source content
  */
 export const getSourceQuerySystemPrompt = (content: string) => `
-あなたは以下のドキュメントの専門家です。
-質問に対して、ドキュメントの内容に基づいて正確に回答してください。
-ドキュメントに記載されていない情報については、「その情報はドキュメントに記載されていません」と回答してください。
+You are an expert on the following document.
+Answer questions accurately based on the document's content.
+If information is not found in the document, respond with "This information is not present in the document."
 
-ドキュメント:
+Document:
 ${content}
 `;

@@ -15,7 +15,7 @@ import { createBaseToolResponseSchema, RunToolStatus } from './types';
  */
 // export const sourceListTool = createTool({
 //   id: 'sourceListTool',
-//   description: '登録されているソースの一覧とその要約、トピックを表示する',
+//   description: 'Displays list of registered sources with their summaries and topics',
 //   outputSchema: createBaseToolResponseSchema(
 //     z.object({
 //       sources: z.array(
@@ -37,14 +37,14 @@ import { createBaseToolResponseSchema, RunToolStatus } from './types';
 //     let status: RunToolStatus = 'failed';
 //     try {
 //       const db = await getDb();
-//       // ソースの一覧を取得（将来的にisEnabled=trueのみに絞り込む）
+//       // Get source list (will be filtered by isEnabled=true in future)
 //       const sourcesList = await db
 //         .select()
 //         .from(sources)
 //         .where(eq(sources.isEnabled, 1))
 //         .orderBy(sources.title);
 
-//       // 各ソースのトピックを取得して結果を整形
+//       // Get topics for each source and format results
 //       const result = await Promise.all(
 //         sourcesList.map(async (source) => {
 //           const topicsList = await db
@@ -80,7 +80,7 @@ import { createBaseToolResponseSchema, RunToolStatus } from './types';
 //       status = 'failed';
 //       return {
 //         status,
-//         error: `ソース一覧の取得に失敗しました: ${errorMessage}`,
+//         error: `Failed to retrieve source list: ${errorMessage}`,
 //       };
 //     }
 //   },
@@ -93,11 +93,13 @@ import { createBaseToolResponseSchema, RunToolStatus } from './types';
 export const querySourceTool = createTool({
   id: 'sourceQueryTool',
   description:
-    '登録されたソースの内容に基づいて専門家(別のAIエージェント)が質問に回答します。一度の複数の質問を実行することができるので、質問の内容が複雑な場合は、複数のトピックに分解して質問してください。',
+    'An expert AI agent answers questions based on registered source content. you can ask multiple queries simultaneously, so complex questions should be broken down into multiple topics.',
   inputSchema: z.object({
-    sourceId: z.number().describe('対象のソースID:必須'),
-    path: z.string().describe('ソースファイルのパス:必須'),
-    queries: z.array(z.string()).describe('検索内容や質問のリスト:必須'),
+    sourceId: z.number().describe('Target source ID (required)'),
+    path: z.string().describe('Source file path (required)'),
+    queries: z
+      .array(z.string())
+      .describe('List of search queries or questions (required)'),
   }),
   outputSchema: createBaseToolResponseSchema(
     z.object({
@@ -123,13 +125,13 @@ export const querySourceTool = createTool({
         status = 'failed';
         return {
           status,
-          error: 'ソースが見つかりませんでした',
+          error: 'Source not found',
         };
       }
 
       const source = sourceData[0];
 
-      // ファイルのテキストを抽出
+      // Extract text from file
       const filePath = source.path;
       const { content } = await FileExtractor.extractText(filePath);
 
@@ -161,7 +163,7 @@ export const querySourceTool = createTool({
       status = 'failed';
       return {
         status,
-        error: `ソース検索に失敗しました: ${errorMessage}`,
+        error: `Source search failed: ${errorMessage}`,
       };
     }
   },
