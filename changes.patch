@@ -1,360 +1,849 @@
-diff --git a/src/main/main.ts b/src/main/main.ts
-index 5fc7835a5..a7ccb0319 100644
---- a/src/main/main.ts
-+++ b/src/main/main.ts
-@@ -47,6 +47,7 @@ const mastraStatus: AgentBootStatus = {
-     redmine: false,
-     gitlab: false,
-     mcp: false,
-+    stagehand: false,
-   },
- };
- 
-@@ -287,6 +288,7 @@ const setupChatHandlers = () => {
-                   redmine: false,
-                   gitlab: false,
-                   mcp: false,
-+                  stagehand: false,
-                 },
-               ),
-               threadId: roomId, // チャットルームIDをスレッドIDとして使用
-diff --git a/src/main/store.ts b/src/main/store.ts
-index e2d68a6c9..9b75fee0c 100644
---- a/src/main/store.ts
-+++ b/src/main/store.ts
-@@ -24,6 +24,10 @@ export interface StoreSchema {
-   mcp: {
-     serverConfigText: string;
-   };
-+  stagehand: {
-+    enabled: boolean;
-+    headless: boolean;
-+  };
- }
- 
- // スキーマ定義
-@@ -77,6 +81,20 @@ const schema = {
-     },
-     required: [],
-   },
-+  stagehand: {
-+    type: 'object',
-+    properties: {
-+      enabled: {
-+        type: 'boolean',
-+        default: false,
-+      },
-+      headless: {
-+        type: 'boolean',
-+        default: false,
-+      },
-+    },
-+    required: [],
-+  },
- } as const;
- 
- /**
-@@ -133,6 +151,10 @@ const defaults: StoreSchema = {
-   mcp: {
-     serverConfigText: '{}',
-   },
-+  stagehand: {
-+    enabled: false,
-+    headless: false,
-+  },
- };
- 
- // ストアのインスタンスを作成する関数
-diff --git a/src/main/types/index.ts b/src/main/types/index.ts
-index df29dc092..f3ae2c765 100644
---- a/src/main/types/index.ts
-+++ b/src/main/types/index.ts
-@@ -36,6 +36,7 @@ export type AgentToolStatus = {
-   redmine: boolean;
-   gitlab: boolean;
-   mcp: boolean;
-+  stagehand: boolean;
- };
- 
- /**
-diff --git a/src/main/types/settingsSchema.ts b/src/main/types/settingsSchema.ts
-index efc139260..bfd11adf1 100644
---- a/src/main/types/settingsSchema.ts
-+++ b/src/main/types/settingsSchema.ts
-@@ -71,6 +71,14 @@ export const GitLabSchema = z.object({
-   apiKey: z.string().optional().or(z.literal('')),
- });
- 
-+/**
-+ * Stagehand設定のスキーマ
-+ */
-+export const StagehandSchema = z.object({
-+  enabled: z.boolean(),
-+  headless: z.boolean(),
-+});
-+
- /**
-  * MCP設定のスキーマ
-  */
-@@ -112,6 +120,7 @@ export const SettingsSchema = z.object({
-   redmine: RedmineSchema,
-   gitlab: GitLabSchema,
-   mcp: McpStoreSchema,
-+  stagehand: StagehandSchema,
- });
- 
- export type ValidationError = {
 diff --git a/src/mastra/agents/orchestrator.ts b/src/mastra/agents/orchestrator.ts
-index de2d877bc..a51443138 100644
+index a51443138..eeb523eac 100644
 --- a/src/mastra/agents/orchestrator.ts
 +++ b/src/mastra/agents/orchestrator.ts
-@@ -9,7 +9,7 @@ import { getStore } from '../../main/store';
- import { setupRedmineTools } from '../tools/redmine';
- import { setupGitLabTools } from '../tools/gitlab';
- import { McpSchema } from '../../main/types/schema';
--import { AgentBootMessage } from '../../main/types';
-+import { AgentBootMessage, AgentToolStatus } from '../../main/types';
- 
- const ORCHESTRATOR_NAME = 'orchestrator';
- const LOG_FILE_PATH = './mcp.log';
-@@ -55,17 +55,14 @@ const deleteLogFile = (): void => {
- export const getOrchestrator = async (): Promise<{
-   agent: Agent | null;
-   alertMessages: AgentBootMessage[];
--  toolStatus: {
--    redmine: boolean;
--    gitlab: boolean;
--    mcp: boolean;
--  };
-+  toolStatus: AgentToolStatus;
- }> => {
-   const alertMessages: AgentBootMessage[] = [];
-   let agent: Agent | null = null;
-   let redmineTools = {};
-   let gitlabTools = {};
-   let mcpTools = {};
-+  let stagehandTools = {};
- 
-   try {
-     const store = getStore();
-@@ -168,6 +165,28 @@ export const getOrchestrator = async (): Promise<{
-       }
-     }
- 
-+    // Stagehandツールの登録
-+    // Stagehandが有効な場合は登録する
-+    const stagehandStore = store.get('stagehand');
-+    const stagehandEnabled = stagehandStore.enabled;
-+    if (stagehandEnabled) {
-+      try {
-+        stagehandTools = await createStagehandTools();
-+        alertMessages.push({
-+          id: uuid(),
-+          type: 'info',
-+          content: 'ブラウザ操作ツールの初期化に成功しました。',
-+        });
-+      } catch (error) {
-+        alertMessages.push({
-+          id: uuid(),
-+          type: 'warning',
-+          content: `ブラウザ操作ツールの初期化に失敗しました\n${error}`,
-+        });
-+        console.error('ブラウザ操作ツールの初期化に失敗しました:', error);
-+      }
-+    }
+@@ -210,44 +210,19 @@ export const getOrchestrator = async (): Promise<{
+           enabled: true,
+           use: 'tool-call',
+           tmplate: `
+-# スレッド全体の内容
+-
+-## 要約：
+-...
+-
+-## トピック：
+-- [トピック 1]
+-- [トピック 2]
+-- ...
+-
+-# 現在対応中の質問内容
+-
+-## 質問内容:
+-...
+-
+-## 対応手順
+-- [ステップ 1]
+-  - 内容：
+-  - 完了条件：
+-  - 進捗率：
+-  - メモ
+-    - [メモ 1]
+-    - ...
+-  - 結果：
+-- [ステップ 2]
+-  - 内容：
+-  - 完了条件：
+-  - 進捗率：
+-  - メモ
+-    - [メモ 1]
+-    - ...
+-  - 結果：
+-- ...
+-
+-## 回答用メモ
+-
+-- [メモ 1]
+-- [メモ 2]
++# Session Status
++- Current Main Task: {task}
 +
-     // エージェントの作成
-     agent = createAgent({
-       name: ORCHESTRATOR_NAME,
-@@ -175,7 +194,7 @@ export const getOrchestrator = async (): Promise<{
-       tools: {
-         // sourceListTool,
-         querySourceTool,
--        ...createStagehandTools(),
-+        ...stagehandTools,
-         ...redmineTools,
-         ...gitlabTools,
-         ...mcpTools,
-@@ -248,6 +267,7 @@ export const getOrchestrator = async (): Promise<{
-       redmine: !!redmineTools && Object.keys(redmineTools).length > 0,
-       gitlab: !!gitlabTools && Object.keys(gitlabTools).length > 0,
-       mcp: !!mcpTools && Object.keys(mcpTools).length > 0,
-+      stagehand: !!stagehandTools && Object.keys(stagehandTools).length > 0,
-     },
-   };
- };
++# Task Management
++- Progress: {progress}
++- Action Steps:
++  - {Step 1}
++  - {Step 2}
++  - ...
++
++## Response Notes
++- {Note 1}
++- {Note 2}
+ - ...
+ `,
+         },
 diff --git a/src/mastra/agents/prompts.ts b/src/mastra/agents/prompts.ts
-index 884b2aaaa..9e8043e86 100644
+index 9e8043e86..207993d0e 100644
 --- a/src/mastra/agents/prompts.ts
 +++ b/src/mastra/agents/prompts.ts
-@@ -2,6 +2,7 @@ import { eq, and } from 'drizzle-orm';
- import { getStore } from '../../main/store';
- import { sources, topics } from '../../db/schema';
- import getDb from '../../db';
-+import { AgentToolStatus } from '../../main/types';
+@@ -41,11 +41,11 @@ const getSourcesInfoByMDList = async () => {
+   return sourceWithTopicList
+     .map(
+       (sourceWithTopic) => `  - ID:${sourceWithTopic.id}
+-    - タイトル:${sourceWithTopic.title}
+-    - パス:${sourceWithTopic.path}
+-    - 要約:${sourceWithTopic.summary}
+-    - トピック一覧:
+-  ${sourceWithTopic.topics.map((topic) => `      - トピック: ${topic.name} 要約: ${topic.summary}`).join('\n')}
++    - Title:${sourceWithTopic.title}
++    - Path:${sourceWithTopic.path}
++    - Summary:${sourceWithTopic.summary}
++    - Topics:
++  ${sourceWithTopic.topics.map((topic) => `      - Topic: ${topic.name} Summary: ${topic.summary}`).join('\n')}
+ `,
+     )
+     .join('\n');
+@@ -55,38 +55,39 @@ const getSourcesInfoByMDList = async () => {
+  * ソース解析用のシステムプロンプト
+  */
+ export const SOURCE_ANALYSIS_SYSTEM_PROMPT = `
+-あなたは文書分析の専門家です。与えられた文書を分析し、適切なタイトルと要約を生成してください。
+-タイトルは簡潔かつ内容を的確に表現するものにしてください。
+-要約は文書の重要なポイントを漏れなく含めてください。
++You are a document analysis specialist.
++Given a document, produce:
++1. A concise title that accurately reflects its content.
++2. A complete summary covering every key point.
+ `;
  
  /**
-  * データベースからソース情報を取得する
-@@ -93,11 +94,9 @@ export const EXTRACT_TOPIC_AND_SUMMARY_SYSTEM_PROMPT = `
-  * @param config ツールの有効/無効を指定する設定オブジェクト
-  * @returns システムプロンプト文字列
+  * トピック抽出用のシステムプロンプト
   */
--export const getOrchestratorSystemPrompt = async (config: {
--  redmine: boolean;
--  gitlab: boolean;
--  mcp: boolean;
--}): Promise<string> => {
-+export const getOrchestratorSystemPrompt = async (
-+  config: AgentToolStatus,
-+): Promise<string> => {
-   const store = getStore();
+ export const TOPIC_EXTRACTION_SYSTEM_PROMPT = `
+-あなたは文書分析の専門家です。与えられた文書を分析し、含まれる重要なトピックを抽出してください。
+-トピックは文書の内容から抜け漏れなく抽出してください。
+-
+-少なくとも5以上のトピックを抽出してください。
++You are a document analysis specialist.
++Identify and list at least five key topics from the provided document.
++Present your topics as a numbered list.
+ `;
  
+ /**
+  * トピック要約用のシステムプロンプト
+  */
+ export const TOPIC_SUMMARY_SYSTEM_PROMPT = `
+-あなたは文書分析の専門家です。与えられた文書から特定のトピックに関する情報を抽出し、そのトピックに関する要約を生成してください。
+-要約はトピックに関連する重要な情報を全て含めてください。
++You are a document analysis specialist.
++For each topic in the provided document, generate a summary that includes all essential details.
++Present each summary under its corresponding topic heading.
+ `;
+ 
+ /**
+  * トピックと要約を抽出するためのシステムプロンプト
+  */
+ export const EXTRACT_TOPIC_AND_SUMMARY_SYSTEM_PROMPT = `
+-あなたは文書分析の専門家です。与えられた文書を分析し、含まれるトピックを**全て**抽出してください。
+-トピックは文書の内容から**抜け漏れなく**抽出してください。
+-少なくとも5以上のトピックを抽出してください。
+-次に、抽出したトピックに基づいて、それぞれのトピックに関する要約を生成してください。
+-要約はトピックに関連する重要な情報を**全て**含めてください。
++You are a document analysis expert.
++First, analyze the given document and extract all topics contained within.
++You must extract at least 5 topics.
++Then, generate summaries for each extracted topic.
++Each summary must include all important information related to the topic.
+ `;
+ 
+ /**
+@@ -102,110 +103,93 @@ export const getOrchestratorSystemPrompt = async (
    const sourceListMD = await getSourcesInfoByMDList();
-@@ -129,11 +128,15 @@ export const getOrchestratorSystemPrompt = async (config: {
-   - sourceQueryTool：登録されたソースの内容に基づいて専門家(別のAIエージェント)が質問に回答します。一度の複数の質問を実行することができます
- - メモリ更新ツール
-   - updateWorkingMemory：スレッドに関する内容や作業時の手順やメモに関するWorkingMemoryを更新します。
--- Web操作ツール(Stagehandを利用して、他のAIエージェントがブラウザ操作を実行します)
-+${
-+  config.stagehand
-+    ? `- Web操作ツール(Stagehandを利用して、他のAIエージェントがブラウザ操作を実行します)
-   - stagehandActTool：Webページ上で指定した操作を実行する（例えば、ボタンクリックやフォーム入力など）
-   - stagehandObserveTool：Webページ上の要素を検出・特定する
-   - stagehandExtractTool：Webページからデータを抽出する
--  - stagehandNavigateTool：明示的に指定されたURLに遷移する
-+  - stagehandNavigateTool：明示的に指定されたURLに遷移する`
-+    : ''
-+}
+ 
+   const prompt = `
+-あなたは優秀なAIアシスタントです。
+-ユーザから与えられた質問やタスクに対して、登録されているツールやWorkingMemoryを利用しながら、以下の手順で最適な対応を実行してください。
+-1. ユーザの質問や依頼事項に対応するための作業手順を考える
+-2. 作業手順を記憶するためにWorkingMemoryを更新する
+-3. それぞれの作業手順を以下のように実行する
+-  - 完了条件が満たされて進捗率が100%になるまで以下を繰り返す
+-    - 登録されているツールやWorkingMemoryを利用しながら完了条件を満たせるように作業を実施する
+-    - 上記の実施結果と完了条件を照らし合わせて進捗率を更新する
+-4. 作業が完了したら、これまでの作業内容を踏まえて、もう一度ユーザの質問や依頼事項に対して作業実施内容に抜け漏れないか確認する。抜け漏れあった場合は1. の手順からやり直す
+-5. 作業が完了したら、ユーザに結果を報告する
+-
+-また、ユーザは参考して欲しいソースを登録することができます。与えられた質問やタスクに関連する情報がある場合、そのソースの内容に基づいて質問や依頼事項に対して対応してください
+-
+-質問や依頼事項に対応する際には、以下の点に注意してください
+-- 不明点が少しでもある場合は必ずユーザに質問し、確認が取れるまで実作業を開始しないこと。
+-- 質問に対して、まずは登録されているソースの情報を利用できるか検討すること
+-- 検討の結果、ソースから得られる内容がユーザの質問の意図に沿わない場合は、無理にその内容を使わないこと
+-- WorkingMemoryの内容は常に最新化されているように注意すること
+-- 質問に関連するソースがあれば、それを参照していることを明示すること
+-- ツールは何度でも利用可能であり、少しでも情報が不十分と思ったら、何度でもツールを使って情報を収集すること
+-
+-利用可能なツールは以下です：
+-- ソース情報検索ツール
+-  - sourceQueryTool：登録されたソースの内容に基づいて専門家(別のAIエージェント)が質問に回答します。一度の複数の質問を実行することができます
+-- メモリ更新ツール
+-  - updateWorkingMemory：スレッドに関する内容や作業時の手順やメモに関するWorkingMemoryを更新します。
++You are an AI agent empowered with a rich set of tools. Whenever a user request arrives, follow this cycle:
++
++1. **Plan**
++   Outline the steps needed to fulfill the request.
++2. **Act**
++   Perform each step using the appropriate tool(s).
++3. **Review**
++   Check that every aspect of the request has been covered; if you find gaps, refine your plan and repeat.
++4. **Report**
++   Present the final results clearly, citing any sources used.
++
++If the user has registered reference materials, always consider them first—only skip or question their relevance if they clearly don’t match the intent.
++
++Keep your working memory updated. When uncertain, ask for clarification rather than guess.
++
++---
++
++### Tools
++
++- **Source Query**
++  \`sourceQueryTool\`: Search registered sources for relevant details.
++
++- **Memory Management**
++  \`updateWorkingMemory\`: Save or update facts in your working memory.
++
+ ${
+   config.stagehand
+-    ? `- Web操作ツール(Stagehandを利用して、他のAIエージェントがブラウザ操作を実行します)
+-  - stagehandActTool：Webページ上で指定した操作を実行する（例えば、ボタンクリックやフォーム入力など）
+-  - stagehandObserveTool：Webページ上の要素を検出・特定する
+-  - stagehandExtractTool：Webページからデータを抽出する
+-  - stagehandNavigateTool：明示的に指定されたURLに遷移する`
++    ? `- **Web Automation (Stagehand)**
++  \`stagehandActTool\`: Perform actions on web pages (clicks, inputs).
++  \`stagehandObserveTool\`: Detect and identify elements on pages.
++  \`stagehandExtractTool\`: Extract data from pages.
++  \`stagehandNavigateTool\`: Navigate to specific URLs.`
+     : ''
+ }
++
  ${
    config.redmine
-     ? `- redmine操作ツール
-diff --git a/src/renderer/components/common/SettingsModal.tsx b/src/renderer/components/common/SettingsModal.tsx
-index d2fecb38b..4e916d352 100644
---- a/src/renderer/components/common/SettingsModal.tsx
-+++ b/src/renderer/components/common/SettingsModal.tsx
-@@ -7,9 +7,11 @@ import {
-   Box,
-   CircularProgress,
-   Alert,
-+  FormGroup,
-+  FormControlLabel,
-+  Switch,
- } from '@mui/material';
- import Modal from './Modal';
--import { McpSchemaType } from '../../../main/types/schema';
- import useSettingsStore from '../../hooks/useSettingsStore';
- import { StoreSchema as Settings } from '../../../main/store';
- 
-@@ -54,7 +56,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
-   const handleChange = async (
-     section: keyof Settings,
-     field: string,
--    value: string | McpSchemaType,
-+    value: unknown,
-   ) => {
-     await updateField(section, field, value);
-   };
-@@ -201,6 +203,36 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
-             />
-           </Box>
- 
-+          <Box sx={{ width: '100%', mb: 1 }}>
-+            <Typography variant="h6" gutterBottom>
-+              ブラウザ操作設定
-+            </Typography>
-+            <FormGroup>
-+              <FormControlLabel
-+                control={
-+                  <Switch
-+                    checked={settings.stagehand.enabled}
-+                    onChange={(e) =>
-+                      handleChange('stagehand', 'enabled', e.target.checked)
-+                    }
-+                  />
-+                }
-+                label="ブラウザ操作を有効化"
-+              />
-+              <FormControlLabel
-+                control={
-+                  <Switch
-+                    checked={settings.stagehand.headless}
-+                    onChange={(e) =>
-+                      handleChange('stagehand', 'headless', e.target.checked)
-+                    }
-+                  />
-+                }
-+                label="ヘッドレスモードを有効化"
-+              />
-+            </FormGroup>
-+          </Box>
+-    ? `- redmine操作ツール
+-  - getRedmineInfo：Redmineインスタンスの基本情報（登録されているプロジェクト・トラッカー・ステータス・優先度の一覧など）を取得します。他のredmine操作ツールを利用する前に、このツールを実行してプロジェクト・トラッカー・ステータス・優先度等に関する正確な情報を取得してください（他Redmine操作ツールではinputとして正確な情報を与える必要があるため）。
+-  - getRedmineIssuesList：Redmineのプロジェクトのチケット一覧を取得します。ステータス、トラッカー、担当者、バージョンで絞り込み可能です。
+-  - getRedmineIssueDetail：Redmineの特定のチケット詳細を取得します。
+-  - createRedmineIssue：Redmineに新しいチケットを作成します。
+-  - updateRedmineIssue：Redmineの既存チケットを更新します。`
++    ? `- **Redmine Integration**
++  \`getRedmineInfo\`: Retrieve Redmine configuration (trackers, statuses).
++  \`getRedmineIssuesList\`: Fetch a filtered list of issues.
++  \`getRedmineIssueDetail\`: Get details of a specific issue.
++  \`createRedmineIssue\`: Create a new issue.
++  \`updateRedmineIssue\`: Update an existing issue.`
+     : ''
+ }
 +
-           <Box sx={{ width: '100%', mb: 1 }}>
-             <Typography variant="h6" gutterBottom>
-               MCPサーバー設定
-diff --git a/src/renderer/hooks/useSettingsStore.ts b/src/renderer/hooks/useSettingsStore.ts
-index c510a9abe..a3f80f465 100644
---- a/src/renderer/hooks/useSettingsStore.ts
-+++ b/src/renderer/hooks/useSettingsStore.ts
-@@ -50,6 +50,12 @@ const useSettingsStore = () => {
-     setValue: setMcpStore,
-   } = useElectronStore<Settings['mcp']>('mcp');
- 
-+  const {
-+    value: stagehandStore,
-+    loading: loadingStagehand,
-+    setValue: setStagehandStore,
-+  } = useElectronStore<Settings['stagehand']>('stagehand');
+ ${
+   config.gitlab
+-    ? `- GitLab操作ツール
+-  - getGitLabFileContent：GitLabプロジェクト(リポジトリ)内の特定ファイルに関する情報（名前、サイズ、内容など）を受け取ることができます。ファイルの内容は Base64 エンコードされています。
+-  - getGitLabRawFile：GitLabプロジェクト(リポジトリ)の特定のファイルを生で取得します（エンコードはされていません）。
+-  - getGitLabBlameFile：GitLabプロジェクト(リポジトリ)の特定ファイルのblameファイルを取得します
+-  - getGitLabRepositoryTree：GitLabプロジェクト(リポジトリ)のツリー構造を取得します。
+-  - getMergeRequestDetail：指定したGitLabプロジェクト(リポジトリ)のマージリクエストの詳細を取得します。
+-  - addMergeRequestComment：指定したGitLabプロジェクト(リポジトリ)のマージリクエストにコメントを追加します。
+-  - addMergeRequestDiffComment：指定したGitLabプロジェクト(リポジトリ)のマージリクエストの差分にコメントを追加します。`
++    ? `- **GitLab Integration**
++  \`getGitLabFileContent\`: Get Base64-encoded file content.
++  \`getGitLabRawFile\`: Retrieve raw file data.
++  \`getGitLabBlameFile\`: Get file blame information.
++  \`getGitLabRepositoryTree\`: List repository tree.
++  \`getMergeRequestDetail\`: Fetch merge request details.
++  \`addMergeRequestComment\`: Add a comment to an MR.
++  \`addMergeRequestDiffComment\`: Comment on specific diffs.`
+     : ''
+ }
 +
-   // ローディング状態の管理
-   const loading =
-     loadingDatabase ||
-@@ -57,7 +63,8 @@ const useSettingsStore = () => {
-     loadingApi ||
-     loadingRedmine ||
-     loadingGitlab ||
--    loadingMcp;
-+    loadingMcp ||
-+    loadingStagehand;
+ ${
+   config.mcp
+-    ? `- MCP（Model Context Protocol）サーバ提供ツール
+-  - 登録されているMCPサーバーが提供する各種ツールやリソースを利用できます。
+-  - サーバー固有のツールやリソースにアクセスし、外部APIとの連携や拡張機能を実行できます。`
++    ? `- **MCP (Model Context Protocol)**
++  Access additional server-provided tools and APIs via registered MCP servers.`
+     : ''
+ }
  
-   // 設定値の状態管理
-   const [settings, setSettings] = useState<Settings>({
-@@ -67,6 +74,7 @@ const useSettingsStore = () => {
-     redmine: { endpoint: '', apiKey: '' },
-     gitlab: { endpoint: '', apiKey: '' },
-     mcp: { serverConfigText: '{}' },
-+    stagehand: { enabled: false, headless: false },
-   });
+-※ツール利用時の注意事項
+-- 共通
+-  - ツールは何度でも任意のタイミングで利用可能
+-${
+-  config.redmine
+-    ? `- redmine操作ツール
+-  - RedmineのURLはこちら：${store.get('redmine').endpoint}
+-  - トラッカーの利用方針は以下の通り（あくまで方針であり、ユーザから明確にトラッカーの種類など提示された場合はそちらに従うこと）
+-    - 中日程：プロジェクト全体のフェーズ分けなどで利用する
+-    - 作業計画：プロジェクトの各フェーズ内で実施する作業の計画を立てるために利用する
+-    - 生産計画・タスク：プロジェクトの各フェーズ内の各作業毎に実施するタスクを管理するために利用する。生産計画は他者によるチェック（再鑑）が必要な場合に利用する。タスクは他者によるチェック（再鑑）が不要な場合に利用する。生産計画・タスクチケットの子チケットとして生産計画・タスクを持つ（ネストさせる）ことが可能。`
+-    : ''
+-}
+-${
+-  config.gitlab
+-    ? `- GitLab操作ツール
+-  - GitLabのURLはこちら：${store.get('gitlab').endpoint}
+-  - プロジェクト(リポジトリ)を指定する際はプロジェクトIDまたはURLエンコードされたパスが必要になるが、URLエンコードされたパスは以下のように取得できる
+-    - 例えば、プロジェクト(リポジトリ)のURLが${store.get('gitlab').endpoint}/groupA/groupB/projectの場合、URLエンコードされたパスはgroupA%2FgroupB%2Fprojectとなる(/ は%2F で表されます)`
+-    : ''
+-}
+-- ソース情報検索ツール
+-  - 質問の内容によっては同一のソースに対して複数回sourceQueryToolを利用して情報を収集すること
+-  - 質問の内容によっては複数のソースに対してsourceQueryToolを利用して、十分な情報を収集すること
+-  - 登録されているソースの一覧とその要約、トピックは以下の通り
+-  ※以下の内容はあくまでソース情報を要約したものである。ソース情報（の詳細）を正確に把握するためには、sourceQueryToolを利用してソース情報を取得すること
++---
++
++### Usage Notes
++- You may invoke any tool at any time and reuse them as needed.
++- When quoting source material, explicitly mention the reference.
++
++#### Registered Sources
++
+ ${sourceListMD}
+ `;
+   return prompt;
+ };
  
-   // バリデーションエラーの状態管理
-@@ -77,6 +85,7 @@ const useSettingsStore = () => {
-     redmine: {},
-     gitlab: {},
-     mcp: {},
-+    stagehand: {},
-   });
+ /**
+- * ソースの内容に基づいて質問に回答するためのシステムプロンプト
++ * System prompt for answering questions based on source content
+  */
+ export const getSourceQuerySystemPrompt = (content: string) => `
+-あなたは以下のドキュメントの内容に詳しいアシスタントです。
+-質問に対して、ドキュメントの内容に基づいて正確に回答してください。
+-ドキュメントに記載されていない情報については、「その情報はドキュメントに記載されていません」と回答してください。
++You are an expert on the following document.
++Answer questions accurately based on the document's content.
++If information is not found in the document, respond with "This information is not present in the document."
  
-   const [saving, setSaving] = useState(false);
-@@ -157,6 +166,7 @@ const useSettingsStore = () => {
-             serverConfigText: '{}',
-           },
-         },
-+        stagehand: stagehandStore ?? { enabled: false, headless: false },
+-ドキュメント:
++Document:
+ ${content}
+ `;
+diff --git a/src/mastra/tools/gitlab/mergeRequestTools.ts b/src/mastra/tools/gitlab/mergeRequestTools.ts
+index 3f7344ade..755ddbb74 100644
+--- a/src/mastra/tools/gitlab/mergeRequestTools.ts
++++ b/src/mastra/tools/gitlab/mergeRequestTools.ts
+@@ -16,15 +16,14 @@ import { createBaseToolResponseSchema, RunToolStatus } from '../types';
+ export const createGetMergeRequestDetailTool = (client: GitLabClient) => {
+   return createTool({
+     id: 'gitlab-get-merge-request-detail',
+-    description:
+-      'GitLabプロジェクト(リポジトリ)の特定のマージリクエスト詳細を取得します。',
++    description: 'Get detailed information for a specific merge request.',
+     inputSchema: z.object({
+       project_id: z
+         .union([z.string(), z.number()])
+-        .describe('プロジェクトIDまたはURLエンコードされたパス:必須'),
++        .describe('Project ID or URL-encoded path (required)'),
+       merge_request_iid: z
+         .number()
+-        .describe('マージリクエストのIID（プロジェクト内ID）:必須'),
++        .describe('Merge request IID (project-specific ID) (required)'),
+     }),
+     outputSchema: createBaseToolResponseSchema(
+       z.object({
+@@ -70,16 +69,15 @@ export const createGetMergeRequestDetailTool = (client: GitLabClient) => {
+ export const createAddMergeRequestCommentTool = (client: GitLabClient) => {
+   return createTool({
+     id: 'gitlab-add-merge-request-comment',
+-    description:
+-      'GitLabプロジェクト(リポジトリ)のマージリクエストにコメントを追加します。',
++    description: 'Add a comment to a merge request.',
+     inputSchema: z.object({
+       project_id: z
+         .union([z.string(), z.number()])
+-        .describe('プロジェクトIDまたはURLエンコードされたパス:必須'),
++        .describe('Project ID or URL-encoded path (required)'),
+       merge_request_iid: z
+         .number()
+-        .describe('マージリクエストのIID（プロジェクト内ID）:必須'),
+-      body: z.string().describe('コメント本文:必須'),
++        .describe('Merge request IID (project-specific ID) (required)'),
++      body: z.string().describe('Comment content (required)'),
+     }),
+     outputSchema: createBaseToolResponseSchema(
+       z.object({
+@@ -124,68 +122,68 @@ export const createAddMergeRequestCommentTool = (client: GitLabClient) => {
+ export const createAddMergeRequestDiffCommentTool = (client: GitLabClient) => {
+   return createTool({
+     id: 'gitlab-add-merge-request-diff-comment',
+-    description:
+-      'GitLabプロジェクト(リポジトリ)のマージリクエストの差分（Diff）にコメントを追加します。',
++    description: 'Add a comment to a specific line in merge request diff.',
+     inputSchema: z.object({
+       project_id: z
+         .union([z.string(), z.number()])
+-        .describe('プロジェクトIDまたはURLエンコードされたパス:必須'),
++        .describe('Project ID or URL-encoded path (required)'),
+       merge_request_iid: z
+         .number()
+-        .describe('マージリクエストのIID（プロジェクト内ID）:必須'),
+-      body: z.string().describe('コメント本文:必須'),
++        .describe('Merge request IID (project-specific ID) (required)'),
++      body: z.string().describe('Comment content (required)'),
+       position: z
+         .object({
+           baseSha: z
+             .string()
+-            .describe('ソースブランチのベースコミットSHA:必須'),
++            .describe('Base commit SHA of source branch (required)'),
+           startSha: z
+             .string()
+-            .describe('ターゲットブランチのコミットを参照するSHA:必須'),
+-          headSha: z.string().describe('ヘッドコミットのSHA:必須'),
+-          oldPath: z.string().describe('変更前のファイルパス:必須'),
+-          newPath: z.string().describe('変更後のファイルパス:必須'),
+-          oldLine: z.string().optional().describe('変更前の行番号:任意'),
+-          newLine: z.string().optional().describe('変更後の行番号:任意'),
++            .describe('Start commit SHA of target branch (required)'),
++          headSha: z.string().describe('Head commit SHA (required)'),
++          oldPath: z.string().describe('Previous file path (required)'),
++          newPath: z.string().describe('New file path (required)'),
++          oldLine: z
++            .string()
++            .optional()
++            .describe('Previous line number (optional)'),
++          newLine: z.string().optional().describe('New line number (optional)'),
+           lineRange: z
+             .object({
+               start: z
+                 .object({
+-                  lineCode: z
+-                    .string()
+-                    .describe('スタートラインのラインコード:必須'),
++                  lineCode: z.string().describe('Start line code (required)'),
+                   type: z
+                     .enum(['new', 'old'])
+                     .describe(
+-                      'このコミットによって追加された行には `new` を使用し、そうでない場合は `old` を使用します:必須',
++                      'Use "new" for lines added in this commit, "old" otherwise (required)',
+                     ),
+                   hash: z
+                     .string()
+                     .optional()
+-                    .describe('マルチラインノートの開始行ハッシュ:任意'),
++                    .describe(
++                      'Hash for start line in multiline note (optional)',
++                    ),
+                 })
+-                .describe('マルチラインノートの開始行情報'),
++                .describe('Start line information for multiline note'),
+               end: z
+                 .object({
+-                  lineCode: z
+-                    .string()
+-                    .describe('終了行のラインコード。文字列です:必須'),
++                  lineCode: z.string().describe('End line code (required)'),
+                   type: z
+                     .enum(['new', 'old'])
+                     .describe(
+-                      'このコミットによって追加された行には `new` を使用し、そうでない場合は `old` を使用します:必須',
++                      'Use "new" for lines added in this commit, "old" otherwise (required)',
+                     ),
+                   hash: z
+                     .string()
+                     .optional()
+-                    .describe('マルチラインノートの終了行ハッシュ:任意'),
++                    .describe('Hash for end line in multiline note (optional)'),
+                 })
+-                .describe('マルチラインノートの終了行情報'),
++                .describe('End line information for multiline note'),
+             })
+             .optional()
+-            .describe('複数行コメント時専用のパラメータ:任意'),
++            .describe('Parameters for multiline comments (optional)'),
+         })
+-        .describe('コメントの位置情報:必須'),
++        .describe('Comment position information (required)'),
+     }),
+     outputSchema: createBaseToolResponseSchema(
+       z.object({
+diff --git a/src/mastra/tools/gitlab/repositoryTools.ts b/src/mastra/tools/gitlab/repositoryTools.ts
+index 4e370ee01..66663fa90 100644
+--- a/src/mastra/tools/gitlab/repositoryTools.ts
++++ b/src/mastra/tools/gitlab/repositoryTools.ts
+@@ -17,17 +17,17 @@ export const createGetFileContentTool = (client: GitLabClient) => {
+   return createTool({
+     id: 'gitlab-get-file-content',
+     description:
+-      'GitLabプロジェクト(リポジトリ)内の特定ファイルに関する情報（名前、サイズ、内容など）を受け取ることができます。ファイルの内容は Base64 エンコードされています。',
++      'Get file information (name, size, content etc.) from GitLab project. File content is Base64 encoded.',
+     inputSchema: z.object({
+       project_id: z
+         .union([z.string(), z.number()])
+-        .describe('プロジェクトIDまたはURLエンコードされたパス:必須'),
++        .describe('Project ID or URL-encoded path (required)'),
+       file_path: z
+         .string()
+         .describe(
+-          'リポジトリルートからの相対パスで、URLエンコード済みであること（例えばpath%2Fto%2Ffile.rb）:必須',
++          'File path relative to repository root, URL-encoded (e.g., path%2Fto%2Ffile.rb) (required)',
+         ),
+-      ref: z.string().describe('リファレンス（ブランチ名、タグ名）:必須'),
++      ref: z.string().describe('Reference (branch or tag name) (required)'),
+     }),
+     outputSchema: createBaseToolResponseSchema(
+       z.object({
+@@ -72,18 +72,17 @@ export const createGetFileContentTool = (client: GitLabClient) => {
+ export const createGetRawFileTool = (client: GitLabClient) => {
+   return createTool({
+     id: 'gitlab-get-raw-file',
+-    description:
+-      'GitLabプロジェクト(リポジトリ)の特定のファイルを生で取得します（エンコードはされていません）',
++    description: 'Get raw file content from GitLab project.',
+     inputSchema: z.object({
+       project_id: z
+         .union([z.string(), z.number()])
+-        .describe('プロジェクトIDまたはURLエンコードされたパス:必須'),
++        .describe('Project ID or URL-encoded path (required)'),
+       file_path: z
+         .string()
+         .describe(
+-          'ファイルパス（リポジトリルートからの相対パスで、URLエンコード済みであること（例えばpath%2Fto%2Ffile.rb）:必須',
++          'File path relative to repository root, URL-encoded (e.g., path%2Fto%2Ffile.rb) (required)',
+         ),
+-      ref: z.string().describe('リファレンス（ブランチ名、タグ名）:必須'),
++      ref: z.string().describe('Reference (branch or tag name) (required)'),
+     }),
+     outputSchema: createBaseToolResponseSchema(
+       z.object({
+@@ -128,25 +127,24 @@ export const createGetRawFileTool = (client: GitLabClient) => {
+ export const createGeBlameFileTool = (client: GitLabClient) => {
+   return createTool({
+     id: 'gitlab-get-blame-file',
+-    description:
+-      'GitLabプロジェクト(リポジトリ)の特定ファイルのblameファイルを取得します',
++    description: 'Get blame information for a file from GitLab project.',
+     inputSchema: z.object({
+       project_id: z
+         .union([z.string(), z.number()])
+-        .describe('プロジェクトIDまたはURLエンコードされたパス:必須'),
++        .describe('Project ID or URL-encoded path (required)'),
+       file_path: z
+         .string()
+         .describe(
+-          'ファイルパス（リポジトリルートからの相対パスで、URLエンコード済みであること（例えばpath%2Fto%2Ffile.rb））:必須',
++          'File path relative to repository root, URL-encoded (e.g., path%2Fto%2Ffile.rb) (required)',
+         ),
+-      ref: z.string().describe('リファレンス（ブランチ名、タグ名）:必須'),
++      ref: z.string().describe('Reference (branch or tag name) (required)'),
+       range: z
+         .object({
+-          start: z.number().describe('開始行:必須'),
+-          end: z.number().describe('終了行:必須'),
++          start: z.number().describe('Start line number (required)'),
++          end: z.number().describe('End line number (required)'),
+         })
+         .optional()
+-        .describe('取得する行の範囲:任意'),
++        .describe('Line range to retrieve (optional)'),
+     }),
+     outputSchema: createBaseToolResponseSchema(
+       z.object({
+@@ -192,24 +190,21 @@ export const createGeBlameFileTool = (client: GitLabClient) => {
+ export const createGetRepositoryTreeTool = (client: GitLabClient) => {
+   return createTool({
+     id: 'gitlab-get-repository-tree',
+-    description:
+-      'GitLabプロジェクト(リポジトリ)の全体ディレクトリ構造（ツリー）を取得します。',
++    description: 'Get directory structure (tree) of GitLab project.',
+     inputSchema: z.object({
+       project_id: z
+         .union([z.string(), z.number()])
+-        .describe('プロジェクトIDまたはURLエンコードされたパス:必須'),
++        .describe('Project ID or URL-encoded path (required)'),
+       path: z
+         .string()
+         .optional()
+-        .describe(
+-          '取得するディレクトリパス（リポジトリルートからの相対パス）:任意',
+-        ),
+-      ref: z.string().describe('リファレンス（ブランチ名、タグ名）:必須'),
++        .describe('Directory path relative to repository root (optional)'),
++      ref: z.string().describe('Reference (branch or tag name) (required)'),
+       recursive: z
+         .boolean()
+         .optional()
+         .default(true)
+-        .describe('サブディレクトリを再帰的に取得するか:任意'),
++        .describe('Recursively get subdirectories (optional)'),
+     }),
+     outputSchema: createBaseToolResponseSchema(
+       z.object({
+diff --git a/src/mastra/tools/redmine/issueTools.ts b/src/mastra/tools/redmine/issueTools.ts
+index d1fd16d08..5452d2e9e 100644
+--- a/src/mastra/tools/redmine/issueTools.ts
++++ b/src/mastra/tools/redmine/issueTools.ts
+@@ -25,34 +25,32 @@ export const createGetIssuesListTool = (client: RedmineClient) => {
+   return createTool({
+     id: 'redmine-get-issues-list',
+     description:
+-      'Redmineのプロジェクトのチケット一覧を取得します。ステータス、トラッカー、担当者、バージョンで絞り込み可能です。',
++      'Get list of issues from a Redmine project with filtering options for status, tracker, assignee, and version.',
+     inputSchema: z.object({
+       project_id: z
+         .union([z.string(), z.number()])
+-        .describe('プロジェクトIDまたはプロジェクト名:必須'),
++        .describe('Project ID or project name (required)'),
+       status_id: z
+         .union([z.string(), z.number(), z.enum(['open', 'closed', '*'])])
+         .optional()
+-        .describe(
+-          '"open"または"closed"または"*"またはステータスIDまたは名前:任意',
+-        ),
++        .describe('"open", "closed", "*", or status ID/name (optional)'),
+       tracker_id: z
+         .union([z.string(), z.number()])
+         .optional()
+-        .describe('トラッカーIDまたはトラッカー名:任意'),
++        .describe('Tracker ID or name (optional)'),
+       assigned_to_id: z
+         .union([z.number(), z.literal('me')])
+         .optional()
+-        .describe('担当者ID、または"me"（自分）:任意'),
++        .describe('Assignee ID or "me" (self) (optional)'),
+       fixed_version_id: z
+         .union([z.string(), z.number()])
+         .optional()
+-        .describe('バージョンIDまたはバージョン名:任意'),
++        .describe('Version ID or name (optional)'),
+       sort: z
+         .string()
+         .optional()
+         .describe(
+-          'column to sort with. Append :desc to invert the order.（例: "category:desc,updated_on"）:任意',
++          'Column to sort by. Append :desc to invert the order (e.g., "category:desc,updated_on") (optional)',
+         ),
+     }),
+     outputSchema: createBaseToolResponseSchema(
+@@ -212,15 +210,15 @@ export const createGetIssuesListTool = (client: RedmineClient) => {
+ export const createGetIssueDetailTool = (client: RedmineClient) => {
+   return createTool({
+     id: 'redmine-get-issue-detail',
+-    description: 'Redmineの特定のチケット詳細を取得します。',
++    description: 'Get detailed information for a specific Redmine issue.',
+     inputSchema: z.object({
+-      issue_id: z.number().describe('チケットID:必須'),
++      issue_id: z.number().describe('Issue ID (required)'),
+       include: z
+         .array(z.enum(['children', 'attachments', 'relations', 'journals']))
+         .optional()
+         .default([])
+         .describe(
+-          '含める関連情報の配列（利用可能な関連情報: ["children", "attachments", "relations", "journals"]）:任意',
++          'Array of related information to include (available options: ["children", "attachments", "relations", "journals"]) (optional)',
+         ),
+     }),
+     outputSchema: createBaseToolResponseSchema(
+@@ -267,36 +265,48 @@ export const createGetIssueDetailTool = (client: RedmineClient) => {
+ export const createCreateIssueTool = (client: RedmineClient) => {
+   return createTool({
+     id: 'redmine-create-issue',
+-    description: 'Redmineのプロジェクトに新しいチケットを作成します。',
++    description: 'Create a new issue in Redmine project.',
+     inputSchema: z.object({
+       project_id: z
+         .union([z.string(), z.number()])
+-        .describe('プロジェクトIDまたはプロジェクト名:必須'),
+-      subject: z.string().describe('チケットのタイトル:必須'),
+-      description: z.string().optional().describe('チケットの説明:任意'),
++        .describe('Project ID or project name (required)'),
++      subject: z.string().describe('Issue title (required)'),
++      description: z
++        .string()
++        .optional()
++        .describe('Issue description (optional)'),
+       tracker_id: z
+         .union([z.string(), z.number()])
+         .optional()
+-        .describe('トラッカーIDまたはトラッカー名:任意'),
++        .describe('Tracker ID or name (optional)'),
+       status_id: z
+         .union([z.string(), z.number()])
+         .optional()
+-        .describe('ステータスIDまたはステータス名:任意'),
++        .describe('Status ID or name (optional)'),
+       priority_id: z
+         .union([z.string(), z.number()])
+         .optional()
+-        .describe('優先度IDまたは優先度名:任意'),
+-      parent_issue_id: z.number().optional().describe('親チケットID:任意'),
++        .describe('Priority ID or name (optional)'),
++      parent_issue_id: z
++        .number()
++        .optional()
++        .describe('Parent issue ID (optional)'),
+       fixed_version_id: z
+         .union([z.string(), z.number()])
+         .optional()
+-        .describe('バージョンIDまたはバージョン名:任意'),
++        .describe('Version ID or name (optional)'),
+       start_date: z
+         .string()
+         .optional()
+-        .describe('開始日（YYYY-MM-DD形式）:任意'),
+-      due_date: z.string().optional().describe('期日（YYYY-MM-DD形式）:任意'),
+-      estimated_hours: z.number().optional().describe('予定工数(h):任意'),
++        .describe('Start date (YYYY-MM-DD format) (optional)'),
++      due_date: z
++        .string()
++        .optional()
++        .describe('Due date (YYYY-MM-DD format) (optional)'),
++      estimated_hours: z
++        .number()
++        .optional()
++        .describe('Estimated hours (optional)'),
+     }),
+     outputSchema: createBaseToolResponseSchema(
+       z.object({
+@@ -456,36 +466,51 @@ export const createCreateIssueTool = (client: RedmineClient) => {
+ export const createUpdateIssueTool = (client: RedmineClient) => {
+   return createTool({
+     id: 'redmine-update-issue',
+-    description: 'Redmineの既存チケットを更新します。',
++    description: 'Update an existing Redmine issue.',
+     inputSchema: z.object({
+-      issue_id: z.number().describe('更新するチケットのID:必須'),
+-      notes: z.string().optional().describe('更新に関するコメント:任意'),
+-      subject: z.string().optional().describe('チケットのタイトル:任意'),
+-      description: z.string().optional().describe('チケットの説明:任意'),
++      issue_id: z.number().describe('Issue ID to update (required)'),
++      notes: z
++        .string()
++        .optional()
++        .describe('Comment for the update (optional)'),
++      subject: z.string().optional().describe('Issue title (optional)'),
++      description: z
++        .string()
++        .optional()
++        .describe('Issue description (optional)'),
+       tracker_id: z
+         .union([z.string(), z.number()])
+         .optional()
+-        .describe('トラッカーIDまたはトラッカー名:任意'),
++        .describe('Tracker ID or name (optional)'),
+       status_id: z
+         .union([z.string(), z.number()])
+         .optional()
+-        .describe('ステータスIDまたはステータス名:任意'),
++        .describe('Status ID or name (optional)'),
+       priority_id: z
+         .union([z.string(), z.number()])
+         .optional()
+-        .describe('優先度IDまたは優先度名:任意'),
+-      assigned_to_id: z.number().optional().describe('担当者ID:任意'),
+-      parent_issue_id: z.number().optional().describe('親チケットID:任意'),
++        .describe('Priority ID or name (optional)'),
++      assigned_to_id: z.number().optional().describe('Assignee ID (optional)'),
++      parent_issue_id: z
++        .number()
++        .optional()
++        .describe('Parent issue ID (optional)'),
+       fixed_version_id: z
+         .union([z.string(), z.number()])
+         .optional()
+-        .describe('バージョンIDまたはバージョン名:任意'),
++        .describe('Version ID or name (optional)'),
+       start_date: z
+         .string()
+         .optional()
+-        .describe('開始日（YYYY-MM-DD形式）:任意'),
+-      due_date: z.string().optional().describe('期日（YYYY-MM-DD形式）:任意'),
+-      estimated_hours: z.number().optional().describe('予定工数:任意'),
++        .describe('Start date (YYYY-MM-DD format) (optional)'),
++      due_date: z
++        .string()
++        .optional()
++        .describe('Due date (YYYY-MM-DD format) (optional)'),
++      estimated_hours: z
++        .number()
++        .optional()
++        .describe('Estimated hours (optional)'),
+     }),
+     outputSchema: createBaseToolResponseSchema(
+       z.object({
+diff --git a/src/mastra/tools/sourcesTools.ts b/src/mastra/tools/sourcesTools.ts
+index 48e1a3e89..396386ef5 100644
+--- a/src/mastra/tools/sourcesTools.ts
++++ b/src/mastra/tools/sourcesTools.ts
+@@ -15,7 +15,7 @@ import { createBaseToolResponseSchema, RunToolStatus } from './types';
+  */
+ // export const sourceListTool = createTool({
+ //   id: 'sourceListTool',
+-//   description: '登録されているソースの一覧とその要約、トピックを表示する',
++//   description: 'Displays list of registered sources with their summaries and topics',
+ //   outputSchema: createBaseToolResponseSchema(
+ //     z.object({
+ //       sources: z.array(
+@@ -37,14 +37,14 @@ import { createBaseToolResponseSchema, RunToolStatus } from './types';
+ //     let status: RunToolStatus = 'failed';
+ //     try {
+ //       const db = await getDb();
+-//       // ソースの一覧を取得（将来的にisEnabled=trueのみに絞り込む）
++//       // Get source list (will be filtered by isEnabled=true in future)
+ //       const sourcesList = await db
+ //         .select()
+ //         .from(sources)
+ //         .where(eq(sources.isEnabled, 1))
+ //         .orderBy(sources.title);
+ 
+-//       // 各ソースのトピックを取得して結果を整形
++//       // Get topics for each source and format results
+ //       const result = await Promise.all(
+ //         sourcesList.map(async (source) => {
+ //           const topicsList = await db
+@@ -80,7 +80,7 @@ import { createBaseToolResponseSchema, RunToolStatus } from './types';
+ //       status = 'failed';
+ //       return {
+ //         status,
+-//         error: `ソース一覧の取得に失敗しました: ${errorMessage}`,
++//         error: `Failed to retrieve source list: ${errorMessage}`,
+ //       };
+ //     }
+ //   },
+@@ -93,11 +93,13 @@ import { createBaseToolResponseSchema, RunToolStatus } from './types';
+ export const querySourceTool = createTool({
+   id: 'sourceQueryTool',
+   description:
+-    '登録されたソースの内容に基づいて専門家(別のAIエージェント)が質問に回答します。一度の複数の質問を実行することができます',
++    'An expert AI agent answers questions based on registered source content. you can ask multiple queries simultaneously, so complex questions should be broken down into multiple topics.',
+   inputSchema: z.object({
+-    sourceId: z.number().describe('対象のソースID:必須'),
+-    path: z.string().describe('ソースファイルのパス:必須'),
+-    queries: z.array(z.string()).describe('検索内容や質問のリスト:必須'),
++    sourceId: z.number().describe('Target source ID (required)'),
++    path: z.string().describe('Source file path (required)'),
++    queries: z
++      .array(z.string())
++      .describe('List of search queries or questions (required)'),
+   }),
+   outputSchema: createBaseToolResponseSchema(
+     z.object({
+@@ -123,13 +125,13 @@ export const querySourceTool = createTool({
+         status = 'failed';
+         return {
+           status,
+-          error: 'ソースが見つかりませんでした',
++          error: 'Source not found',
+         };
+       }
+ 
+       const source = sourceData[0];
+ 
+-      // ファイルのテキストを抽出
++      // Extract text from file
+       const filePath = source.path;
+       const { content } = await FileExtractor.extractText(filePath);
+ 
+@@ -161,7 +163,7 @@ export const querySourceTool = createTool({
+       status = 'failed';
+       return {
+         status,
+-        error: `ソース検索に失敗しました: ${errorMessage}`,
++        error: `Source search failed: ${errorMessage}`,
        };
- 
-       setSettings(newSettings);
-@@ -173,6 +183,7 @@ const useSettingsStore = () => {
-     redmineStore,
-     gitlabStore,
-     mcpStore,
-+    stagehandStore,
-     loading,
-     validateSection,
-   ]);
-@@ -235,6 +246,7 @@ const useSettingsStore = () => {
-         setRedmineStore(settings.redmine),
-         setGitlabStore(settings.gitlab),
-         setMcpStore(settings.mcp),
-+        setStagehandStore(settings.stagehand),
-       ]);
- 
-       // 設定保存後にMastraを再初期化
+     }
+   },
+diff --git a/src/mastra/tools/stagehand/index.ts b/src/mastra/tools/stagehand/index.ts
+index 3453fee3e..256d4fe2e 100644
+--- a/src/mastra/tools/stagehand/index.ts
++++ b/src/mastra/tools/stagehand/index.ts
+@@ -40,7 +40,8 @@ class StagehandSessionManager {
+       },
+       localBrowserLaunchOptions: {
+         // headless: false, // Launches the browser in headless mode.
+-        executablePath: 'C:/Users/shuyo/vscode_workspace/ai-notebook/chrome.exe'
++        executablePath:
++          '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+         // executablePath: app.isPackaged
+         //   ? join(process.resourcesPath, 'app.asar', 'chrome.exe')
+         //   : join(__dirname, '..', '..', 'chrome.exe'), // Custom path to the Chrome executable.
