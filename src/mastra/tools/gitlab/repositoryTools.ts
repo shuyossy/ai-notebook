@@ -17,17 +17,17 @@ export const createGetFileContentTool = (client: GitLabClient) => {
   return createTool({
     id: 'gitlab-get-file-content',
     description:
-      'GitLabプロジェクト(リポジトリ)内の特定ファイルに関する情報（名前、サイズ、内容など）を受け取ることができます。ファイルの内容は Base64 エンコードされています。',
+      'Get file information (name, size, content etc.) from GitLab project. File content is Base64 encoded.',
     inputSchema: z.object({
       project_id: z
         .union([z.string(), z.number()])
-        .describe('プロジェクトIDまたはURLエンコードされたパス:必須'),
+        .describe('Project ID or URL-encoded path (required)'),
       file_path: z
         .string()
         .describe(
-          'リポジトリルートからの相対パスで、URLエンコード済みであること（例えばpath%2Fto%2Ffile.rb）:必須',
+          'File path relative to repository root, URL-encoded (e.g., path%2Fto%2Ffile.rb) (required)',
         ),
-      ref: z.string().describe('リファレンス（ブランチ名、タグ名）:必須'),
+      ref: z.string().describe('Reference (branch or tag name) (required)'),
     }),
     outputSchema: createBaseToolResponseSchema(
       z.object({
@@ -72,18 +72,17 @@ export const createGetFileContentTool = (client: GitLabClient) => {
 export const createGetRawFileTool = (client: GitLabClient) => {
   return createTool({
     id: 'gitlab-get-raw-file',
-    description:
-      'GitLabプロジェクト(リポジトリ)の特定のファイルを生で取得します（エンコードはされていません）',
+    description: 'Get raw file content from GitLab project.',
     inputSchema: z.object({
       project_id: z
         .union([z.string(), z.number()])
-        .describe('プロジェクトIDまたはURLエンコードされたパス:必須'),
+        .describe('Project ID or URL-encoded path (required)'),
       file_path: z
         .string()
         .describe(
-          'ファイルパス（リポジトリルートからの相対パスで、URLエンコード済みであること（例えばpath%2Fto%2Ffile.rb）:必須',
+          'File path relative to repository root, URL-encoded (e.g., path%2Fto%2Ffile.rb) (required)',
         ),
-      ref: z.string().describe('リファレンス（ブランチ名、タグ名）:必須'),
+      ref: z.string().describe('Reference (branch or tag name) (required)'),
     }),
     outputSchema: createBaseToolResponseSchema(
       z.object({
@@ -128,25 +127,24 @@ export const createGetRawFileTool = (client: GitLabClient) => {
 export const createGeBlameFileTool = (client: GitLabClient) => {
   return createTool({
     id: 'gitlab-get-blame-file',
-    description:
-      'GitLabプロジェクト(リポジトリ)の特定ファイルのblameファイルを取得します',
+    description: 'Get blame information for a file from GitLab project.',
     inputSchema: z.object({
       project_id: z
         .union([z.string(), z.number()])
-        .describe('プロジェクトIDまたはURLエンコードされたパス:必須'),
+        .describe('Project ID or URL-encoded path (required)'),
       file_path: z
         .string()
         .describe(
-          'ファイルパス（リポジトリルートからの相対パスで、URLエンコード済みであること（例えばpath%2Fto%2Ffile.rb））:必須',
+          'File path relative to repository root, URL-encoded (e.g., path%2Fto%2Ffile.rb) (required)',
         ),
-      ref: z.string().describe('リファレンス（ブランチ名、タグ名）:必須'),
+      ref: z.string().describe('Reference (branch or tag name) (required)'),
       range: z
         .object({
-          start: z.number().describe('開始行:必須'),
-          end: z.number().describe('終了行:必須'),
+          start: z.number().describe('Start line number (required)'),
+          end: z.number().describe('End line number (required)'),
         })
         .optional()
-        .describe('取得する行の範囲:任意'),
+        .describe('Line range to retrieve (optional)'),
     }),
     outputSchema: createBaseToolResponseSchema(
       z.object({
@@ -192,24 +190,21 @@ export const createGeBlameFileTool = (client: GitLabClient) => {
 export const createGetRepositoryTreeTool = (client: GitLabClient) => {
   return createTool({
     id: 'gitlab-get-repository-tree',
-    description:
-      'GitLabプロジェクト(リポジトリ)の全体ディレクトリ構造（ツリー）を取得します。',
+    description: 'Get directory structure (tree) of GitLab project.',
     inputSchema: z.object({
       project_id: z
         .union([z.string(), z.number()])
-        .describe('プロジェクトIDまたはURLエンコードされたパス:必須'),
+        .describe('Project ID or URL-encoded path (required)'),
       path: z
         .string()
         .optional()
-        .describe(
-          '取得するディレクトリパス（リポジトリルートからの相対パス）:任意',
-        ),
-      ref: z.string().describe('リファレンス（ブランチ名、タグ名）:必須'),
+        .describe('Directory path relative to repository root (optional)'),
+      ref: z.string().describe('Reference (branch or tag name) (required)'),
       recursive: z
         .boolean()
         .optional()
         .default(true)
-        .describe('サブディレクトリを再帰的に取得するか:任意'),
+        .describe('Recursively get subdirectories (optional)'),
     }),
     outputSchema: createBaseToolResponseSchema(
       z.object({

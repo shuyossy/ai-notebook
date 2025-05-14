@@ -16,15 +16,14 @@ import { createBaseToolResponseSchema, RunToolStatus } from '../types';
 export const createGetMergeRequestDetailTool = (client: GitLabClient) => {
   return createTool({
     id: 'gitlab-get-merge-request-detail',
-    description:
-      'GitLabプロジェクト(リポジトリ)の特定のマージリクエスト詳細を取得します。',
+    description: 'Get detailed information for a specific merge request.',
     inputSchema: z.object({
       project_id: z
         .union([z.string(), z.number()])
-        .describe('プロジェクトIDまたはURLエンコードされたパス:必須'),
+        .describe('Project ID or URL-encoded path (required)'),
       merge_request_iid: z
         .number()
-        .describe('マージリクエストのIID（プロジェクト内ID）:必須'),
+        .describe('Merge request IID (project-specific ID) (required)'),
     }),
     outputSchema: createBaseToolResponseSchema(
       z.object({
@@ -70,16 +69,15 @@ export const createGetMergeRequestDetailTool = (client: GitLabClient) => {
 export const createAddMergeRequestCommentTool = (client: GitLabClient) => {
   return createTool({
     id: 'gitlab-add-merge-request-comment',
-    description:
-      'GitLabプロジェクト(リポジトリ)のマージリクエストにコメントを追加します。',
+    description: 'Add a comment to a merge request.',
     inputSchema: z.object({
       project_id: z
         .union([z.string(), z.number()])
-        .describe('プロジェクトIDまたはURLエンコードされたパス:必須'),
+        .describe('Project ID or URL-encoded path (required)'),
       merge_request_iid: z
         .number()
-        .describe('マージリクエストのIID（プロジェクト内ID）:必須'),
-      body: z.string().describe('コメント本文:必須'),
+        .describe('Merge request IID (project-specific ID) (required)'),
+      body: z.string().describe('Comment content (required)'),
     }),
     outputSchema: createBaseToolResponseSchema(
       z.object({
@@ -124,68 +122,68 @@ export const createAddMergeRequestCommentTool = (client: GitLabClient) => {
 export const createAddMergeRequestDiffCommentTool = (client: GitLabClient) => {
   return createTool({
     id: 'gitlab-add-merge-request-diff-comment',
-    description:
-      'GitLabプロジェクト(リポジトリ)のマージリクエストの差分（Diff）にコメントを追加します。',
+    description: 'Add a comment to a specific line in merge request diff.',
     inputSchema: z.object({
       project_id: z
         .union([z.string(), z.number()])
-        .describe('プロジェクトIDまたはURLエンコードされたパス:必須'),
+        .describe('Project ID or URL-encoded path (required)'),
       merge_request_iid: z
         .number()
-        .describe('マージリクエストのIID（プロジェクト内ID）:必須'),
-      body: z.string().describe('コメント本文:必須'),
+        .describe('Merge request IID (project-specific ID) (required)'),
+      body: z.string().describe('Comment content (required)'),
       position: z
         .object({
           baseSha: z
             .string()
-            .describe('ソースブランチのベースコミットSHA:必須'),
+            .describe('Base commit SHA of source branch (required)'),
           startSha: z
             .string()
-            .describe('ターゲットブランチのコミットを参照するSHA:必須'),
-          headSha: z.string().describe('ヘッドコミットのSHA:必須'),
-          oldPath: z.string().describe('変更前のファイルパス:必須'),
-          newPath: z.string().describe('変更後のファイルパス:必須'),
-          oldLine: z.string().optional().describe('変更前の行番号:任意'),
-          newLine: z.string().optional().describe('変更後の行番号:任意'),
+            .describe('Start commit SHA of target branch (required)'),
+          headSha: z.string().describe('Head commit SHA (required)'),
+          oldPath: z.string().describe('Previous file path (required)'),
+          newPath: z.string().describe('New file path (required)'),
+          oldLine: z
+            .string()
+            .optional()
+            .describe('Previous line number (optional)'),
+          newLine: z.string().optional().describe('New line number (optional)'),
           lineRange: z
             .object({
               start: z
                 .object({
-                  lineCode: z
-                    .string()
-                    .describe('スタートラインのラインコード:必須'),
+                  lineCode: z.string().describe('Start line code (required)'),
                   type: z
                     .enum(['new', 'old'])
                     .describe(
-                      'このコミットによって追加された行には `new` を使用し、そうでない場合は `old` を使用します:必須',
+                      'Use "new" for lines added in this commit, "old" otherwise (required)',
                     ),
                   hash: z
                     .string()
                     .optional()
-                    .describe('マルチラインノートの開始行ハッシュ:任意'),
+                    .describe(
+                      'Hash for start line in multiline note (optional)',
+                    ),
                 })
-                .describe('マルチラインノートの開始行情報'),
+                .describe('Start line information for multiline note'),
               end: z
                 .object({
-                  lineCode: z
-                    .string()
-                    .describe('終了行のラインコード。文字列です:必須'),
+                  lineCode: z.string().describe('End line code (required)'),
                   type: z
                     .enum(['new', 'old'])
                     .describe(
-                      'このコミットによって追加された行には `new` を使用し、そうでない場合は `old` を使用します:必須',
+                      'Use "new" for lines added in this commit, "old" otherwise (required)',
                     ),
                   hash: z
                     .string()
                     .optional()
-                    .describe('マルチラインノートの終了行ハッシュ:任意'),
+                    .describe('Hash for end line in multiline note (optional)'),
                 })
-                .describe('マルチラインノートの終了行情報'),
+                .describe('End line information for multiline note'),
             })
             .optional()
-            .describe('複数行コメント時専用のパラメータ:任意'),
+            .describe('Parameters for multiline comments (optional)'),
         })
-        .describe('コメントの位置情報:必須'),
+        .describe('Comment position information (required)'),
     }),
     outputSchema: createBaseToolResponseSchema(
       z.object({
