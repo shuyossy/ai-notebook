@@ -2,7 +2,7 @@ import { Agent } from '@mastra/core/agent';
 import { MCPConfiguration, LogMessage } from '@mastra/mcp';
 import { v4 as uuid } from 'uuid';
 import { writeFileSync } from 'fs';
-import { querySourceTool } from '../tools/sourcesTools';
+import { documentQueryTool } from '../tools/sourcesTools';
 import { createAgent } from './config/agent';
 import { getStore } from '../../main/store';
 import {
@@ -185,7 +185,7 @@ export const getOrchestrator = async (): Promise<{
       instructions: '', // 空の指示を設定（streamメソッド時に動的に設定するため）
       tools: {
         // sourceListTool,
-        querySourceTool,
+        documentQueryTool,
         ...redmineTools,
         ...gitlabTools,
         ...mcpTools,

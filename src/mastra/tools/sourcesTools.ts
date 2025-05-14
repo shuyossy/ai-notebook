@@ -90,10 +90,10 @@ import { createBaseToolResponseSchema, RunToolStatus } from './types';
  * ソースクエリツール
  * 指定されたソースを読み込み、LLMが検索内容に応答する
  */
-export const querySourceTool = createTool({
-  id: 'sourceQueryTool',
+export const documentQueryTool = createTool({
+  id: 'documentQueryTool',
   description:
-    '登録されたソースの内容に基づいて専門家(別のAIエージェント)が質問に回答します。一度の複数の質問を実行することができます',
+    '登録されたドキュメントの内容に基づいて専門家(別のAIエージェント)が質問に回答します。一度の複数の質問を実行することができます',
   inputSchema: z.object({
     sourceId: z.number().describe('対象のソースID:必須'),
     path: z.string().describe('ソースファイルのパス:必須'),
@@ -134,7 +134,7 @@ export const querySourceTool = createTool({
       const { content } = await FileExtractor.extractText(filePath);
 
       const sourceExpertAgent = new Agent({
-        name: 'sourceExpertAgent',
+        name: 'documentExpertAgent',
         instructions: getSourceQuerySystemPrompt(content),
         model: openAICompatibleModel(),
       });

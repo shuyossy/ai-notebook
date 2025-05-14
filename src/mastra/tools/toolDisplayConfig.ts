@@ -8,7 +8,7 @@
  * @value 日本語での表示名
  */
 export const TOOL_NAME_DISPLAY_MAP: Record<string, string> = {
-  querySourceTool: 'ソース検索',
+  queryDocumentTool: '検索',
 
   // Redmine関連のツール
   getRedmineInfo: 'Redmine情報取得',
