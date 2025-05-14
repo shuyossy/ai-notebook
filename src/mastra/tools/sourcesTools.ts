@@ -93,11 +93,11 @@ import { createBaseToolResponseSchema, RunToolStatus } from './types';
 export const documentQueryTool = createTool({
   id: 'documentQueryTool',
   description:
-    '登録されたドキュメントの内容に基づいて専門家(別のAIエージェント)が質問に回答します。一度の複数の質問を実行することができます',
+    'Expert AI agent answers queries based on registered document content. Multiple queries can be processed at once. Therefore, instead of asking complex questions, please break them down into simpler ones.',
   inputSchema: z.object({
-    sourceId: z.number().describe('対象のソースID:必須'),
-    path: z.string().describe('ソースファイルのパス:必須'),
-    queries: z.array(z.string()).describe('検索内容や質問のリスト:必須'),
+    sourceId: z.number().describe('Document ID to query (required)'),
+    path: z.string().describe('Document file path (required)'),
+    queries: z.array(z.string()).describe('List of search queries or questions (required)'),
   }),
   outputSchema: createBaseToolResponseSchema(
     z.object({
@@ -123,7 +123,7 @@ export const documentQueryTool = createTool({
         status = 'failed';
         return {
           status,
-          error: 'ソースが見つかりませんでした',
+          error: 'Source not found',
         };
       }
 
@@ -161,7 +161,7 @@ export const documentQueryTool = createTool({
       status = 'failed';
       return {
         status,
-        error: `ソース検索に失敗しました: ${errorMessage}`,
+          error: `Source query failed: ${errorMessage}`,
       };
     }
   },

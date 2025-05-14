@@ -25,36 +25,36 @@ export const createGetIssuesListTool = (client: RedmineClient) => {
   return createTool({
     id: 'redmine-get-issues-list',
     description:
-      'Redmineのプロジェクトのチケット一覧を取得します。ステータス、トラッカー、担当者、バージョンで絞り込み可能です。',
+      'Retrieves a list of Redmine project issues with filtering options for status, tracker, assignee, and version.',
     inputSchema: z.object({
       project_id: z
         .union([z.string(), z.number()])
         .describe(
-          'プロジェクトID、プロジェクト名、またはプロジェクト識別子:必須',
+          'Project ID, name, or identifier (required)',
         ),
       status_id: z
         .union([z.string(), z.number(), z.enum(['open', 'closed', '*'])])
         .optional()
         .describe(
-          '"open"または"closed"または"*"またはステータスIDまたは名前:任意',
+          'Status ID, name, or keywords: "open", "closed", "*" (optional)',
         ),
       tracker_id: z
         .union([z.string(), z.number()])
         .optional()
-        .describe('トラッカーIDまたはトラッカー名:任意'),
+        .describe('Tracker ID or name (optional)'),
       assigned_to_id: z
         .union([z.number(), z.literal('me')])
         .optional()
-        .describe('担当者ID、または"me"（自分）:任意'),
+        .describe('Assignee ID or "me" for self-assigned issues (optional)'),
       fixed_version_id: z
         .union([z.string(), z.number()])
         .optional()
-        .describe('バージョンIDまたはバージョン名:任意'),
+        .describe('Version ID or name (optional)'),
       sort: z
         .string()
         .optional()
         .describe(
-          'column to sort with. Append :desc to invert the order.（例: "category:desc,updated_on"）:任意',
+          'Sort column with optional :desc modifier (e.g., "category:desc,updated_on") (optional)',
         ),
     }),
     outputSchema: createBaseToolResponseSchema(
@@ -188,7 +188,7 @@ export const createGetIssuesListTool = (client: RedmineClient) => {
         status = 'failed';
         return {
           status,
-          error: `チケット一覧の取得に失敗しました: ${error}`,
+          error: `Failed to retrieve issue list: ${error}`,
         };
       }
     },
@@ -203,15 +203,15 @@ export const createGetIssuesListTool = (client: RedmineClient) => {
 export const createGetIssueDetailTool = (client: RedmineClient) => {
   return createTool({
     id: 'redmine-get-issue-detail',
-    description: 'Redmineの特定のチケット詳細を取得します。',
+    description: 'Fetches detailed information for a specific Redmine issue.',
     inputSchema: z.object({
-      issue_id: z.number().describe('チケットID:必須'),
+      issue_id: z.number().describe('Issue ID to retrieve (required)'),
       include: z
         .array(z.enum(['children', 'attachments', 'relations', 'journals']))
         .optional()
         .default([])
         .describe(
-          '含める関連情報の配列（利用可能な関連情報: ["children", "attachments", "relations", "journals"]）:任意',
+          'Additional data to include ["children", "attachments", "relations", "journals"] (optional)',
         ),
     }),
     outputSchema: createBaseToolResponseSchema(
@@ -243,7 +243,7 @@ export const createGetIssueDetailTool = (client: RedmineClient) => {
         status = 'failed';
         return {
           status,
-          error: `チケット詳細の取得に失敗しました: ${error}`,
+          error: `Failed to retrieve issue details: ${error}`,
         };
       }
     },
@@ -258,38 +258,38 @@ export const createGetIssueDetailTool = (client: RedmineClient) => {
 export const createCreateIssueTool = (client: RedmineClient) => {
   return createTool({
     id: 'redmine-create-issue',
-    description: 'Redmineのプロジェクトに新しいチケットを作成します。',
+    description: 'Creates a new issue in a Redmine project.',
     inputSchema: z.object({
       project_id: z
         .union([z.string(), z.number()])
         .describe(
-          'プロジェクトID、プロジェクト名、またはプロジェクト識別子:必須',
+          'Project ID, name, or identifier (required)',
         ),
-      subject: z.string().describe('チケットのタイトル:必須'),
-      description: z.string().optional().describe('チケットの説明:任意'),
+      subject: z.string().describe('Issue title (required)'),
+      description: z.string().optional().describe('Issue description (optional)'),
       tracker_id: z
         .union([z.string(), z.number()])
         .optional()
-        .describe('トラッカーIDまたはトラッカー名:任意'),
+        .describe('Tracker ID or name (optional)'),
       status_id: z
         .union([z.string(), z.number()])
         .optional()
-        .describe('ステータスIDまたはステータス名:任意'),
+        .describe('Status ID or name (optional)'),
       priority_id: z
         .union([z.string(), z.number()])
         .optional()
-        .describe('優先度IDまたは優先度名:任意'),
-      parent_issue_id: z.number().optional().describe('親チケットID:任意'),
+        .describe('Priority ID or name (optional)'),
+      parent_issue_id: z.number().optional().describe('Parent issue ID (optional)'),
       fixed_version_id: z
         .union([z.string(), z.number()])
         .optional()
-        .describe('バージョンIDまたはバージョン名:任意'),
+        .describe('Version ID or name (optional)'),
       start_date: z
         .string()
         .optional()
-        .describe('開始日（YYYY-MM-DD形式）:任意'),
-      due_date: z.string().optional().describe('期日（YYYY-MM-DD形式）:任意'),
-      estimated_hours: z.number().optional().describe('予定工数(h):任意'),
+        .describe('Start date (YYYY-MM-DD format) (optional)'),
+      due_date: z.string().optional().describe('Due date (YYYY-MM-DD format) (optional)'),
+      estimated_hours: z.number().optional().describe('Estimated hours (optional)'),
     }),
     outputSchema: createBaseToolResponseSchema(
       z.object({
@@ -434,7 +434,7 @@ export const createCreateIssueTool = (client: RedmineClient) => {
         status = 'failed';
         return {
           status,
-          error: `チケットの作成に失敗しました: ${error}`,
+          error: `Failed to create issue: ${error}`,
         };
       }
     },
@@ -449,36 +449,36 @@ export const createCreateIssueTool = (client: RedmineClient) => {
 export const createUpdateIssueTool = (client: RedmineClient) => {
   return createTool({
     id: 'redmine-update-issue',
-    description: 'Redmineの既存チケットを更新します。',
+    description: 'Updates an existing Redmine issue.',
     inputSchema: z.object({
-      issue_id: z.number().describe('更新するチケットのID:必須'),
-      notes: z.string().optional().describe('更新に関するコメント:任意'),
-      subject: z.string().optional().describe('チケットのタイトル:任意'),
-      description: z.string().optional().describe('チケットの説明:任意'),
+      issue_id: z.number().describe('ID of the issue to update (required)'),
+      notes: z.string().optional().describe('Update comment (optional)'),
+      subject: z.string().optional().describe('Issue title (optional)'),
+      description: z.string().optional().describe('Issue description (optional)'),
       tracker_id: z
         .union([z.string(), z.number()])
         .optional()
-        .describe('トラッカーIDまたはトラッカー名:任意'),
+        .describe('Tracker ID or name (optional)'),
       status_id: z
         .union([z.string(), z.number()])
         .optional()
-        .describe('ステータスIDまたはステータス名:任意'),
+        .describe('Status ID or name (optional)'),
       priority_id: z
         .union([z.string(), z.number()])
         .optional()
-        .describe('優先度IDまたは優先度名:任意'),
-      assigned_to_id: z.number().optional().describe('担当者ID:任意'),
-      parent_issue_id: z.number().optional().describe('親チケットID:任意'),
+        .describe('Priority ID or name (optional)'),
+      assigned_to_id: z.number().optional().describe('Assignee ID (optional)'),
+      parent_issue_id: z.number().optional().describe('Parent issue ID (optional)'),
       fixed_version_id: z
         .union([z.string(), z.number()])
         .optional()
-        .describe('バージョンIDまたはバージョン名:任意'),
+        .describe('Version ID or name (optional)'),
       start_date: z
         .string()
         .optional()
-        .describe('開始日（YYYY-MM-DD形式）:任意'),
-      due_date: z.string().optional().describe('期日（YYYY-MM-DD形式）:任意'),
-      estimated_hours: z.number().optional().describe('予定工数:任意'),
+        .describe('Start date (YYYY-MM-DD format) (optional)'),
+      due_date: z.string().optional().describe('Due date (YYYY-MM-DD format) (optional)'),
+      estimated_hours: z.number().optional().describe('Estimated hours (optional)'),
     }),
     outputSchema: createBaseToolResponseSchema(
       z.object({
@@ -596,7 +596,7 @@ export const createUpdateIssueTool = (client: RedmineClient) => {
 
       // 更新内容があるか確認
       if (Object.keys(updateData).length === 0) {
-        throw new Error('更新する項目が指定されていません');
+        throw new Error('No update fields specified');
       }
 
       try {
@@ -622,7 +622,7 @@ export const createUpdateIssueTool = (client: RedmineClient) => {
         status = 'failed';
         return {
           status,
-          error: `チケットの更新に失敗しました: ${error}`,
+          error: `Failed to update issue: ${error}`,
         };
       }
     },

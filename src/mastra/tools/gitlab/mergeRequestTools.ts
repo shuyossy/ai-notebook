@@ -17,14 +17,14 @@ export const createGetMergeRequestDetailTool = (client: GitLabClient) => {
   return createTool({
     id: 'gitlab-get-merge-request-detail',
     description:
-      'GitLabプロジェクト(リポジトリ)の特定のマージリクエスト詳細を取得します。',
+      'Retrieves detailed information about a specific merge request in a GitLab project.',
     inputSchema: z.object({
       project_id: z
         .union([z.string(), z.number()])
-        .describe('プロジェクトIDまたはプロジェクトの非エンコードパス:必須'),
+        .describe('Project ID or non-encoded project path (required)'),
       merge_request_iid: z
         .number()
-        .describe('マージリクエストのIID（プロジェクト内ID）:必須'),
+        .describe('Internal ID of the merge request within the project (required)'),
     }),
     outputSchema: createBaseToolResponseSchema(
       z.object({
@@ -55,7 +55,7 @@ export const createGetMergeRequestDetailTool = (client: GitLabClient) => {
         status = 'failed';
         return {
           status,
-          error: `マージリクエストの取得に失敗しました: ${error}`,
+          error: `Failed to retrieve merge request: ${error}`,
         };
       }
     },
@@ -71,15 +71,15 @@ export const createAddMergeRequestCommentTool = (client: GitLabClient) => {
   return createTool({
     id: 'gitlab-add-merge-request-comment',
     description:
-      'GitLabプロジェクト(リポジトリ)のマージリクエストにコメントを追加します。',
+      'Adds a comment to a merge request in a GitLab project.',
     inputSchema: z.object({
       project_id: z
         .union([z.string(), z.number()])
-        .describe('プロジェクトIDまたはプロジェクトの非エンコードパス:必須'),
+        .describe('Project ID or non-encoded project path (required)'),
       merge_request_iid: z
         .number()
-        .describe('マージリクエストのIID（プロジェクト内ID）:必須'),
-      body: z.string().describe('コメント本文:必須'),
+        .describe('Internal ID of the merge request within the project (required)'),
+      body: z.string().describe('Comment content (required)'),
     }),
     outputSchema: createBaseToolResponseSchema(
       z.object({
@@ -109,7 +109,7 @@ export const createAddMergeRequestCommentTool = (client: GitLabClient) => {
         status = 'failed';
         return {
           status,
-          error: `マージリクエストへのコメント追加に失敗しました: ${error}`,
+          error: `Failed to add comment to merge request: ${error}`,
         };
       }
     },
@@ -125,67 +125,67 @@ export const createAddMergeRequestDiffCommentTool = (client: GitLabClient) => {
   return createTool({
     id: 'gitlab-add-merge-request-diff-comment',
     description:
-      'GitLabプロジェクト(リポジトリ)のマージリクエストの差分（Diff）にコメントを追加します。',
+      'Adds a comment to specific lines in a merge request diff.',
     inputSchema: z.object({
       project_id: z
         .union([z.string(), z.number()])
-        .describe('プロジェクトIDまたはプロジェクトの非エンコードパス:必須'),
+        .describe('Project ID or non-encoded project path (required)'),
       merge_request_iid: z
         .number()
-        .describe('マージリクエストのIID（プロジェクト内ID）:必須'),
-      body: z.string().describe('コメント本文:必須'),
+        .describe('Internal ID of the merge request within the project (required)'),
+      body: z.string().describe('Comment content (required)'),
       position: z
         .object({
           baseSha: z
             .string()
-            .describe('ソースブランチのベースコミットSHA:必須'),
+            .describe('Base commit SHA of source branch (required)'),
           startSha: z
             .string()
-            .describe('ターゲットブランチのコミットを参照するSHA:必須'),
-          headSha: z.string().describe('ヘッドコミットのSHA:必須'),
-          oldPath: z.string().describe('変更前のファイルパス:必須'),
-          newPath: z.string().describe('変更後のファイルパス:必須'),
-          oldLine: z.string().optional().describe('変更前の行番号:任意'),
-          newLine: z.string().optional().describe('変更後の行番号:任意'),
+            .describe('SHA referencing target branch commit (required)'),
+          headSha: z.string().describe('Head commit SHA (required)'),
+          oldPath: z.string().describe('Previous file path (required)'),
+          newPath: z.string().describe('New file path (required)'),
+          oldLine: z.string().optional().describe('Previous line number (optional)'),
+          newLine: z.string().optional().describe('New line number (optional)'),
           lineRange: z
             .object({
               start: z
                 .object({
                   lineCode: z
                     .string()
-                    .describe('スタートラインのラインコード:必須'),
+                    .describe('Start line code (required)'),
                   type: z
                     .enum(['new', 'old'])
                     .describe(
-                      'このコミットによって追加された行には `new` を使用し、そうでない場合は `old` を使用します:必須',
+                      'Line type: "new" for added lines, "old" for others (required)',
                     ),
                   hash: z
                     .string()
                     .optional()
-                    .describe('マルチラインノートの開始行ハッシュ:任意'),
+                    .describe('Start line hash for multi-line notes (optional)'),
                 })
-                .describe('マルチラインノートの開始行情報'),
+                .describe('Multi-line note start line information'),
               end: z
                 .object({
                   lineCode: z
                     .string()
-                    .describe('終了行のラインコード。文字列です:必須'),
+                    .describe('End line code (required)'),
                   type: z
                     .enum(['new', 'old'])
                     .describe(
-                      'このコミットによって追加された行には `new` を使用し、そうでない場合は `old` を使用します:必須',
+                      'Line type: "new" for added lines, "old" for others (required)',
                     ),
                   hash: z
                     .string()
                     .optional()
-                    .describe('マルチラインノートの終了行ハッシュ:任意'),
+                    .describe('End line hash for multi-line notes (optional)'),
                 })
-                .describe('マルチラインノートの終了行情報'),
+                .describe('Multi-line note end line information'),
             })
             .optional()
-            .describe('複数行コメント時専用のパラメータ:任意'),
+            .describe('Parameters specific to multi-line comments (optional)'),
         })
-        .describe('コメントの位置情報:必須'),
+        .describe('Comment position information (required)'),
     }),
     outputSchema: createBaseToolResponseSchema(
       z.object({
@@ -218,7 +218,7 @@ export const createAddMergeRequestDiffCommentTool = (client: GitLabClient) => {
         status = 'failed';
         return {
           status,
-          error: `マージリクエストのDiffコメント追加に失敗しました: ${error}`,
+          error: `Failed to add diff comment to merge request: ${error}`,
         };
       }
     },
