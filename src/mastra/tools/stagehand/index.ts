@@ -40,7 +40,8 @@ class StagehandSessionManager {
       },
       localBrowserLaunchOptions: {
         // headless: false, // Launches the browser in headless mode.
-        executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+        executablePath:
+          '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
         // executablePath: app.isPackaged
         //   ? join(process.resourcesPath, 'app.asar', 'chrome.exe')
         //   : join(__dirname, '..', '..', 'chrome.exe'), // Custom path to the Chrome executable.
