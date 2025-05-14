@@ -201,44 +201,19 @@ export const getOrchestrator = async (): Promise<{
           enabled: true,
           use: 'tool-call',
           tmplate: `
-# スレッド全体の内容
+# Session Status
+- Current Main Task: {task}
 
-## 要約：
-...
+# Task Management
+- Progress: {progress}
+- Action Steps:
+  - {Step 1}
+  - {Step 2}
+  - ...
 
-## トピック：
-- [トピック 1]
-- [トピック 2]
-- ...
-
-# 現在対応中の質問内容
-
-## 質問内容:
-...
-
-## 対応手順
-- [ステップ 1]
-  - 内容：
-  - 完了条件：
-  - 進捗率：
-  - メモ
-    - [メモ 1]
-    - ...
-  - 結果：
-- [ステップ 2]
-  - 内容：
-  - 完了条件：
-  - 進捗率：
-  - メモ
-    - [メモ 1]
-    - ...
-  - 結果：
-- ...
-
-## 回答用メモ
-
-- [メモ 1]
-- [メモ 2]
+## Response Notes
+- {Note 1}
+- {Note 2}
 - ...
 `,
         },
