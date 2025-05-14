@@ -1,1876 +1,360 @@
-diff --git a/.erb/configs/webpack.config.main.dev.ts b/.erb/configs/webpack.config.main.dev.ts
-index 59282bfee..dd9173360 100644
---- a/.erb/configs/webpack.config.main.dev.ts
-+++ b/.erb/configs/webpack.config.main.dev.ts
-@@ -24,6 +24,14 @@ const configuration: webpack.Configuration = {
- 
-   target: 'electron-main',
- 
-+  externals: [
-+    'playwright',
-+    'playwright-core',
-+    '@playwright/test',
-+    'chromium-bidi',
-+    '@browserbasehq/stagehand',
-+  ],
-+
-   entry: {
-     main: path.join(webpackPaths.srcMainPath, 'main.ts'),
-     preload: path.join(webpackPaths.srcMainPath, 'preload.ts'),
-diff --git a/.erb/configs/webpack.config.main.prod.ts b/.erb/configs/webpack.config.main.prod.ts
-index 6ce80e934..8720ea980 100644
---- a/.erb/configs/webpack.config.main.prod.ts
-+++ b/.erb/configs/webpack.config.main.prod.ts
-@@ -82,6 +82,11 @@ const configuration: webpack.Configuration = {
-           ),
-           to: 'pdf.worker.mjs', // 出力先 (resources に入る)
-         },
-+        {
-+          from: path.resolve(__dirname, `../../chrome.exe`),
-+          to: path.resolve(__dirname, '../../release/app/'),
-+          noErrorOnMissing: false,
-+        },
-       ],
-     }),
-   ],
-diff --git a/.erb/configs/webpack.config.renderer.dev.dll.ts b/.erb/configs/webpack.config.renderer.dev.dll.ts
-index 614b90f04..77ae0f981 100644
---- a/.erb/configs/webpack.config.renderer.dev.dll.ts
-+++ b/.erb/configs/webpack.config.renderer.dev.dll.ts
-@@ -23,7 +23,15 @@ const configuration: webpack.Configuration = {
- 
-   target: 'electron-renderer',
- 
--  externals: ['fsevents', 'crypto-browserify'],
-+  externals: [
-+    'fsevents',
-+    'crypto-browserify',
-+    'playwright',
-+    'playwright-core',
-+    '@playwright/test',
-+    'chromium-bidi',
-+    '@browserbasehq/stagehand',
-+  ],
- 
-   /**
-    * Use `module` from `webpack.config.renderer.dev.js`
-diff --git a/.gitignore b/.gitignore
-index a998f72e9..522483d95 100644
---- a/.gitignore
-+++ b/.gitignore
-@@ -43,4 +43,5 @@ source
- db
- local_docker
- mcp.log
--electron-store
-\ No newline at end of file
-+electron-store
-+.erb/chrome.exe
-diff --git a/package-lock.json b/package-lock.json
-index 91938b64e..4a623f180 100644
---- a/package-lock.json
-+++ b/package-lock.json
-@@ -11,6 +11,7 @@
-       "license": "MIT",
-       "dependencies": {
-         "@ai-sdk/openai-compatible": "^0.2.11",
-+        "@browserbasehq/stagehand": "^2.2.1",
-         "@electron/notarize": "^3.0.0",
-         "@emotion/react": "^11.14.0",
-         "@emotion/styled": "^11.14.0",
-@@ -138,14 +139,331 @@
-       "dev": true,
-       "license": "MIT"
-     },
-+    "node_modules/@ai-sdk/anthropic": {
-+      "version": "1.2.11",
-+      "resolved": "https://registry.npmjs.org/@ai-sdk/anthropic/-/anthropic-1.2.11.tgz",
-+      "integrity": "sha512-lZLcEMh8MXY4NVSrN/7DyI2rnid8k7cn/30nMmd3bwJrnIsOuIuuFvY8f0nj+pFcTi6AYK7ujLdqW5dQVz1YQw==",
-+      "license": "Apache-2.0",
-+      "optional": true,
-+      "dependencies": {
-+        "@ai-sdk/provider": "1.1.3",
-+        "@ai-sdk/provider-utils": "2.2.8"
-+      },
-+      "engines": {
-+        "node": ">=18"
-+      },
-+      "peerDependencies": {
-+        "zod": "^3.0.0"
-+      }
-+    },
-+    "node_modules/@ai-sdk/anthropic/node_modules/@ai-sdk/provider-utils": {
-+      "version": "2.2.8",
-+      "resolved": "https://registry.npmjs.org/@ai-sdk/provider-utils/-/provider-utils-2.2.8.tgz",
-+      "integrity": "sha512-fqhG+4sCVv8x7nFzYnFo19ryhAa3w096Kmc3hWxMQfW/TubPOmt3A6tYZhl4mUfQWWQMsuSkLrtjlWuXBVSGQA==",
-+      "license": "Apache-2.0",
-+      "optional": true,
-+      "dependencies": {
-+        "@ai-sdk/provider": "1.1.3",
-+        "nanoid": "^3.3.8",
-+        "secure-json-parse": "^2.7.0"
-+      },
-+      "engines": {
-+        "node": ">=18"
-+      },
-+      "peerDependencies": {
-+        "zod": "^3.23.8"
-+      }
-+    },
-+    "node_modules/@ai-sdk/azure": {
-+      "version": "1.3.23",
-+      "resolved": "https://registry.npmjs.org/@ai-sdk/azure/-/azure-1.3.23.tgz",
-+      "integrity": "sha512-vpsaPtU24RBVk/IMM5UylR/N4RtAuL2NZLWc7LJ3tvMTHu6pI46a7w+1qIwR3F6yO9ehWR8qvfLaBefJNFxaVw==",
-+      "license": "Apache-2.0",
-+      "optional": true,
-+      "dependencies": {
-+        "@ai-sdk/openai": "1.3.22",
-+        "@ai-sdk/provider": "1.1.3",
-+        "@ai-sdk/provider-utils": "2.2.8"
-+      },
-+      "engines": {
-+        "node": ">=18"
-+      },
-+      "peerDependencies": {
-+        "zod": "^3.0.0"
-+      }
-+    },
-+    "node_modules/@ai-sdk/azure/node_modules/@ai-sdk/provider-utils": {
-+      "version": "2.2.8",
-+      "resolved": "https://registry.npmjs.org/@ai-sdk/provider-utils/-/provider-utils-2.2.8.tgz",
-+      "integrity": "sha512-fqhG+4sCVv8x7nFzYnFo19ryhAa3w096Kmc3hWxMQfW/TubPOmt3A6tYZhl4mUfQWWQMsuSkLrtjlWuXBVSGQA==",
-+      "license": "Apache-2.0",
-+      "optional": true,
-+      "dependencies": {
-+        "@ai-sdk/provider": "1.1.3",
-+        "nanoid": "^3.3.8",
-+        "secure-json-parse": "^2.7.0"
-+      },
-+      "engines": {
-+        "node": ">=18"
-+      },
-+      "peerDependencies": {
-+        "zod": "^3.23.8"
-+      }
-+    },
-+    "node_modules/@ai-sdk/cerebras": {
-+      "version": "0.2.14",
-+      "resolved": "https://registry.npmjs.org/@ai-sdk/cerebras/-/cerebras-0.2.14.tgz",
-+      "integrity": "sha512-BIDf9hfgAEEu3xhNUyBWvAzeSgt7A7cSMj7UcKS4jhBDybRoKjoEGWHC7916j8LS/5Hkdmo6jwaxWxn/gZJYbQ==",
-+      "license": "Apache-2.0",
-+      "optional": true,
-+      "dependencies": {
-+        "@ai-sdk/openai-compatible": "0.2.14",
-+        "@ai-sdk/provider": "1.1.3",
-+        "@ai-sdk/provider-utils": "2.2.8"
-+      },
-+      "engines": {
-+        "node": ">=18"
-+      },
-+      "peerDependencies": {
-+        "zod": "^3.0.0"
-+      }
-+    },
-+    "node_modules/@ai-sdk/cerebras/node_modules/@ai-sdk/provider-utils": {
-+      "version": "2.2.8",
-+      "resolved": "https://registry.npmjs.org/@ai-sdk/provider-utils/-/provider-utils-2.2.8.tgz",
-+      "integrity": "sha512-fqhG+4sCVv8x7nFzYnFo19ryhAa3w096Kmc3hWxMQfW/TubPOmt3A6tYZhl4mUfQWWQMsuSkLrtjlWuXBVSGQA==",
-+      "license": "Apache-2.0",
-+      "optional": true,
-+      "dependencies": {
-+        "@ai-sdk/provider": "1.1.3",
-+        "nanoid": "^3.3.8",
-+        "secure-json-parse": "^2.7.0"
-+      },
-+      "engines": {
-+        "node": ">=18"
-+      },
-+      "peerDependencies": {
-+        "zod": "^3.23.8"
-+      }
-+    },
-+    "node_modules/@ai-sdk/deepseek": {
-+      "version": "0.2.14",
-+      "resolved": "https://registry.npmjs.org/@ai-sdk/deepseek/-/deepseek-0.2.14.tgz",
-+      "integrity": "sha512-TISD1FzBWuQkHEHoVustoJILV33ZNgfYxeTkq1xU2vHEZuWTGZV7/IlXixyFsfqDCdVgrbLeIABk5FuCw7niLg==",
-+      "license": "Apache-2.0",
-+      "optional": true,
-+      "dependencies": {
-+        "@ai-sdk/openai-compatible": "0.2.14",
-+        "@ai-sdk/provider": "1.1.3",
-+        "@ai-sdk/provider-utils": "2.2.8"
-+      },
-+      "engines": {
-+        "node": ">=18"
-+      },
-+      "peerDependencies": {
-+        "zod": "^3.0.0"
-+      }
-+    },
-+    "node_modules/@ai-sdk/deepseek/node_modules/@ai-sdk/provider-utils": {
-+      "version": "2.2.8",
-+      "resolved": "https://registry.npmjs.org/@ai-sdk/provider-utils/-/provider-utils-2.2.8.tgz",
-+      "integrity": "sha512-fqhG+4sCVv8x7nFzYnFo19ryhAa3w096Kmc3hWxMQfW/TubPOmt3A6tYZhl4mUfQWWQMsuSkLrtjlWuXBVSGQA==",
-+      "license": "Apache-2.0",
-+      "optional": true,
-+      "dependencies": {
-+        "@ai-sdk/provider": "1.1.3",
-+        "nanoid": "^3.3.8",
-+        "secure-json-parse": "^2.7.0"
-+      },
-+      "engines": {
-+        "node": ">=18"
-+      },
-+      "peerDependencies": {
-+        "zod": "^3.23.8"
-+      }
-+    },
-+    "node_modules/@ai-sdk/google": {
-+      "version": "1.2.17",
-+      "resolved": "https://registry.npmjs.org/@ai-sdk/google/-/google-1.2.17.tgz",
-+      "integrity": "sha512-mLFLDMCJaDK+j1nvoqeNszazSZIyeSMPi5X+fs5Wh3xWZljGGE0WmFg32RNkFujRB+UnM63EnhPG70WdqOx/MA==",
-+      "license": "Apache-2.0",
-+      "optional": true,
-+      "dependencies": {
-+        "@ai-sdk/provider": "1.1.3",
-+        "@ai-sdk/provider-utils": "2.2.8"
-+      },
-+      "engines": {
-+        "node": ">=18"
-+      },
-+      "peerDependencies": {
-+        "zod": "^3.0.0"
-+      }
-+    },
-+    "node_modules/@ai-sdk/google/node_modules/@ai-sdk/provider-utils": {
-+      "version": "2.2.8",
-+      "resolved": "https://registry.npmjs.org/@ai-sdk/provider-utils/-/provider-utils-2.2.8.tgz",
-+      "integrity": "sha512-fqhG+4sCVv8x7nFzYnFo19ryhAa3w096Kmc3hWxMQfW/TubPOmt3A6tYZhl4mUfQWWQMsuSkLrtjlWuXBVSGQA==",
-+      "license": "Apache-2.0",
-+      "optional": true,
-+      "dependencies": {
-+        "@ai-sdk/provider": "1.1.3",
-+        "nanoid": "^3.3.8",
-+        "secure-json-parse": "^2.7.0"
-+      },
-+      "engines": {
-+        "node": ">=18"
-+      },
-+      "peerDependencies": {
-+        "zod": "^3.23.8"
-+      }
-+    },
-+    "node_modules/@ai-sdk/groq": {
-+      "version": "1.2.9",
-+      "resolved": "https://registry.npmjs.org/@ai-sdk/groq/-/groq-1.2.9.tgz",
-+      "integrity": "sha512-7MoDaxm8yWtiRbD1LipYZG0kBl+Xe0sv/EeyxnHnGPZappXdlgtdOgTZVjjXkT3nWP30jjZi9A45zoVrBMb3Xg==",
-+      "license": "Apache-2.0",
-+      "optional": true,
-+      "dependencies": {
-+        "@ai-sdk/provider": "1.1.3",
-+        "@ai-sdk/provider-utils": "2.2.8"
-+      },
-+      "engines": {
-+        "node": ">=18"
-+      },
-+      "peerDependencies": {
-+        "zod": "^3.0.0"
-+      }
-+    },
-+    "node_modules/@ai-sdk/groq/node_modules/@ai-sdk/provider-utils": {
-+      "version": "2.2.8",
-+      "resolved": "https://registry.npmjs.org/@ai-sdk/provider-utils/-/provider-utils-2.2.8.tgz",
-+      "integrity": "sha512-fqhG+4sCVv8x7nFzYnFo19ryhAa3w096Kmc3hWxMQfW/TubPOmt3A6tYZhl4mUfQWWQMsuSkLrtjlWuXBVSGQA==",
-+      "license": "Apache-2.0",
-+      "optional": true,
-+      "dependencies": {
-+        "@ai-sdk/provider": "1.1.3",
-+        "nanoid": "^3.3.8",
-+        "secure-json-parse": "^2.7.0"
-+      },
-+      "engines": {
-+        "node": ">=18"
-+      },
-+      "peerDependencies": {
-+        "zod": "^3.23.8"
-+      }
-+    },
-+    "node_modules/@ai-sdk/mistral": {
-+      "version": "1.2.8",
-+      "resolved": "https://registry.npmjs.org/@ai-sdk/mistral/-/mistral-1.2.8.tgz",
-+      "integrity": "sha512-lv857D9UJqCVxiq2Fcu7mSPTypEHBUqLl1K+lCaP6X/7QAkcaxI36QDONG+tOhGHJOXTsS114u8lrUTaEiGXbg==",
-+      "license": "Apache-2.0",
-+      "optional": true,
-+      "dependencies": {
-+        "@ai-sdk/provider": "1.1.3",
-+        "@ai-sdk/provider-utils": "2.2.8"
-+      },
-+      "engines": {
-+        "node": ">=18"
-+      },
-+      "peerDependencies": {
-+        "zod": "^3.0.0"
-+      }
-+    },
-+    "node_modules/@ai-sdk/mistral/node_modules/@ai-sdk/provider-utils": {
-+      "version": "2.2.8",
-+      "resolved": "https://registry.npmjs.org/@ai-sdk/provider-utils/-/provider-utils-2.2.8.tgz",
-+      "integrity": "sha512-fqhG+4sCVv8x7nFzYnFo19ryhAa3w096Kmc3hWxMQfW/TubPOmt3A6tYZhl4mUfQWWQMsuSkLrtjlWuXBVSGQA==",
-+      "license": "Apache-2.0",
-+      "optional": true,
-+      "dependencies": {
-+        "@ai-sdk/provider": "1.1.3",
-+        "nanoid": "^3.3.8",
-+        "secure-json-parse": "^2.7.0"
-+      },
-+      "engines": {
-+        "node": ">=18"
-+      },
-+      "peerDependencies": {
-+        "zod": "^3.23.8"
-+      }
-+    },
-+    "node_modules/@ai-sdk/openai": {
-+      "version": "1.3.22",
-+      "resolved": "https://registry.npmjs.org/@ai-sdk/openai/-/openai-1.3.22.tgz",
-+      "integrity": "sha512-QwA+2EkG0QyjVR+7h6FE7iOu2ivNqAVMm9UJZkVxxTk5OIq5fFJDTEI/zICEMuHImTTXR2JjsL6EirJ28Jc4cw==",
-+      "license": "Apache-2.0",
-+      "optional": true,
-+      "dependencies": {
-+        "@ai-sdk/provider": "1.1.3",
-+        "@ai-sdk/provider-utils": "2.2.8"
-+      },
-+      "engines": {
-+        "node": ">=18"
-+      },
-+      "peerDependencies": {
-+        "zod": "^3.0.0"
-+      }
-+    },
-     "node_modules/@ai-sdk/openai-compatible": {
--      "version": "0.2.11",
--      "resolved": "https://registry.npmjs.org/@ai-sdk/openai-compatible/-/openai-compatible-0.2.11.tgz",
--      "integrity": "sha512-56U0uNCcFTygA4h6R/uREv8r5sKA3/pGkpIAnMOpRzs5wiARlTYakWW3LZgxg6D4Gpeswo4gwNJczB7nM0K1Qg==",
-+      "version": "0.2.14",
-+      "resolved": "https://registry.npmjs.org/@ai-sdk/openai-compatible/-/openai-compatible-0.2.14.tgz",
-+      "integrity": "sha512-icjObfMCHKSIbywijaoLdZ1nSnuRnWgMEMLgwoxPJgxsUHMx0aVORnsLUid4SPtdhHI3X2masrt6iaEQLvOSFw==",
-+      "license": "Apache-2.0",
-+      "dependencies": {
-+        "@ai-sdk/provider": "1.1.3",
-+        "@ai-sdk/provider-utils": "2.2.8"
-+      },
-+      "engines": {
-+        "node": ">=18"
-+      },
-+      "peerDependencies": {
-+        "zod": "^3.0.0"
-+      }
-+    },
-+    "node_modules/@ai-sdk/openai-compatible/node_modules/@ai-sdk/provider-utils": {
-+      "version": "2.2.8",
-+      "resolved": "https://registry.npmjs.org/@ai-sdk/provider-utils/-/provider-utils-2.2.8.tgz",
-+      "integrity": "sha512-fqhG+4sCVv8x7nFzYnFo19ryhAa3w096Kmc3hWxMQfW/TubPOmt3A6tYZhl4mUfQWWQMsuSkLrtjlWuXBVSGQA==",
-+      "license": "Apache-2.0",
-+      "dependencies": {
-+        "@ai-sdk/provider": "1.1.3",
-+        "nanoid": "^3.3.8",
-+        "secure-json-parse": "^2.7.0"
-+      },
-+      "engines": {
-+        "node": ">=18"
-+      },
-+      "peerDependencies": {
-+        "zod": "^3.23.8"
-+      }
-+    },
-+    "node_modules/@ai-sdk/openai/node_modules/@ai-sdk/provider-utils": {
-+      "version": "2.2.8",
-+      "resolved": "https://registry.npmjs.org/@ai-sdk/provider-utils/-/provider-utils-2.2.8.tgz",
-+      "integrity": "sha512-fqhG+4sCVv8x7nFzYnFo19ryhAa3w096Kmc3hWxMQfW/TubPOmt3A6tYZhl4mUfQWWQMsuSkLrtjlWuXBVSGQA==",
-+      "license": "Apache-2.0",
-+      "optional": true,
-+      "dependencies": {
-+        "@ai-sdk/provider": "1.1.3",
-+        "nanoid": "^3.3.8",
-+        "secure-json-parse": "^2.7.0"
-+      },
-+      "engines": {
-+        "node": ">=18"
-+      },
-+      "peerDependencies": {
-+        "zod": "^3.23.8"
-+      }
-+    },
-+    "node_modules/@ai-sdk/perplexity": {
-+      "version": "1.1.9",
-+      "resolved": "https://registry.npmjs.org/@ai-sdk/perplexity/-/perplexity-1.1.9.tgz",
-+      "integrity": "sha512-Ytolh/v2XupXbTvjE18EFBrHLoNMH0Ueji3lfSPhCoRUfkwrgZ2D9jlNxvCNCCRiGJG5kfinSHvzrH5vGDklYA==",
-       "license": "Apache-2.0",
-+      "optional": true,
-       "dependencies": {
-         "@ai-sdk/provider": "1.1.3",
--        "@ai-sdk/provider-utils": "2.2.7"
-+        "@ai-sdk/provider-utils": "2.2.8"
-       },
-       "engines": {
-         "node": ">=18"
-@@ -154,6 +472,24 @@
-         "zod": "^3.0.0"
-       }
-     },
-+    "node_modules/@ai-sdk/perplexity/node_modules/@ai-sdk/provider-utils": {
-+      "version": "2.2.8",
-+      "resolved": "https://registry.npmjs.org/@ai-sdk/provider-utils/-/provider-utils-2.2.8.tgz",
-+      "integrity": "sha512-fqhG+4sCVv8x7nFzYnFo19ryhAa3w096Kmc3hWxMQfW/TubPOmt3A6tYZhl4mUfQWWQMsuSkLrtjlWuXBVSGQA==",
-+      "license": "Apache-2.0",
-+      "optional": true,
-+      "dependencies": {
-+        "@ai-sdk/provider": "1.1.3",
-+        "nanoid": "^3.3.8",
-+        "secure-json-parse": "^2.7.0"
-+      },
-+      "engines": {
-+        "node": ">=18"
-+      },
-+      "peerDependencies": {
-+        "zod": "^3.23.8"
-+      }
-+    },
-     "node_modules/@ai-sdk/provider": {
-       "version": "1.1.3",
-       "resolved": "https://registry.npmjs.org/@ai-sdk/provider/-/provider-1.1.3.tgz",
-@@ -207,6 +543,42 @@
-         }
-       }
-     },
-+    "node_modules/@ai-sdk/togetherai": {
-+      "version": "0.2.14",
-+      "resolved": "https://registry.npmjs.org/@ai-sdk/togetherai/-/togetherai-0.2.14.tgz",
-+      "integrity": "sha512-tdCe5kawsQrnMZB8aF1iL1P3+NfrPwILH9UudAZ5cNVY5dTFl+mXk3R37YJS+mkWeAoedr8Cb7mAuGxR47bsFw==",
-+      "license": "Apache-2.0",
-+      "optional": true,
-+      "dependencies": {
-+        "@ai-sdk/openai-compatible": "0.2.14",
-+        "@ai-sdk/provider": "1.1.3",
-+        "@ai-sdk/provider-utils": "2.2.8"
-+      },
-+      "engines": {
-+        "node": ">=18"
-+      },
-+      "peerDependencies": {
-+        "zod": "^3.0.0"
-+      }
-+    },
-+    "node_modules/@ai-sdk/togetherai/node_modules/@ai-sdk/provider-utils": {
-+      "version": "2.2.8",
-+      "resolved": "https://registry.npmjs.org/@ai-sdk/provider-utils/-/provider-utils-2.2.8.tgz",
-+      "integrity": "sha512-fqhG+4sCVv8x7nFzYnFo19ryhAa3w096Kmc3hWxMQfW/TubPOmt3A6tYZhl4mUfQWWQMsuSkLrtjlWuXBVSGQA==",
-+      "license": "Apache-2.0",
-+      "optional": true,
-+      "dependencies": {
-+        "@ai-sdk/provider": "1.1.3",
-+        "nanoid": "^3.3.8",
-+        "secure-json-parse": "^2.7.0"
-+      },
-+      "engines": {
-+        "node": ">=18"
-+      },
-+      "peerDependencies": {
-+        "zod": "^3.23.8"
-+      }
-+    },
-     "node_modules/@ai-sdk/ui-utils": {
-       "version": "1.2.8",
-       "resolved": "https://registry.npmjs.org/@ai-sdk/ui-utils/-/ui-utils-1.2.8.tgz",
-@@ -224,6 +596,42 @@
-         "zod": "^3.23.8"
-       }
-     },
-+    "node_modules/@ai-sdk/xai": {
-+      "version": "1.2.16",
-+      "resolved": "https://registry.npmjs.org/@ai-sdk/xai/-/xai-1.2.16.tgz",
-+      "integrity": "sha512-UOZT8td9PWwMi2dF9a0U44t/Oltmf6QmIJdSvrOcLG4mvpRc1UJn6YJaR0HtXs3YnW6SvY1zRdIDrW4GFpv4NA==",
-+      "license": "Apache-2.0",
-+      "optional": true,
-+      "dependencies": {
-+        "@ai-sdk/openai-compatible": "0.2.14",
-+        "@ai-sdk/provider": "1.1.3",
-+        "@ai-sdk/provider-utils": "2.2.8"
-+      },
-+      "engines": {
-+        "node": ">=18"
-+      },
-+      "peerDependencies": {
-+        "zod": "^3.0.0"
-+      }
-+    },
-+    "node_modules/@ai-sdk/xai/node_modules/@ai-sdk/provider-utils": {
-+      "version": "2.2.8",
-+      "resolved": "https://registry.npmjs.org/@ai-sdk/provider-utils/-/provider-utils-2.2.8.tgz",
-+      "integrity": "sha512-fqhG+4sCVv8x7nFzYnFo19ryhAa3w096Kmc3hWxMQfW/TubPOmt3A6tYZhl4mUfQWWQMsuSkLrtjlWuXBVSGQA==",
-+      "license": "Apache-2.0",
-+      "optional": true,
-+      "dependencies": {
-+        "@ai-sdk/provider": "1.1.3",
-+        "nanoid": "^3.3.8",
-+        "secure-json-parse": "^2.7.0"
-+      },
-+      "engines": {
-+        "node": ">=18"
-+      },
-+      "peerDependencies": {
-+        "zod": "^3.23.8"
-+      }
-+    },
-     "node_modules/@ampproject/remapping": {
-       "version": "2.3.0",
-       "resolved": "https://registry.npmjs.org/@ampproject/remapping/-/remapping-2.3.0.tgz",
-@@ -259,6 +667,106 @@
-         "url": "https://github.com/sponsors/antfu"
-       }
-     },
-+    "node_modules/@anthropic-ai/sdk": {
-+      "version": "0.39.0",
-+      "resolved": "https://registry.npmjs.org/@anthropic-ai/sdk/-/sdk-0.39.0.tgz",
-+      "integrity": "sha512-eMyDIPRZbt1CCLErRCi3exlAvNkBtRe+kW5vvJyef93PmNr/clstYgHhtvmkxN82nlKgzyGPCyGxrm0JQ1ZIdg==",
-+      "license": "MIT",
-+      "dependencies": {
-+        "@types/node": "^18.11.18",
-+        "@types/node-fetch": "^2.6.4",
-+        "abort-controller": "^3.0.0",
-+        "agentkeepalive": "^4.2.1",
-+        "form-data-encoder": "1.7.2",
-+        "formdata-node": "^4.3.2",
-+        "node-fetch": "^2.6.7"
-+      }
-+    },
-+    "node_modules/@anthropic-ai/sdk/node_modules/@types/node": {
-+      "version": "18.19.100",
-+      "resolved": "https://registry.npmjs.org/@types/node/-/node-18.19.100.tgz",
-+      "integrity": "sha512-ojmMP8SZBKprc3qGrGk8Ujpo80AXkrP7G2tOT4VWr5jlr5DHjsJF+emXJz+Wm0glmy4Js62oKMdZZ6B9Y+tEcA==",
-+      "license": "MIT",
-+      "dependencies": {
-+        "undici-types": "~5.26.4"
-+      }
-+    },
-+    "node_modules/@anthropic-ai/sdk/node_modules/form-data-encoder": {
-+      "version": "1.7.2",
-+      "resolved": "https://registry.npmjs.org/form-data-encoder/-/form-data-encoder-1.7.2.tgz",
-+      "integrity": "sha512-qfqtYan3rxrnCk1VYaA4H+Ms9xdpPqvLZa6xmMgFvhO32x7/3J/ExcTd6qpxM0vH2GdMI+poehyBZvqfMTto8A==",
-+      "license": "MIT"
-+    },
-+    "node_modules/@anthropic-ai/sdk/node_modules/formdata-node": {
-+      "version": "4.4.1",
-+      "resolved": "https://registry.npmjs.org/formdata-node/-/formdata-node-4.4.1.tgz",
-+      "integrity": "sha512-0iirZp3uVDjVGt9p49aTaqjk84TrglENEDuqfdlZQ1roC9CWlPk6Avf8EEnZNcAqPonwkG35x4n3ww/1THYAeQ==",
-+      "license": "MIT",
-+      "dependencies": {
-+        "node-domexception": "1.0.0",
-+        "web-streams-polyfill": "4.0.0-beta.3"
-+      },
-+      "engines": {
-+        "node": ">= 12.20"
-+      }
-+    },
-+    "node_modules/@anthropic-ai/sdk/node_modules/node-fetch": {
-+      "version": "2.7.0",
-+      "resolved": "https://registry.npmjs.org/node-fetch/-/node-fetch-2.7.0.tgz",
-+      "integrity": "sha512-c4FRfUm/dbcWZ7U+1Wq0AwCyFL+3nt2bEw05wfxSz+DWpWsitgmSgYmy2dQdWyKC1694ELPqMs/YzUSNozLt8A==",
-+      "license": "MIT",
-+      "dependencies": {
-+        "whatwg-url": "^5.0.0"
-+      },
-+      "engines": {
-+        "node": "4.x || >=6.0.0"
-+      },
-+      "peerDependencies": {
-+        "encoding": "^0.1.0"
-+      },
-+      "peerDependenciesMeta": {
-+        "encoding": {
-+          "optional": true
-+        }
-+      }
-+    },
-+    "node_modules/@anthropic-ai/sdk/node_modules/tr46": {
-+      "version": "0.0.3",
-+      "resolved": "https://registry.npmjs.org/tr46/-/tr46-0.0.3.tgz",
-+      "integrity": "sha512-N3WMsuqV66lT30CrXNbEjx4GEwlow3v6rr4mCcv6prnfwhS01rkgyFdjPNBYd9br7LpXV1+Emh01fHnq2Gdgrw==",
-+      "license": "MIT"
-+    },
-+    "node_modules/@anthropic-ai/sdk/node_modules/undici-types": {
-+      "version": "5.26.5",
-+      "resolved": "https://registry.npmjs.org/undici-types/-/undici-types-5.26.5.tgz",
-+      "integrity": "sha512-JlCMO+ehdEIKqlFxk6IfVoAUVmgz7cU7zD/h9XZ0qzeosSHmUJVOzSQvvYSYWXkFXC+IfLKSIffhv0sVZup6pA==",
-+      "license": "MIT"
-+    },
-+    "node_modules/@anthropic-ai/sdk/node_modules/web-streams-polyfill": {
-+      "version": "4.0.0-beta.3",
-+      "resolved": "https://registry.npmjs.org/web-streams-polyfill/-/web-streams-polyfill-4.0.0-beta.3.tgz",
-+      "integrity": "sha512-QW95TCTaHmsYfHDybGMwO5IJIM93I/6vTRk+daHTWFPhwh+C8Cg7j7XyKrwrj8Ib6vYXe0ocYNrmzY4xAAN6ug==",
-+      "license": "MIT",
-+      "engines": {
-+        "node": ">= 14"
-+      }
-+    },
-+    "node_modules/@anthropic-ai/sdk/node_modules/webidl-conversions": {
-+      "version": "3.0.1",
-+      "resolved": "https://registry.npmjs.org/webidl-conversions/-/webidl-conversions-3.0.1.tgz",
-+      "integrity": "sha512-2JAn3z8AR6rjK8Sm8orRC0h/bcl/DqL7tRPdGZ4I1CjdF+EaMLmYxBHyXuKL849eucPFhvBoxMsflfOb8kxaeQ==",
-+      "license": "BSD-2-Clause"
-+    },
-+    "node_modules/@anthropic-ai/sdk/node_modules/whatwg-url": {
-+      "version": "5.0.0",
-+      "resolved": "https://registry.npmjs.org/whatwg-url/-/whatwg-url-5.0.0.tgz",
-+      "integrity": "sha512-saE57nupxk6v3HY35+jzBwYa0rKSy0XR8JSxZPwgLr7ys0IBzhGviA1/TUGJLmSVqs8pb9AnvICXEuOHLprYTw==",
-+      "license": "MIT",
-+      "dependencies": {
-+        "tr46": "~0.0.3",
-+        "webidl-conversions": "^3.0.0"
-+      }
-+    },
-     "node_modules/@anush008/tokenizers": {
-       "version": "0.0.0",
-       "resolved": "https://registry.npmjs.org/@anush008/tokenizers/-/tokenizers-0.0.0.tgz",
-@@ -3200,35 +3708,173 @@
-         "globals": "^11.1.0"
-       },
-       "engines": {
--        "node": ">=6.9.0"
-+        "node": ">=6.9.0"
-+      }
-+    },
-+    "node_modules/@babel/types": {
-+      "version": "7.27.0",
-+      "resolved": "https://registry.npmjs.org/@babel/types/-/types-7.27.0.tgz",
-+      "integrity": "sha512-H45s8fVLYjbhFH62dIJ3WtmJ6RSPt/3DRO0ZcT2SUiYiQyz3BLVb9ADEnLl91m74aQPS3AzzeajZHYOalWe3bg==",
-+      "license": "MIT",
-+      "dependencies": {
-+        "@babel/helper-string-parser": "^7.25.9",
-+        "@babel/helper-validator-identifier": "^7.25.9"
-+      },
-+      "engines": {
-+        "node": ">=6.9.0"
-+      }
-+    },
-+    "node_modules/@bcoe/v8-coverage": {
-+      "version": "0.2.3",
-+      "resolved": "https://registry.npmjs.org/@bcoe/v8-coverage/-/v8-coverage-0.2.3.tgz",
-+      "integrity": "sha512-0hYQ8SB4Db5zvZB4axdMHGwEaQjkZzFjQiN9LVYvIFB2nSUHW9tYpxWriPrWDASIxiaXax83REcLxuSdnGPZtw==",
-+      "dev": true,
-+      "license": "MIT"
-+    },
-+    "node_modules/@braintree/sanitize-url": {
-+      "version": "7.1.1",
-+      "resolved": "https://registry.npmjs.org/@braintree/sanitize-url/-/sanitize-url-7.1.1.tgz",
-+      "integrity": "sha512-i1L7noDNxtFyL5DmZafWy1wRVhGehQmzZaz1HiN5e7iylJMSZR7ekOV7NsIqa5qBldlLrsKv4HbgFUVlQrz8Mw==",
-+      "license": "MIT"
-+    },
-+    "node_modules/@browserbasehq/sdk": {
-+      "version": "2.5.0",
-+      "resolved": "https://registry.npmjs.org/@browserbasehq/sdk/-/sdk-2.5.0.tgz",
-+      "integrity": "sha512-bcnbYZvm5Ht1nrHUfWDK4crspiTy1ESJYMApsMiOTUnlKOan0ocRD6m7hZH34iSC2c2XWsoryR80cwsYgCBWzQ==",
-+      "license": "Apache-2.0",
-+      "dependencies": {
-+        "@types/node": "^18.11.18",
-+        "@types/node-fetch": "^2.6.4",
-+        "abort-controller": "^3.0.0",
-+        "agentkeepalive": "^4.2.1",
-+        "form-data-encoder": "1.7.2",
-+        "formdata-node": "^4.3.2",
-+        "node-fetch": "^2.6.7"
-+      }
-+    },
-+    "node_modules/@browserbasehq/sdk/node_modules/@types/node": {
-+      "version": "18.19.100",
-+      "resolved": "https://registry.npmjs.org/@types/node/-/node-18.19.100.tgz",
-+      "integrity": "sha512-ojmMP8SZBKprc3qGrGk8Ujpo80AXkrP7G2tOT4VWr5jlr5DHjsJF+emXJz+Wm0glmy4Js62oKMdZZ6B9Y+tEcA==",
-+      "license": "MIT",
-+      "dependencies": {
-+        "undici-types": "~5.26.4"
-+      }
-+    },
-+    "node_modules/@browserbasehq/sdk/node_modules/form-data-encoder": {
-+      "version": "1.7.2",
-+      "resolved": "https://registry.npmjs.org/form-data-encoder/-/form-data-encoder-1.7.2.tgz",
-+      "integrity": "sha512-qfqtYan3rxrnCk1VYaA4H+Ms9xdpPqvLZa6xmMgFvhO32x7/3J/ExcTd6qpxM0vH2GdMI+poehyBZvqfMTto8A==",
-+      "license": "MIT"
-+    },
-+    "node_modules/@browserbasehq/sdk/node_modules/formdata-node": {
-+      "version": "4.4.1",
-+      "resolved": "https://registry.npmjs.org/formdata-node/-/formdata-node-4.4.1.tgz",
-+      "integrity": "sha512-0iirZp3uVDjVGt9p49aTaqjk84TrglENEDuqfdlZQ1roC9CWlPk6Avf8EEnZNcAqPonwkG35x4n3ww/1THYAeQ==",
-+      "license": "MIT",
-+      "dependencies": {
-+        "node-domexception": "1.0.0",
-+        "web-streams-polyfill": "4.0.0-beta.3"
-+      },
-+      "engines": {
-+        "node": ">= 12.20"
-       }
-     },
--    "node_modules/@babel/types": {
--      "version": "7.27.0",
--      "resolved": "https://registry.npmjs.org/@babel/types/-/types-7.27.0.tgz",
--      "integrity": "sha512-H45s8fVLYjbhFH62dIJ3WtmJ6RSPt/3DRO0ZcT2SUiYiQyz3BLVb9ADEnLl91m74aQPS3AzzeajZHYOalWe3bg==",
-+    "node_modules/@browserbasehq/sdk/node_modules/node-fetch": {
-+      "version": "2.7.0",
-+      "resolved": "https://registry.npmjs.org/node-fetch/-/node-fetch-2.7.0.tgz",
-+      "integrity": "sha512-c4FRfUm/dbcWZ7U+1Wq0AwCyFL+3nt2bEw05wfxSz+DWpWsitgmSgYmy2dQdWyKC1694ELPqMs/YzUSNozLt8A==",
-       "license": "MIT",
-       "dependencies": {
--        "@babel/helper-string-parser": "^7.25.9",
--        "@babel/helper-validator-identifier": "^7.25.9"
-+        "whatwg-url": "^5.0.0"
-       },
-       "engines": {
--        "node": ">=6.9.0"
-+        "node": "4.x || >=6.0.0"
-+      },
-+      "peerDependencies": {
-+        "encoding": "^0.1.0"
-+      },
-+      "peerDependenciesMeta": {
-+        "encoding": {
-+          "optional": true
-+        }
-       }
-     },
--    "node_modules/@bcoe/v8-coverage": {
--      "version": "0.2.3",
--      "resolved": "https://registry.npmjs.org/@bcoe/v8-coverage/-/v8-coverage-0.2.3.tgz",
--      "integrity": "sha512-0hYQ8SB4Db5zvZB4axdMHGwEaQjkZzFjQiN9LVYvIFB2nSUHW9tYpxWriPrWDASIxiaXax83REcLxuSdnGPZtw==",
--      "dev": true,
-+    "node_modules/@browserbasehq/sdk/node_modules/tr46": {
-+      "version": "0.0.3",
-+      "resolved": "https://registry.npmjs.org/tr46/-/tr46-0.0.3.tgz",
-+      "integrity": "sha512-N3WMsuqV66lT30CrXNbEjx4GEwlow3v6rr4mCcv6prnfwhS01rkgyFdjPNBYd9br7LpXV1+Emh01fHnq2Gdgrw==",
-       "license": "MIT"
-     },
--    "node_modules/@braintree/sanitize-url": {
--      "version": "7.1.1",
--      "resolved": "https://registry.npmjs.org/@braintree/sanitize-url/-/sanitize-url-7.1.1.tgz",
--      "integrity": "sha512-i1L7noDNxtFyL5DmZafWy1wRVhGehQmzZaz1HiN5e7iylJMSZR7ekOV7NsIqa5qBldlLrsKv4HbgFUVlQrz8Mw==",
-+    "node_modules/@browserbasehq/sdk/node_modules/undici-types": {
-+      "version": "5.26.5",
-+      "resolved": "https://registry.npmjs.org/undici-types/-/undici-types-5.26.5.tgz",
-+      "integrity": "sha512-JlCMO+ehdEIKqlFxk6IfVoAUVmgz7cU7zD/h9XZ0qzeosSHmUJVOzSQvvYSYWXkFXC+IfLKSIffhv0sVZup6pA==",
-       "license": "MIT"
-     },
-+    "node_modules/@browserbasehq/sdk/node_modules/web-streams-polyfill": {
-+      "version": "4.0.0-beta.3",
-+      "resolved": "https://registry.npmjs.org/web-streams-polyfill/-/web-streams-polyfill-4.0.0-beta.3.tgz",
-+      "integrity": "sha512-QW95TCTaHmsYfHDybGMwO5IJIM93I/6vTRk+daHTWFPhwh+C8Cg7j7XyKrwrj8Ib6vYXe0ocYNrmzY4xAAN6ug==",
-+      "license": "MIT",
-+      "engines": {
-+        "node": ">= 14"
-+      }
-+    },
-+    "node_modules/@browserbasehq/sdk/node_modules/webidl-conversions": {
-+      "version": "3.0.1",
-+      "resolved": "https://registry.npmjs.org/webidl-conversions/-/webidl-conversions-3.0.1.tgz",
-+      "integrity": "sha512-2JAn3z8AR6rjK8Sm8orRC0h/bcl/DqL7tRPdGZ4I1CjdF+EaMLmYxBHyXuKL849eucPFhvBoxMsflfOb8kxaeQ==",
-+      "license": "BSD-2-Clause"
-+    },
-+    "node_modules/@browserbasehq/sdk/node_modules/whatwg-url": {
-+      "version": "5.0.0",
-+      "resolved": "https://registry.npmjs.org/whatwg-url/-/whatwg-url-5.0.0.tgz",
-+      "integrity": "sha512-saE57nupxk6v3HY35+jzBwYa0rKSy0XR8JSxZPwgLr7ys0IBzhGviA1/TUGJLmSVqs8pb9AnvICXEuOHLprYTw==",
-+      "license": "MIT",
-+      "dependencies": {
-+        "tr46": "~0.0.3",
-+        "webidl-conversions": "^3.0.0"
-+      }
-+    },
-+    "node_modules/@browserbasehq/stagehand": {
-+      "version": "2.2.1",
-+      "resolved": "https://registry.npmjs.org/@browserbasehq/stagehand/-/stagehand-2.2.1.tgz",
-+      "integrity": "sha512-RwxhvlXKdEVf8cQpHnA05pj+PA92lGLCA1bkqZwri2GDzWWiDx7WTVf0QPWfAD6T8E3cD4hVHIVQpbCmogwxFg==",
-+      "license": "MIT",
-+      "dependencies": {
-+        "@anthropic-ai/sdk": "0.39.0",
-+        "@browserbasehq/sdk": "^2.4.0",
-+        "@google/genai": "^0.8.0",
-+        "ai": "^4.3.9",
-+        "openai": "^4.87.1",
-+        "pino": "^9.6.0",
-+        "pino-pretty": "^13.0.0",
-+        "playwright": "^1.52.0",
-+        "ws": "^8.18.0",
-+        "zod-to-json-schema": "^3.23.5"
-+      },
-+      "optionalDependencies": {
-+        "@ai-sdk/anthropic": "^1.2.6",
-+        "@ai-sdk/azure": "^1.3.19",
-+        "@ai-sdk/cerebras": "^0.2.6",
-+        "@ai-sdk/deepseek": "^0.2.13",
-+        "@ai-sdk/google": "^1.2.6",
-+        "@ai-sdk/groq": "^1.2.4",
-+        "@ai-sdk/mistral": "^1.2.7",
-+        "@ai-sdk/openai": "^1.0.14",
-+        "@ai-sdk/perplexity": "^1.1.7",
-+        "@ai-sdk/togetherai": "^0.2.6",
-+        "@ai-sdk/xai": "^1.2.15",
-+        "ollama-ai-provider": "^1.2.0"
-+      },
-+      "peerDependencies": {
-+        "@playwright/test": "^1.42.1",
-+        "deepmerge": "^4.3.1",
-+        "dotenv": "^16.4.5",
-+        "zod": "^3.23.8"
-+      }
-+    },
-     "node_modules/@chevrotain/cst-dts-gen": {
-       "version": "11.0.3",
-       "resolved": "https://registry.npmjs.org/@chevrotain/cst-dts-gen/-/cst-dts-gen-11.0.3.tgz",
-@@ -4808,6 +5454,19 @@
-         "node": ">=18.20.0"
-       }
-     },
-+    "node_modules/@google/genai": {
-+      "version": "0.8.0",
-+      "resolved": "https://registry.npmjs.org/@google/genai/-/genai-0.8.0.tgz",
-+      "integrity": "sha512-Zs+OGyZKyMbFofGJTR9/jTQSv8kITh735N3tEuIZj4VlMQXTC0soCFahysJ9NaeenRlD7xGb6fyqmX+FwrpU6Q==",
-+      "license": "Apache-2.0",
-+      "dependencies": {
-+        "google-auth-library": "^9.14.2",
-+        "ws": "^8.18.0"
-+      },
-+      "engines": {
-+        "node": ">=18.0.0"
-+      }
-+    },
-     "node_modules/@grpc/grpc-js": {
-       "version": "1.13.3",
-       "resolved": "https://registry.npmjs.org/@grpc/grpc-js/-/grpc-js-1.13.3.tgz",
-@@ -9046,6 +9705,22 @@
-         "url": "https://opencollective.com/unts"
-       }
-     },
-+    "node_modules/@playwright/test": {
-+      "version": "1.52.0",
-+      "resolved": "https://registry.npmjs.org/@playwright/test/-/test-1.52.0.tgz",
-+      "integrity": "sha512-uh6W7sb55hl7D6vsAeA+V2p5JnlAqzhqFyF0VcJkKZXkgnFcVG9PziERRHQfPLfNGx1C292a4JqbWzhR8L4R1g==",
-+      "license": "Apache-2.0",
-+      "peer": true,
-+      "dependencies": {
-+        "playwright": "1.52.0"
-+      },
-+      "bin": {
-+        "playwright": "cli.js"
-+      },
-+      "engines": {
-+        "node": ">=18"
-+      }
-+    },
-     "node_modules/@pmmmwh/react-refresh-webpack-plugin": {
-       "version": "0.5.15",
-       "resolved": "https://registry.npmjs.org/@pmmmwh/react-refresh-webpack-plugin/-/react-refresh-webpack-plugin-0.5.15.tgz",
-@@ -12266,6 +12941,16 @@
-         "undici-types": "~6.21.0"
-       }
-     },
-+    "node_modules/@types/node-fetch": {
-+      "version": "2.6.12",
-+      "resolved": "https://registry.npmjs.org/@types/node-fetch/-/node-fetch-2.6.12.tgz",
-+      "integrity": "sha512-8nneRWKCg3rMtF69nLQJnOYUcbafYeFSjqkw3jCRLsqkWFlHaoQrr5mXmofFGOx3DKn7UfmBMyov8ySvLRVldA==",
-+      "license": "MIT",
-+      "dependencies": {
-+        "@types/node": "*",
-+        "form-data": "^4.0.0"
-+      }
-+    },
-     "node_modules/@types/node-forge": {
-       "version": "1.3.11",
-       "resolved": "https://registry.npmjs.org/@types/node-forge/-/node-forge-1.3.11.tgz",
-@@ -13132,7 +13817,6 @@
-       "version": "4.6.0",
-       "resolved": "https://registry.npmjs.org/agentkeepalive/-/agentkeepalive-4.6.0.tgz",
-       "integrity": "sha512-kja8j7PjmncONqaTsB8fQ+wE2mSU2DJ9D4XKoJ5PFWIdRMa6SLSN1ff4mOr4jCbfRSsxR4keIiySJU0N9T5hIQ==",
--      "dev": true,
-       "license": "MIT",
-       "dependencies": {
-         "humanize-ms": "^1.2.1"
-@@ -14644,6 +15328,12 @@
-         "node": "*"
-       }
-     },
-+    "node_modules/buffer-equal-constant-time": {
-+      "version": "1.0.1",
-+      "resolved": "https://registry.npmjs.org/buffer-equal-constant-time/-/buffer-equal-constant-time-1.0.1.tgz",
-+      "integrity": "sha512-zRpUiDwd/xk6ADqPMATG8vc9VPrkck7T07OIx0gnjmJAnHnTVXNQG3vfvWNuiZIkwu9KrKdA1iJKfsfTVxE6NA==",
-+      "license": "BSD-3-Clause"
-+    },
-     "node_modules/buffer-from": {
-       "version": "1.1.2",
-       "resolved": "https://registry.npmjs.org/buffer-from/-/buffer-from-1.1.2.tgz",
-@@ -18109,6 +18799,15 @@
-       "dev": true,
-       "license": "MIT"
-     },
-+    "node_modules/ecdsa-sig-formatter": {
-+      "version": "1.0.11",
-+      "resolved": "https://registry.npmjs.org/ecdsa-sig-formatter/-/ecdsa-sig-formatter-1.0.11.tgz",
-+      "integrity": "sha512-nagl3RYrbNv6kQkeJIpt6NJZy8twLB/2vtz6yN9Z4vRKHN4/QZJIEbqohALSgwKdnksuY3k5Addp5lg8sVoVcQ==",
-+      "license": "Apache-2.0",
-+      "dependencies": {
-+        "safe-buffer": "^5.0.1"
-+      }
-+    },
-     "node_modules/ee-first": {
-       "version": "1.1.1",
-       "resolved": "https://registry.npmjs.org/ee-first/-/ee-first-1.1.1.tgz",
-@@ -21624,6 +22323,23 @@
-         "url": "https://github.com/sponsors/sindresorhus"
-       }
-     },
-+    "node_modules/google-auth-library": {
-+      "version": "9.15.1",
-+      "resolved": "https://registry.npmjs.org/google-auth-library/-/google-auth-library-9.15.1.tgz",
-+      "integrity": "sha512-Jb6Z0+nvECVz+2lzSMt9u98UsoakXxA2HGHMCxh+so3n90XgYWkq5dur19JAJV7ONiJY22yBTyJB1TSkvPq9Ng==",
-+      "license": "Apache-2.0",
-+      "dependencies": {
-+        "base64-js": "^1.3.0",
-+        "ecdsa-sig-formatter": "^1.0.11",
-+        "gaxios": "^6.1.1",
-+        "gcp-metadata": "^6.1.0",
-+        "gtoken": "^7.0.0",
-+        "jws": "^4.0.0"
-+      },
-+      "engines": {
-+        "node": ">=14"
-+      }
-+    },
-     "node_modules/google-logging-utils": {
-       "version": "0.0.2",
-       "resolved": "https://registry.npmjs.org/google-logging-utils/-/google-logging-utils-0.0.2.tgz",
-@@ -21684,6 +22400,19 @@
-       "dev": true,
-       "license": "MIT"
-     },
-+    "node_modules/gtoken": {
-+      "version": "7.1.0",
-+      "resolved": "https://registry.npmjs.org/gtoken/-/gtoken-7.1.0.tgz",
-+      "integrity": "sha512-pCcEwRi+TKpMlxAQObHDQ56KawURgyAf6jtIY046fJ5tIv3zDe/LEIubckAO8fj6JnAxLdmWkUfNyulQ2iKdEw==",
-+      "license": "MIT",
-+      "dependencies": {
-+        "gaxios": "^6.0.0",
-+        "jws": "^4.0.0"
-+      },
-+      "engines": {
-+        "node": ">=14.0.0"
-+      }
-+    },
-     "node_modules/gzip-size": {
-       "version": "6.0.0",
-       "resolved": "https://registry.npmjs.org/gzip-size/-/gzip-size-6.0.0.tgz",
-@@ -22429,7 +23158,6 @@
-       "version": "1.2.1",
-       "resolved": "https://registry.npmjs.org/humanize-ms/-/humanize-ms-1.2.1.tgz",
-       "integrity": "sha512-Fl70vYtsAFb/C06PTS9dZBo7ihau+Tu/DNCk/OyHhea07S+aeMWpFFkUaXRa8fI+ScZbEI8dfSxwY7gxZ9SAVQ==",
--      "dev": true,
-       "license": "MIT",
-       "dependencies": {
-         "ms": "^2.0.0"
-@@ -24870,6 +25598,27 @@
-         "safe-buffer": "~5.1.0"
-       }
-     },
-+    "node_modules/jwa": {
-+      "version": "2.0.1",
-+      "resolved": "https://registry.npmjs.org/jwa/-/jwa-2.0.1.tgz",
-+      "integrity": "sha512-hRF04fqJIP8Abbkq5NKGN0Bbr3JxlQ+qhZufXVr0DvujKy93ZCbXZMHDL4EOtodSbCWxOqR8MS1tXA5hwqCXDg==",
-+      "license": "MIT",
-+      "dependencies": {
-+        "buffer-equal-constant-time": "^1.0.1",
-+        "ecdsa-sig-formatter": "1.0.11",
-+        "safe-buffer": "^5.0.1"
-+      }
-+    },
-+    "node_modules/jws": {
-+      "version": "4.0.0",
-+      "resolved": "https://registry.npmjs.org/jws/-/jws-4.0.0.tgz",
-+      "integrity": "sha512-KDncfTmOZoOMTFG4mBlG0qUIOlc03fmzH+ru6RgYVZhPkyiy/92Owlt/8UEN+a4TXR1FQetfIpJE8ApdvdVxTg==",
-+      "license": "MIT",
-+      "dependencies": {
-+        "jwa": "^2.0.0",
-+        "safe-buffer": "^5.0.1"
-+      }
-+    },
-     "node_modules/katex": {
-       "version": "0.16.22",
-       "resolved": "https://registry.npmjs.org/katex/-/katex-0.16.22.tgz",
-@@ -27511,6 +28260,29 @@
-       "dev": true,
-       "license": "MIT"
-     },
-+    "node_modules/ollama-ai-provider": {
-+      "version": "1.2.0",
-+      "resolved": "https://registry.npmjs.org/ollama-ai-provider/-/ollama-ai-provider-1.2.0.tgz",
-+      "integrity": "sha512-jTNFruwe3O/ruJeppI/quoOUxG7NA6blG3ZyQj3lei4+NnJo7bi3eIRWqlVpRlu/mbzbFXeJSBuYQWF6pzGKww==",
-+      "license": "Apache-2.0",
-+      "optional": true,
-+      "dependencies": {
-+        "@ai-sdk/provider": "^1.0.0",
-+        "@ai-sdk/provider-utils": "^2.0.0",
-+        "partial-json": "0.1.7"
-+      },
-+      "engines": {
-+        "node": ">=18"
-+      },
-+      "peerDependencies": {
-+        "zod": "^3.0.0"
-+      },
-+      "peerDependenciesMeta": {
-+        "zod": {
-+          "optional": true
-+        }
-+      }
-+    },
-     "node_modules/on-exit-leak-free": {
-       "version": "2.1.2",
-       "resolved": "https://registry.npmjs.org/on-exit-leak-free/-/on-exit-leak-free-2.1.2.tgz",
-@@ -27691,6 +28463,121 @@
-         "url": "https://github.com/sponsors/sindresorhus"
-       }
-     },
-+    "node_modules/openai": {
-+      "version": "4.98.0",
-+      "resolved": "https://registry.npmjs.org/openai/-/openai-4.98.0.tgz",
-+      "integrity": "sha512-TmDKur1WjxxMPQAtLG5sgBSCJmX7ynTsGmewKzoDwl1fRxtbLOsiR0FA/AOAAtYUmP6azal+MYQuOENfdU+7yg==",
-+      "license": "Apache-2.0",
-+      "dependencies": {
-+        "@types/node": "^18.11.18",
-+        "@types/node-fetch": "^2.6.4",
-+        "abort-controller": "^3.0.0",
-+        "agentkeepalive": "^4.2.1",
-+        "form-data-encoder": "1.7.2",
-+        "formdata-node": "^4.3.2",
-+        "node-fetch": "^2.6.7"
-+      },
-+      "bin": {
-+        "openai": "bin/cli"
-+      },
-+      "peerDependencies": {
-+        "ws": "^8.18.0",
-+        "zod": "^3.23.8"
-+      },
-+      "peerDependenciesMeta": {
-+        "ws": {
-+          "optional": true
-+        },
-+        "zod": {
-+          "optional": true
-+        }
-+      }
-+    },
-+    "node_modules/openai/node_modules/@types/node": {
-+      "version": "18.19.100",
-+      "resolved": "https://registry.npmjs.org/@types/node/-/node-18.19.100.tgz",
-+      "integrity": "sha512-ojmMP8SZBKprc3qGrGk8Ujpo80AXkrP7G2tOT4VWr5jlr5DHjsJF+emXJz+Wm0glmy4Js62oKMdZZ6B9Y+tEcA==",
-+      "license": "MIT",
-+      "dependencies": {
-+        "undici-types": "~5.26.4"
-+      }
-+    },
-+    "node_modules/openai/node_modules/form-data-encoder": {
-+      "version": "1.7.2",
-+      "resolved": "https://registry.npmjs.org/form-data-encoder/-/form-data-encoder-1.7.2.tgz",
-+      "integrity": "sha512-qfqtYan3rxrnCk1VYaA4H+Ms9xdpPqvLZa6xmMgFvhO32x7/3J/ExcTd6qpxM0vH2GdMI+poehyBZvqfMTto8A==",
-+      "license": "MIT"
-+    },
-+    "node_modules/openai/node_modules/formdata-node": {
-+      "version": "4.4.1",
-+      "resolved": "https://registry.npmjs.org/formdata-node/-/formdata-node-4.4.1.tgz",
-+      "integrity": "sha512-0iirZp3uVDjVGt9p49aTaqjk84TrglENEDuqfdlZQ1roC9CWlPk6Avf8EEnZNcAqPonwkG35x4n3ww/1THYAeQ==",
-+      "license": "MIT",
-+      "dependencies": {
-+        "node-domexception": "1.0.0",
-+        "web-streams-polyfill": "4.0.0-beta.3"
-+      },
-+      "engines": {
-+        "node": ">= 12.20"
-+      }
-+    },
-+    "node_modules/openai/node_modules/node-fetch": {
-+      "version": "2.7.0",
-+      "resolved": "https://registry.npmjs.org/node-fetch/-/node-fetch-2.7.0.tgz",
-+      "integrity": "sha512-c4FRfUm/dbcWZ7U+1Wq0AwCyFL+3nt2bEw05wfxSz+DWpWsitgmSgYmy2dQdWyKC1694ELPqMs/YzUSNozLt8A==",
-+      "license": "MIT",
-+      "dependencies": {
-+        "whatwg-url": "^5.0.0"
-+      },
-+      "engines": {
-+        "node": "4.x || >=6.0.0"
-+      },
-+      "peerDependencies": {
-+        "encoding": "^0.1.0"
-+      },
-+      "peerDependenciesMeta": {
-+        "encoding": {
-+          "optional": true
-+        }
-+      }
-+    },
-+    "node_modules/openai/node_modules/tr46": {
-+      "version": "0.0.3",
-+      "resolved": "https://registry.npmjs.org/tr46/-/tr46-0.0.3.tgz",
-+      "integrity": "sha512-N3WMsuqV66lT30CrXNbEjx4GEwlow3v6rr4mCcv6prnfwhS01rkgyFdjPNBYd9br7LpXV1+Emh01fHnq2Gdgrw==",
-+      "license": "MIT"
-+    },
-+    "node_modules/openai/node_modules/undici-types": {
-+      "version": "5.26.5",
-+      "resolved": "https://registry.npmjs.org/undici-types/-/undici-types-5.26.5.tgz",
-+      "integrity": "sha512-JlCMO+ehdEIKqlFxk6IfVoAUVmgz7cU7zD/h9XZ0qzeosSHmUJVOzSQvvYSYWXkFXC+IfLKSIffhv0sVZup6pA==",
-+      "license": "MIT"
-+    },
-+    "node_modules/openai/node_modules/web-streams-polyfill": {
-+      "version": "4.0.0-beta.3",
-+      "resolved": "https://registry.npmjs.org/web-streams-polyfill/-/web-streams-polyfill-4.0.0-beta.3.tgz",
-+      "integrity": "sha512-QW95TCTaHmsYfHDybGMwO5IJIM93I/6vTRk+daHTWFPhwh+C8Cg7j7XyKrwrj8Ib6vYXe0ocYNrmzY4xAAN6ug==",
-+      "license": "MIT",
-+      "engines": {
-+        "node": ">= 14"
-+      }
-+    },
-+    "node_modules/openai/node_modules/webidl-conversions": {
-+      "version": "3.0.1",
-+      "resolved": "https://registry.npmjs.org/webidl-conversions/-/webidl-conversions-3.0.1.tgz",
-+      "integrity": "sha512-2JAn3z8AR6rjK8Sm8orRC0h/bcl/DqL7tRPdGZ4I1CjdF+EaMLmYxBHyXuKL849eucPFhvBoxMsflfOb8kxaeQ==",
-+      "license": "BSD-2-Clause"
-+    },
-+    "node_modules/openai/node_modules/whatwg-url": {
-+      "version": "5.0.0",
-+      "resolved": "https://registry.npmjs.org/whatwg-url/-/whatwg-url-5.0.0.tgz",
-+      "integrity": "sha512-saE57nupxk6v3HY35+jzBwYa0rKSy0XR8JSxZPwgLr7ys0IBzhGviA1/TUGJLmSVqs8pb9AnvICXEuOHLprYTw==",
-+      "license": "MIT",
-+      "dependencies": {
-+        "tr46": "~0.0.3",
-+        "webidl-conversions": "^3.0.0"
-+      }
-+    },
-     "node_modules/openapi-types": {
-       "version": "12.1.3",
-       "resolved": "https://registry.npmjs.org/openapi-types/-/openapi-types-12.1.3.tgz",
-@@ -28005,6 +28892,13 @@
-         "node": ">= 0.8"
-       }
-     },
-+    "node_modules/partial-json": {
-+      "version": "0.1.7",
-+      "resolved": "https://registry.npmjs.org/partial-json/-/partial-json-0.1.7.tgz",
-+      "integrity": "sha512-Njv/59hHaokb/hRUjce3Hdv12wd60MtM9Z5Olmn+nehe0QDAsRtRbJPvJ0Z91TusF0SuZRIvnM+S4l6EIP8leA==",
-+      "license": "MIT",
-+      "optional": true
-+    },
-     "node_modules/pascal-case": {
-       "version": "3.1.2",
-       "resolved": "https://registry.npmjs.org/pascal-case/-/pascal-case-3.1.2.tgz",
-@@ -28460,6 +29354,50 @@
-         "pathe": "^2.0.3"
-       }
-     },
-+    "node_modules/playwright": {
-+      "version": "1.52.0",
-+      "resolved": "https://registry.npmjs.org/playwright/-/playwright-1.52.0.tgz",
-+      "integrity": "sha512-JAwMNMBlxJ2oD1kce4KPtMkDeKGHQstdpFPcPH3maElAXon/QZeTvtsfXmTMRyO9TslfoYOXkSsvao2nE1ilTw==",
-+      "license": "Apache-2.0",
-+      "dependencies": {
-+        "playwright-core": "1.52.0"
-+      },
-+      "bin": {
-+        "playwright": "cli.js"
-+      },
-+      "engines": {
-+        "node": ">=18"
-+      },
-+      "optionalDependencies": {
-+        "fsevents": "2.3.2"
-+      }
-+    },
-+    "node_modules/playwright-core": {
-+      "version": "1.52.0",
-+      "resolved": "https://registry.npmjs.org/playwright-core/-/playwright-core-1.52.0.tgz",
-+      "integrity": "sha512-l2osTgLXSMeuLZOML9qYODUQoPPnUsKsb5/P6LJ2e6uPKXUdPK5WYhN4z03G+YNbWmGDY4YENauNu4ZKczreHg==",
-+      "license": "Apache-2.0",
-+      "bin": {
-+        "playwright-core": "cli.js"
-+      },
-+      "engines": {
-+        "node": ">=18"
-+      }
-+    },
-+    "node_modules/playwright/node_modules/fsevents": {
-+      "version": "2.3.2",
-+      "resolved": "https://registry.npmjs.org/fsevents/-/fsevents-2.3.2.tgz",
-+      "integrity": "sha512-xiqMQR4xAeHTuB9uWm+fFRcIOgKBMiOBP+eXiyT7jsgVCq1bkVygt00oASowB7EdtpOHaaPgKt812P9ab+DDKA==",
-+      "hasInstallScript": true,
-+      "license": "MIT",
-+      "optional": true,
-+      "os": [
-+        "darwin"
-+      ],
-+      "engines": {
-+        "node": "^8.16.0 || ^10.6.0 || >=11.0.0"
-+      }
-+    },
-     "node_modules/plimit-lit": {
-       "version": "1.6.1",
-       "resolved": "https://registry.npmjs.org/plimit-lit/-/plimit-lit-1.6.1.tgz",
-diff --git a/package.json b/package.json
-index f88611837..32705c8a8 100644
---- a/package.json
-+++ b/package.json
-@@ -84,6 +84,7 @@
-   },
-   "dependencies": {
-     "@ai-sdk/openai-compatible": "^0.2.11",
-+    "@browserbasehq/stagehand": "^2.2.1",
-     "@electron/notarize": "^3.0.0",
-     "@emotion/react": "^11.14.0",
-     "@emotion/styled": "^11.14.0",
-@@ -212,7 +213,8 @@
-       "dist",
-       "node_modules",
-       "package.json",
--      "drizzle"
-+      "drizzle",
-+      "chrome.exe"
-     ],
-     "mac": {
-       "sign": ".erb/scripts/notarize.js",
 diff --git a/src/main/main.ts b/src/main/main.ts
-index 213f44c5c..5fc7835a5 100644
+index 5fc7835a5..a7ccb0319 100644
 --- a/src/main/main.ts
 +++ b/src/main/main.ts
-@@ -292,7 +292,6 @@ const setupChatHandlers = () => {
+@@ -47,6 +47,7 @@ const mastraStatus: AgentBootStatus = {
+     redmine: false,
+     gitlab: false,
+     mcp: false,
++    stagehand: false,
+   },
+ };
+ 
+@@ -287,6 +288,7 @@ const setupChatHandlers = () => {
+                   redmine: false,
+                   gitlab: false,
+                   mcp: false,
++                  stagehand: false,
+                 },
+               ),
                threadId: roomId, // チャットルームIDをスレッドIDとして使用
-               maxSteps: 30, // ツールの利用上限
-               onStepFinish: (stepResult) => {
--                console.log('onStepFinish', stepResult);
-                 // https://ai-sdk.dev/docs/ai-sdk-ui/stream-protocol
-                 // 上記を参考にai-sdkのストリームプロトコルに従ってメッセージを送信
-                 writer.write(`0:${JSON.stringify(stepResult.text)}\n`);
-@@ -325,7 +324,6 @@ const setupChatHandlers = () => {
-         // テキストストリームを処理
-         // @ts-ignore
-         for await (const chunk of dataStream) {
--          console.log('ストリーミングデータ:', chunk);
-           // チャンクをフロントエンドに送信
-           event.sender.send(IpcChannels.CHAT_STREAM, chunk);
-         }
+diff --git a/src/main/store.ts b/src/main/store.ts
+index e2d68a6c9..9b75fee0c 100644
+--- a/src/main/store.ts
++++ b/src/main/store.ts
+@@ -24,6 +24,10 @@ export interface StoreSchema {
+   mcp: {
+     serverConfigText: string;
+   };
++  stagehand: {
++    enabled: boolean;
++    headless: boolean;
++  };
+ }
+ 
+ // スキーマ定義
+@@ -77,6 +81,20 @@ const schema = {
+     },
+     required: [],
+   },
++  stagehand: {
++    type: 'object',
++    properties: {
++      enabled: {
++        type: 'boolean',
++        default: false,
++      },
++      headless: {
++        type: 'boolean',
++        default: false,
++      },
++    },
++    required: [],
++  },
+ } as const;
+ 
+ /**
+@@ -133,6 +151,10 @@ const defaults: StoreSchema = {
+   mcp: {
+     serverConfigText: '{}',
+   },
++  stagehand: {
++    enabled: false,
++    headless: false,
++  },
+ };
+ 
+ // ストアのインスタンスを作成する関数
+diff --git a/src/main/types/index.ts b/src/main/types/index.ts
+index df29dc092..f3ae2c765 100644
+--- a/src/main/types/index.ts
++++ b/src/main/types/index.ts
+@@ -36,6 +36,7 @@ export type AgentToolStatus = {
+   redmine: boolean;
+   gitlab: boolean;
+   mcp: boolean;
++  stagehand: boolean;
+ };
+ 
+ /**
+diff --git a/src/main/types/settingsSchema.ts b/src/main/types/settingsSchema.ts
+index efc139260..bfd11adf1 100644
+--- a/src/main/types/settingsSchema.ts
++++ b/src/main/types/settingsSchema.ts
+@@ -71,6 +71,14 @@ export const GitLabSchema = z.object({
+   apiKey: z.string().optional().or(z.literal('')),
+ });
+ 
++/**
++ * Stagehand設定のスキーマ
++ */
++export const StagehandSchema = z.object({
++  enabled: z.boolean(),
++  headless: z.boolean(),
++});
++
+ /**
+  * MCP設定のスキーマ
+  */
+@@ -112,6 +120,7 @@ export const SettingsSchema = z.object({
+   redmine: RedmineSchema,
+   gitlab: GitLabSchema,
+   mcp: McpStoreSchema,
++  stagehand: StagehandSchema,
+ });
+ 
+ export type ValidationError = {
 diff --git a/src/mastra/agents/orchestrator.ts b/src/mastra/agents/orchestrator.ts
-index 6525fea58..de2d877bc 100644
+index de2d877bc..a51443138 100644
 --- a/src/mastra/agents/orchestrator.ts
 +++ b/src/mastra/agents/orchestrator.ts
-@@ -3,6 +3,7 @@ import { MCPConfiguration, LogMessage } from '@mastra/mcp';
- import { v4 as uuid } from 'uuid';
- import { writeFileSync } from 'fs';
- import { querySourceTool } from '../tools/sourcesTools';
-+import { createStagehandTools } from '../tools/stagehand';
- import { createAgent } from './config/agent';
- import { getStore } from '../../main/store';
+@@ -9,7 +9,7 @@ import { getStore } from '../../main/store';
  import { setupRedmineTools } from '../tools/redmine';
-@@ -174,6 +175,7 @@ export const getOrchestrator = async (): Promise<{
+ import { setupGitLabTools } from '../tools/gitlab';
+ import { McpSchema } from '../../main/types/schema';
+-import { AgentBootMessage } from '../../main/types';
++import { AgentBootMessage, AgentToolStatus } from '../../main/types';
+ 
+ const ORCHESTRATOR_NAME = 'orchestrator';
+ const LOG_FILE_PATH = './mcp.log';
+@@ -55,17 +55,14 @@ const deleteLogFile = (): void => {
+ export const getOrchestrator = async (): Promise<{
+   agent: Agent | null;
+   alertMessages: AgentBootMessage[];
+-  toolStatus: {
+-    redmine: boolean;
+-    gitlab: boolean;
+-    mcp: boolean;
+-  };
++  toolStatus: AgentToolStatus;
+ }> => {
+   const alertMessages: AgentBootMessage[] = [];
+   let agent: Agent | null = null;
+   let redmineTools = {};
+   let gitlabTools = {};
+   let mcpTools = {};
++  let stagehandTools = {};
+ 
+   try {
+     const store = getStore();
+@@ -168,6 +165,28 @@ export const getOrchestrator = async (): Promise<{
+       }
+     }
+ 
++    // Stagehandツールの登録
++    // Stagehandが有効な場合は登録する
++    const stagehandStore = store.get('stagehand');
++    const stagehandEnabled = stagehandStore.enabled;
++    if (stagehandEnabled) {
++      try {
++        stagehandTools = await createStagehandTools();
++        alertMessages.push({
++          id: uuid(),
++          type: 'info',
++          content: 'ブラウザ操作ツールの初期化に成功しました。',
++        });
++      } catch (error) {
++        alertMessages.push({
++          id: uuid(),
++          type: 'warning',
++          content: `ブラウザ操作ツールの初期化に失敗しました\n${error}`,
++        });
++        console.error('ブラウザ操作ツールの初期化に失敗しました:', error);
++      }
++    }
++
+     // エージェントの作成
+     agent = createAgent({
+       name: ORCHESTRATOR_NAME,
+@@ -175,7 +194,7 @@ export const getOrchestrator = async (): Promise<{
        tools: {
          // sourceListTool,
          querySourceTool,
-+        ...createStagehandTools(),
+-        ...createStagehandTools(),
++        ...stagehandTools,
          ...redmineTools,
          ...gitlabTools,
          ...mcpTools,
+@@ -248,6 +267,7 @@ export const getOrchestrator = async (): Promise<{
+       redmine: !!redmineTools && Object.keys(redmineTools).length > 0,
+       gitlab: !!gitlabTools && Object.keys(gitlabTools).length > 0,
+       mcp: !!mcpTools && Object.keys(mcpTools).length > 0,
++      stagehand: !!stagehandTools && Object.keys(stagehandTools).length > 0,
+     },
+   };
+ };
 diff --git a/src/mastra/agents/prompts.ts b/src/mastra/agents/prompts.ts
-index a783a4eb8..884b2aaaa 100644
+index 884b2aaaa..9e8043e86 100644
 --- a/src/mastra/agents/prompts.ts
 +++ b/src/mastra/agents/prompts.ts
-@@ -129,6 +129,11 @@ export const getOrchestratorSystemPrompt = async (config: {
+@@ -2,6 +2,7 @@ import { eq, and } from 'drizzle-orm';
+ import { getStore } from '../../main/store';
+ import { sources, topics } from '../../db/schema';
+ import getDb from '../../db';
++import { AgentToolStatus } from '../../main/types';
+ 
+ /**
+  * データベースからソース情報を取得する
+@@ -93,11 +94,9 @@ export const EXTRACT_TOPIC_AND_SUMMARY_SYSTEM_PROMPT = `
+  * @param config ツールの有効/無効を指定する設定オブジェクト
+  * @returns システムプロンプト文字列
+  */
+-export const getOrchestratorSystemPrompt = async (config: {
+-  redmine: boolean;
+-  gitlab: boolean;
+-  mcp: boolean;
+-}): Promise<string> => {
++export const getOrchestratorSystemPrompt = async (
++  config: AgentToolStatus,
++): Promise<string> => {
+   const store = getStore();
+ 
+   const sourceListMD = await getSourcesInfoByMDList();
+@@ -129,11 +128,15 @@ export const getOrchestratorSystemPrompt = async (config: {
    - sourceQueryTool：登録されたソースの内容に基づいて専門家(別のAIエージェント)が質問に回答します。一度の複数の質問を実行することができます
  - メモリ更新ツール
    - updateWorkingMemory：スレッドに関する内容や作業時の手順やメモに関するWorkingMemoryを更新します。
-+- Web操作ツール(Stagehandを利用して、他のAIエージェントがブラウザ操作を実行します)
-+  - stagehandActTool：Webページ上で指定した操作を実行する（例えば、ボタンクリックやフォーム入力など）
-+  - stagehandObserveTool：Webページ上の要素を検出・特定する
-+  - stagehandExtractTool：Webページからデータを抽出する
-+  - stagehandNavigateTool：明示的に指定されたURLに遷移する
+-- Web操作ツール(Stagehandを利用して、他のAIエージェントがブラウザ操作を実行します)
++${
++  config.stagehand
++    ? `- Web操作ツール(Stagehandを利用して、他のAIエージェントがブラウザ操作を実行します)
+   - stagehandActTool：Webページ上で指定した操作を実行する（例えば、ボタンクリックやフォーム入力など）
+   - stagehandObserveTool：Webページ上の要素を検出・特定する
+   - stagehandExtractTool：Webページからデータを抽出する
+-  - stagehandNavigateTool：明示的に指定されたURLに遷移する
++  - stagehandNavigateTool：明示的に指定されたURLに遷移する`
++    : ''
++}
  ${
    config.redmine
      ? `- redmine操作ツール
-diff --git a/src/mastra/tools/stagehand/README.md b/src/mastra/tools/stagehand/README.md
-new file mode 100644
-index 000000000..1cd2bf78c
---- /dev/null
-+++ b/src/mastra/tools/stagehand/README.md
-@@ -0,0 +1,7 @@
-+# ブラウザ実行ファイルのインストール方法
-+```
-+PLAYWRIGHT_BROWSERS_PATH=0
-+npx playwright install
-+```
-+# 注意
-+webpackの設定でwindows固有のパスからchromium実行ファイルをコピーしてきているので、macでは動かない（コピーできなくてエラーになる）
-diff --git a/src/mastra/tools/stagehand/aisdkClient.ts b/src/mastra/tools/stagehand/aisdkClient.ts
-new file mode 100644
-index 000000000..82e1c1a3f
---- /dev/null
-+++ b/src/mastra/tools/stagehand/aisdkClient.ts
-@@ -0,0 +1,112 @@
-+import {
-+  CoreAssistantMessage,
-+  CoreMessage,
-+  CoreSystemMessage,
-+  CoreTool,
-+  CoreUserMessage,
-+  generateObject,
-+  generateText,
-+  ImagePart,
-+  LanguageModel,
-+  TextPart,
-+} from 'ai';
-+import { ChatCompletion } from 'openai/resources/chat/completions';
-+import {
-+  CreateChatCompletionOptions,
-+  LLMClient,
-+  AvailableModel,
-+} from '@browserbasehq/stagehand';
+diff --git a/src/renderer/components/common/SettingsModal.tsx b/src/renderer/components/common/SettingsModal.tsx
+index d2fecb38b..4e916d352 100644
+--- a/src/renderer/components/common/SettingsModal.tsx
++++ b/src/renderer/components/common/SettingsModal.tsx
+@@ -7,9 +7,11 @@ import {
+   Box,
+   CircularProgress,
+   Alert,
++  FormGroup,
++  FormControlLabel,
++  Switch,
+ } from '@mui/material';
+ import Modal from './Modal';
+-import { McpSchemaType } from '../../../main/types/schema';
+ import useSettingsStore from '../../hooks/useSettingsStore';
+ import { StoreSchema as Settings } from '../../../main/store';
+ 
+@@ -54,7 +56,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
+   const handleChange = async (
+     section: keyof Settings,
+     field: string,
+-    value: string | McpSchemaType,
++    value: unknown,
+   ) => {
+     await updateField(section, field, value);
+   };
+@@ -201,6 +203,36 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
+             />
+           </Box>
+ 
++          <Box sx={{ width: '100%', mb: 1 }}>
++            <Typography variant="h6" gutterBottom>
++              ブラウザ操作設定
++            </Typography>
++            <FormGroup>
++              <FormControlLabel
++                control={
++                  <Switch
++                    checked={settings.stagehand.enabled}
++                    onChange={(e) =>
++                      handleChange('stagehand', 'enabled', e.target.checked)
++                    }
++                  />
++                }
++                label="ブラウザ操作を有効化"
++              />
++              <FormControlLabel
++                control={
++                  <Switch
++                    checked={settings.stagehand.headless}
++                    onChange={(e) =>
++                      handleChange('stagehand', 'headless', e.target.checked)
++                    }
++                  />
++                }
++                label="ヘッドレスモードを有効化"
++              />
++            </FormGroup>
++          </Box>
 +
-+export class AISdkClient extends LLMClient {
-+  public type = 'aisdk' as const;
-+  private model: LanguageModel;
+           <Box sx={{ width: '100%', mb: 1 }}>
+             <Typography variant="h6" gutterBottom>
+               MCPサーバー設定
+diff --git a/src/renderer/hooks/useSettingsStore.ts b/src/renderer/hooks/useSettingsStore.ts
+index c510a9abe..a3f80f465 100644
+--- a/src/renderer/hooks/useSettingsStore.ts
++++ b/src/renderer/hooks/useSettingsStore.ts
+@@ -50,6 +50,12 @@ const useSettingsStore = () => {
+     setValue: setMcpStore,
+   } = useElectronStore<Settings['mcp']>('mcp');
+ 
++  const {
++    value: stagehandStore,
++    loading: loadingStagehand,
++    setValue: setStagehandStore,
++  } = useElectronStore<Settings['stagehand']>('stagehand');
 +
-+  constructor({ model }: { model: LanguageModel }) {
-+    super(model.modelId as AvailableModel);
-+    this.model = model;
-+  }
-+
-+  async createChatCompletion<T = ChatCompletion>({
-+    options,
-+  }: CreateChatCompletionOptions): Promise<T> {
-+    const formattedMessages: CoreMessage[] = options.messages.map((message) => {
-+      if (Array.isArray(message.content)) {
-+        if (message.role === 'system') {
-+          const systemMessage: CoreSystemMessage = {
-+            role: 'system',
-+            content: message.content
-+              .map((c) => ('text' in c ? c.text : ''))
-+              .join('\n'),
-+          };
-+          return systemMessage;
-+        }
-+
-+        const contentParts = message.content.map((content) => {
-+          if ('image_url' in content) {
-+            const imageContent: ImagePart = {
-+              type: 'image',
-+              image: content.image_url.url,
-+            };
-+            return imageContent;
-+          } else {
-+            const textContent: TextPart = {
-+              type: 'text',
-+              text: content.text,
-+            };
-+            return textContent;
-+          }
-+        });
-+
-+        if (message.role === 'user') {
-+          const userMessage: CoreUserMessage = {
-+            role: 'user',
-+            content: contentParts,
-+          };
-+          return userMessage;
-+        } else {
-+          const textOnlyParts = contentParts.map((part) => ({
-+            type: 'text' as const,
-+            text: part.type === 'image' ? '[Image]' : part.text,
-+          }));
-+          const assistantMessage: CoreAssistantMessage = {
-+            role: 'assistant',
-+            content: textOnlyParts,
-+          };
-+          return assistantMessage;
-+        }
-+      }
-+
-+      return {
-+        role: message.role,
-+        content: message.content,
-+      };
-+    });
-+
-+    if (options.response_model) {
-+      const response = await generateObject({
-+        model: this.model,
-+        messages: formattedMessages,
-+        schema: options.response_model.schema,
-+      });
-+
-+      return response.object;
-+    }
-+
-+    const tools: Record<string, CoreTool> = {};
-+
-+    for (const rawTool of options.tools) {
-+      tools[rawTool.name] = {
-+        description: rawTool.description,
-+        parameters: rawTool.parameters,
-+      };
-+    }
-+
-+    const response = await generateText({
-+      model: this.model,
-+      messages: formattedMessages,
-+      tools,
-+    });
-+
-+    return response as T;
-+  }
-+}
-diff --git a/src/mastra/tools/stagehand/index.ts b/src/mastra/tools/stagehand/index.ts
-new file mode 100644
-index 000000000..3453fee3e
---- /dev/null
-+++ b/src/mastra/tools/stagehand/index.ts
-@@ -0,0 +1,442 @@
-+import { app } from 'electron';
-+import path, { join } from 'path';
-+import fs from 'node:fs';
-+import { createTool } from '@mastra/core/tools';
-+import { z } from 'zod';
-+import { Stagehand, LogLine } from '@browserbasehq/stagehand';
-+import openAICompatibleModel from '../../agents/model/openAICompatible';
-+import { AISdkClient } from './aisdkClient';
-+
-+class StagehandSessionManager {
-+  private static instance: StagehandSessionManager;
-+  private stagehand: Stagehand | null = null;
-+  private initialized = false;
-+  private lastUsed = Date.now();
-+  private readonly sessionTimeout = 10 * 60 * 1000; // 10 minutes
-+
-+  private constructor() {
-+    // Schedule session cleanup to prevent memory leaks
-+    setInterval(() => this.checkAndCleanupSession(), 60 * 1000);
-+  }
-+
-+  /**
-+   * Get the singleton instance of StagehandSessionManager
-+   */
-+  public static getInstance(): StagehandSessionManager {
-+    if (!StagehandSessionManager.instance) {
-+      StagehandSessionManager.instance = new StagehandSessionManager();
-+    }
-+    return StagehandSessionManager.instance;
-+  }
-+
-+  public static createStagehand(): Stagehand {
-+    return new Stagehand({
-+      llmClient: new AISdkClient({ model: openAICompatibleModel() }),
-+      env: 'LOCAL',
-+      verbose: 2,
-+      enableCaching: false,
-+      logger: (logLine: LogLine) => {
-+        console.log(`[${logLine.category}] ${logLine.message}`);
-+      },
-+      localBrowserLaunchOptions: {
-+        // headless: false, // Launches the browser in headless mode.
-+        executablePath: 'C:/Users/shuyo/vscode_workspace/ai-notebook/chrome.exe'
-+        // executablePath: app.isPackaged
-+        //   ? join(process.resourcesPath, 'app.asar', 'chrome.exe')
-+        //   : join(__dirname, '..', '..', 'chrome.exe'), // Custom path to the Chrome executable.
-+        // args: ['--no-sandbox', '--disable-setuid-sandbox'], // Additional launch arguments.
-+        // env: { NODE_ENV: 'production' }, // Environment variables for the browser process.
-+        // handleSIGHUP: true,
-+        // handleSIGINT: true,
-+        // handleSIGTERM: true,
-+        // ignoreDefaultArgs: false, // or specify an array of arguments to ignore.
-+        // tracesDir: path.join(app.getPath('userData'), 'stagehand', 'trace'), // Directory to store trace files.
-+        // userDataDir: path.join(app.getPath('userData'), 'stagehand', 'data'), // Custom user data directory.
-+        // acceptDownloads: true,
-+        // downloadsPath: path.join(
-+        //   app.getPath('userData'),
-+        //   'stagehand',
-+        //   'downloads',
-+        // ), // Custom downloads directory.
-+        // geolocation: { latitude: 37.7749, longitude: -122.4194, accuracy: 10 },
-+        // permissions: ['geolocation', 'notifications'],
-+        // locale: 'ja-JP',
-+        // viewport: { width: 1280, height: 720 },
-+        // deviceScaleFactor: 1,
-+        // hasTouch: false,
-+        // ignoreHTTPSErrors: true,
-+        // recordVideo: {
-+        //   dir: '/path/to/videos',
-+        //   size: { width: 1280, height: 720 },
-+        // },
-+        // recordHar: {
-+        //   path: '/path/to/har.har',
-+        //   mode: 'full',
-+        //   omitContent: false,
-+        //   content: 'embed',
-+        //   urlFilter: '.*',
-+        // },
-+        // chromiumSandbox: true,
-+        // devtools: true,
-+        // bypassCSP: false,
-+        // cdpUrl: 'http://localhost:9222',
-+      },
-+    });
-+  }
-+
-+  /**
-+   * Ensure Stagehand is initialized and return the instance
-+   */
-+  public async ensureStagehand(): Promise<Stagehand> {
-+    this.lastUsed = Date.now();
-+
-+    try {
-+      // Initialize if not already initialized
-+      if (!this.stagehand || !this.initialized) {
-+        console.log('Creating new Stagehand instance');
-+        this.stagehand = StagehandSessionManager.createStagehand();
-+
-+        try {
-+          console.log('Initializing Stagehand...');
-+          await this.stagehand.init();
-+          console.log('Stagehand initialized successfully');
-+          this.initialized = true;
-+          return this.stagehand;
-+        } catch (initError) {
-+          console.error('Failed to initialize Stagehand:', initError);
-+          throw initError;
-+        }
-+      }
-+
-+      try {
-+        const title = await this.stagehand.page.evaluate(() => document.title);
-+        console.log('Session check successful, page title:', title);
-+        return this.stagehand;
-+      } catch (error) {
-+        // If we get an error indicating the session is invalid, reinitialize
-+        console.error('Session check failed:', error);
-+        if (
-+          error instanceof Error &&
-+          (error.message.includes(
-+            'Target page, context or browser has been closed',
-+          ) ||
-+            error.message.includes('Session expired') ||
-+            error.message.includes('context destroyed'))
-+        ) {
-+          console.log('Browser session expired, reinitializing Stagehand...');
-+          this.stagehand = StagehandSessionManager.createStagehand();
-+          await this.stagehand.init();
-+          this.initialized = true;
-+          return this.stagehand;
-+        }
-+        throw error; // Re-throw if it's a different type of error
-+      }
-+    } catch (error) {
-+      this.initialized = false;
-+      this.stagehand = null;
-+      const errorMsg = error instanceof Error ? error.message : String(error);
-+      throw new Error(
-+        `Failed to initialize/reinitialize Stagehand: ${errorMsg}`,
-+      );
-+    }
-+  }
-+
-+  /**
-+   * Close the Stagehand session if it's been idle for too long
-+   */
-+  private async checkAndCleanupSession(): Promise<void> {
-+    if (!this.stagehand || !this.initialized) return;
-+
-+    const now = Date.now();
-+    if (now - this.lastUsed > this.sessionTimeout) {
-+      console.log('Cleaning up idle Stagehand session');
-+      try {
-+        await this.stagehand.close();
-+      } catch (error) {
-+        console.error(`Error closing idle session: ${error}`);
-+      }
-+      this.stagehand = null;
-+      this.initialized = false;
-+    }
-+  }
-+
-+  /**
-+   * Manually close the session
-+   */
-+  public async close(): Promise<void> {
-+    if (this.stagehand) {
-+      try {
-+        await this.stagehand.close();
-+      } catch (error) {
-+        console.error(`Error closing Stagehand session: ${error}`);
-+      }
-+      this.stagehand = null;
-+      this.initialized = false;
-+    }
-+  }
-+}
-+
-+// Get the singleton instance
-+const sessionManager = StagehandSessionManager.getInstance();
-+
-+export const stagehandActTool = createTool({
-+  id: 'web-act',
-+  description: 'Take an action on a webpage using Stagehand',
-+  inputSchema: z.object({
-+    url: z
-+      .string()
-+      .optional()
-+      .describe('URL to navigate to (optional if already on a page)'),
-+    action: z
-+      .string()
-+      .describe(
-+        'Action to perform (e.g., "click sign in button", "type hello in search field")',
-+      ),
-+  }),
-+  outputSchema: z.object({
-+    success: z.boolean(),
-+    message: z.string(),
-+  }),
-+  execute: async ({ context }) => {
-+    return await performWebAction(context.url, context.action);
-+  },
-+});
-+
-+export const stagehandObserveTool = createTool({
-+  id: 'web-observe',
-+  description: 'Observe elements on a webpage using Stagehand to plan actions',
-+  inputSchema: z.object({
-+    url: z
-+      .string()
-+      .optional()
-+      .describe('URL to navigate to (optional if already on a page)'),
-+    instruction: z
-+      .string()
-+      .describe('What to observe (e.g., "find the sign in button")'),
-+  }),
-+  outputSchema: z.array(z.any()).describe('Array of observable actions'),
-+  execute: async ({ context }) => {
-+    return await performWebObservation(context.url, context.instruction);
-+  },
-+});
-+
-+export const stagehandExtractTool = createTool({
-+  id: 'web-extract',
-+  description: 'Extract data from a webpage using Stagehand',
-+  inputSchema: z.object({
-+    url: z
-+      .string()
-+      .optional()
-+      .describe('URL to navigate to (optional if already on a page)'),
-+    instruction: z
-+      .string()
-+      .describe('What to extract (e.g., "extract all product prices")'),
-+    schema: z
-+      .record(z.any())
-+      .optional()
-+      .describe('Zod schema definition for data extraction'),
-+    useTextExtract: z
-+      .boolean()
-+      .optional()
-+      .describe(
-+        'Set true for larger-scale extractions, false for small extractions',
-+      ),
-+  }),
-+  outputSchema: z.any().describe('Extracted data according to schema'),
-+  execute: async ({ context }) => {
-+    // Create a default schema if none is provided
-+    const defaultSchema = {
-+      content: z.string(),
-+    };
-+
-+    return await performWebExtraction(
-+      context.url,
-+      context.instruction,
-+      context.schema || defaultSchema,
-+      context.useTextExtract,
-+    );
-+  },
-+});
-+
-+const performWebAction = async (url?: string, action?: string) => {
-+  const stagehand = await sessionManager.ensureStagehand();
-+  const page = stagehand.page;
-+
-+  try {
-+    // Navigate to the URL if provided
-+    if (url) {
-+      await page.goto(url);
-+    }
-+
-+    // Perform the action
-+    if (action) {
-+      await page.act(action);
-+    }
-+
-+    return {
-+      success: true,
-+      message: `Successfully performed: ${action}`,
-+    };
-+  } catch (error: any) {
-+    throw new Error(`Stagehand action failed: ${error.message}`);
-+  }
-+};
-+
-+const performWebObservation = async (url?: string, instruction?: string) => {
-+  console.log(
-+    `Starting observation${url ? ` for ${url}` : ''} with instruction: ${instruction}`,
-+  );
-+
-+  try {
-+    const stagehand = await sessionManager.ensureStagehand();
-+    if (!stagehand) {
-+      console.error('Failed to get Stagehand instance');
-+      throw new Error('Failed to get Stagehand instance');
-+    }
-+
-+    const page = stagehand.page;
-+    if (!page) {
-+      console.error('Page not available');
-+      throw new Error('Page not available');
-+    }
-+
-+    try {
-+      // Navigate to the URL if provided
-+      if (url) {
-+        console.log(`Navigating to ${url}`);
-+        await page.goto(url);
-+        console.log(`Successfully navigated to ${url}`);
-+      }
-+
-+      // Observe the page
-+      if (instruction) {
-+        console.log(`Observing with instruction: ${instruction}`);
-+        try {
-+          const actions = await page.observe(instruction);
-+          console.log(
-+            `Observation successful, found ${actions.length} actions`,
-+          );
-+          return actions;
-+        } catch (observeError) {
-+          console.error('Error during observation:', observeError);
-+          throw observeError;
-+        }
-+      }
-+
-+      return [];
-+    } catch (pageError) {
-+      console.error('Error in page operation:', pageError);
-+      throw pageError;
-+    }
-+  } catch (error: any) {
-+    const errorMessage = error instanceof Error ? error.message : String(error);
-+    console.error(`Full stack trace for observation error:`, error);
-+    throw new Error(`Stagehand observation failed: ${errorMessage}`);
-+  }
-+};
-+
-+const performWebExtraction = async (
-+  url?: string,
-+  instruction?: string,
-+  schemaObj?: Record<string, any>,
-+  useTextExtract?: boolean,
-+) => {
-+  console.log(
-+    `Starting extraction${url ? ` for ${url}` : ''} with instruction: ${instruction}`,
-+  );
-+
-+  try {
-+    const stagehand = await sessionManager.ensureStagehand();
-+    const page = stagehand.page;
-+
-+    try {
-+      // Navigate to the URL if provided
-+      if (url) {
-+        console.log(`Navigating to ${url}`);
-+        await page.goto(url);
-+        console.log(`Successfully navigated to ${url}`);
-+      }
-+
-+      // Extract data
-+      if (instruction) {
-+        console.log(`Extracting with instruction: ${instruction}`);
-+
-+        // Create a default schema if none is provided from Mastra Agent
-+        const finalSchemaObj = schemaObj || { content: z.string() };
-+
-+        try {
-+          const schema = z.object(finalSchemaObj);
-+
-+          const result = await page.extract({
-+            instruction,
-+            schema,
-+            useTextExtract,
-+          });
-+
-+          console.log(`Extraction successful:`, result);
-+          return result;
-+        } catch (extractError) {
-+          console.error('Error during extraction:', extractError);
-+          throw extractError;
-+        }
-+      }
-+
-+      return null;
-+    } catch (pageError) {
-+      console.error('Error in page operation:', pageError);
-+      throw pageError;
-+    }
-+  } catch (error: any) {
-+    const errorMessage = error instanceof Error ? error.message : String(error);
-+    console.error(`Full stack trace for extraction error:`, error);
-+    throw new Error(`Stagehand extraction failed: ${errorMessage}`);
-+  }
-+};
-+
-+// Add a navigation tool for convenience
-+export const stagehandNavigateTool = createTool({
-+  id: 'web-navigate',
-+  description: 'Navigate to a URL in the browser',
-+  inputSchema: z.object({
-+    url: z.string().describe('URL to navigate to'),
-+  }),
-+  outputSchema: z.object({
-+    success: z.boolean(),
-+    title: z.string().optional(),
-+    currentUrl: z.string().optional(),
-+  }),
-+  execute: async ({ context }) => {
-+    try {
-+      const stagehand = await sessionManager.ensureStagehand();
-+
-+      // Navigate to the URL
-+      await stagehand.page.goto(context.url);
-+
-+      // Get page title and current URL
-+      const title = await stagehand.page.evaluate(() => document.title);
-+      const currentUrl = await stagehand.page.evaluate(
-+        () => window.location.href,
-+      );
-+
-+      return {
-+        success: true,
-+        title,
-+        currentUrl,
-+      };
-+    } catch (error: any) {
-+      return {
-+        success: false,
-+        message: `Navigation failed: ${error.message}`,
-+      };
-+    }
-+  },
-+});
-+
-+export const createStagehandTools = () => {
-+  return {
-+    stagehandActTool,
-+    stagehandObserveTool,
-+    stagehandExtractTool,
-+    stagehandNavigateTool,
-+  };
-+};
+   // ローディング状態の管理
+   const loading =
+     loadingDatabase ||
+@@ -57,7 +63,8 @@ const useSettingsStore = () => {
+     loadingApi ||
+     loadingRedmine ||
+     loadingGitlab ||
+-    loadingMcp;
++    loadingMcp ||
++    loadingStagehand;
+ 
+   // 設定値の状態管理
+   const [settings, setSettings] = useState<Settings>({
+@@ -67,6 +74,7 @@ const useSettingsStore = () => {
+     redmine: { endpoint: '', apiKey: '' },
+     gitlab: { endpoint: '', apiKey: '' },
+     mcp: { serverConfigText: '{}' },
++    stagehand: { enabled: false, headless: false },
+   });
+ 
+   // バリデーションエラーの状態管理
+@@ -77,6 +85,7 @@ const useSettingsStore = () => {
+     redmine: {},
+     gitlab: {},
+     mcp: {},
++    stagehand: {},
+   });
+ 
+   const [saving, setSaving] = useState(false);
+@@ -157,6 +166,7 @@ const useSettingsStore = () => {
+             serverConfigText: '{}',
+           },
+         },
++        stagehand: stagehandStore ?? { enabled: false, headless: false },
+       };
+ 
+       setSettings(newSettings);
+@@ -173,6 +183,7 @@ const useSettingsStore = () => {
+     redmineStore,
+     gitlabStore,
+     mcpStore,
++    stagehandStore,
+     loading,
+     validateSection,
+   ]);
+@@ -235,6 +246,7 @@ const useSettingsStore = () => {
+         setRedmineStore(settings.redmine),
+         setGitlabStore(settings.gitlab),
+         setMcpStore(settings.mcp),
++        setStagehandStore(settings.stagehand),
+       ]);
+ 
+       // 設定保存後にMastraを再初期化
