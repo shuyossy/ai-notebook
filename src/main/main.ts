@@ -47,6 +47,7 @@ const mastraStatus: AgentBootStatus = {
     redmine: false,
     gitlab: false,
     mcp: false,
+    stagehand: false,
   },
 };
 
@@ -287,6 +288,7 @@ const setupChatHandlers = () => {
                   redmine: false,
                   gitlab: false,
                   mcp: false,
+                  stagehand: false,
                 },
               ),
               threadId: roomId, // チャットルームIDをスレッドIDとして使用

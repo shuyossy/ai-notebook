@@ -36,6 +36,7 @@ export type AgentToolStatus = {
   redmine: boolean;
   gitlab: boolean;
   mcp: boolean;
+  stagehand: boolean;
 };
 
 /**

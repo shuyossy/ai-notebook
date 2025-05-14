@@ -72,6 +72,14 @@ export const GitLabSchema = z.object({
 });
 
 /**
+ * Stagehand設定のスキーマ
+ */
+export const StagehandSchema = z.object({
+  enabled: z.boolean(),
+  headless: z.boolean(),
+});
+
+/**
  * MCP設定のスキーマ
  */
 export const McpStoreSchema = z.object({
@@ -112,6 +120,7 @@ export const SettingsSchema = z.object({
   redmine: RedmineSchema,
   gitlab: GitLabSchema,
   mcp: McpStoreSchema,
+  stagehand: StagehandSchema,
 });
 
 export type ValidationError = {
