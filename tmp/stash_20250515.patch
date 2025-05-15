@@ -1,0 +1,233 @@
+diff --git a/.erb/configs/webpack.config.base.ts b/.erb/configs/webpack.config.base.ts
+index 0b580bee3..ff5e033e7 100644
+--- a/.erb/configs/webpack.config.base.ts
++++ b/.erb/configs/webpack.config.base.ts
+@@ -29,6 +29,21 @@ const configuration: webpack.Configuration = {
+         test: /\.node$/,
+         use: 'node-loader',
+       },
++      {
++        test: /\.(ttf|woff2?|eot|otf|svg)$/i,
++        type: 'asset/resource',
++        generator: { filename: 'assets/[hash][ext]' },
++      },
++      // 画像（png, jpg, gif, svg など）は resource としてそのまま出力
++      {
++        test: /\.(png|jpe?g|gif|svg|ico)$/i,
++        type: 'asset/resource',
++        generator: { filename: 'assets/[hash][ext]' },
++      },
++      {
++        test: /\.html$/i,
++        loader: 'raw-loader',
++      },
+       // ─── 追加ルール: License ファイルを無視 ───
+       {
+         test: /LICENSE$/,
+@@ -69,7 +84,16 @@ const configuration: webpack.Configuration = {
+     plugins: [new TsconfigPathsPlugins()],
+   },
+ 
+-  plugins: [new webpack.EnvironmentPlugin({ NODE_ENV: 'production' })],
++  plugins: [
++    new webpack.EnvironmentPlugin({ NODE_ENV: 'production' }),
++    new webpack.IgnorePlugin({
++      resourceRegExp: /playwright-core[\/\\]lib[\/\\]cli/,
++    }),
++    new webpack.IgnorePlugin({
++      resourceRegExp: /playwright-core[\/\\]lib[\/\\]vite[\/\\]recorder/,
++    }),
++    new webpack.IgnorePlugin({ resourceRegExp: /chromium-bidi[\/\\]lib/ }),
++  ],
+ };
+ 
+ export default configuration;
+diff --git a/.erb/configs/webpack.config.main.dev.ts b/.erb/configs/webpack.config.main.dev.ts
+index dd9173360..a003950e5 100644
+--- a/.erb/configs/webpack.config.main.dev.ts
++++ b/.erb/configs/webpack.config.main.dev.ts
+@@ -24,13 +24,14 @@ const configuration: webpack.Configuration = {
+ 
+   target: 'electron-main',
+ 
+-  externals: [
+-    'playwright',
+-    'playwright-core',
+-    '@playwright/test',
+-    'chromium-bidi',
+-    '@browserbasehq/stagehand',
+-  ],
++  module: {
++    rules: [
++      {
++        test: /\.css$/i,
++        use: 'null-loader',
++      },
++    ],
++  },
+ 
+   entry: {
+     main: path.join(webpackPaths.srcMainPath, 'main.ts'),
+@@ -68,6 +69,16 @@ const configuration: webpack.Configuration = {
+         },
+       ],
+     }),
++
++    // ☆ Recorder UI（CSS・JS・HTML）を完全に無視
++    new webpack.IgnorePlugin({
++      resourceRegExp: /\.(css|js)$/,
++      contextRegExp:
++        /playwright-core[\/\\]lib[\/\\](server|vite)[\/\\]recorder/,
++    }),
++
++    // ☆ chokidar 経由で参照されるだけの fsevents を無視
++    new webpack.IgnorePlugin({ resourceRegExp: /^fsevents$/ }),
+   ],
+ 
+   /**
+diff --git a/.erb/configs/webpack.config.main.prod.ts b/.erb/configs/webpack.config.main.prod.ts
+index 8720ea980..2bd8a83cf 100644
+--- a/.erb/configs/webpack.config.main.prod.ts
++++ b/.erb/configs/webpack.config.main.prod.ts
+@@ -23,6 +23,15 @@ const configuration: webpack.Configuration = {
+ 
+   target: 'electron-main',
+ 
++  module: {
++    rules: [
++      {
++        test: /\.css$/i,
++        use: 'null-loader',
++      },
++    ],
++  },
++
+   entry: {
+     main: path.join(webpackPaths.srcMainPath, 'main.ts'),
+     preload: path.join(webpackPaths.srcMainPath, 'preload.ts'),
+@@ -82,13 +91,18 @@ const configuration: webpack.Configuration = {
+           ),
+           to: 'pdf.worker.mjs', // 出力先 (resources に入る)
+         },
+-        {
+-          from: path.resolve(__dirname, `../../chrome.exe`),
+-          to: path.resolve(__dirname, '../../release/app/'),
+-          noErrorOnMissing: false,
+-        },
+       ],
+     }),
++
++    // ☆ Recorder UI（CSS・JS・HTML）を完全に無視
++    new webpack.IgnorePlugin({
++      resourceRegExp: /\.(css|js)$/,
++      contextRegExp:
++        /playwright-core[\/\\]lib[\/\\](server|vite)[\/\\]recorder/,
++    }),
++
++    // ☆ chokidar 経由で参照されるだけの fsevents を無視
++    new webpack.IgnorePlugin({ resourceRegExp: /^fsevents$/ }),
+   ],
+ 
+   /**
+diff --git a/.erb/configs/webpack.config.renderer.dev.dll.ts b/.erb/configs/webpack.config.renderer.dev.dll.ts
+index 77ae0f981..fe5dc3d41 100644
+--- a/.erb/configs/webpack.config.renderer.dev.dll.ts
++++ b/.erb/configs/webpack.config.renderer.dev.dll.ts
+@@ -23,15 +23,7 @@ const configuration: webpack.Configuration = {
+ 
+   target: 'electron-renderer',
+ 
+-  externals: [
+-    'fsevents',
+-    'crypto-browserify',
+-    'playwright',
+-    'playwright-core',
+-    '@playwright/test',
+-    'chromium-bidi',
+-    '@browserbasehq/stagehand',
+-  ],
++  externals: ['fsevents', 'crypto-browserify'],
+ 
+   /**
+    * Use `module` from `webpack.config.renderer.dev.js`
+@@ -79,6 +71,26 @@ const configuration: webpack.Configuration = {
+         },
+       },
+     }),
++    new webpack.IgnorePlugin({
++      // recorder の .css と .js を全部スキップ
++      contextRegExp:
++        /playwright-core[\/\\]lib[\/\\](vite|server)[\/\\]recorder/,
++      resourceRegExp: /\.(css|js)$/,
++    }),
++    new webpack.IgnorePlugin({
++      // BiDi 関連 JS をスキップ
++      resourceRegExp: /chromium-bidi[\/\\]lib/,
++    }),
++
++    // ☆ Recorder UI（CSS・JS・HTML）を完全に無視
++    new webpack.IgnorePlugin({
++      resourceRegExp: /\.(css|js)$/,
++      contextRegExp:
++        /playwright-core[\/\\]lib[\/\\](server|vite)[\/\\]recorder/,
++    }),
++
++    // ☆ chokidar 経由で参照されるだけの fsevents を無視
++    new webpack.IgnorePlugin({ resourceRegExp: /^fsevents$/ }),
+   ],
+ };
+ 
+diff --git a/.erb/configs/webpack.config.renderer.dev.ts b/.erb/configs/webpack.config.renderer.dev.ts
+index a6ca87e90..f169e8ffa 100644
+--- a/.erb/configs/webpack.config.renderer.dev.ts
++++ b/.erb/configs/webpack.config.renderer.dev.ts
+@@ -162,6 +162,16 @@ const configuration: webpack.Configuration = {
+       isDevelopment: process.env.NODE_ENV !== 'production',
+       nodeModules: webpackPaths.appNodeModulesPath,
+     }),
++
++    // ☆ Recorder UI（CSS・JS・HTML）を完全に無視
++    new webpack.IgnorePlugin({
++      resourceRegExp: /\.(css|js)$/,
++      contextRegExp:
++        /playwright-core[\/\\]lib[\/\\](server|vite)[\/\\]recorder/,
++    }),
++
++    // ☆ chokidar 経由で参照されるだけの fsevents を無視
++    new webpack.IgnorePlugin({ resourceRegExp: /^fsevents$/ }),
+   ],
+ 
+   node: {
+diff --git a/.erb/configs/webpack.config.renderer.prod.ts b/.erb/configs/webpack.config.renderer.prod.ts
+index 3cebf30d4..851b7f6f9 100644
+--- a/.erb/configs/webpack.config.renderer.prod.ts
++++ b/.erb/configs/webpack.config.renderer.prod.ts
+@@ -135,6 +135,15 @@ const configuration: webpack.Configuration = {
+     new webpack.DefinePlugin({
+       'process.type': '"renderer"',
+     }),
++    // ☆ Recorder UI（CSS・JS・HTML）を完全に無視
++    new webpack.IgnorePlugin({
++      resourceRegExp: /\.(css|js)$/,
++      contextRegExp:
++        /playwright-core[\/\\]lib[\/\\](server|vite)[\/\\]recorder/,
++    }),
++
++    // ☆ chokidar 経由で参照されるだけの fsevents を無視
++    new webpack.IgnorePlugin({ resourceRegExp: /^fsevents$/ }),
+   ],
+ };
+ 
+diff --git a/src/mastra/tools/stagehand/index.ts b/src/mastra/tools/stagehand/index.ts
+index 3453fee3e..286194346 100644
+--- a/src/mastra/tools/stagehand/index.ts
++++ b/src/mastra/tools/stagehand/index.ts
+@@ -40,7 +40,7 @@ class StagehandSessionManager {
+       },
+       localBrowserLaunchOptions: {
+         // headless: false, // Launches the browser in headless mode.
+-        executablePath: 'C:/Users/shuyo/vscode_workspace/ai-notebook/chrome.exe'
++        // executablePath: 'C:/Users/shuyo/vscode_workspace/ai-notebook/chrome.exe'
+         // executablePath: app.isPackaged
+         //   ? join(process.resourcesPath, 'app.asar', 'chrome.exe')
+         //   : join(__dirname, '..', '..', 'chrome.exe'), // Custom path to the Chrome executable.
