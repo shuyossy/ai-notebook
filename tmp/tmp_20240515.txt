@@ -1,0 +1,25 @@
+import webpack from 'webpack';
+
+// ❶ Playwright が不要なモジュールを require しても丸ごと無視
+plugins: [
+  new webpack.IgnorePlugin({ resourceRegExp: /playwright-core[\/\\]lib[\/\\]cli/ }),
+  new webpack.IgnorePlugin({ resourceRegExp: /playwright-core[\/\\]lib[\/\\]vite[\/\\]recorder/ }),
+  new webpack.IgnorePlugin({ resourceRegExp: /chromium-bidi[\/\\]lib/ }),
+  new webpack.EnvironmentPlugin({ NODE_ENV: 'production' }),
+],
+
+// ❷ フォント・HTML を拾う loader を追加
+module: {
+  rules: [
+    /* 既存 rules の下に追加 */
+    {
+      test: /\.(ttf|woff2?|eot|otf|svg)$/i,
+      type: 'asset/resource',
+      generator: { filename: 'assets/[hash][ext]' },
+    },
+    {
+      test: /\.html$/i,
+      loader: 'raw-loader',
+    },
+  ],
+},
