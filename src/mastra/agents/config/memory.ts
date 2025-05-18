@@ -1,5 +1,7 @@
 import { Memory } from '@mastra/memory';
-import { TokenLimiter } from '@mastra/memory/processors';
+import { TokenLimiter, ToolCallFilter } from '@mastra/memory/processors';
+import type { MemoryProcessor } from '@mastra/core';
+import { openai } from '@mastra/openai'
 import { LibSQLStore } from '@mastra/core/storage/libsql';
 import { toAbsoluteFileURL } from '@/main/utils/util';
 import { getStore } from '../../../main/store';
@@ -7,6 +9,7 @@ import { getStore } from '../../../main/store';
 // メモリオプションの型定義
 export interface MemoryConfig {
   tokenLimit?: number;
+  excduldeTools?: string[];
   lastMessages?: number;
   semanticRecall?: boolean;
   workingMemory?: {
@@ -48,11 +51,19 @@ export const getMemory = (config: MemoryConfig = {}): Memory => {
     },
   };
 
+  const memoryProcessors: MemoryProcessor[] | undefined = [];
+  if (config.tokenLimit) {
+    memoryProcessors.push(new TokenLimiter(config.tokenLimit));
+  }
+  if (config.excduldeTools) {
+    memoryProcessors.push(
+      new ToolCallFilter({ exclude: config.excduldeTools }),
+    );
+  }
+
   memoryInstance = new Memory({
     options,
-    processors: config.tokenLimit
-      ? [new TokenLimiter(config.tokenLimit)]
-      : undefined,
+    processors: memoryProcessors.length > 0 ? memoryProcessors : undefined,
     storage: new LibSQLStore({
       config: {
         url: toAbsoluteFileURL(dbSetting.dir, 'memory.db'),

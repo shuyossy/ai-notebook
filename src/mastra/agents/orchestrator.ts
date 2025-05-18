@@ -72,6 +72,8 @@ export const getOrchestrator = async (): Promise<{
   let mcpTools = {};
   let redmineInfo: RedmineBaseInfo | null = null;
 
+  const excduldeTools: string[] = [];
+
   try {
     const store = getStore();
 
@@ -122,6 +124,11 @@ export const getOrchestrator = async (): Promise<{
           token: gitlabApiKey,
           host: gitlabEndpoint,
         });
+        excduldeTools.push(
+          'getGitLabFileContent',
+          'getGitLabRawFile',
+          'getGitLabBlameFile',
+        );
         alertMessages.push({
           id: uuid(),
           type: 'info',
@@ -192,6 +199,7 @@ export const getOrchestrator = async (): Promise<{
       },
       memoryConfig: {
         tokenLimit: 4000, // トークン上限値-(システム＋ユーザプロンプト＋バッファ＋メモリ+バッファ)
+        excduldeTools: excduldeTools.length > 0 ? excduldeTools : undefined,
         lastMessages: 20,
         semanticRecall: false,
         threads: {
