@@ -131,7 +131,7 @@ Keep your working memory updated. When uncertain, ask for clarification rather t
   updateWorkingMemory: Save or update facts in your working memory.
 
 ${
-  false
+  config.stagehand
     ? `- **Web Automation (Stagehand) Tools**
   stagehandActTool: Perform actions on web pages (clicks, inputs).
   stagehandObserveTool: Detect and identify elements on pages.
@@ -139,7 +139,6 @@ ${
   stagehandNavigateTool: Navigate to specific URLs.`
     : ''
 }
-
 ${
   config.redmine
     ? `- **Redmine Integration Tools**

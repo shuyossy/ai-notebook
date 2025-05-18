@@ -9,7 +9,7 @@
     "build:main": "cross-env NODE_ENV=production TS_NODE_TRANSPILE_ONLY=true NODE_OPTIONS=\"-r ts-node/register --no-warnings\" webpack --config ./.erb/configs/webpack.config.main.prod.ts",
     "build:renderer": "cross-env NODE_ENV=production TS_NODE_TRANSPILE_ONLY=true NODE_OPTIONS=\"-r ts-node/register --no-warnings\" webpack --config ./.erb/configs/webpack.config.renderer.prod.ts",
     "build:backend": "tsc && tsc-alias",
-    "postinstall": "ts-node .erb/scripts/check-native-dep.js && electron-builder install-app-deps && npm run build:dll",
+    "postinstall": "ts-node .erb/scripts/check-native-dep.js && electron-builder install-app-deps && npm run build:dll && (cd release-2 && npm install )",
     "lint": "cross-env NODE_ENV=development eslint . --ext .js,.jsx,.ts,.tsx",
     "lint:fix": "cross-env NODE_ENV=development eslint . --ext .js,.jsx,.ts,.tsx --fix",
     "lint:backend": "eslint src --ext .ts",
@@ -84,6 +84,7 @@
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "^0.2.11",
+    "@browserbasehq/stagehand": "^2.2.1",
     "@electron/notarize": "^3.0.0",
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.0",
@@ -211,7 +212,14 @@
       "dist",
       "node_modules",
       "package.json",
-      "drizzle"
+      "drizzle",
+      {
+        "from": "../../release-2/node_modules",
+        "to": "node_modules",
+        "filter": [
+          "**/*"
+        ]
+      }
     ],
     "mac": {
       "sign": ".erb/scripts/notarize.js",

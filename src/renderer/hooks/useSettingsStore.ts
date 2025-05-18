@@ -50,6 +50,12 @@ const useSettingsStore = () => {
     setValue: setMcpStore,
   } = useElectronStore<Settings['mcp']>('mcp');
 
+  const {
+    value: stagehandStore,
+    loading: loadingStagehand,
+    setValue: setStagehandStore,
+  } = useElectronStore<Settings['stagehand']>('stagehand');
+
   // ローディング状態の管理
   const loading =
     loadingDatabase ||
@@ -57,7 +63,8 @@ const useSettingsStore = () => {
     loadingApi ||
     loadingRedmine ||
     loadingGitlab ||
-    loadingMcp;
+    loadingMcp ||
+    loadingStagehand;
 
   // 設定値の状態管理
   const [settings, setSettings] = useState<Settings>({
@@ -67,6 +74,7 @@ const useSettingsStore = () => {
     redmine: { endpoint: '', apiKey: '' },
     gitlab: { endpoint: '', apiKey: '' },
     mcp: { serverConfigText: '{}' },
+    stagehand: { enabled: false, headless: false },
   });
 
   // バリデーションエラーの状態管理
@@ -77,6 +85,7 @@ const useSettingsStore = () => {
     redmine: {},
     gitlab: {},
     mcp: {},
+    stagehand: {},
   });
 
   const [saving, setSaving] = useState(false);
@@ -157,6 +166,7 @@ const useSettingsStore = () => {
             serverConfigText: '{}',
           },
         },
+        stagehand: stagehandStore ?? { enabled: false, headless: false },
       };
 
       setSettings(newSettings);
@@ -173,6 +183,7 @@ const useSettingsStore = () => {
     redmineStore,
     gitlabStore,
     mcpStore,
+    stagehandStore,
     loading,
     validateSection,
   ]);
@@ -235,6 +246,7 @@ const useSettingsStore = () => {
         setRedmineStore(settings.redmine),
         setGitlabStore(settings.gitlab),
         setMcpStore(settings.mcp),
+        setStagehandStore(settings.stagehand),
       ]);
 
       // 設定保存後にMastraを再初期化

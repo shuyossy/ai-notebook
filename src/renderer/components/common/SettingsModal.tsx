@@ -7,9 +7,11 @@ import {
   Box,
   CircularProgress,
   Alert,
+  FormGroup,
+  FormControlLabel,
+  Switch,
 } from '@mui/material';
 import Modal from './Modal';
-import { McpSchemaType } from '../../../main/types/schema';
 import useSettingsStore from '../../hooks/useSettingsStore';
 import { StoreSchema as Settings } from '../../../main/store';
 
@@ -54,7 +56,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
   const handleChange = async (
     section: keyof Settings,
     field: string,
-    value: string | McpSchemaType,
+    value: unknown,
   ) => {
     await updateField(section, field, value);
   };
@@ -199,6 +201,36 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
               margin="normal"
               variant="outlined"
             />
+          </Box>
+
+          <Box sx={{ width: '100%', mb: 1 }}>
+            <Typography variant="h6" gutterBottom>
+              ブラウザ操作設定
+            </Typography>
+            <FormGroup>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={settings.stagehand.enabled}
+                    onChange={(e) =>
+                      handleChange('stagehand', 'enabled', e.target.checked)
+                    }
+                  />
+                }
+                label="ブラウザ操作を有効化"
+              />
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={settings.stagehand.headless}
+                    onChange={(e) =>
+                      handleChange('stagehand', 'headless', e.target.checked)
+                    }
+                  />
+                }
+                label="ヘッドレスモードを有効化"
+              />
+            </FormGroup>
           </Box>
 
           <Box sx={{ width: '100%', mb: 1 }}>
