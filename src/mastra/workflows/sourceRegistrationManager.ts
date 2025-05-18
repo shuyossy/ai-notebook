@@ -33,7 +33,7 @@ export default class SourceRegistrationManager {
       const db = await getDb();
       await db
         .delete(sources)
-        .where(inArray(sources.status, ['completed', 'idle', 'processing']));
+        .where(inArray(sources.status, ['idle', 'processing']));
     } catch (error) {
       console.error('処理中のソースの削除に失敗しました', error);
       throw error;
