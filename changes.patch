@@ -1,0 +1,423 @@
+diff --git a/install_chromium.bat b/install_chromium.bat
+new file mode 100644
+index 000000000..bbf5b8fd7
+--- /dev/null
++++ b/install_chromium.bat
+@@ -0,0 +1,47 @@
++@echo off
++SETLOCAL
++
++REM ————————————————
++REM 1. 変数定義
++REM ————————————————
++set HOST=https://your.playwright_download_host
++set REV=901522   REM ← 実際の Chromium リビジョン番号を指定
++set CACHE_DIR=%USERPROFILE%\.cache\ms-playwright\chromium-%REV%
++set ZIP_TEMP=%TEMP%\playwright-chromium-%REV%.zip
++
++REM ————————————————
++REM 2. キャッシュディレクトリ作成
++REM ————————————————
++if not exist "%CACHE_DIR%" (
++  mkdir "%CACHE_DIR%"
++)
++
++REM ————————————————
++REM 3. ZIP をダウンロード
++REM ————————————————
++powershell -Command ^
++  "Invoke-WebRequest -Uri '%HOST%/chromium/%REV%/chrome-win.zip' -OutFile '%ZIP_TEMP%'"
++
++IF NOT EXIST "%ZIP_TEMP%" (
++  echo [ERROR] ZIP のダウンロードに失敗しました。
++  exit /b 1
++)
++
++REM ————————————————
++REM 4. ZIP 展開
++REM ————————————————
++powershell -Command ^
++  "Expand-Archive -Path '%ZIP_TEMP%' -DestinationPath '%CACHE_DIR%' -Force"
++
++REM ————————————————
++REM 5. インストール完了マーカーを作成
++REM ————————————————
++echo. > "%CACHE_DIR%\.complete"
++
++REM ————————————————
++REM 6. 一時ファイルクリーンアップ
++REM ————————————————
++del /Q "%ZIP_TEMP%"
++
++echo [OK] Chromium のダウンロードが完了しました: %CACHE_DIR%
++ENDLOCAL
+diff --git a/src/main/main.ts b/src/main/main.ts
+index c3c6841b8..cf7771d7a 100644
+--- a/src/main/main.ts
++++ b/src/main/main.ts
+@@ -41,6 +41,8 @@ class AppUpdater {
+ 
+ // Mastraのインスタンスと状態を保持する変数
+ let mastraInstance: Mastra | null = null;
++// スレッドごとのAbortControllerを管理するMap
++const threadAbortControllers = new Map<string, AbortController>();
+ const mastraStatus: AgentBootStatus = {
+   state: 'initializing',
+   messages: [],
+@@ -232,6 +234,34 @@ ipcMain.handle(
+ 
+ // チャット関連のIPCハンドラー
+ const setupChatHandlers = () => {
++  // チャット中断ハンドラ
++  ipcMain.handle(
++    IpcChannels.CHAT_ABORT_REQUEST,
++    async (
++      _,
++      threadId,
++    ): Promise<
++      IpcResponsePayloadMap[typeof IpcChannels.CHAT_ABORT_REQUEST]
++    > => {
++      let success = false;
++      let error: string | undefined;
++      try {
++        const controller = threadAbortControllers.get(threadId);
++        if (controller) {
++          controller.abort();
++          threadAbortControllers.delete(threadId);
++          console.log(`Thread ${threadId} の生成を中断しました`);
++          success = true;
++        }
++      } catch (err) {
++        console.error('スレッドの中断中にエラーが発生:', err);
++        success = false;
++        error = (err as Error).message;
++      }
++      return { success, error };
++    },
++  );
++
+   // メッセージ送信ハンドラ
+   ipcMain.handle(
+     IpcChannels.CHAT_SEND_MESSAGE,
+@@ -240,6 +270,10 @@ const setupChatHandlers = () => {
+       { roomId, content },
+     ): Promise<IpcResponsePayloadMap[typeof IpcChannels.CHAT_SEND_MESSAGE]> => {
+       try {
++        // 新しいAbortControllerを作成
++        const controller = new AbortController();
++        threadAbortControllers.set(roomId, controller);
++
+         // Mastraインスタンスからオーケストレーターエージェントを取得
+         const mastra = getMastra();
+         const orchestratorAgent = mastra.getAgent('orchestratorAgent');
+@@ -301,6 +335,7 @@ const setupChatHandlers = () => {
+               ),
+               threadId: roomId, // チャットルームIDをスレッドIDとして使用
+               maxSteps: 30, // ツールの利用上限
++              abortSignal: controller.signal, // 中断シグナルを設定
+               onStepFinish: (stepResult) => {
+                 // https://ai-sdk.dev/docs/ai-sdk-ui/stream-protocol
+                 // 上記を参考にai-sdkのストリームプロトコルに従ってメッセージを送信
+@@ -320,10 +355,14 @@ const setupChatHandlers = () => {
+               `d:${JSON.stringify({ finishReason: res.finishReason, ...res.usage })}\n`,
+             );
+             event.sender.send(IpcChannels.CHAT_COMPLETE);
++            // 処理が完了したらAbortControllerを削除
++            threadAbortControllers.delete(roomId);
+           },
+           onError(error) {
+             // エラーが発生したときの処理
+             console.error('テキスト生成中にエラーが発生:', error);
++            // エラー時もAbortControllerを削除
++            threadAbortControllers.delete(roomId);
+             if (error == null) return 'unknown error';
+             if (typeof error === 'string') return error;
+             if (error instanceof Error) return error.message;
+@@ -341,6 +380,8 @@ const setupChatHandlers = () => {
+         return { success: true };
+       } catch (error) {
+         console.error('メッセージ送信中にエラーが発生:', error);
++        // エラー時もAbortControllerを削除
++        threadAbortControllers.delete(roomId);
+         event.sender.send(IpcChannels.CHAT_ERROR, {
+           message: `${(error as Error).message}`,
+         });
+diff --git a/src/main/preload.ts b/src/main/preload.ts
+index 4162e7948..0f226aa8c 100644
+--- a/src/main/preload.ts
++++ b/src/main/preload.ts
+@@ -80,6 +80,12 @@ const electronHandler = {
+     }): Promise<IpcResponsePayload<typeof IpcChannels.CHAT_CREATE_THREAD>> => {
+       return ipcRenderer.invoke(IpcChannels.CHAT_CREATE_THREAD, params);
+     },
++    // 生成を中断するリクエストを送信
++    requestAbort: async (
++      threadId: string,
++    ): Promise<IpcResponsePayload<typeof IpcChannels.CHAT_ABORT_REQUEST>> => {
++      return ipcRenderer.invoke(IpcChannels.CHAT_ABORT_REQUEST, threadId);
++    },
+     // AIの応答を取得する（ストリーミング）
+     onStream: (
+       callback: (
+diff --git a/src/main/types/ipc.ts b/src/main/types/ipc.ts
+index 2bdd20719..0f2e5160d 100644
+--- a/src/main/types/ipc.ts
++++ b/src/main/types/ipc.ts
+@@ -30,6 +30,7 @@ export const IpcChannels = {
+   CHAT_COMPLETE: 'chat-complete',
+   CHAT_STEP: 'chat-step',
+   CHAT_ERROR: 'chat-error',
++  CHAT_ABORT_REQUEST: 'chat-abort-request',
+ 
+   // ファイルシステム関連
+   FS_CHECK_PATH_EXISTS: 'fs-check-path-exists',
+@@ -67,6 +68,7 @@ export type IpcRequestPayloadMap = {
+     roomId: string;
+     title: string;
+   };
++  [IpcChannels.CHAT_ABORT_REQUEST]: { threadId: string };
+ };
+ 
+ export type IpcResponsePayloadMap = {
+@@ -97,6 +99,7 @@ export type IpcResponsePayloadMap = {
+   [IpcChannels.CHAT_GET_MESSAGES]: ChatMessage[];
+   [IpcChannels.CHAT_DELETE_ROOM]: { success: boolean; error?: string };
+   [IpcChannels.CHAT_CREATE_THREAD]: { success: boolean; error?: string };
++  [IpcChannels.CHAT_ABORT_REQUEST]: { success: boolean; error?: string };
+ };
+ 
+ export type IpcEventPayloadMap = {
+diff --git a/src/mastra/tools/sourcesTools.ts b/src/mastra/tools/sourcesTools.ts
+index bc2d2f176..4806aabfe 100644
+--- a/src/mastra/tools/sourcesTools.ts
++++ b/src/mastra/tools/sourcesTools.ts
+@@ -97,7 +97,9 @@ export const documentQueryTool = createTool({
+   inputSchema: z.object({
+     sourceId: z.number().describe('Document ID to query (required)'),
+     path: z.string().describe('Document file path (required)'),
+-    queries: z.array(z.string()).describe('List of search queries or questions (required)'),
++    queries: z
++      .array(z.string())
++      .describe('List of search queries or questions (required)'),
+   }),
+   outputSchema: createBaseToolResponseSchema(
+     z.object({
+@@ -109,7 +111,7 @@ export const documentQueryTool = createTool({
+       ),
+     }),
+   ),
+-  execute: async ({ context: { sourceId, queries } }) => {
++  execute: async ({ context: { sourceId, queries } }, options) => {
+     let status: RunToolStatus = 'failed';
+     try {
+       const db = await getDb();
+@@ -142,7 +144,11 @@ export const documentQueryTool = createTool({
+       const answers = await Promise.all(
+         queries.map(async (query) => ({
+           query,
+-          answer: (await sourceExpertAgent.generate(query)).text,
++          answer: (
++            await sourceExpertAgent.generate(query, {
++              abortSignal: options?.abortSignal,
++            })
++          ).text,
+         })),
+       );
+       status = 'success';
+@@ -161,7 +167,7 @@ export const documentQueryTool = createTool({
+       status = 'failed';
+       return {
+         status,
+-          error: `Source query failed: ${errorMessage}`,
++        error: `Source query failed: ${errorMessage}`,
+       };
+     }
+   },
+diff --git a/src/mastra/workflows/sourceRegistrationManager.ts b/src/mastra/workflows/sourceRegistrationManager.ts
+index ba02bfc0e..dc9f6c9dd 100644
+--- a/src/mastra/workflows/sourceRegistrationManager.ts
++++ b/src/mastra/workflows/sourceRegistrationManager.ts
+@@ -33,7 +33,7 @@ export default class SourceRegistrationManager {
+       const db = await getDb();
+       await db
+         .delete(sources)
+-        .where(inArray(sources.status, ['completed', 'idle', 'processing']));
++        .where(inArray(sources.status, ['idle', 'processing']));
+     } catch (error) {
+       console.error('処理中のソースの削除に失敗しました', error);
+       throw error;
+diff --git a/src/renderer/components/chat/ChatArea.tsx b/src/renderer/components/chat/ChatArea.tsx
+index 015d52fd7..e08a3bb1e 100644
+--- a/src/renderer/components/chat/ChatArea.tsx
++++ b/src/renderer/components/chat/ChatArea.tsx
+@@ -127,6 +127,12 @@ const customFetch: typeof fetch = async (input, init) => {
+         });
+ 
+         const { message, threadId } = JSON.parse(init!.body as string);
++        init?.signal?.addEventListener('abort', () => {
++          console.log('Abort signal received, from threadId: ', threadId);
++          window.electron.chat.requestAbort(threadId);
++          unsubscribe();
++          controller.close();
++        });
+         window.electron.chat.sendMessage(threadId, message);
+       },
+       cancel() {
+@@ -191,36 +197,43 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
+     }
+   }, [selectedRoomId]);
+ 
+-  const { messages, input, status, error, handleInputChange, handleSubmit } =
+-    useChat({
+-      id: selectedRoomId ?? undefined,
+-      api: '/api/chat',
+-      fetch: customFetch,
+-      initialMessages,
+-      experimental_throttle: 75,
+-      experimental_prepareRequestBody: (request) => {
+-        // Ensure messages array is not empty and get the last message
+-        const lastMessage =
+-          request.messages.length > 0
+-            ? request.messages[request.messages.length - 1]
+-            : null;
++  const {
++    messages,
++    input,
++    status,
++    error,
++    handleInputChange,
++    handleSubmit,
++    stop,
++  } = useChat({
++    id: selectedRoomId ?? undefined,
++    api: '/api/chat',
++    fetch: customFetch,
++    initialMessages,
++    experimental_throttle: 75,
++    experimental_prepareRequestBody: (request) => {
++      // Ensure messages array is not empty and get the last message
++      const lastMessage =
++        request.messages.length > 0
++          ? request.messages[request.messages.length - 1]
++          : null;
+ 
+-        // 初回メッセージ送信時にスレッドを作成
+-        // titleについてはここで、指定してもmemoryのオプションでgenerateTitleをtrueにしていた場合、「New Thread 2025-04-27T08:20:05.694Z」のようなタイトルが自動生成されてしまう
+-        if (selectedRoomId && request.messages.length === 1) {
+-          chatService.createThread(selectedRoomId, '');
+-        }
++      // 初回メッセージ送信時にスレッドを作成
++      // titleについてはここで、指定してもmemoryのオプションでgenerateTitleをtrueにしていた場合、「New Thread 2025-04-27T08:20:05.694Z」のようなタイトルが自動生成されてしまう
++      if (selectedRoomId && request.messages.length === 1) {
++        chatService.createThread(selectedRoomId, '');
++      }
+ 
+-        // Return the structured body for your API route
+-        return {
+-          message: lastMessage?.content, // Send only the most recent message content/role
+-          threadId: selectedRoomId ?? undefined,
+-        };
+-      },
+-      onError(err) {
+-        console.error('useChat error:', err);
+-      },
+-    });
++      // Return the structured body for your API route
++      return {
++        message: lastMessage?.content, // Send only the most recent message content/role
++        threadId: selectedRoomId ?? undefined,
++      };
++    },
++    onError(err) {
++      console.error('useChat error:', err);
++    },
++  });
+ 
+   // useChatのエラーをアラートとして表示
+   useEffect(() => {
+@@ -277,6 +290,8 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
+               isAgentInitializing
+             }
+             placeholder={getPlaceholderText(status, isAgentInitializing)}
++            isStreaming={status === 'streaming'}
++            onStop={stop}
+           />
+ 
+           {/* {error && !isAgentInitializing && (
+diff --git a/src/renderer/components/chat/MessageInput.tsx b/src/renderer/components/chat/MessageInput.tsx
+index 547efca04..202c4500f 100644
+--- a/src/renderer/components/chat/MessageInput.tsx
++++ b/src/renderer/components/chat/MessageInput.tsx
+@@ -6,7 +6,7 @@ import {
+   Paper,
+   InputAdornment,
+ } from '@mui/material';
+-import { Send as SendIcon } from '@mui/icons-material';
++import { Send as SendIcon, Stop as StopIcon } from '@mui/icons-material';
+ 
+ interface MessageInputProps {
+   handleSubmit: (e: React.FormEvent) => void;
+@@ -14,6 +14,8 @@ interface MessageInputProps {
+   message: string;
+   disabled?: boolean;
+   placeholder?: string;
++  isStreaming?: boolean;
++  onStop?: () => void;
+ }
+ 
+ const MessageInput: React.FC<MessageInputProps> = ({
+@@ -22,6 +24,8 @@ const MessageInput: React.FC<MessageInputProps> = ({
+   message,
+   disabled = false,
+   placeholder = 'メッセージを入力...',
++  isStreaming = false,
++  onStop,
+ }) => {
+   const [isComposing, setIsComposing] = useState(false);
+ 
+@@ -78,13 +82,25 @@ const MessageInput: React.FC<MessageInputProps> = ({
+               endAdornment: (
+                 <InputAdornment position="end">
+                   {/* 送信ボタンまたは送信中インジケーター */}
+-                  <IconButton
+-                    color="primary"
+-                    onClick={handleSubmit}
+-                    disabled={disabled || !message.trim()}
+-                  >
+-                    <SendIcon />
+-                  </IconButton>
++                  {isStreaming ? (
++                    <IconButton
++                      color="primary"
++                      onClick={onStop}
++                      sx={{
++                        border: '1px solid',
++                      }}
++                    >
++                      <StopIcon />
++                    </IconButton>
++                  ) : (
++                    <IconButton
++                      color="primary"
++                      onClick={handleSubmit}
++                      disabled={disabled || !message.trim()}
++                    >
++                      <SendIcon />
++                    </IconButton>
++                  )}
+                 </InputAdornment>
+               ),
+             },
+diff --git a/src/renderer/components/common/SourceListModal.tsx b/src/renderer/components/common/SourceListModal.tsx
+index a8ed158ca..4f561547c 100644
+--- a/src/renderer/components/common/SourceListModal.tsx
++++ b/src/renderer/components/common/SourceListModal.tsx
+@@ -184,7 +184,7 @@ function SourceListModal({
+       }
+     };
+ 
+-    const intervalId = setInterval(fetchSources, 3000);
++    const intervalId = setInterval(fetchSources, 5000);
+ 
+     return () => {
+       if (intervalId) {
