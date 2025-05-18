@@ -30,6 +30,7 @@ export const IpcChannels = {
   CHAT_COMPLETE: 'chat-complete',
   CHAT_STEP: 'chat-step',
   CHAT_ERROR: 'chat-error',
+  CHAT_ABORT_REQUEST: 'chat-abort-request',
 
   // ファイルシステム関連
   FS_CHECK_PATH_EXISTS: 'fs-check-path-exists',
@@ -67,6 +68,7 @@ export type IpcRequestPayloadMap = {
     roomId: string;
     title: string;
   };
+  [IpcChannels.CHAT_ABORT_REQUEST]: { threadId: string };
 };
 
 export type IpcResponsePayloadMap = {
@@ -97,6 +99,7 @@ export type IpcResponsePayloadMap = {
   [IpcChannels.CHAT_GET_MESSAGES]: ChatMessage[];
   [IpcChannels.CHAT_DELETE_ROOM]: { success: boolean; error?: string };
   [IpcChannels.CHAT_CREATE_THREAD]: { success: boolean; error?: string };
+  [IpcChannels.CHAT_ABORT_REQUEST]: { success: boolean; error?: string };
 };
 
 export type IpcEventPayloadMap = {

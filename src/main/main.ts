@@ -41,6 +41,8 @@ class AppUpdater {
 
 // Mastraのインスタンスと状態を保持する変数
 let mastraInstance: Mastra | null = null;
+// スレッドごとのAbortControllerを管理するMap
+const threadAbortControllers = new Map<string, AbortController>();
 const mastraStatus: AgentBootStatus = {
   state: 'initializing',
   messages: [],
@@ -232,6 +234,34 @@ ipcMain.handle(
 
 // チャット関連のIPCハンドラー
 const setupChatHandlers = () => {
+  // チャット中断ハンドラ
+  ipcMain.handle(
+    IpcChannels.CHAT_ABORT_REQUEST,
+    async (
+      _,
+      threadId,
+    ): Promise<
+      IpcResponsePayloadMap[typeof IpcChannels.CHAT_ABORT_REQUEST]
+    > => {
+      let success = false;
+      let error: string | undefined;
+      try {
+        const controller = threadAbortControllers.get(threadId);
+        if (controller) {
+          controller.abort();
+          threadAbortControllers.delete(threadId);
+          console.log(`Thread ${threadId} の生成を中断しました`);
+          success = true;
+        }
+      } catch (err) {
+        console.error('スレッドの中断中にエラーが発生:', err);
+        success = false;
+        error = (err as Error).message;
+      }
+      return { success, error };
+    },
+  );
+
   // メッセージ送信ハンドラ
   ipcMain.handle(
     IpcChannels.CHAT_SEND_MESSAGE,
@@ -240,6 +270,10 @@ const setupChatHandlers = () => {
       { roomId, content },
     ): Promise<IpcResponsePayloadMap[typeof IpcChannels.CHAT_SEND_MESSAGE]> => {
       try {
+        // 新しいAbortControllerを作成
+        const controller = new AbortController();
+        threadAbortControllers.set(roomId, controller);
+
         // Mastraインスタンスからオーケストレーターエージェントを取得
         const mastra = getMastra();
         const orchestratorAgent = mastra.getAgent('orchestratorAgent');
@@ -301,6 +335,7 @@ const setupChatHandlers = () => {
               ),
               threadId: roomId, // チャットルームIDをスレッドIDとして使用
               maxSteps: 30, // ツールの利用上限
+              abortSignal: controller.signal, // 中断シグナルを設定
               onStepFinish: (stepResult) => {
                 // https://ai-sdk.dev/docs/ai-sdk-ui/stream-protocol
                 // 上記を参考にai-sdkのストリームプロトコルに従ってメッセージを送信
@@ -320,10 +355,14 @@ const setupChatHandlers = () => {
               `d:${JSON.stringify({ finishReason: res.finishReason, ...res.usage })}\n`,
             );
             event.sender.send(IpcChannels.CHAT_COMPLETE);
+            // 処理が完了したらAbortControllerを削除
+            threadAbortControllers.delete(roomId);
           },
           onError(error) {
             // エラーが発生したときの処理
             console.error('テキスト生成中にエラーが発生:', error);
+            // エラー時もAbortControllerを削除
+            threadAbortControllers.delete(roomId);
             if (error == null) return 'unknown error';
             if (typeof error === 'string') return error;
             if (error instanceof Error) return error.message;
@@ -341,6 +380,8 @@ const setupChatHandlers = () => {
         return { success: true };
       } catch (error) {
         console.error('メッセージ送信中にエラーが発生:', error);
+        // エラー時もAbortControllerを削除
+        threadAbortControllers.delete(roomId);
         event.sender.send(IpcChannels.CHAT_ERROR, {
           message: `${(error as Error).message}`,
         });

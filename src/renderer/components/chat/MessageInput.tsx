@@ -6,7 +6,7 @@ import {
   Paper,
   InputAdornment,
 } from '@mui/material';
-import { Send as SendIcon } from '@mui/icons-material';
+import { Send as SendIcon, Stop as StopIcon } from '@mui/icons-material';
 
 interface MessageInputProps {
   handleSubmit: (e: React.FormEvent) => void;
@@ -14,6 +14,8 @@ interface MessageInputProps {
   message: string;
   disabled?: boolean;
   placeholder?: string;
+  isStreaming?: boolean;
+  onStop?: () => void;
 }
 
 const MessageInput: React.FC<MessageInputProps> = ({
@@ -22,6 +24,8 @@ const MessageInput: React.FC<MessageInputProps> = ({
   message,
   disabled = false,
   placeholder = 'メッセージを入力...',
+  isStreaming = false,
+  onStop,
 }) => {
   const [isComposing, setIsComposing] = useState(false);
 
@@ -78,13 +82,25 @@ const MessageInput: React.FC<MessageInputProps> = ({
               endAdornment: (
                 <InputAdornment position="end">
                   {/* 送信ボタンまたは送信中インジケーター */}
-                  <IconButton
-                    color="primary"
-                    onClick={handleSubmit}
-                    disabled={disabled || !message.trim()}
-                  >
-                    <SendIcon />
-                  </IconButton>
+                  {isStreaming ? (
+                    <IconButton
+                      color="primary"
+                      onClick={onStop}
+                      sx={{
+                        border: '1px solid',
+                      }}
+                    >
+                      <StopIcon />
+                    </IconButton>
+                  ) : (
+                    <IconButton
+                      color="primary"
+                      onClick={handleSubmit}
+                      disabled={disabled || !message.trim()}
+                    >
+                      <SendIcon />
+                    </IconButton>
+                  )}
                 </InputAdornment>
               ),
             },

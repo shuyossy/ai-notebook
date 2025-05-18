@@ -80,6 +80,12 @@ const electronHandler = {
     }): Promise<IpcResponsePayload<typeof IpcChannels.CHAT_CREATE_THREAD>> => {
       return ipcRenderer.invoke(IpcChannels.CHAT_CREATE_THREAD, params);
     },
+    // 生成を中断するリクエストを送信
+    requestAbort: async (
+      threadId: string,
+    ): Promise<IpcResponsePayload<typeof IpcChannels.CHAT_ABORT_REQUEST>> => {
+      return ipcRenderer.invoke(IpcChannels.CHAT_ABORT_REQUEST, threadId);
+    },
     // AIの応答を取得する（ストリーミング）
     onStream: (
       callback: (

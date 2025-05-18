@@ -97,7 +97,9 @@ export const documentQueryTool = createTool({
   inputSchema: z.object({
     sourceId: z.number().describe('Document ID to query (required)'),
     path: z.string().describe('Document file path (required)'),
-    queries: z.array(z.string()).describe('List of search queries or questions (required)'),
+    queries: z
+      .array(z.string())
+      .describe('List of search queries or questions (required)'),
   }),
   outputSchema: createBaseToolResponseSchema(
     z.object({
@@ -109,7 +111,7 @@ export const documentQueryTool = createTool({
       ),
     }),
   ),
-  execute: async ({ context: { sourceId, queries } }) => {
+  execute: async ({ context: { sourceId, queries } }, options) => {
     let status: RunToolStatus = 'failed';
     try {
       const db = await getDb();
@@ -142,7 +144,11 @@ export const documentQueryTool = createTool({
       const answers = await Promise.all(
         queries.map(async (query) => ({
           query,
-          answer: (await sourceExpertAgent.generate(query)).text,
+          answer: (
+            await sourceExpertAgent.generate(query, {
+              abortSignal: options?.abortSignal,
+            })
+          ).text,
         })),
       );
       status = 'success';
@@ -161,7 +167,7 @@ export const documentQueryTool = createTool({
       status = 'failed';
       return {
         status,
-          error: `Source query failed: ${errorMessage}`,
+        error: `Source query failed: ${errorMessage}`,
       };
     }
   },

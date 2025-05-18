@@ -127,6 +127,12 @@ const customFetch: typeof fetch = async (input, init) => {
         });
 
         const { message, threadId } = JSON.parse(init!.body as string);
+        init?.signal?.addEventListener('abort', () => {
+          console.log('Abort signal received, from threadId: ', threadId);
+          window.electron.chat.requestAbort(threadId);
+          unsubscribe();
+          controller.close();
+        });
         window.electron.chat.sendMessage(threadId, message);
       },
       cancel() {
@@ -191,36 +197,43 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
     }
   }, [selectedRoomId]);
 
-  const { messages, input, status, error, handleInputChange, handleSubmit } =
-    useChat({
-      id: selectedRoomId ?? undefined,
-      api: '/api/chat',
-      fetch: customFetch,
-      initialMessages,
-      experimental_throttle: 75,
-      experimental_prepareRequestBody: (request) => {
-        // Ensure messages array is not empty and get the last message
-        const lastMessage =
-          request.messages.length > 0
-            ? request.messages[request.messages.length - 1]
-            : null;
+  const {
+    messages,
+    input,
+    status,
+    error,
+    handleInputChange,
+    handleSubmit,
+    stop,
+  } = useChat({
+    id: selectedRoomId ?? undefined,
+    api: '/api/chat',
+    fetch: customFetch,
+    initialMessages,
+    experimental_throttle: 75,
+    experimental_prepareRequestBody: (request) => {
+      // Ensure messages array is not empty and get the last message
+      const lastMessage =
+        request.messages.length > 0
+          ? request.messages[request.messages.length - 1]
+          : null;
 
-        // 初回メッセージ送信時にスレッドを作成
-        // titleについてはここで、指定してもmemoryのオプションでgenerateTitleをtrueにしていた場合、「New Thread 2025-04-27T08:20:05.694Z」のようなタイトルが自動生成されてしまう
-        if (selectedRoomId && request.messages.length === 1) {
-          chatService.createThread(selectedRoomId, '');
-        }
+      // 初回メッセージ送信時にスレッドを作成
+      // titleについてはここで、指定してもmemoryのオプションでgenerateTitleをtrueにしていた場合、「New Thread 2025-04-27T08:20:05.694Z」のようなタイトルが自動生成されてしまう
+      if (selectedRoomId && request.messages.length === 1) {
+        chatService.createThread(selectedRoomId, '');
+      }
 
-        // Return the structured body for your API route
-        return {
-          message: lastMessage?.content, // Send only the most recent message content/role
-          threadId: selectedRoomId ?? undefined,
-        };
-      },
-      onError(err) {
-        console.error('useChat error:', err);
-      },
-    });
+      // Return the structured body for your API route
+      return {
+        message: lastMessage?.content, // Send only the most recent message content/role
+        threadId: selectedRoomId ?? undefined,
+      };
+    },
+    onError(err) {
+      console.error('useChat error:', err);
+    },
+  });
 
   // useChatのエラーをアラートとして表示
   useEffect(() => {
@@ -277,6 +290,8 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
               isAgentInitializing
             }
             placeholder={getPlaceholderText(status, isAgentInitializing)}
+            isStreaming={status === 'streaming'}
+            onStop={stop}
           />
 
           {/* {error && !isAgentInitializing && (
