@@ -28,6 +28,9 @@ export interface StoreSchema {
     enabled: boolean;
     headless: boolean;
   };
+  systemPrompt: {
+    content: string;
+  };
 }
 
 // スキーマ定義
@@ -95,6 +98,16 @@ const schema = {
     },
     required: [],
   },
+  systemPrompt: {
+    type: 'object',
+    properties: {
+      content: {
+        type: 'string',
+        default: '',
+      },
+    },
+    required: [],
+  },
 } as const;
 
 /**
@@ -154,6 +167,9 @@ const defaults: StoreSchema = {
   stagehand: {
     enabled: false,
     headless: false,
+  },
+  systemPrompt: {
+    content: '',
   },
 };
 

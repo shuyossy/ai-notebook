@@ -104,6 +104,8 @@ export const getOrchestratorSystemPrompt = async (
 
   const sourceListMD = await getSourcesInfoByMDList();
 
+  const systemPrompt = store.get('systemPrompt.content');
+
   const prompt = `
 You are an AI agent empowered with a rich set of tools. Whenever a user request arrives, follow this cycle:
 
@@ -122,7 +124,17 @@ Keep your working memory updated. When uncertain, ask for clarification rather t
 
 ---
 
-### Tools
+${
+  systemPrompt
+    ? `### System Instructions
+
+${systemPrompt}
+
+---
+
+`
+    : ''
+}### Tools
 
 - **Document Query Tool**
   documentQueryTool: Search registered sources for relevant details.

@@ -279,6 +279,26 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
 
           <Box sx={{ width: '100%', mb: 1 }}>
             <Typography variant="h6" gutterBottom>
+              システムプロンプト設定
+            </Typography>
+            <TextField
+              fullWidth
+              label="システムプロンプトのカスタマイズが可能です"
+              value={settings.systemPrompt.content}
+              onChange={(e) =>
+                handleChange('systemPrompt', 'content', e.target.value)
+              }
+              error={!!validationErrors.systemPrompt?.content}
+              helperText={validationErrors.systemPrompt?.content?.message}
+              margin="normal"
+              variant="outlined"
+              multiline
+              rows={6}
+            />
+          </Box>
+
+          <Box sx={{ width: '100%', mb: 1 }}>
+            <Typography variant="h6" gutterBottom>
               データベース設定(チャット履歴やソース情報の保存先)
             </Typography>
             <TextField
