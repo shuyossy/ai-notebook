@@ -207,7 +207,7 @@ ${
 
 #### Registered Document(summaries only)
 
-${sourceListMD}
+${sourceListMD.trim() ? sourceListMD : 'No documents registered.'}
 `;
   return prompt;
 };
