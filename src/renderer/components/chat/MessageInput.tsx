@@ -6,7 +6,10 @@ import {
   Paper,
   InputAdornment,
 } from '@mui/material';
-import { Send as SendIcon, Stop as StopIcon } from '@mui/icons-material';
+import {
+  Send as SendIcon,
+  StopCircleOutlined as StopCircleOutlinedIcon,
+} from '@mui/icons-material';
 
 interface MessageInputProps {
   handleSubmit: (e: React.FormEvent) => void;
@@ -83,14 +86,8 @@ const MessageInput: React.FC<MessageInputProps> = ({
                 <InputAdornment position="end">
                   {/* 送信ボタンまたは送信中インジケーター */}
                   {isStreaming ? (
-                    <IconButton
-                      color="primary"
-                      onClick={onStop}
-                      sx={{
-                        border: '1px solid',
-                      }}
-                    >
-                      <StopIcon />
+                    <IconButton color="primary" onClick={onStop}>
+                      <StopCircleOutlinedIcon />
                     </IconButton>
                   ) : (
                     <IconButton
