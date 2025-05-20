@@ -31,6 +31,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
   const {
     settings,
     validationErrors,
+    loading,
     error,
     updateField,
     saveSettings,
@@ -71,7 +72,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         onClick={handleSave}
         variant="contained"
         color="primary"
-        disabled={saving || !isValid}
+        disabled={loading || saving || !isValid}
         startIcon={saving ? <CircularProgress size={16} /> : null}
       >
         保存
@@ -96,6 +97,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
               fullWidth
               label="APIキー"
               value={settings.api.key}
+              disabled={loading || saving}
               onChange={(e) => handleChange('api', 'key', e.target.value)}
               error={!!validationErrors.api?.key}
               helperText={validationErrors.api?.key?.message}
@@ -106,6 +108,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
               fullWidth
               label="APIエンドポイントURL"
               value={settings.api.url}
+              disabled={loading || saving}
               onChange={(e) => handleChange('api', 'url', e.target.value)}
               error={!!validationErrors.api?.url}
               helperText={validationErrors.api?.url?.message}
@@ -116,6 +119,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
               fullWidth
               label="モデル名"
               value={settings.api.model}
+              disabled={loading || saving}
               onChange={(e) => handleChange('api', 'model', e.target.value)}
               error={!!validationErrors.api?.model}
               helperText={validationErrors.api?.model?.message}
@@ -132,6 +136,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
               fullWidth
               label="ソース登録ディレクトリ"
               value={settings.source.registerDir}
+              disabled={loading || saving}
               onChange={(e) =>
                 handleChange('source', 'registerDir', e.target.value)
               }
@@ -153,6 +158,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
               fullWidth
               label="エンドポイント"
               value={settings.redmine.endpoint}
+              disabled={loading || saving}
               onChange={(e) =>
                 handleChange('redmine', 'endpoint', e.target.value)
               }
@@ -165,6 +171,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
               fullWidth
               label="APIキー"
               value={settings.redmine.apiKey}
+              disabled={loading || saving}
               onChange={(e) =>
                 handleChange('redmine', 'apiKey', e.target.value)
               }
@@ -183,6 +190,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
               fullWidth
               label="エンドポイント"
               value={settings.gitlab.endpoint}
+              disabled={loading || saving}
               onChange={(e) =>
                 handleChange('gitlab', 'endpoint', e.target.value)
               }
@@ -195,6 +203,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
               fullWidth
               label="APIキー"
               value={settings.gitlab.apiKey}
+              disabled={loading || saving}
               onChange={(e) => handleChange('gitlab', 'apiKey', e.target.value)}
               error={!!validationErrors.gitlab?.apiKey}
               helperText={validationErrors.gitlab?.apiKey?.message}
@@ -215,6 +224,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                     onChange={(e) =>
                       handleChange('stagehand', 'enabled', e.target.checked)
                     }
+                    disabled={loading || saving}
                   />
                 }
                 label="ブラウザ操作を有効化"
@@ -226,6 +236,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                     onChange={(e) =>
                       handleChange('stagehand', 'headless', e.target.checked)
                     }
+                    disabled={loading || saving}
                   />
                 }
                 label="ヘッドレスモードを有効化"
@@ -243,6 +254,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
               multiline
               rows={4}
               value={settings.mcp.serverConfigText}
+              disabled={loading || saving}
               onChange={(e) => {
                 handleChange('mcp', 'serverConfigText', e.target.value);
               }}
@@ -285,6 +297,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
               fullWidth
               label="システムプロンプトのカスタマイズが可能です"
               value={settings.systemPrompt.content}
+              disabled={loading || saving}
               onChange={(e) =>
                 handleChange('systemPrompt', 'content', e.target.value)
               }
@@ -305,6 +318,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
               fullWidth
               label="データベースパス"
               value={settings.database.dir}
+              disabled={loading || saving}
               onChange={(e) => handleChange('database', 'dir', e.target.value)}
               error={!!validationErrors.database?.dir}
               helperText={validationErrors.database?.dir?.message}
