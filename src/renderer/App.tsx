@@ -17,8 +17,8 @@ import { sourceService } from './services/sourceService';
 const theme = createTheme({
   palette: {
     primary: {
-      main: '#3f51b5',
-      light: '#e8eaf6',
+      main: '#ff7474',
+      light: '#ff5252',
     },
     secondary: {
       main: '#f50057',
