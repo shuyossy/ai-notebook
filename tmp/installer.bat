@@ -1,9 +1,11 @@
+REM --- 最新バージョンを取得 ---------------------------------
 echo.
 echo [1/3] 最新バージョンを問い合わせ中...
 for /f "usebackq delims=" %%V in (`
   powershell -NoProfile -Command ^
     " $u = '%GITLAB_URL%/api/v4/projects/%PROJECT_ID%/packages?package_type=generic^&package_name=%PACKAGE_NAME%^&order_by=created_at^&sort=desc^&per_page=1'; ^
-      $h = @{ 'PRIVATE-TOKEN' = '%GITLAB_TOKEN%' }; ^
+      $h = New-Object 'System.Collections.Generic.Dictionary[String,String]'; ^
+      $h.Add('PRIVATE-TOKEN','%GITLAB_TOKEN%'); ^
       $pkg = Invoke-RestMethod -Headers $h -Uri $u -Method Get; ^
       if ($pkg) { $pkg[0].version } "
 `) do set "LATEST_VERSION=%%V"
