@@ -1,591 +1,422 @@
-diff --git a/src/main/store.ts b/src/main/store.ts
-index 9b75fee0c..8693ecf70 100644
---- a/src/main/store.ts
-+++ b/src/main/store.ts
-@@ -28,6 +28,9 @@ export interface StoreSchema {
-     enabled: boolean;
-     headless: boolean;
-   };
-+  systemPrompt: {
-+    content: string;
-+  };
- }
+diff --git a/src/main/utils/fileExtractor.ts b/src/main/utils/fileExtractor.ts
+index 58297fe8e..d22dd94b5 100644
+--- a/src/main/utils/fileExtractor.ts
++++ b/src/main/utils/fileExtractor.ts
+@@ -4,11 +4,16 @@ import os from 'os';
+ import path from 'path';
+ import { execFile } from 'child_process';
+ import { promisify } from 'util';
+-import { readFileSync } from 'fs';
++import { readFileSync, existsSync, mkdirSync } from 'fs';
++import { createHash } from 'crypto';
++import { app } from 'electron';
+ import type { TextItem } from 'pdfjs-dist/types/src/display/api';
  
- // スキーマ定義
-@@ -95,6 +98,16 @@ const schema = {
-     },
-     required: [],
-   },
-+  systemPrompt: {
-+    type: 'object',
-+    properties: {
-+      content: {
-+        type: 'string',
-+        default: '',
-+      },
-+    },
-+    required: [],
-+  },
- } as const;
+ const execFileP = promisify(execFile);
  
- /**
-@@ -155,6 +168,9 @@ const defaults: StoreSchema = {
-     enabled: false,
-     headless: false,
-   },
-+  systemPrompt: {
-+    content: '',
-+  },
- };
- 
- // ストアのインスタンスを作成する関数
-diff --git a/src/main/types/settingsSchema.ts b/src/main/types/settingsSchema.ts
-index bfd11adf1..4397a2253 100644
---- a/src/main/types/settingsSchema.ts
-+++ b/src/main/types/settingsSchema.ts
-@@ -79,6 +79,13 @@ export const StagehandSchema = z.object({
-   headless: z.boolean(),
- });
- 
-+/**
-+ * システムプロンプト設定のスキーマ
-+ */
-+export const SystemPromptSchema = z.object({
-+  content: z.string(),
-+});
++/** キャッシュ対象となるファイルの拡張子 */
++const CACHE_TARGET_EXTENSIONS = ['.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx'];
 +
- /**
-  * MCP設定のスキーマ
-  */
-@@ -121,6 +128,7 @@ export const SettingsSchema = z.object({
-   gitlab: GitLabSchema,
-   mcp: McpStoreSchema,
-   stagehand: StagehandSchema,
-+  systemPrompt: SystemPromptSchema,
- });
+ /** 抽出結果の型定義 */
+ export interface ExtractionResult {
+   content: string;
+@@ -29,6 +34,79 @@ interface FileExtractionError extends Error {
  
- export type ValidationError = {
+ /** 多様なファイル形式からテキストを抽出するユーティリティクラス */
+ export default class FileExtractor {
++  /**
++   * キャッシュディレクトリのパスを取得
++   */
++  private static getCacheDir(): string {
++    const userDataPath = app.getPath('userData');
++    const cacheDir = path.join(userDataPath, 'document_caches');
++    
++    // ディレクトリが存在しない場合は作成
++    if (!existsSync(cacheDir)) {
++      mkdirSync(cacheDir, { recursive: true });
++    }
++    
++    return cacheDir;
++  }
++
++  /**
++   * キャッシュファイルのパスを生成
++   */
++  private static getCacheFilePath(filePath: string): string {
++    const hash = createHash('md5').update(filePath).digest('hex');
++    return path.join(this.getCacheDir(), `${hash}.txt`);
++  }
++
++  /**
++   * 指定されたファイルがキャッシュ対象かどうかを判定
++   */
++  public static isCacheTarget(filePath: string): boolean {
++    const ext = path.extname(filePath).toLowerCase();
++    return CACHE_TARGET_EXTENSIONS.includes(ext);
++  }
++
++  /**
++   * キャッシュを削除
++   */
++  public static async deleteCache(filePath: string): Promise<void> {
++    try {
++      const cachePath = this.getCacheFilePath(filePath);
++      await fs.unlink(cachePath);
++    } catch (error) {
++      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
++        console.error('キャッシュの削除に失敗しました:', error);
++      }
++    }
++  }
++
++  /**
++   * キャッシュからテキストを読み込み
++   */
++  private static async tryReadCache(filePath: string): Promise<string | null> {
++    try {
++      const cachePath = this.getCacheFilePath(filePath);
++      const content = await fs.readFile(cachePath, 'utf-8');
++      return content;
++    } catch (error) {
++      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
++        console.error('キャッシュの読み込みに失敗しました:', error);
++      }
++      return null;
++    }
++  }
++
++  /**
++   * テキストをキャッシュに保存
++   */
++  private static async saveCache(filePath: string, content: string): Promise<void> {
++    try {
++      const cachePath = this.getCacheFilePath(filePath);
++      await fs.writeFile(cachePath, content, 'utf-8');
++    } catch (error) {
++      console.error('キャッシュの保存に失敗しました:', error);
++    }
++  }
++
+   /** 処理可能な拡張子 */
+   private static readonly SUPPORTED_EXTENSIONS = [
+     '.txt',
+@@ -62,7 +140,21 @@ export default class FileExtractor {
+ 
+     try {
+       const stats = await fs.stat(filePath);
+-      const content = await this.extractContentByType(filePath, extension);
++      let content: string;
++
++      // キャッシュ対象の場合、キャッシュをチェック
++      if (this.isCacheTarget(filePath)) {
++        const cachedContent = await this.tryReadCache(filePath);
++        if (cachedContent) {
++          content = cachedContent;
++        } else {
++          content = await this.extractContentByType(filePath, extension);
++          // 抽出したテキストをキャッシュに保存
++          await this.saveCache(filePath, content);
++        }
++      } else {
++        content = await this.extractContentByType(filePath, extension);
++      }
+ 
+       return {
+         content,
+@@ -194,7 +286,8 @@ try {
+           `
+ try {
+     $excel = New-Object -ComObject Excel.Application
+-    $excel.Visible = $false
++    $excel.DisplayAlerts = \$false
++    $excel.Visible = \$false
+     $wb = $excel.Workbooks.Open($Path, \$false, \$true)
+     $sb = New-Object System.Text.StringBuilder
+     foreach ($ws in $wb.Worksheets) {
+@@ -214,11 +307,11 @@ try {
+             }
+         }
+     }
+-    $wb.Close()
++    $wb.Close(\$false)
+     $excel.Quit()
+     Write-Output $sb.ToString()
+ } finally {
+-    try { if ($wb)    { $wb.Close() } }   catch {}
++    try { if ($wb)    { $wb.Close(\$false) } }   catch {}
+     try { if ($excel) { $excel.Quit() } } catch {}
+ }
+ `
+@@ -240,6 +333,7 @@ try {
+             }
+         }
+     }
++    $pres.Saved = \$true
+     $pres.Close()
+     $ppt.Quit()
+     Write-Output $sb.ToString()
 diff --git a/src/mastra/agents/prompts.ts b/src/mastra/agents/prompts.ts
-index 416fa1661..d265eb4cc 100644
+index d265eb4cc..3efc30690 100644
 --- a/src/mastra/agents/prompts.ts
 +++ b/src/mastra/agents/prompts.ts
-@@ -104,6 +104,8 @@ export const getOrchestratorSystemPrompt = async (
- 
-   const sourceListMD = await getSourcesInfoByMDList();
- 
-+  const systemPrompt = store.get('systemPrompt.content');
-+
-   const prompt = `
- You are an AI agent empowered with a rich set of tools. Whenever a user request arrives, follow this cycle:
- 
-@@ -122,7 +124,17 @@ Keep your working memory updated. When uncertain, ask for clarification rather t
- 
- ---
- 
--### Tools
-+${
-+  systemPrompt
-+    ? `### System Instructions
-+
-+${systemPrompt}
-+
-+---
-+
-+`
-+    : ''
-+}### Tools
+@@ -137,7 +137,7 @@ ${systemPrompt}
+ }### Tools
  
  - **Document Query Tool**
-   documentQueryTool: Search registered sources for relevant details.
-@@ -195,7 +207,7 @@ ${
+-  documentQueryTool: Search registered sources for relevant details.
++  documentQueryTool: Processes each document query separately using registered content.
  
- #### Registered Document(summaries only)
+ - **Memory Management Tool**
+   updateWorkingMemory: Save or update facts in your working memory.
+diff --git a/src/mastra/tools/sourcesTools.ts b/src/mastra/tools/sourcesTools.ts
+index 4806aabfe..d12cdddfe 100644
+--- a/src/mastra/tools/sourcesTools.ts
++++ b/src/mastra/tools/sourcesTools.ts
+@@ -93,63 +93,79 @@ import { createBaseToolResponseSchema, RunToolStatus } from './types';
+ export const documentQueryTool = createTool({
+   id: 'documentQueryTool',
+   description:
+-    'Expert AI agent answers queries based on registered document content. Multiple queries can be processed at once. Therefore, instead of asking complex questions, please break them down into simpler ones.',
++    'The expert AI agent processes each query in isolation using the registered document content. Each query will be handled without any dependence on prior or subsequent queries, ensuring no shared context or state is used.',
+   inputSchema: z.object({
+-    sourceId: z.number().describe('Document ID to query (required)'),
+-    path: z.string().describe('Document file path (required)'),
+-    queries: z
+-      .array(z.string())
+-      .describe('List of search queries or questions (required)'),
++    documentQueries: z.array(
++      z.object({
++        sourceId: z.number().describe('Document ID to query (required)'),
++        path: z.string().describe('Document file path (required)'),
++        query: z.string().describe('Search query or question (required)'),
++      }),
++    ),
+   }),
+   outputSchema: createBaseToolResponseSchema(
+     z.object({
+       answers: z.array(
+         z.object({
++          sourceId: z.number(),
++          path: z.string(),
+           query: z.string(),
+           answer: z.string(),
+         }),
+       ),
+     }),
+   ),
+-  execute: async ({ context: { sourceId, queries } }, options) => {
++  execute: async ({ context: { documentQueries } }, options) => {
+     let status: RunToolStatus = 'failed';
+     try {
+       const db = await getDb();
+-      // ソース情報を取得（将来的にisEnabled=trueのみに絞り込む）
+-      const sourceData = await db
+-        .select()
+-        .from(sources)
+-        .where(and(eq(sources.id, sourceId), eq(sources.isEnabled, 1)));
++      // 各クエリに対応するソースの情報を取得
++      const uniqueSourceIds = [
++        ...new Set(documentQueries.map((item) => item.sourceId)),
++      ];
++      const sourceDataMap = new Map();
  
--${sourceListMD}
-+${sourceListMD.trim() ? sourceListMD : 'No documents registered.'}
- `;
-   return prompt;
- };
-diff --git a/src/mastra/memory/filter/customToolCallFilter.ts b/src/mastra/memory/filter/customToolCallFilter.ts
-new file mode 100644
-index 000000000..c40931a3b
---- /dev/null
-+++ b/src/mastra/memory/filter/customToolCallFilter.ts
-@@ -0,0 +1,107 @@
-+import type { CoreMessage } from '@mastra/core';
-+import { MemoryProcessor } from '@mastra/core';
-+
-+/**
-+ * Filters out tool calls and results from messages.
-+ * By default (with no arguments), excludes all tool calls and their results.
-+ * Can be configured to exclude only specific tools by name.
-+ */
-+export class customToolCallFilter extends MemoryProcessor {
-+  private exclude: string[] | 'all';
-+
-+  /**
-+   * Create a filter for tool calls and results.
-+   * @param options Configuration options
-+   * @param options.exclude List of specific tool names to exclude. If not provided, all tool calls are excluded.
-+   */
-+  constructor(options: { exclude?: string[] } = {}) {
-+    super({ name: 'ToolCallFilter' });
-+    // If no options or exclude is provided, exclude all tools
-+    if (!options || !options.exclude) {
-+      this.exclude = 'all'; // Exclude all tools
-+    } else {
-+      // Exclude specific tools
-+      this.exclude = Array.isArray(options.exclude) ? options.exclude : [];
-+    }
-+  }
-+
-+  process(messages: CoreMessage[]): CoreMessage[] {
-+    // Case 1: Exclude all tool calls and tool results
-+    if (this.exclude === 'all') {
-+      // カスタム: tool-callは除外せず、tool-resultは置き換える
-+      return messages.map((message) => {
-+        if (Array.isArray(message.content)) {
-+          return {
-+            ...message,
-+            content: message.content.map((part) => {
-+              if (part.type === 'tool-result') {
-+                return {
-+                  ...part,
-+                  result:
-+                    'Tool results have been omitted to conserve context length. Please re-run the tool to view them.',
-+                };
-+              }
-+              return part;
-+            }),
-+          } as CoreMessage;
-+        }
-+        return message;
-+      });
-+    }
-+
-+    // Case 2: Exclude specific tools by name
-+    if (this.exclude.length > 0) {
-+      // Single pass approach - track excluded tool call IDs while filtering
-+      const excludedToolCallIds = new Set<string>();
-+
-+      return messages.map((message) => {
-+        if (!Array.isArray(message.content)) return message;
-+
-+        // For assistant messages, check for excluded tool calls and track their IDs
-+        // カスタム: tool-callは除外しない
-+        if (message.role === 'assistant') {
-+          for (const part of message.content) {
-+            if (
-+              part.type === 'tool-call' &&
-+              this.exclude.includes(part.toolName)
-+            ) {
-+              excludedToolCallIds.add(part.toolCallId);
-+            }
-+          }
-+          return message;
-+        }
-+
-+        // For tool messages, filter out results for excluded tool calls
-+        // カスタム: tool-callは除外しない
-+        if (message.role === 'tool') {
-+          const shouldExclude = message.content.some(
-+            (part) =>
-+              part.type === 'tool-result' &&
-+              excludedToolCallIds.has(part.toolCallId),
-+          );
-+
-+          if (shouldExclude) {
-+            return {
-+              ...message,
-+              content: message.content.map((part) => {
-+                if (part.type === 'tool-result') {
-+                  return {
-+                    ...part,
-+                    result:
-+                      'Tool results have been omitted to conserve context length. Please re-run the tool to view them.',
-+                  };
-+                }
-+                return part;
-+              }),
-+            } as CoreMessage;
-+          }
-+        }
-+
-+        return message;
-+      });
-+    }
-+
-+    // Case 3: Empty exclude array, return original messages
-+    return messages;
-+  }
-+}
-diff --git a/src/renderer/App.tsx b/src/renderer/App.tsx
-index 3adb6a0e8..542f78114 100644
---- a/src/renderer/App.tsx
-+++ b/src/renderer/App.tsx
-@@ -17,8 +17,8 @@ import { sourceService } from './services/sourceService';
- const theme = createTheme({
-   palette: {
-     primary: {
--      main: '#3f51b5',
--      light: '#e8eaf6',
-+      main: '#ff7474',
-+      light: '#ff5252',
-     },
-     secondary: {
-       main: '#f50057',
-diff --git a/src/renderer/components/chat/MessageInput.tsx b/src/renderer/components/chat/MessageInput.tsx
-index 202c4500f..7d89b001c 100644
---- a/src/renderer/components/chat/MessageInput.tsx
-+++ b/src/renderer/components/chat/MessageInput.tsx
-@@ -6,7 +6,10 @@ import {
-   Paper,
-   InputAdornment,
- } from '@mui/material';
--import { Send as SendIcon, Stop as StopIcon } from '@mui/icons-material';
-+import {
-+  Send as SendIcon,
-+  StopCircleOutlined as StopCircleOutlinedIcon,
-+} from '@mui/icons-material';
- 
- interface MessageInputProps {
-   handleSubmit: (e: React.FormEvent) => void;
-@@ -83,14 +86,8 @@ const MessageInput: React.FC<MessageInputProps> = ({
-                 <InputAdornment position="end">
-                   {/* 送信ボタンまたは送信中インジケーター */}
-                   {isStreaming ? (
--                    <IconButton
--                      color="primary"
--                      onClick={onStop}
--                      sx={{
--                        border: '1px solid',
--                      }}
--                    >
--                      <StopIcon />
-+                    <IconButton color="primary" onClick={onStop}>
-+                      <StopCircleOutlinedIcon />
-                     </IconButton>
-                   ) : (
-                     <IconButton
-diff --git a/src/renderer/components/common/SettingsModal.tsx b/src/renderer/components/common/SettingsModal.tsx
-index 4e916d352..1df49dc51 100644
---- a/src/renderer/components/common/SettingsModal.tsx
-+++ b/src/renderer/components/common/SettingsModal.tsx
-@@ -31,6 +31,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
-   const {
-     settings,
-     validationErrors,
-+    loading,
-     error,
-     updateField,
-     saveSettings,
-@@ -71,7 +72,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
-         onClick={handleSave}
-         variant="contained"
-         color="primary"
--        disabled={saving || !isValid}
-+        disabled={loading || saving || !isValid}
-         startIcon={saving ? <CircularProgress size={16} /> : null}
-       >
-         保存
-@@ -96,6 +97,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
-               fullWidth
-               label="APIキー"
-               value={settings.api.key}
-+              disabled={loading || saving}
-               onChange={(e) => handleChange('api', 'key', e.target.value)}
-               error={!!validationErrors.api?.key}
-               helperText={validationErrors.api?.key?.message}
-@@ -106,6 +108,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
-               fullWidth
-               label="APIエンドポイントURL"
-               value={settings.api.url}
-+              disabled={loading || saving}
-               onChange={(e) => handleChange('api', 'url', e.target.value)}
-               error={!!validationErrors.api?.url}
-               helperText={validationErrors.api?.url?.message}
-@@ -116,6 +119,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
-               fullWidth
-               label="モデル名"
-               value={settings.api.model}
-+              disabled={loading || saving}
-               onChange={(e) => handleChange('api', 'model', e.target.value)}
-               error={!!validationErrors.api?.model}
-               helperText={validationErrors.api?.model?.message}
-@@ -132,6 +136,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
-               fullWidth
-               label="ソース登録ディレクトリ"
-               value={settings.source.registerDir}
-+              disabled={loading || saving}
-               onChange={(e) =>
-                 handleChange('source', 'registerDir', e.target.value)
-               }
-@@ -153,6 +158,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
-               fullWidth
-               label="エンドポイント"
-               value={settings.redmine.endpoint}
-+              disabled={loading || saving}
-               onChange={(e) =>
-                 handleChange('redmine', 'endpoint', e.target.value)
-               }
-@@ -165,6 +171,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
-               fullWidth
-               label="APIキー"
-               value={settings.redmine.apiKey}
-+              disabled={loading || saving}
-               onChange={(e) =>
-                 handleChange('redmine', 'apiKey', e.target.value)
-               }
-@@ -183,6 +190,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
-               fullWidth
-               label="エンドポイント"
-               value={settings.gitlab.endpoint}
-+              disabled={loading || saving}
-               onChange={(e) =>
-                 handleChange('gitlab', 'endpoint', e.target.value)
-               }
-@@ -195,6 +203,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
-               fullWidth
-               label="APIキー"
-               value={settings.gitlab.apiKey}
-+              disabled={loading || saving}
-               onChange={(e) => handleChange('gitlab', 'apiKey', e.target.value)}
-               error={!!validationErrors.gitlab?.apiKey}
-               helperText={validationErrors.gitlab?.apiKey?.message}
-@@ -215,6 +224,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
-                     onChange={(e) =>
-                       handleChange('stagehand', 'enabled', e.target.checked)
-                     }
-+                    disabled={loading || saving}
-                   />
-                 }
-                 label="ブラウザ操作を有効化"
-@@ -226,6 +236,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
-                     onChange={(e) =>
-                       handleChange('stagehand', 'headless', e.target.checked)
-                     }
-+                    disabled={loading || saving}
-                   />
-                 }
-                 label="ヘッドレスモードを有効化"
-@@ -243,6 +254,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
-               multiline
-               rows={4}
-               value={settings.mcp.serverConfigText}
-+              disabled={loading || saving}
-               onChange={(e) => {
-                 handleChange('mcp', 'serverConfigText', e.target.value);
-               }}
-@@ -277,6 +289,27 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
-             </Typography>
-           </Box>
- 
-+          <Box sx={{ width: '100%', mb: 1 }}>
-+            <Typography variant="h6" gutterBottom>
-+              システムプロンプト設定
-+            </Typography>
-+            <TextField
-+              fullWidth
-+              label="システムプロンプトのカスタマイズが可能です"
-+              value={settings.systemPrompt.content}
-+              disabled={loading || saving}
-+              onChange={(e) =>
-+                handleChange('systemPrompt', 'content', e.target.value)
-+              }
-+              error={!!validationErrors.systemPrompt?.content}
-+              helperText={validationErrors.systemPrompt?.content?.message}
-+              margin="normal"
-+              variant="outlined"
-+              multiline
-+              rows={6}
-+            />
-+          </Box>
-+
-           <Box sx={{ width: '100%', mb: 1 }}>
-             <Typography variant="h6" gutterBottom>
-               データベース設定(チャット履歴やソース情報の保存先)
-@@ -285,6 +318,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
-               fullWidth
-               label="データベースパス"
-               value={settings.database.dir}
-+              disabled={loading || saving}
-               onChange={(e) => handleChange('database', 'dir', e.target.value)}
-               error={!!validationErrors.database?.dir}
-               helperText={validationErrors.database?.dir?.message}
-diff --git a/src/renderer/components/sidebar/SidebarHeader.tsx b/src/renderer/components/sidebar/SidebarHeader.tsx
-index 289e28c01..4387f3048 100644
---- a/src/renderer/components/sidebar/SidebarHeader.tsx
-+++ b/src/renderer/components/sidebar/SidebarHeader.tsx
-@@ -1,5 +1,5 @@
- import React from 'react';
--import { Box, Typography, Button } from '@mui/material';
-+import { Box, Button } from '@mui/material';
- import { Add as AddIcon } from '@mui/icons-material';
- 
- interface SidebarHeaderProps {
-@@ -9,22 +9,15 @@ interface SidebarHeaderProps {
- function SidebarHeader({ onCreateRoom }: SidebarHeaderProps) {
-   return (
-     <>
--      {/* ヘッダー */}
--      <Box sx={{ p: 2 }}>
--        <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
--          MyPedia
--        </Typography>
--      </Box>
+-      if (sourceData.length === 0) {
+-        status = 'failed';
+-        return {
+-          status,
+-          error: 'Source not found',
+-        };
+-      }
 -
-       {/* 新規チャットボタン */}
--      <Box sx={{ px: 2, mb: 2 }}>
-+      <Box sx={{ p: 2, display: 'flex', justifyContent: 'start' }}>
-         <Button
-           variant="contained"
-           startIcon={<AddIcon />}
-           onClick={onCreateRoom}
--          fullWidth
-+          // fullWidth
-         >
--          新規チャット
-+          New Chat
-         </Button>
-       </Box>
-     </>
-diff --git a/src/renderer/hooks/useSettingsStore.ts b/src/renderer/hooks/useSettingsStore.ts
-index a3f80f465..b5a7a4532 100644
---- a/src/renderer/hooks/useSettingsStore.ts
-+++ b/src/renderer/hooks/useSettingsStore.ts
-@@ -1,4 +1,4 @@
--import { useState, useCallback, useEffect } from 'react';
-+import { useState, useCallback, useEffect, useMemo } from 'react';
- import { z } from 'zod';
- import type { StoreSchema as Settings } from '../../main/store';
- import {
-@@ -56,6 +56,12 @@ const useSettingsStore = () => {
-     setValue: setStagehandStore,
-   } = useElectronStore<Settings['stagehand']>('stagehand');
+-      const source = sourceData[0];
++      // 全ての必要なソース情報を一括で取得
++      for (const sourceId of uniqueSourceIds) {
++        const sourceData = await db
++          .select()
++          .from(sources)
++          .where(and(eq(sources.id, sourceId), eq(sources.isEnabled, 1)));
  
-+  const {
-+    value: systemPromptStore,
-+    loading: loadingSystemPrompt,
-+    setValue: setSystemPromptStore,
-+  } = useElectronStore<Settings['systemPrompt']>('systemPrompt');
-+
-   // ローディング状態の管理
-   const loading =
-     loadingDatabase ||
-@@ -64,7 +70,8 @@ const useSettingsStore = () => {
-     loadingRedmine ||
-     loadingGitlab ||
-     loadingMcp ||
--    loadingStagehand;
-+    loadingStagehand ||
-+    loadingSystemPrompt;
+-      // ファイルのテキストを抽出
+-      const filePath = source.path;
+-      const { content } = await FileExtractor.extractText(filePath);
++        if (sourceData.length === 0) {
++          status = 'failed';
++          return {
++            status,
++            error: `Source not found for ID: ${sourceId}`,
++          };
++        }
  
-   // 設定値の状態管理
-   const [settings, setSettings] = useState<Settings>({
-@@ -75,6 +82,19 @@ const useSettingsStore = () => {
-     gitlab: { endpoint: '', apiKey: '' },
-     mcp: { serverConfigText: '{}' },
-     stagehand: { enabled: false, headless: false },
-+    systemPrompt: { content: '' },
-+  });
-+
-+  // 変更前の設定値を保持するstate
-+  const [originalSettings, setOriginalSettings] = useState<Settings>({
-+    database: { dir: '' },
-+    source: { registerDir: './source' },
-+    api: { key: '', url: '', model: '' },
-+    redmine: { endpoint: '', apiKey: '' },
-+    gitlab: { endpoint: '', apiKey: '' },
-+    mcp: { serverConfigText: '{}' },
-+    stagehand: { enabled: false, headless: false },
-+    systemPrompt: { content: '' },
-   });
- 
-   // バリデーションエラーの状態管理
-@@ -86,6 +106,7 @@ const useSettingsStore = () => {
-     gitlab: {},
-     mcp: {},
-     stagehand: {},
-+    systemPrompt: {},
-   });
- 
-   const [saving, setSaving] = useState(false);
-@@ -167,9 +188,11 @@ const useSettingsStore = () => {
-           },
-         },
-         stagehand: stagehandStore ?? { enabled: false, headless: false },
-+        systemPrompt: systemPromptStore ?? { content: '' },
-       };
- 
-       setSettings(newSettings);
-+      setOriginalSettings(newSettings);
- 
-       // 各セクションのバリデーションを実行
-       Object.entries(newSettings).forEach(([section, value]) => {
-@@ -184,6 +207,7 @@ const useSettingsStore = () => {
-     gitlabStore,
-     mcpStore,
-     stagehandStore,
-+    systemPromptStore,
-     loading,
-     validateSection,
-   ]);
-@@ -224,6 +248,37 @@ const useSettingsStore = () => {
-     }
-   };
- 
-+  /**
-+   * 設定が変更されたかどうかを判定する
-+   */
-+  const hasSettingsChanged = useMemo(() => {
-+    return JSON.stringify(settings) !== JSON.stringify(originalSettings);
-+  }, [settings, originalSettings]);
-+
-+  /**
-+   * Mastra初期化に関わる設定が変更されたかをチェック
-+   */
-+  const requiresReinitialization = useMemo(() => {
-+    // 設定が変更されていない場合は初期化不要
-+    if (!hasSettingsChanged) {
-+      return false;
-+    }
-+
-+    // システムプロンプトとドキュメントディレクトリ以外の変更があるかチェック
-+    const hasChanges = Object.entries(settings).some(([key, value]) => {
-+      if (key === 'systemPrompt' || key === 'source') {
-+        return false;
+-      const sourceExpertAgent = new Agent({
+-        name: 'documentExpertAgent',
+-        instructions: getSourceQuerySystemPrompt(content),
+-        model: openAICompatibleModel(),
+-      });
++        sourceDataMap.set(sourceId, sourceData[0]);
 +      }
-+      return (
-+        JSON.stringify(value) !==
-+        JSON.stringify(originalSettings[key as keyof Settings])
-+      );
-+    });
+ 
++      // 各クエリを並列で処理
+       const answers = await Promise.all(
+-        queries.map(async (query) => ({
+-          query,
+-          answer: (
+-            await sourceExpertAgent.generate(query, {
+-              abortSignal: options?.abortSignal,
+-            })
+-          ).text,
+-        })),
++        documentQueries.map(async (item) => {
++          const source = sourceDataMap.get(item.sourceId);
++          const { content } = await FileExtractor.extractText(source.path);
 +
-+    // システムプロンプトまたはドキュメントディレクトリのみの変更の場合はfalse
-+    return hasChanges;
-+  }, [settings, originalSettings, hasSettingsChanged]);
++          const sourceExpertAgent = new Agent({
++            name: 'documentExpertAgent',
++            instructions: getSourceQuerySystemPrompt(content),
++            model: openAICompatibleModel(),
++          });
++
++          return {
++            sourceId: item.sourceId,
++            path: item.path,
++            query: item.query,
++            answer: (
++              await sourceExpertAgent.generate(item.query, {
++                abortSignal: options?.abortSignal,
++              })
++            ).text,
++          };
++        }),
+       );
+       status = 'success';
+       return {
+diff --git a/src/mastra/workflows/sourceRegistrationManager.ts b/src/mastra/workflows/sourceRegistrationManager.ts
+index dc9f6c9dd..db8ce245d 100644
+--- a/src/mastra/workflows/sourceRegistrationManager.ts
++++ b/src/mastra/workflows/sourceRegistrationManager.ts
+@@ -5,7 +5,7 @@ import type { StepResult } from '@mastra/core/workflows';
+ import { getStore } from '../../main/store';
+ import { getMastra } from '../../main/main';
+ import getDb from '../../db';
+-import { sources } from '../../db/schema';
++import { sources, topics } from '../../db/schema';
+ import FileExtractor from '../../main/utils/fileExtractor';
+ 
+ /**
+@@ -25,15 +25,49 @@ export default class SourceRegistrationManager {
+     return SourceRegistrationManager.instance;
+   }
+ 
++  /**
++   * ソースとそのキャッシュを削除
++   * @param sourcePath ソースのパス
++   */
++  // eslint-disable-next-line
++  private async deleteSourceAndCache(sourcePath: string): Promise<void> {
++    try {
++      const db = await getDb();
++      // ソースIDを取得
++      const source = await db
++        .select()
++        .from(sources)
++        .where(eq(sources.path, sourcePath));
++      const sourceId = source[0]?.id;
++      if (sourceId !== undefined && sourceId !== null) {
++        await db.delete(sources).where(eq(sources.id, sourceId));
++        await db.delete(topics).where(eq(topics.sourceId, sourceId));
++        if (FileExtractor.isCacheTarget(sourcePath)) {
++          await FileExtractor.deleteCache(sourcePath);
++        }
++      }
++    } catch (error) {
++      console.error(`ソースの削除に失敗しました: ${sourcePath}`, error);
++      throw error;
++    }
++  }
 +
    /**
-    * 設定の保存処理
+    * アプリ起動時に、処理中のソースを全て削除する
     */
-@@ -247,12 +302,18 @@ const useSettingsStore = () => {
-         setGitlabStore(settings.gitlab),
-         setMcpStore(settings.mcp),
-         setStagehandStore(settings.stagehand),
-+        setSystemPromptStore(settings.systemPrompt),
-       ]);
- 
--      // 設定保存後にMastraを再初期化
--      await window.electron.agent.reinitialize();
-+      // 必要な場合のみMastraを再初期化
-+      if (requiresReinitialization) {
-+        await window.electron.agent.reinitialize();
-+      }
-       setUpdatedFlg(true);
- 
-+      // 新しい設定を元の設定として保存
-+      setOriginalSettings(settings);
+   public async clearProcessingSources(): Promise<void> {
+     try {
+       const db = await getDb();
+-      await db
+-        .delete(sources)
++      // 削除対象のソースを取得
++      const targetSources = await db
++        .select()
++        .from(sources)
+         .where(inArray(sources.status, ['idle', 'processing']));
 +
-       return true;
-     } catch (err) {
-       setError(
++      // 各ソースを削除
++      for (const source of targetSources) {
++        await this.deleteSourceAndCache(source.path);
++      }
+     } catch (error) {
+       console.error('処理中のソースの削除に失敗しました', error);
+       throw error;
+@@ -60,12 +94,9 @@ export default class SourceRegistrationManager {
+         (source) => !existingPaths.has(source.path),
+       );
+       if (toDeleteSources.length > 0) {
+-        await db.delete(sources).where(
+-          inArray(
+-            sources.path,
+-            toDeleteSources.map((s) => s.path),
+-          ),
+-        );
++        for (const source of toDeleteSources) {
++          await this.deleteSourceAndCache(source.path);
++        }
+         console.log(
+           `${toDeleteSources.length}件の存在しないファイルのソース情報を削除しました`,
+         );
+@@ -110,11 +141,10 @@ export default class SourceRegistrationManager {
+         return;
+       }
+ 
+-      // 登録済みかつ完了状態ではないファイルについてはDBから全削除
+-      // 処理中のtopicsテーブルも削除
+-      await db.delete(sources).where(
+-        inArray(sources.path, files), // path が files のいずれか
+-      );
++      // 既存のソースを削除
++      for (const filePath of files) {
++        await this.deleteSourceAndCache(filePath);
++      }
+ 
+       // ソースをDBに登録
+       const rows = files.map((filePath) => ({
+diff --git a/src/renderer/components/chat/MessageItem.tsx b/src/renderer/components/chat/MessageItem.tsx
+index 07943e489..b38b92d60 100644
+--- a/src/renderer/components/chat/MessageItem.tsx
++++ b/src/renderer/components/chat/MessageItem.tsx
+@@ -294,13 +294,26 @@ const renderPart = (part: NonNullable<ChatMessage['parts']>[number]) => {
+         <Accordion sx={{ width: '100%' }} key={ti.toolCallId}>
+           <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+             <Box sx={{ display: 'flex', alignItems: 'center' }}>
+-              {ti.toolName === 'querySourceTool' ? (
++              {ti.toolName === 'documentQueryTool' ? (
+                 <SearchIcon sx={{ mr: 1 }} />
+               ) : (
+                 <SmartToyOutlinedIcon sx={{ mr: 1 }} />
+               )}
+-              {ti.toolName === 'querySourceTool'
+-                ? `ソース検索：${ti.args.path || ''}`
++              {ti.toolName === 'documentQueryTool'
++                ? `ドキュメント検索：${
++                    Array.isArray(ti.args.documentQueries)
++                      ? [
++                          ...new Set(
++                            ti.args.documentQueries.map(
++                              // @ts-ignore
++                              (item) => item.path?.split(/[\/\\]+/).pop() || '',
++                            ),
++                          ),
++                        ]
++                          .filter(Boolean)
++                          .join('・')
++                      : ''
++                  }`
+                 : TOOL_NAME_DISPLAY_MAP[ti.toolName] || `MCP: ${ti.toolName}`}
+             </Box>
+           </AccordionSummary>
