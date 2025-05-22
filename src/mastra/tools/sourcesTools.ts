@@ -93,63 +93,79 @@ import { createBaseToolResponseSchema, RunToolStatus } from './types';
 export const documentQueryTool = createTool({
   id: 'documentQueryTool',
   description:
-    'Expert AI agent answers queries based on registered document content. Multiple queries can be processed at once. Therefore, instead of asking complex questions, please break them down into simpler ones.',
+    'The expert AI agent processes each query in isolation using the registered document content. Each query will be handled without any dependence on prior or subsequent queries, ensuring no shared context or state is used.',
   inputSchema: z.object({
-    sourceId: z.number().describe('Document ID to query (required)'),
-    path: z.string().describe('Document file path (required)'),
-    queries: z
-      .array(z.string())
-      .describe('List of search queries or questions (required)'),
+    documentQueries: z.array(
+      z.object({
+        sourceId: z.number().describe('Document ID to query (required)'),
+        path: z.string().describe('Document file path (required)'),
+        query: z.string().describe('Search query or question (required)'),
+      }),
+    ),
   }),
   outputSchema: createBaseToolResponseSchema(
     z.object({
       answers: z.array(
         z.object({
+          sourceId: z.number(),
+          path: z.string(),
           query: z.string(),
           answer: z.string(),
         }),
       ),
     }),
   ),
-  execute: async ({ context: { sourceId, queries } }, options) => {
+  execute: async ({ context: { documentQueries } }, options) => {
     let status: RunToolStatus = 'failed';
     try {
       const db = await getDb();
-      // ソース情報を取得（将来的にisEnabled=trueのみに絞り込む）
-      const sourceData = await db
-        .select()
-        .from(sources)
-        .where(and(eq(sources.id, sourceId), eq(sources.isEnabled, 1)));
+      // 各クエリに対応するソースの情報を取得
+      const uniqueSourceIds = [
+        ...new Set(documentQueries.map((item) => item.sourceId)),
+      ];
+      const sourceDataMap = new Map();
 
-      if (sourceData.length === 0) {
-        status = 'failed';
-        return {
-          status,
-          error: 'Source not found',
-        };
+      // 全ての必要なソース情報を一括で取得
+      for (const sourceId of uniqueSourceIds) {
+        const sourceData = await db
+          .select()
+          .from(sources)
+          .where(and(eq(sources.id, sourceId), eq(sources.isEnabled, 1)));
+
+        if (sourceData.length === 0) {
+          status = 'failed';
+          return {
+            status,
+            error: `Source not found for ID: ${sourceId}`,
+          };
+        }
+
+        sourceDataMap.set(sourceId, sourceData[0]);
       }
 
-      const source = sourceData[0];
-
-      // ファイルのテキストを抽出
-      const filePath = source.path;
-      const { content } = await FileExtractor.extractText(filePath);
-
-      const sourceExpertAgent = new Agent({
-        name: 'documentExpertAgent',
-        instructions: getSourceQuerySystemPrompt(content),
-        model: openAICompatibleModel(),
-      });
-
+      // 各クエリを並列で処理
       const answers = await Promise.all(
-        queries.map(async (query) => ({
-          query,
-          answer: (
-            await sourceExpertAgent.generate(query, {
-              abortSignal: options?.abortSignal,
-            })
-          ).text,
-        })),
+        documentQueries.map(async (item) => {
+          const source = sourceDataMap.get(item.sourceId);
+          const { content } = await FileExtractor.extractText(source.path);
+
+          const sourceExpertAgent = new Agent({
+            name: 'documentExpertAgent',
+            instructions: getSourceQuerySystemPrompt(content),
+            model: openAICompatibleModel(),
+          });
+
+          return {
+            sourceId: item.sourceId,
+            path: item.path,
+            query: item.query,
+            answer: (
+              await sourceExpertAgent.generate(item.query, {
+                abortSignal: options?.abortSignal,
+              })
+            ).text,
+          };
+        }),
       );
       status = 'success';
       return {

@@ -137,7 +137,7 @@ ${systemPrompt}
 }### Tools
 
 - **Document Query Tool**
-  documentQueryTool: Search registered sources for relevant details.
+  documentQueryTool: Processes each document query separately using registered content.
 
 - **Memory Management Tool**
   updateWorkingMemory: Save or update facts in your working memory.

@@ -294,13 +294,26 @@ const renderPart = (part: NonNullable<ChatMessage['parts']>[number]) => {
         <Accordion sx={{ width: '100%' }} key={ti.toolCallId}>
           <AccordionSummary expandIcon={<ExpandMoreIcon />}>
             <Box sx={{ display: 'flex', alignItems: 'center' }}>
-              {ti.toolName === 'querySourceTool' ? (
+              {ti.toolName === 'documentQueryTool' ? (
                 <SearchIcon sx={{ mr: 1 }} />
               ) : (
                 <SmartToyOutlinedIcon sx={{ mr: 1 }} />
               )}
-              {ti.toolName === 'querySourceTool'
-                ? `ソース検索：${ti.args.path || ''}`
+              {ti.toolName === 'documentQueryTool'
+                ? `ドキュメント検索：${
+                    Array.isArray(ti.args.documentQueries)
+                      ? [
+                          ...new Set(
+                            ti.args.documentQueries.map(
+                              // @ts-ignore
+                              (item) => item.path?.split(/[\/\\]+/).pop() || '',
+                            ),
+                          ),
+                        ]
+                          .filter(Boolean)
+                          .join('・')
+                      : ''
+                  }`
                 : TOOL_NAME_DISPLAY_MAP[ti.toolName] || `MCP: ${ti.toolName}`}
             </Box>
           </AccordionSummary>
