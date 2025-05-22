@@ -39,10 +39,12 @@ export default class SourceRegistrationManager {
         .from(sources)
         .where(eq(sources.path, sourcePath));
       const sourceId = source[0]?.id;
-      await db.delete(sources).where(eq(sources.id, sourceId));
-      await db.delete(topics).where(eq(topics.sourceId, sourceId));
-      if (FileExtractor.isCacheTarget(sourcePath)) {
-        await FileExtractor.deleteCache(sourcePath);
+      if (!sourceId) {
+        await db.delete(sources).where(eq(sources.id, sourceId));
+        await db.delete(topics).where(eq(topics.sourceId, sourceId));
+        if (FileExtractor.isCacheTarget(sourcePath)) {
+          await FileExtractor.deleteCache(sourcePath);
+        }
       }
     } catch (error) {
       console.error(`ソースの削除に失敗しました: ${sourcePath}`, error);
