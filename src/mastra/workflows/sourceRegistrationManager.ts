@@ -5,7 +5,7 @@ import type { StepResult } from '@mastra/core/workflows';
 import { getStore } from '../../main/store';
 import { getMastra } from '../../main/main';
 import getDb from '../../db';
-import { sources } from '../../db/schema';
+import { sources, topics } from '../../db/schema';
 import FileExtractor from '../../main/utils/fileExtractor';
 
 /**
@@ -26,14 +26,46 @@ export default class SourceRegistrationManager {
   }
 
   /**
+   * ソースとそのキャッシュを削除
+   * @param sourcePath ソースのパス
+   */
+  // eslint-disable-next-line
+  private async deleteSourceAndCache(sourcePath: string): Promise<void> {
+    try {
+      const db = await getDb();
+      // ソースIDを取得
+      const source = await db
+        .select()
+        .from(sources)
+        .where(eq(sources.path, sourcePath));
+      const sourceId = source[0]?.id;
+      await db.delete(sources).where(eq(sources.id, sourceId));
+      await db.delete(topics).where(eq(topics.sourceId, sourceId));
+      if (FileExtractor.isCacheTarget(sourcePath)) {
+        await FileExtractor.deleteCache(sourcePath);
+      }
+    } catch (error) {
+      console.error(`ソースの削除に失敗しました: ${sourcePath}`, error);
+      throw error;
+    }
+  }
+
+  /**
    * アプリ起動時に、処理中のソースを全て削除する
    */
   public async clearProcessingSources(): Promise<void> {
     try {
       const db = await getDb();
-      await db
-        .delete(sources)
+      // 削除対象のソースを取得
+      const targetSources = await db
+        .select()
+        .from(sources)
         .where(inArray(sources.status, ['idle', 'processing']));
+
+      // 各ソースを削除
+      for (const source of targetSources) {
+        await this.deleteSourceAndCache(source.path);
+      }
     } catch (error) {
       console.error('処理中のソースの削除に失敗しました', error);
       throw error;
@@ -60,12 +92,9 @@ export default class SourceRegistrationManager {
         (source) => !existingPaths.has(source.path),
       );
       if (toDeleteSources.length > 0) {
-        await db.delete(sources).where(
-          inArray(
-            sources.path,
-            toDeleteSources.map((s) => s.path),
-          ),
-        );
+        for (const source of toDeleteSources) {
+          await this.deleteSourceAndCache(source.path);
+        }
         console.log(
           `${toDeleteSources.length}件の存在しないファイルのソース情報を削除しました`,
         );
@@ -110,11 +139,10 @@ export default class SourceRegistrationManager {
         return;
       }
 
-      // 登録済みかつ完了状態ではないファイルについてはDBから全削除
-      // 処理中のtopicsテーブルも削除
-      await db.delete(sources).where(
-        inArray(sources.path, files), // path が files のいずれか
-      );
+      // 既存のソースを削除
+      for (const filePath of files) {
+        await this.deleteSourceAndCache(filePath);
+      }
 
       // ソースをDBに登録
       const rows = files.map((filePath) => ({

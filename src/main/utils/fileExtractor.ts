@@ -4,10 +4,15 @@ import os from 'os';
 import path from 'path';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
-import { readFileSync } from 'fs';
+import { readFileSync, existsSync, mkdirSync } from 'fs';
+import { createHash } from 'crypto';
+import { app } from 'electron';
 import type { TextItem } from 'pdfjs-dist/types/src/display/api';
 
 const execFileP = promisify(execFile);
+
+/** キャッシュ対象となるファイルの拡張子 */
+const CACHE_TARGET_EXTENSIONS = ['.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx'];
 
 /** 抽出結果の型定義 */
 export interface ExtractionResult {
@@ -29,6 +34,79 @@ interface FileExtractionError extends Error {
 
 /** 多様なファイル形式からテキストを抽出するユーティリティクラス */
 export default class FileExtractor {
+  /**
+   * キャッシュディレクトリのパスを取得
+   */
+  private static getCacheDir(): string {
+    const userDataPath = app.getPath('userData');
+    const cacheDir = path.join(userDataPath, 'document_caches');
+    
+    // ディレクトリが存在しない場合は作成
+    if (!existsSync(cacheDir)) {
+      mkdirSync(cacheDir, { recursive: true });
+    }
+    
+    return cacheDir;
+  }
+
+  /**
+   * キャッシュファイルのパスを生成
+   */
+  private static getCacheFilePath(filePath: string): string {
+    const hash = createHash('md5').update(filePath).digest('hex');
+    return path.join(this.getCacheDir(), `${hash}.txt`);
+  }
+
+  /**
+   * 指定されたファイルがキャッシュ対象かどうかを判定
+   */
+  public static isCacheTarget(filePath: string): boolean {
+    const ext = path.extname(filePath).toLowerCase();
+    return CACHE_TARGET_EXTENSIONS.includes(ext);
+  }
+
+  /**
+   * キャッシュを削除
+   */
+  public static async deleteCache(filePath: string): Promise<void> {
+    try {
+      const cachePath = this.getCacheFilePath(filePath);
+      await fs.unlink(cachePath);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        console.error('キャッシュの削除に失敗しました:', error);
+      }
+    }
+  }
+
+  /**
+   * キャッシュからテキストを読み込み
+   */
+  private static async tryReadCache(filePath: string): Promise<string | null> {
+    try {
+      const cachePath = this.getCacheFilePath(filePath);
+      const content = await fs.readFile(cachePath, 'utf-8');
+      return content;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        console.error('キャッシュの読み込みに失敗しました:', error);
+      }
+      return null;
+    }
+  }
+
+  /**
+   * テキストをキャッシュに保存
+   */
+  private static async saveCache(filePath: string, content: string): Promise<void> {
+    try {
+      const cachePath = this.getCacheFilePath(filePath);
+      await fs.writeFile(cachePath, content, 'utf-8');
+    } catch (error) {
+      console.error('キャッシュの保存に失敗しました:', error);
+    }
+  }
+
   /** 処理可能な拡張子 */
   private static readonly SUPPORTED_EXTENSIONS = [
     '.txt',
@@ -62,7 +140,21 @@ export default class FileExtractor {
 
     try {
       const stats = await fs.stat(filePath);
-      const content = await this.extractContentByType(filePath, extension);
+      let content: string;
+
+      // キャッシュ対象の場合、キャッシュをチェック
+      if (this.isCacheTarget(filePath)) {
+        const cachedContent = await this.tryReadCache(filePath);
+        if (cachedContent) {
+          content = cachedContent;
+        } else {
+          content = await this.extractContentByType(filePath, extension);
+          // 抽出したテキストをキャッシュに保存
+          await this.saveCache(filePath, content);
+        }
+      } else {
+        content = await this.extractContentByType(filePath, extension);
+      }
 
       return {
         content,
