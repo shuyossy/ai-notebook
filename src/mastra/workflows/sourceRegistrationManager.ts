@@ -39,7 +39,7 @@ export default class SourceRegistrationManager {
         .from(sources)
         .where(eq(sources.path, sourcePath));
       const sourceId = source[0]?.id;
-      if (!sourceId) {
+      if (sourceId !== undefined && sourceId !== null) {
         await db.delete(sources).where(eq(sources.id, sourceId));
         await db.delete(topics).where(eq(topics.sourceId, sourceId));
         if (FileExtractor.isCacheTarget(sourcePath)) {
