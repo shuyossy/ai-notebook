@@ -194,7 +194,8 @@ try {
           `
 try {
     $excel = New-Object -ComObject Excel.Application
-    $excel.Visible = $false
+    $excel.DisplayAlerts = \$false
+    $excel.Visible = \$false
     $wb = $excel.Workbooks.Open($Path, \$false, \$true)
     $sb = New-Object System.Text.StringBuilder
     foreach ($ws in $wb.Worksheets) {
@@ -214,11 +215,11 @@ try {
             }
         }
     }
-    $wb.Close()
+    $wb.Close(\$false)
     $excel.Quit()
     Write-Output $sb.ToString()
 } finally {
-    try { if ($wb)    { $wb.Close() } }   catch {}
+    try { if ($wb)    { $wb.Close(\$false) } }   catch {}
     try { if ($excel) { $excel.Quit() } } catch {}
 }
 `
@@ -240,6 +241,7 @@ try {
             }
         }
     }
+    $pres.Saved = \$true
     $pres.Close()
     $ppt.Quit()
     Write-Output $sb.ToString()
