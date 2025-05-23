@@ -1,422 +1,176 @@
-diff --git a/src/main/utils/fileExtractor.ts b/src/main/utils/fileExtractor.ts
-index 58297fe8e..d22dd94b5 100644
---- a/src/main/utils/fileExtractor.ts
-+++ b/src/main/utils/fileExtractor.ts
-@@ -4,11 +4,16 @@ import os from 'os';
- import path from 'path';
- import { execFile } from 'child_process';
- import { promisify } from 'util';
--import { readFileSync } from 'fs';
-+import { readFileSync, existsSync, mkdirSync } from 'fs';
-+import { createHash } from 'crypto';
-+import { app } from 'electron';
- import type { TextItem } from 'pdfjs-dist/types/src/display/api';
- 
- const execFileP = promisify(execFile);
- 
-+/** キャッシュ対象となるファイルの拡張子 */
-+const CACHE_TARGET_EXTENSIONS = ['.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx'];
-+
- /** 抽出結果の型定義 */
- export interface ExtractionResult {
-   content: string;
-@@ -29,6 +34,79 @@ interface FileExtractionError extends Error {
- 
- /** 多様なファイル形式からテキストを抽出するユーティリティクラス */
- export default class FileExtractor {
-+  /**
-+   * キャッシュディレクトリのパスを取得
-+   */
-+  private static getCacheDir(): string {
-+    const userDataPath = app.getPath('userData');
-+    const cacheDir = path.join(userDataPath, 'document_caches');
-+    
-+    // ディレクトリが存在しない場合は作成
-+    if (!existsSync(cacheDir)) {
-+      mkdirSync(cacheDir, { recursive: true });
-+    }
-+    
-+    return cacheDir;
-+  }
-+
-+  /**
-+   * キャッシュファイルのパスを生成
-+   */
-+  private static getCacheFilePath(filePath: string): string {
-+    const hash = createHash('md5').update(filePath).digest('hex');
-+    return path.join(this.getCacheDir(), `${hash}.txt`);
-+  }
-+
-+  /**
-+   * 指定されたファイルがキャッシュ対象かどうかを判定
-+   */
-+  public static isCacheTarget(filePath: string): boolean {
-+    const ext = path.extname(filePath).toLowerCase();
-+    return CACHE_TARGET_EXTENSIONS.includes(ext);
-+  }
-+
-+  /**
-+   * キャッシュを削除
-+   */
-+  public static async deleteCache(filePath: string): Promise<void> {
-+    try {
-+      const cachePath = this.getCacheFilePath(filePath);
-+      await fs.unlink(cachePath);
-+    } catch (error) {
-+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-+        console.error('キャッシュの削除に失敗しました:', error);
-+      }
-+    }
-+  }
-+
-+  /**
-+   * キャッシュからテキストを読み込み
-+   */
-+  private static async tryReadCache(filePath: string): Promise<string | null> {
-+    try {
-+      const cachePath = this.getCacheFilePath(filePath);
-+      const content = await fs.readFile(cachePath, 'utf-8');
-+      return content;
-+    } catch (error) {
-+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-+        console.error('キャッシュの読み込みに失敗しました:', error);
-+      }
-+      return null;
-+    }
-+  }
-+
-+  /**
-+   * テキストをキャッシュに保存
-+   */
-+  private static async saveCache(filePath: string, content: string): Promise<void> {
-+    try {
-+      const cachePath = this.getCacheFilePath(filePath);
-+      await fs.writeFile(cachePath, content, 'utf-8');
-+    } catch (error) {
-+      console.error('キャッシュの保存に失敗しました:', error);
-+    }
-+  }
-+
-   /** 処理可能な拡張子 */
-   private static readonly SUPPORTED_EXTENSIONS = [
-     '.txt',
-@@ -62,7 +140,21 @@ export default class FileExtractor {
- 
-     try {
-       const stats = await fs.stat(filePath);
--      const content = await this.extractContentByType(filePath, extension);
-+      let content: string;
-+
-+      // キャッシュ対象の場合、キャッシュをチェック
-+      if (this.isCacheTarget(filePath)) {
-+        const cachedContent = await this.tryReadCache(filePath);
-+        if (cachedContent) {
-+          content = cachedContent;
-+        } else {
-+          content = await this.extractContentByType(filePath, extension);
-+          // 抽出したテキストをキャッシュに保存
-+          await this.saveCache(filePath, content);
-+        }
-+      } else {
-+        content = await this.extractContentByType(filePath, extension);
-+      }
- 
-       return {
-         content,
-@@ -194,7 +286,8 @@ try {
-           `
- try {
-     $excel = New-Object -ComObject Excel.Application
--    $excel.Visible = $false
-+    $excel.DisplayAlerts = \$false
-+    $excel.Visible = \$false
-     $wb = $excel.Workbooks.Open($Path, \$false, \$true)
-     $sb = New-Object System.Text.StringBuilder
-     foreach ($ws in $wb.Worksheets) {
-@@ -214,11 +307,11 @@ try {
-             }
-         }
-     }
--    $wb.Close()
-+    $wb.Close(\$false)
-     $excel.Quit()
-     Write-Output $sb.ToString()
- } finally {
--    try { if ($wb)    { $wb.Close() } }   catch {}
-+    try { if ($wb)    { $wb.Close(\$false) } }   catch {}
-     try { if ($excel) { $excel.Quit() } } catch {}
- }
- `
-@@ -240,6 +333,7 @@ try {
-             }
-         }
-     }
-+    $pres.Saved = \$true
-     $pres.Close()
-     $ppt.Quit()
-     Write-Output $sb.ToString()
 diff --git a/src/mastra/agents/prompts.ts b/src/mastra/agents/prompts.ts
-index d265eb4cc..3efc30690 100644
+index 3efc30690..b29c41651 100644
 --- a/src/mastra/agents/prompts.ts
 +++ b/src/mastra/agents/prompts.ts
-@@ -137,7 +137,7 @@ ${systemPrompt}
- }### Tools
+@@ -183,6 +183,7 @@ ${
+   getGitLabBlameFile: Get file blame information.
+   getGitLabRepositoryTree: List repository tree.
+   getMergeRequestDetail: Fetch merge request details.
++  getMergeRequestDiff: Get merge request diff.
+   addMergeRequestComment: Add a comment to an MR.
+   addMergeRequestDiffComment: Comment on specific diffs.
+   _Note:_
+diff --git a/src/mastra/tools/gitlab/mergeRequestTools.ts b/src/mastra/tools/gitlab/mergeRequestTools.ts
+index 0f88d76aa..16e725aa5 100644
+--- a/src/mastra/tools/gitlab/mergeRequestTools.ts
++++ b/src/mastra/tools/gitlab/mergeRequestTools.ts
+@@ -24,7 +24,9 @@ export const createGetMergeRequestDetailTool = (client: GitLabClient) => {
+         .describe('Project ID or non-encoded project path (required)'),
+       merge_request_iid: z
+         .number()
+-        .describe('Internal ID of the merge request within the project (required)'),
++        .describe(
++          'Internal ID of the merge request within the project (required)',
++        ),
+     }),
+     outputSchema: createBaseToolResponseSchema(
+       z.object({
+@@ -62,6 +64,60 @@ export const createGetMergeRequestDetailTool = (client: GitLabClient) => {
+   });
+ };
  
- - **Document Query Tool**
--  documentQueryTool: Search registered sources for relevant details.
-+  documentQueryTool: Processes each document query separately using registered content.
- 
- - **Memory Management Tool**
-   updateWorkingMemory: Save or update facts in your working memory.
-diff --git a/src/mastra/tools/sourcesTools.ts b/src/mastra/tools/sourcesTools.ts
-index 4806aabfe..d12cdddfe 100644
---- a/src/mastra/tools/sourcesTools.ts
-+++ b/src/mastra/tools/sourcesTools.ts
-@@ -93,63 +93,79 @@ import { createBaseToolResponseSchema, RunToolStatus } from './types';
- export const documentQueryTool = createTool({
-   id: 'documentQueryTool',
-   description:
--    'Expert AI agent answers queries based on registered document content. Multiple queries can be processed at once. Therefore, instead of asking complex questions, please break them down into simpler ones.',
-+    'The expert AI agent processes each query in isolation using the registered document content. Each query will be handled without any dependence on prior or subsequent queries, ensuring no shared context or state is used.',
-   inputSchema: z.object({
--    sourceId: z.number().describe('Document ID to query (required)'),
--    path: z.string().describe('Document file path (required)'),
--    queries: z
--      .array(z.string())
--      .describe('List of search queries or questions (required)'),
-+    documentQueries: z.array(
++/**
++ * 特定のマージリクエスト差分を取得するツール
++ * @param client GitLabClient - GitLab APIクライアント
++ * @returns マージリクエスト差分取得ツール
++ */
++export const createGetMergeRequestDiffTool = (client: GitLabClient) => {
++  return createTool({
++    id: 'gitlab-get-merge-request-diff',
++    description:
++      'Retrieves the diff of a specific merge request in a GitLab project.',
++    inputSchema: z.object({
++      project_id: z
++        .union([z.string(), z.number()])
++        .describe('Project ID or non-encoded project path (required)'),
++      merge_request_iid: z
++        .number()
++        .describe(
++          'Internal ID of the merge request within the project (required)',
++        ),
++    }),
++    outputSchema: createBaseToolResponseSchema(
 +      z.object({
-+        sourceId: z.number().describe('Document ID to query (required)'),
-+        path: z.string().describe('Document file path (required)'),
-+        query: z.string().describe('Search query or question (required)'),
++        diff: z.any(),
 +      }),
 +    ),
-   }),
-   outputSchema: createBaseToolResponseSchema(
-     z.object({
-       answers: z.array(
-         z.object({
-+          sourceId: z.number(),
-+          path: z.string(),
-           query: z.string(),
-           answer: z.string(),
-         }),
-       ),
-     }),
-   ),
--  execute: async ({ context: { sourceId, queries } }, options) => {
-+  execute: async ({ context: { documentQueries } }, options) => {
-     let status: RunToolStatus = 'failed';
-     try {
-       const db = await getDb();
--      // ソース情報を取得（将来的にisEnabled=trueのみに絞り込む）
--      const sourceData = await db
--        .select()
--        .from(sources)
--        .where(and(eq(sources.id, sourceId), eq(sources.isEnabled, 1)));
-+      // 各クエリに対応するソースの情報を取得
-+      const uniqueSourceIds = [
-+        ...new Set(documentQueries.map((item) => item.sourceId)),
-+      ];
-+      const sourceDataMap = new Map();
- 
--      if (sourceData.length === 0) {
--        status = 'failed';
--        return {
--          status,
--          error: 'Source not found',
--        };
--      }
--
--      const source = sourceData[0];
-+      // 全ての必要なソース情報を一括で取得
-+      for (const sourceId of uniqueSourceIds) {
-+        const sourceData = await db
-+          .select()
-+          .from(sources)
-+          .where(and(eq(sources.id, sourceId), eq(sources.isEnabled, 1)));
- 
--      // ファイルのテキストを抽出
--      const filePath = source.path;
--      const { content } = await FileExtractor.extractText(filePath);
-+        if (sourceData.length === 0) {
-+          status = 'failed';
-+          return {
-+            status,
-+            error: `Source not found for ID: ${sourceId}`,
-+          };
-+        }
- 
--      const sourceExpertAgent = new Agent({
--        name: 'documentExpertAgent',
--        instructions: getSourceQuerySystemPrompt(content),
--        model: openAICompatibleModel(),
--      });
-+        sourceDataMap.set(sourceId, sourceData[0]);
++    execute: async ({ context }) => {
++      let status: RunToolStatus = 'failed';
++      try {
++        const { mergeRequests } = client.getApiResources();
++
++        // マージリクエスト差分を取得
++        const diff = await mergeRequests.allDiffs(
++          context.project_id,
++          context.merge_request_iid,
++        );
++
++        status = 'success';
++        return {
++          status,
++          result: {
++            diff,
++          },
++        };
++      } catch (error) {
++        status = 'failed';
++        return {
++          status,
++          error: `Failed to retrieve merge request diff: ${error}`,
++        };
 +      }
- 
-+      // 各クエリを並列で処理
-       const answers = await Promise.all(
--        queries.map(async (query) => ({
--          query,
--          answer: (
--            await sourceExpertAgent.generate(query, {
--              abortSignal: options?.abortSignal,
--            })
--          ).text,
--        })),
-+        documentQueries.map(async (item) => {
-+          const source = sourceDataMap.get(item.sourceId);
-+          const { content } = await FileExtractor.extractText(source.path);
++    },
++  });
++};
 +
-+          const sourceExpertAgent = new Agent({
-+            name: 'documentExpertAgent',
-+            instructions: getSourceQuerySystemPrompt(content),
-+            model: openAICompatibleModel(),
-+          });
-+
-+          return {
-+            sourceId: item.sourceId,
-+            path: item.path,
-+            query: item.query,
-+            answer: (
-+              await sourceExpertAgent.generate(item.query, {
-+                abortSignal: options?.abortSignal,
-+              })
-+            ).text,
-+          };
-+        }),
-       );
-       status = 'success';
-       return {
-diff --git a/src/mastra/workflows/sourceRegistrationManager.ts b/src/mastra/workflows/sourceRegistrationManager.ts
-index dc9f6c9dd..db8ce245d 100644
---- a/src/mastra/workflows/sourceRegistrationManager.ts
-+++ b/src/mastra/workflows/sourceRegistrationManager.ts
-@@ -5,7 +5,7 @@ import type { StepResult } from '@mastra/core/workflows';
- import { getStore } from '../../main/store';
- import { getMastra } from '../../main/main';
- import getDb from '../../db';
--import { sources } from '../../db/schema';
-+import { sources, topics } from '../../db/schema';
- import FileExtractor from '../../main/utils/fileExtractor';
- 
  /**
-@@ -25,15 +25,49 @@ export default class SourceRegistrationManager {
-     return SourceRegistrationManager.instance;
-   }
- 
-+  /**
-+   * ソースとそのキャッシュを削除
-+   * @param sourcePath ソースのパス
-+   */
-+  // eslint-disable-next-line
-+  private async deleteSourceAndCache(sourcePath: string): Promise<void> {
-+    try {
-+      const db = await getDb();
-+      // ソースIDを取得
-+      const source = await db
-+        .select()
-+        .from(sources)
-+        .where(eq(sources.path, sourcePath));
-+      const sourceId = source[0]?.id;
-+      if (sourceId !== undefined && sourceId !== null) {
-+        await db.delete(sources).where(eq(sources.id, sourceId));
-+        await db.delete(topics).where(eq(topics.sourceId, sourceId));
-+        if (FileExtractor.isCacheTarget(sourcePath)) {
-+          await FileExtractor.deleteCache(sourcePath);
-+        }
-+      }
-+    } catch (error) {
-+      console.error(`ソースの削除に失敗しました: ${sourcePath}`, error);
-+      throw error;
-+    }
-+  }
-+
-   /**
-    * アプリ起動時に、処理中のソースを全て削除する
-    */
-   public async clearProcessingSources(): Promise<void> {
-     try {
-       const db = await getDb();
--      await db
--        .delete(sources)
-+      // 削除対象のソースを取得
-+      const targetSources = await db
-+        .select()
-+        .from(sources)
-         .where(inArray(sources.status, ['idle', 'processing']));
-+
-+      // 各ソースを削除
-+      for (const source of targetSources) {
-+        await this.deleteSourceAndCache(source.path);
-+      }
-     } catch (error) {
-       console.error('処理中のソースの削除に失敗しました', error);
-       throw error;
-@@ -60,12 +94,9 @@ export default class SourceRegistrationManager {
-         (source) => !existingPaths.has(source.path),
-       );
-       if (toDeleteSources.length > 0) {
--        await db.delete(sources).where(
--          inArray(
--            sources.path,
--            toDeleteSources.map((s) => s.path),
--          ),
--        );
-+        for (const source of toDeleteSources) {
-+          await this.deleteSourceAndCache(source.path);
-+        }
-         console.log(
-           `${toDeleteSources.length}件の存在しないファイルのソース情報を削除しました`,
-         );
-@@ -110,11 +141,10 @@ export default class SourceRegistrationManager {
-         return;
-       }
- 
--      // 登録済みかつ完了状態ではないファイルについてはDBから全削除
--      // 処理中のtopicsテーブルも削除
--      await db.delete(sources).where(
--        inArray(sources.path, files), // path が files のいずれか
--      );
-+      // 既存のソースを削除
-+      for (const filePath of files) {
-+        await this.deleteSourceAndCache(filePath);
-+      }
- 
-       // ソースをDBに登録
-       const rows = files.map((filePath) => ({
-diff --git a/src/renderer/components/chat/MessageItem.tsx b/src/renderer/components/chat/MessageItem.tsx
-index 07943e489..b38b92d60 100644
---- a/src/renderer/components/chat/MessageItem.tsx
-+++ b/src/renderer/components/chat/MessageItem.tsx
-@@ -294,13 +294,26 @@ const renderPart = (part: NonNullable<ChatMessage['parts']>[number]) => {
-         <Accordion sx={{ width: '100%' }} key={ti.toolCallId}>
-           <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-             <Box sx={{ display: 'flex', alignItems: 'center' }}>
--              {ti.toolName === 'querySourceTool' ? (
-+              {ti.toolName === 'documentQueryTool' ? (
-                 <SearchIcon sx={{ mr: 1 }} />
-               ) : (
-                 <SmartToyOutlinedIcon sx={{ mr: 1 }} />
-               )}
--              {ti.toolName === 'querySourceTool'
--                ? `ソース検索：${ti.args.path || ''}`
-+              {ti.toolName === 'documentQueryTool'
-+                ? `ドキュメント検索：${
-+                    Array.isArray(ti.args.documentQueries)
-+                      ? [
-+                          ...new Set(
-+                            ti.args.documentQueries.map(
-+                              // @ts-ignore
-+                              (item) => item.path?.split(/[\/\\]+/).pop() || '',
-+                            ),
-+                          ),
-+                        ]
-+                          .filter(Boolean)
-+                          .join('・')
-+                      : ''
-+                  }`
-                 : TOOL_NAME_DISPLAY_MAP[ti.toolName] || `MCP: ${ti.toolName}`}
-             </Box>
-           </AccordionSummary>
+  * マージリクエストにコメントを追加するツール
+  * @param client GitLabClient - GitLab APIクライアント
+@@ -70,15 +126,16 @@ export const createGetMergeRequestDetailTool = (client: GitLabClient) => {
+ export const createAddMergeRequestCommentTool = (client: GitLabClient) => {
+   return createTool({
+     id: 'gitlab-add-merge-request-comment',
+-    description:
+-      'Adds a comment to a merge request in a GitLab project.',
++    description: 'Adds a comment to a merge request in a GitLab project.',
+     inputSchema: z.object({
+       project_id: z
+         .union([z.string(), z.number()])
+         .describe('Project ID or non-encoded project path (required)'),
+       merge_request_iid: z
+         .number()
+-        .describe('Internal ID of the merge request within the project (required)'),
++        .describe(
++          'Internal ID of the merge request within the project (required)',
++        ),
+       body: z.string().describe('Comment content (required)'),
+     }),
+     outputSchema: createBaseToolResponseSchema(
+@@ -124,15 +181,16 @@ export const createAddMergeRequestCommentTool = (client: GitLabClient) => {
+ export const createAddMergeRequestDiffCommentTool = (client: GitLabClient) => {
+   return createTool({
+     id: 'gitlab-add-merge-request-diff-comment',
+-    description:
+-      'Adds a comment to specific lines in a merge request diff.',
++    description: 'Adds a comment to specific lines in a merge request diff.',
+     inputSchema: z.object({
+       project_id: z
+         .union([z.string(), z.number()])
+         .describe('Project ID or non-encoded project path (required)'),
+       merge_request_iid: z
+         .number()
+-        .describe('Internal ID of the merge request within the project (required)'),
++        .describe(
++          'Internal ID of the merge request within the project (required)',
++        ),
+       body: z.string().describe('Comment content (required)'),
+       position: z
+         .object({
+@@ -145,15 +203,16 @@ export const createAddMergeRequestDiffCommentTool = (client: GitLabClient) => {
+           headSha: z.string().describe('Head commit SHA (required)'),
+           oldPath: z.string().describe('Previous file path (required)'),
+           newPath: z.string().describe('New file path (required)'),
+-          oldLine: z.string().optional().describe('Previous line number (optional)'),
++          oldLine: z
++            .string()
++            .optional()
++            .describe('Previous line number (optional)'),
+           newLine: z.string().optional().describe('New line number (optional)'),
+           lineRange: z
+             .object({
+               start: z
+                 .object({
+-                  lineCode: z
+-                    .string()
+-                    .describe('Start line code (required)'),
++                  lineCode: z.string().describe('Start line code (required)'),
+                   type: z
+                     .enum(['new', 'old'])
+                     .describe(
+@@ -162,14 +221,14 @@ export const createAddMergeRequestDiffCommentTool = (client: GitLabClient) => {
+                   hash: z
+                     .string()
+                     .optional()
+-                    .describe('Start line hash for multi-line notes (optional)'),
++                    .describe(
++                      'Start line hash for multi-line notes (optional)',
++                    ),
+                 })
+                 .describe('Multi-line note start line information'),
+               end: z
+                 .object({
+-                  lineCode: z
+-                    .string()
+-                    .describe('End line code (required)'),
++                  lineCode: z.string().describe('End line code (required)'),
+                   type: z
+                     .enum(['new', 'old'])
+                     .describe(
+@@ -233,6 +292,7 @@ export const createAddMergeRequestDiffCommentTool = (client: GitLabClient) => {
+ export const createMergeRequestTools = (client: GitLabClient) => {
+   return {
+     getMergeRequestDetail: createGetMergeRequestDetailTool(client),
++    getMergeRequestDiff: createGetMergeRequestDiffTool(client),
+     addMergeRequestComment: createAddMergeRequestCommentTool(client),
+     addMergeRequestDiffComment: createAddMergeRequestDiffCommentTool(client),
+   };
