@@ -1,6 +1,9 @@
-new webpack.IgnorePlugin({
-  // 'fsevents' モジュール自体を無視
-  resourceRegExp: /^fsevents$/,
-  // playwright-core の node_modules 配下に限定
-  contextRegExp: /playwright-core[\/\\]node_modules[\/\\]fsevents/,
-}),
+const fetchWithTimeout = async (url: string, opts: RequestInit, ms = 30_000) => {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(new Error('timeout')), ms);
+  try {
+    return await fetch(url, { ...opts, signal: ctrl.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+};
