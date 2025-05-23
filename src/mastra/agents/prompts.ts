@@ -183,6 +183,7 @@ ${
   getGitLabBlameFile: Get file blame information.
   getGitLabRepositoryTree: List repository tree.
   getMergeRequestDetail: Fetch merge request details.
+  getMergeRequestDiff: Get merge request diff.
   addMergeRequestComment: Add a comment to an MR.
   addMergeRequestDiffComment: Comment on specific diffs.
   _Note:_

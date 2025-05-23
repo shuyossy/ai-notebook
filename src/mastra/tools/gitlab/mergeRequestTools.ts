@@ -24,7 +24,9 @@ export const createGetMergeRequestDetailTool = (client: GitLabClient) => {
         .describe('Project ID or non-encoded project path (required)'),
       merge_request_iid: z
         .number()
-        .describe('Internal ID of the merge request within the project (required)'),
+        .describe(
+          'Internal ID of the merge request within the project (required)',
+        ),
     }),
     outputSchema: createBaseToolResponseSchema(
       z.object({
@@ -63,6 +65,60 @@ export const createGetMergeRequestDetailTool = (client: GitLabClient) => {
 };
 
 /**
+ * 特定のマージリクエスト差分を取得するツール
+ * @param client GitLabClient - GitLab APIクライアント
+ * @returns マージリクエスト差分取得ツール
+ */
+export const createGetMergeRequestDiffTool = (client: GitLabClient) => {
+  return createTool({
+    id: 'gitlab-get-merge-request-diff',
+    description:
+      'Retrieves the diff of a specific merge request in a GitLab project.',
+    inputSchema: z.object({
+      project_id: z
+        .union([z.string(), z.number()])
+        .describe('Project ID or non-encoded project path (required)'),
+      merge_request_iid: z
+        .number()
+        .describe(
+          'Internal ID of the merge request within the project (required)',
+        ),
+    }),
+    outputSchema: createBaseToolResponseSchema(
+      z.object({
+        diff: z.any(),
+      }),
+    ),
+    execute: async ({ context }) => {
+      let status: RunToolStatus = 'failed';
+      try {
+        const { mergeRequests } = client.getApiResources();
+
+        // マージリクエスト差分を取得
+        const diff = await mergeRequests.allDiffs(
+          context.project_id,
+          context.merge_request_iid,
+        );
+
+        status = 'success';
+        return {
+          status,
+          result: {
+            diff,
+          },
+        };
+      } catch (error) {
+        status = 'failed';
+        return {
+          status,
+          error: `Failed to retrieve merge request diff: ${error}`,
+        };
+      }
+    },
+  });
+};
+
+/**
  * マージリクエストにコメントを追加するツール
  * @param client GitLabClient - GitLab APIクライアント
  * @returns マージリクエストコメント追加ツール
@@ -70,15 +126,16 @@ export const createGetMergeRequestDetailTool = (client: GitLabClient) => {
 export const createAddMergeRequestCommentTool = (client: GitLabClient) => {
   return createTool({
     id: 'gitlab-add-merge-request-comment',
-    description:
-      'Adds a comment to a merge request in a GitLab project.',
+    description: 'Adds a comment to a merge request in a GitLab project.',
     inputSchema: z.object({
       project_id: z
         .union([z.string(), z.number()])
         .describe('Project ID or non-encoded project path (required)'),
       merge_request_iid: z
         .number()
-        .describe('Internal ID of the merge request within the project (required)'),
+        .describe(
+          'Internal ID of the merge request within the project (required)',
+        ),
       body: z.string().describe('Comment content (required)'),
     }),
     outputSchema: createBaseToolResponseSchema(
@@ -124,15 +181,16 @@ export const createAddMergeRequestCommentTool = (client: GitLabClient) => {
 export const createAddMergeRequestDiffCommentTool = (client: GitLabClient) => {
   return createTool({
     id: 'gitlab-add-merge-request-diff-comment',
-    description:
-      'Adds a comment to specific lines in a merge request diff.',
+    description: 'Adds a comment to specific lines in a merge request diff.',
     inputSchema: z.object({
       project_id: z
         .union([z.string(), z.number()])
         .describe('Project ID or non-encoded project path (required)'),
       merge_request_iid: z
         .number()
-        .describe('Internal ID of the merge request within the project (required)'),
+        .describe(
+          'Internal ID of the merge request within the project (required)',
+        ),
       body: z.string().describe('Comment content (required)'),
       position: z
         .object({
@@ -145,15 +203,16 @@ export const createAddMergeRequestDiffCommentTool = (client: GitLabClient) => {
           headSha: z.string().describe('Head commit SHA (required)'),
           oldPath: z.string().describe('Previous file path (required)'),
           newPath: z.string().describe('New file path (required)'),
-          oldLine: z.string().optional().describe('Previous line number (optional)'),
+          oldLine: z
+            .string()
+            .optional()
+            .describe('Previous line number (optional)'),
           newLine: z.string().optional().describe('New line number (optional)'),
           lineRange: z
             .object({
               start: z
                 .object({
-                  lineCode: z
-                    .string()
-                    .describe('Start line code (required)'),
+                  lineCode: z.string().describe('Start line code (required)'),
                   type: z
                     .enum(['new', 'old'])
                     .describe(
@@ -162,14 +221,14 @@ export const createAddMergeRequestDiffCommentTool = (client: GitLabClient) => {
                   hash: z
                     .string()
                     .optional()
-                    .describe('Start line hash for multi-line notes (optional)'),
+                    .describe(
+                      'Start line hash for multi-line notes (optional)',
+                    ),
                 })
                 .describe('Multi-line note start line information'),
               end: z
                 .object({
-                  lineCode: z
-                    .string()
-                    .describe('End line code (required)'),
+                  lineCode: z.string().describe('End line code (required)'),
                   type: z
                     .enum(['new', 'old'])
                     .describe(
@@ -233,6 +292,7 @@ export const createAddMergeRequestDiffCommentTool = (client: GitLabClient) => {
 export const createMergeRequestTools = (client: GitLabClient) => {
   return {
     getMergeRequestDetail: createGetMergeRequestDetailTool(client),
+    getMergeRequestDiff: createGetMergeRequestDiffTool(client),
     addMergeRequestComment: createAddMergeRequestCommentTool(client),
     addMergeRequestDiffComment: createAddMergeRequestDiffCommentTool(client),
   };
