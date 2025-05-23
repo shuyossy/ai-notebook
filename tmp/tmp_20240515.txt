@@ -1,9 +1,106 @@
-const fetchWithTimeout = async (url: string, opts: RequestInit, ms = 30_000) => {
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(new Error('timeout')), ms);
-  try {
-    return await fetch(url, { ...opts, signal: ctrl.signal });
-  } finally {
-    clearTimeout(timer);
+// ★ 追加：axios を読み込み
+import axios, { AxiosRequestConfig } from 'axios';
+
+/**
+ * Redmine の REST API リクエストメソッド
+ *  - GET  の場合 : limit / offset を使って全件取得（最大 100 件ずつ）
+ *  - POST/PUT の場合 : 1 回だけ実行
+ */
+async request<T = any>(
+  path: string,
+  method: 'GET' | 'POST' | 'PUT',
+  data: any = undefined,
+): Promise<T> {
+  /* --------------------------------
+   * 共通ヘッダー
+   * -------------------------------- */
+  const commonHeaders = {
+    'Content-Type': 'application/json',
+    'X-Redmine-API-Key': this.apiKey,
+  } as const;
+
+  /* =======================================================
+   * 1. POST / PUT : １度だけ呼び出して終わり
+   * ======================================================= */
+  if (method !== 'GET') {
+    // URL は fetch 時と同じく base + 相対パスで組み立て
+    const url = new URL(path, this.apiUrl).toString();
+
+    // validateStatus を自前で評価できるように true を返す
+    const res = await axios.request({
+      url,
+      method,
+      headers: commonHeaders,
+      data: data ?? undefined,
+      validateStatus: () => true,
+    });
+
+    if (res.status < 200 || res.status >= 300) {
+      // fetch と同じエラーメッセージになるよう整形
+      throw new Error(`Redmine API Error: ${res.status} ${res.statusText}`);
+    }
+
+    // 204 No Content のときは空オブジェクトを返す
+    return (res.status === 204 ? {} : res.data) as T;
   }
-};
+
+  /* =======================================================
+   * 2. GET : limit / offset でページネーション
+   * ======================================================= */
+  const limit = 100;        // Redmine の１リクエスト上限
+  let offset = 0;           // 現在の取得開始位置
+  let aggregatedJson: any;  // 返却用のマージ済み JSON
+  let arrayKey: string|null = null; // "projects" / "issues" など
+
+  while (true) {
+    // GET ごとに limit / offset を付け替えて URL を生成
+    const url = new URL(path, this.apiUrl);
+    url.searchParams.set('limit', limit.toString());
+    url.searchParams.set('offset', offset.toString());
+
+    // axios GET
+    const res = await axios.get(url.toString(), {
+      headers: commonHeaders,
+      validateStatus: () => true,
+    });
+
+    if (res.status < 200 || res.status >= 300) {
+      throw new Error(`Redmine API Error: ${res.status} ${res.statusText}`);
+    }
+
+    const json = res.data as Record<string, any>;
+
+    /* ------------------------------
+     *  2-1. １ページ目：
+     *       配列キーと total_count を特定
+     * ------------------------------ */
+    if (arrayKey === null) {
+      arrayKey = Object.keys(json).find(k => Array.isArray(json[k])) ?? null;
+      if (!arrayKey) {
+        // 一覧 API でなければそのまま返す
+        return json as T;
+      }
+      // 雛形を作成（total_count 等のメタ情報は保持）
+      aggregatedJson = { ...json, [arrayKey]: [...json[arrayKey]] };
+    } else {
+      // ２ページ目以降：配列のみ push でマージ
+      aggregatedJson[arrayKey].push(...json[arrayKey]);
+    }
+
+    // 現在取得済み件数 と total_count を比較
+    const currentCount = aggregatedJson[arrayKey].length;
+    const total: number|undefined = aggregatedJson.total_count;
+
+    // --- ループ終了判定 ---
+    if (
+      (total !== undefined && currentCount >= total) || // 1) total_count に達した
+      json[arrayKey].length < limit                      // 2) 返却件数 < limit ⇒ 最終ページ
+    ) {
+      break;
+    }
+
+    offset += limit; // 次ページへ
+  }
+
+  return aggregatedJson as T;
+}
