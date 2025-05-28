@@ -1,0 +1,56 @@
+/* ---------------------------- Excel --------------------------- */
+case 'excel':
+  return (
+    commonHeader +
+    `
+try {
+    $excel               = New-Object -ComObject Excel.Application
+    $excel.DisplayAlerts = \$false
+    $excel.Visible       = \$false
+
+    $wb = $excel.Workbooks.Open($Path, \$false, \$true)
+
+    $sb = New-Object System.Text.StringBuilder
+
+    foreach ($ws in $wb.Worksheets) {
+        #--- シート名を区切りとして出力（任意。不要なら削除） ---
+        [void]$sb.AppendLine("#sheet:$($ws.Name)")
+
+        $range = $ws.UsedRange
+        $vals  = $range.Value2           # System.Object[,]
+
+        if ($vals) {
+            $rowMax = $vals.GetLength(0) # 行数（1 から開始）
+            $colMax = $vals.GetLength(1) # 列数
+
+            for ($r = 1; $r -le $rowMax; $r++) {
+                $rowBuf = New-Object System.Collections.Generic.List[string]
+                for ($c = 1; $c -le $colMax; $c++) {
+                    $cell = $vals[$r, $c]
+                    $cell = if ($null -eq $cell) { '' } else { [string]$cell }
+
+                    #--- CSV エスケープ ---
+                    if ($cell -match '[,"\r\n]') {
+                        $cell = '"' + $cell.Replace('"','""') + '"'
+                    }
+                    $rowBuf.Add($cell)
+                }
+                # 行を連結して出力
+                [void]$sb.AppendLine(($rowBuf -join ','))  # タブ区切りなら '\t'
+            }
+            [void]$sb.AppendLine()   # シート間を空行で区切る
+        }
+    }
+
+    $wb.Close(\$false)
+    $excel.Quit()
+
+    # 末尾改行を削って返却
+    Write-Output $sb.ToString().TrimEnd()
+}
+finally {
+    try { if ($wb)    { $wb.Close(\$false) } } catch {}
+    try { if ($excel) { $excel.Quit()     } } catch {}
+}
+`
+  );
