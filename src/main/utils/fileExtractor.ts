@@ -12,7 +12,14 @@ import type { TextItem } from 'pdfjs-dist/types/src/display/api';
 const execFileP = promisify(execFile);
 
 /** キャッシュ対象となるファイルの拡張子 */
-const CACHE_TARGET_EXTENSIONS = ['.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx'];
+const CACHE_TARGET_EXTENSIONS = [
+  '.doc',
+  '.docx',
+  '.xls',
+  '.xlsx',
+  '.ppt',
+  '.pptx',
+];
 
 /** 抽出結果の型定義 */
 export interface ExtractionResult {
@@ -40,12 +47,12 @@ export default class FileExtractor {
   private static getCacheDir(): string {
     const userDataPath = app.getPath('userData');
     const cacheDir = path.join(userDataPath, 'document_caches');
-    
+
     // ディレクトリが存在しない場合は作成
     if (!existsSync(cacheDir)) {
       mkdirSync(cacheDir, { recursive: true });
     }
-    
+
     return cacheDir;
   }
 
@@ -98,7 +105,10 @@ export default class FileExtractor {
   /**
    * テキストをキャッシュに保存
    */
-  private static async saveCache(filePath: string, content: string): Promise<void> {
+  private static async saveCache(
+    filePath: string,
+    content: string,
+  ): Promise<void> {
     try {
       const cachePath = this.getCacheFilePath(filePath);
       await fs.writeFile(cachePath, content, 'utf-8');
@@ -285,34 +295,53 @@ try {
           commonHeader +
           `
 try {
-    $excel = New-Object -ComObject Excel.Application
+    $excel               = New-Object -ComObject Excel.Application
     $excel.DisplayAlerts = \$false
-    $excel.Visible = \$false
+    $excel.Visible       = \$false
+
     $wb = $excel.Workbooks.Open($Path, \$false, \$true)
+
     $sb = New-Object System.Text.StringBuilder
+
     foreach ($ws in $wb.Worksheets) {
-        $range = $ws.UsedRange                               # Worksheet.UsedRange  [oai_citation:2‡itbable.blogspot.com](https://itbable.blogspot.com/2013/06/find-used-range-in-excel-worksheet-with.html?utm_source=chatgpt.com)
-        if ($null -ne $range) {
-            $vals = $range.Value2                            # Range.Value2 ⇒ 2D Array  [oai_citation:3‡Microsoft Learn](https://learn.microsoft.com/en-us/office/vba/api/excel.range.value2?utm_source=chatgpt.com)
-            if ($vals -is [System.Array]) {
-                foreach ($row in $vals) {
-                    if ($row -is [System.Array]) {
-                        [void]$sb.AppendLine(($row -join "\t"))
-                    } elseif ($row) {
-                        [void]$sb.AppendLine($row)
+        #--- シート名を区切りとして出力（任意。不要なら削除） ---
+        [void]$sb.AppendLine("#sheet:$($ws.Name)")
+
+        $range = $ws.UsedRange
+        $vals  = $range.Value2           # System.Object[,]
+
+        if ($vals) {
+            $rowMax = $vals.GetLength(0) # 行数（1 から開始）
+            $colMax = $vals.GetLength(1) # 列数
+
+            for ($r = 1; $r -le $rowMax; $r++) {
+                $rowBuf = New-Object System.Collections.Generic.List[string]
+                for ($c = 1; $c -le $colMax; $c++) {
+                    $cell = $vals[$r, $c]
+                    $cell = if ($null -eq $cell) { '' } else { [string]$cell }
+
+                    #--- CSV エスケープ ---
+                    if ($cell -match '[,"\r\n]') {
+                        $cell = '"' + $cell.Replace('"','""') + '"'
                     }
+                    $rowBuf.Add($cell)
                 }
-            } elseif ($vals) {
-                [void]$sb.AppendLine($vals)
+                # 行を連結して出力
+                [void]$sb.AppendLine(($rowBuf -join ','))  # タブ区切りなら '\t'
             }
+            [void]$sb.AppendLine()   # シート間を空行で区切る
         }
     }
+
     $wb.Close(\$false)
     $excel.Quit()
-    Write-Output $sb.ToString()
-} finally {
-    try { if ($wb)    { $wb.Close(\$false) } }   catch {}
-    try { if ($excel) { $excel.Quit() } } catch {}
+
+    # 末尾改行を削って返却
+    Write-Output $sb.ToString().TrimEnd()
+}
+finally {
+    try { if ($wb)    { $wb.Close(\$false) } } catch {}
+    try { if ($excel) { $excel.Quit()     } } catch {}
 }
 `
         );
