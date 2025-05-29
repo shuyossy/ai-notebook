@@ -285,7 +285,6 @@ const setupChatHandlers = () => {
         const client = createClient({
           url: toAbsoluteFileURL(dbSetting.dir, 'memory.db'),
         });
-        console.log('messageId:', messageId);
         // messageIdに対応するメッセージを取得
         const message = await client.execute({
           sql: `SELECT * FROM mastra_messages WHERE id = ?;`,
@@ -297,12 +296,12 @@ const setupChatHandlers = () => {
           throw new Error(`メッセージID ${messageId} が複数見つかりました`);
         }
         const targetMessage = message.rows[0];
-        console.log('targetMessage:', targetMessage);
         // 同じthread_idを持つメッセージから、取得したメッセージのcreatedAtより後のメッセージを削除
         await client.execute({
           sql: `DELETE FROM mastra_messages WHERE thread_id = ? AND createdAt >= ?;`,
           args: [targetMessage.thread_id, targetMessage.createdAt],
         });
+        client.close();
         return { success: true };
       } catch (error) {
         console.error('メッセージ履歴削除中にエラーが発生:', error);
