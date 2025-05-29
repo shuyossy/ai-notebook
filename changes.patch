@@ -1,5 +1,617 @@
+diff --git a/changes.patch b/changes.patch
+index c11ceb897..c9a6d44c4 100644
+--- a/changes.patch
++++ b/changes.patch
+@@ -1,176 +1,438 @@
+-diff --git a/src/mastra/agents/prompts.ts b/src/mastra/agents/prompts.ts
+-index 3efc30690..b29c41651 100644
+---- a/src/mastra/agents/prompts.ts
+-+++ b/src/mastra/agents/prompts.ts
+-@@ -183,6 +183,7 @@ ${
+-   getGitLabBlameFile: Get file blame information.
+-   getGitLabRepositoryTree: List repository tree.
+-   getMergeRequestDetail: Fetch merge request details.
+-+  getMergeRequestDiff: Get merge request diff.
+-   addMergeRequestComment: Add a comment to an MR.
+-   addMergeRequestDiffComment: Comment on specific diffs.
+-   _Note:_
+-diff --git a/src/mastra/tools/gitlab/mergeRequestTools.ts b/src/mastra/tools/gitlab/mergeRequestTools.ts
+-index 0f88d76aa..16e725aa5 100644
+---- a/src/mastra/tools/gitlab/mergeRequestTools.ts
+-+++ b/src/mastra/tools/gitlab/mergeRequestTools.ts
+-@@ -24,7 +24,9 @@ export const createGetMergeRequestDetailTool = (client: GitLabClient) => {
+-         .describe('Project ID or non-encoded project path (required)'),
+-       merge_request_iid: z
+-         .number()
+--        .describe('Internal ID of the merge request within the project (required)'),
+-+        .describe(
+-+          'Internal ID of the merge request within the project (required)',
+-+        ),
+-     }),
+-     outputSchema: createBaseToolResponseSchema(
+-       z.object({
+-@@ -62,6 +64,60 @@ export const createGetMergeRequestDetailTool = (client: GitLabClient) => {
+-   });
+- };
++diff --git a/src/main/main.ts b/src/main/main.ts
++index cf7771d7a..54fc83f96 100644
++--- a/src/main/main.ts
+++++ b/src/main/main.ts
++@@ -19,7 +19,11 @@ import { createDataStream } from 'ai';
++ import { eq } from 'drizzle-orm';
++ import { sourceRegistrationWorkflow } from '../mastra/workflows/sourceRegistration';
++ import { type Source } from '../db/schema';
++-import { IpcChannels, IpcResponsePayloadMap } from './types/ipc';
+++import {
+++  IpcChannels,
+++  IpcResponsePayloadMap,
+++  IpcRequestPayloadMap,
+++} from './types/ipc';
++ import { AgentBootStatus, AgentBootMessage, AgentToolStatus } from './types';
++ import { getOrchestratorSystemPrompt } from '../mastra/agents/prompts';
++ import { sources } from '../db/schema';
++@@ -27,7 +31,7 @@ import getDb from '../db';
++ import SourceRegistrationManager from '../mastra/workflows/sourceRegistrationManager';
++ import { getOrchestrator } from '../mastra/agents/orchestrator';
++ import MenuBuilder from './menu';
++-import { resolveHtmlPath } from './utils/util';
+++import { resolveHtmlPath, toAbsoluteFileURL } from './utils/util';
++ import { initStore, getStore } from './store';
++ import { RedmineBaseInfo } from '../mastra/tools/redmine';
++ 
++@@ -262,6 +266,51 @@ const setupChatHandlers = () => {
++     },
++   );
+  
+-+/**
+-+ * 特定のマージリクエスト差分を取得するツール
+-+ * @param client GitLabClient - GitLab APIクライアント
+-+ * @returns マージリクエスト差分取得ツール
+-+ */
+-+export const createGetMergeRequestDiffTool = (client: GitLabClient) => {
+-+  return createTool({
+-+    id: 'gitlab-get-merge-request-diff',
+-+    description:
+-+      'Retrieves the diff of a specific merge request in a GitLab project.',
+-+    inputSchema: z.object({
+-+      project_id: z
+-+        .union([z.string(), z.number()])
+-+        .describe('Project ID or non-encoded project path (required)'),
+-+      merge_request_iid: z
+-+        .number()
+-+        .describe(
+-+          'Internal ID of the merge request within the project (required)',
+-+        ),
+-+    }),
+-+    outputSchema: createBaseToolResponseSchema(
+-+      z.object({
+-+        diff: z.any(),
+-+      }),
+-+    ),
+-+    execute: async ({ context }) => {
+-+      let status: RunToolStatus = 'failed';
+++  // チャットメッセージ編集履歴ハンドラ
+++  ipcMain.handle(
+++    IpcChannels.CHAT_EDIT_HISTORY,
+++    async (
+++      _,
+++      messageId: IpcRequestPayloadMap[typeof IpcChannels.CHAT_EDIT_HISTORY],
+++    ): Promise<IpcResponsePayloadMap[typeof IpcChannels.CHAT_EDIT_HISTORY]> => {
+ +      try {
+-+        const { mergeRequests } = client.getApiResources();
+-+
+-+        // マージリクエスト差分を取得
+-+        const diff = await mergeRequests.allDiffs(
+-+          context.project_id,
+-+          context.merge_request_iid,
+-+        );
+-+
+-+        status = 'success';
+-+        return {
+-+          status,
+-+          result: {
+-+            diff,
+-+          },
+-+        };
+++        // DBを直接編集
+++        // 手順：1.履歴からmessageIdに対応するメッセージを取得 2.同じthread_idを持つメッセージから取得したメッセージのcreatedAtより後のメッセージを削除(1で取得したメッセージも削除する)
+++        // テーブル定義は以下の通り
+++        // CREATE TABLE mastra_messages (id TEXT NOT NULL PRIMARY KEY, thread_id TEXT NOT NULL, content TEXT NOT NULL, role TEXT NOT NULL, type TEXT NOT NULL, createdAt TEXT NOT NULL)
+++        const store = getStore();
+++        const dbSetting = store.get('database');
+++        // データベース接続クライアントを作成
+++        const { createClient } = await import('@libsql/client');
+++        const client = createClient({
+++          url: toAbsoluteFileURL(dbSetting.dir, 'memory.db'),
+++        });
+++        console.log('messageId:', messageId);
+++        // messageIdに対応するメッセージを取得
+++        const message = await client.execute({
+++          sql: `SELECT * FROM mastra_messages WHERE id = ?;`,
+++          args: [messageId],
+++        });
+++        if (message.rows.length === 0) {
+++          throw new Error(`メッセージID ${messageId} が見つかりません`);
+++        } else if (message.rows.length > 1) {
+++          throw new Error(`メッセージID ${messageId} が複数見つかりました`);
+++        }
+++        const targetMessage = message.rows[0];
+++        console.log('targetMessage:', targetMessage);
+++        // 同じthread_idを持つメッセージから、取得したメッセージのcreatedAtより後のメッセージを削除
+++        await client.execute({
+++          sql: `DELETE FROM mastra_messages WHERE thread_id = ? AND createdAt >= ?;`,
+++          args: [targetMessage.thread_id, targetMessage.createdAt],
+++        });
+++        return { success: true };
+ +      } catch (error) {
+-+        status = 'failed';
+-+        return {
+-+          status,
+-+          error: `Failed to retrieve merge request diff: ${error}`,
+-+        };
+++        console.error('メッセージ履歴削除中にエラーが発生:', error);
+++        return { success: false, error: (error as Error).message };
+ +      }
+ +    },
+-+  });
+-+};
+++  );
+ +
+- /**
+-  * マージリクエストにコメントを追加するツール
+-  * @param client GitLabClient - GitLab APIクライアント
+-@@ -70,15 +126,16 @@ export const createGetMergeRequestDetailTool = (client: GitLabClient) => {
+- export const createAddMergeRequestCommentTool = (client: GitLabClient) => {
+-   return createTool({
+-     id: 'gitlab-add-merge-request-comment',
+--    description:
+--      'Adds a comment to a merge request in a GitLab project.',
+-+    description: 'Adds a comment to a merge request in a GitLab project.',
+-     inputSchema: z.object({
+-       project_id: z
+-         .union([z.string(), z.number()])
+-         .describe('Project ID or non-encoded project path (required)'),
+-       merge_request_iid: z
+-         .number()
+--        .describe('Internal ID of the merge request within the project (required)'),
+-+        .describe(
+-+          'Internal ID of the merge request within the project (required)',
+-+        ),
+-       body: z.string().describe('Comment content (required)'),
+-     }),
+-     outputSchema: createBaseToolResponseSchema(
+-@@ -124,15 +181,16 @@ export const createAddMergeRequestCommentTool = (client: GitLabClient) => {
+- export const createAddMergeRequestDiffCommentTool = (client: GitLabClient) => {
+-   return createTool({
+-     id: 'gitlab-add-merge-request-diff-comment',
+--    description:
+--      'Adds a comment to specific lines in a merge request diff.',
+-+    description: 'Adds a comment to specific lines in a merge request diff.',
+-     inputSchema: z.object({
+-       project_id: z
+-         .union([z.string(), z.number()])
+-         .describe('Project ID or non-encoded project path (required)'),
+-       merge_request_iid: z
+-         .number()
+--        .describe('Internal ID of the merge request within the project (required)'),
+-+        .describe(
+-+          'Internal ID of the merge request within the project (required)',
+-+        ),
+-       body: z.string().describe('Comment content (required)'),
+-       position: z
+-         .object({
+-@@ -145,15 +203,16 @@ export const createAddMergeRequestDiffCommentTool = (client: GitLabClient) => {
+-           headSha: z.string().describe('Head commit SHA (required)'),
+-           oldPath: z.string().describe('Previous file path (required)'),
+-           newPath: z.string().describe('New file path (required)'),
+--          oldLine: z.string().optional().describe('Previous line number (optional)'),
+-+          oldLine: z
+-+            .string()
+-+            .optional()
+-+            .describe('Previous line number (optional)'),
+-           newLine: z.string().optional().describe('New line number (optional)'),
+-           lineRange: z
+-             .object({
+-               start: z
+-                 .object({
+--                  lineCode: z
+--                    .string()
+--                    .describe('Start line code (required)'),
+-+                  lineCode: z.string().describe('Start line code (required)'),
+-                   type: z
+-                     .enum(['new', 'old'])
+-                     .describe(
+-@@ -162,14 +221,14 @@ export const createAddMergeRequestDiffCommentTool = (client: GitLabClient) => {
+-                   hash: z
+-                     .string()
+-                     .optional()
+--                    .describe('Start line hash for multi-line notes (optional)'),
+-+                    .describe(
+-+                      'Start line hash for multi-line notes (optional)',
+-+                    ),
+-                 })
+-                 .describe('Multi-line note start line information'),
+-               end: z
+-                 .object({
+--                  lineCode: z
+--                    .string()
+--                    .describe('End line code (required)'),
+-+                  lineCode: z.string().describe('End line code (required)'),
+-                   type: z
+-                     .enum(['new', 'old'])
+-                     .describe(
+-@@ -233,6 +292,7 @@ export const createAddMergeRequestDiffCommentTool = (client: GitLabClient) => {
+- export const createMergeRequestTools = (client: GitLabClient) => {
+-   return {
+-     getMergeRequestDetail: createGetMergeRequestDetailTool(client),
+-+    getMergeRequestDiff: createGetMergeRequestDiffTool(client),
+-     addMergeRequestComment: createAddMergeRequestCommentTool(client),
+-     addMergeRequestDiffComment: createAddMergeRequestDiffCommentTool(client),
++   // メッセージ送信ハンドラ
++   ipcMain.handle(
++     IpcChannels.CHAT_SEND_MESSAGE,
++diff --git a/src/main/preload.ts b/src/main/preload.ts
++index 0f226aa8c..350422ad9 100644
++--- a/src/main/preload.ts
+++++ b/src/main/preload.ts
++@@ -86,6 +86,12 @@ const electronHandler = {
++     ): Promise<IpcResponsePayload<typeof IpcChannels.CHAT_ABORT_REQUEST>> => {
++       return ipcRenderer.invoke(IpcChannels.CHAT_ABORT_REQUEST, threadId);
++     },
+++    // メッセージ編集時に該当indexまでの履歴を削除する
+++    editHistory: async (
+++      messageId: string,
+++    ): Promise<IpcResponsePayload<typeof IpcChannels.CHAT_EDIT_HISTORY>> => {
+++      return ipcRenderer.invoke(IpcChannels.CHAT_EDIT_HISTORY, messageId);
+++    },
++     // AIの応答を取得する（ストリーミング）
++     onStream: (
++       callback: (
++diff --git a/src/main/types/ipc.ts b/src/main/types/ipc.ts
++index 0f2e5160d..cfebc73e7 100644
++--- a/src/main/types/ipc.ts
+++++ b/src/main/types/ipc.ts
++@@ -31,6 +31,7 @@ export const IpcChannels = {
++   CHAT_STEP: 'chat-step',
++   CHAT_ERROR: 'chat-error',
++   CHAT_ABORT_REQUEST: 'chat-abort-request',
+++  CHAT_EDIT_HISTORY: 'chat-edit-history',
++ 
++   // ファイルシステム関連
++   FS_CHECK_PATH_EXISTS: 'fs-check-path-exists',
++@@ -69,6 +70,7 @@ export type IpcRequestPayloadMap = {
++     title: string;
+    };
++   [IpcChannels.CHAT_ABORT_REQUEST]: { threadId: string };
+++  [IpcChannels.CHAT_EDIT_HISTORY]: string;
++ };
++ 
++ export type IpcResponsePayloadMap = {
++@@ -100,6 +102,7 @@ export type IpcResponsePayloadMap = {
++   [IpcChannels.CHAT_DELETE_ROOM]: { success: boolean; error?: string };
++   [IpcChannels.CHAT_CREATE_THREAD]: { success: boolean; error?: string };
++   [IpcChannels.CHAT_ABORT_REQUEST]: { success: boolean; error?: string };
+++  [IpcChannels.CHAT_EDIT_HISTORY]: { success: boolean; error?: string };
++ };
++ 
++ export type IpcEventPayloadMap = {
++diff --git a/src/mastra/agents/config/memory.ts b/src/mastra/agents/config/memory.ts
++index 9fb20f9bd..5ff5d64b9 100644
++--- a/src/mastra/agents/config/memory.ts
+++++ b/src/mastra/agents/config/memory.ts
++@@ -1,7 +1,6 @@
++ import { Memory } from '@mastra/memory';
++ import { TokenLimiter, ToolCallFilter } from '@mastra/memory/processors';
++ import type { MemoryProcessor } from '@mastra/core';
++-import { openai } from '@mastra/openai'
++ import { LibSQLStore } from '@mastra/core/storage/libsql';
++ import { toAbsoluteFileURL } from '@/main/utils/util';
++ import { getStore } from '../../../main/store';
++diff --git a/src/renderer/components/chat/ChatArea.tsx b/src/renderer/components/chat/ChatArea.tsx
++index e08a3bb1e..781c04bfb 100644
++--- a/src/renderer/components/chat/ChatArea.tsx
+++++ b/src/renderer/components/chat/ChatArea.tsx
++@@ -1,4 +1,4 @@
++-import React, { useState, useEffect, memo } from 'react';
+++import React, { useState, useEffect, memo, useRef } from 'react';
++ import { useChat } from '@ai-sdk/react';
++ import { Box, Divider, Typography, Alert } from '@mui/material';
++ import { v4 as uuid } from 'uuid';
++@@ -171,7 +171,10 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
++   const [initialMessages, setInitialMessages] = useState<ChatMessage[]>([]);
++   // useChatからのエラーを表示するための状態
++   const [additionalAlerts, setAdditionalAlerts] = useState<AlertMessage[]>([]);
+++  const [editMessageId, setEditMessageId] = useState<string>('');
+++  const [editMessageContent, setEditMessageContent] = useState<string>('');
++   const { status: agentStatus } = useAgentStatus();
+++  const isEditSubmitRef = useRef(false);
++ 
++   const isAgentInitializing = agentStatus.state === 'initializing';
++ 
++@@ -199,6 +202,8 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
++ 
++   const {
++     messages,
+++    setMessages,
+++    reload,
++     input,
++     status,
++     error,
++@@ -224,6 +229,14 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
++         chatService.createThread(selectedRoomId, '');
++       }
++ 
+++      // 編集メッセージ送信時は、編集メッセージ以降の履歴を削除
+++      if (isEditSubmitRef.current) {
+++        window.electron.chat.editHistory(editMessageId);
+++        setEditMessageId('');
+++        setEditMessageContent('');
+++        isEditSubmitRef.current = false; // リセット
+++      }
+++
++       // Return the structured body for your API route
++       return {
++         message: lastMessage?.content, // Send only the most recent message content/role
++@@ -254,6 +267,38 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
++     setAdditionalAlerts((prev) => prev.filter((alert) => alert.id !== id));
++   };
++ 
+++  const handleEditStart = (messageId: string) => {
+++    setEditMessageId(messageId);
+++  };
+++
+++  const handleEditContentChange = (content: string) => {
+++    setEditMessageContent(content);
+++  };
+++
+++  const handleEditSubmit = () => {
+++    const messageIndex = messages.findIndex((m) => m.id === editMessageId);
+++    if (messageIndex === -1) return;
+++
+++    const updatedMessages = messages.slice(0, messageIndex + 1);
+++    updatedMessages[messageIndex] = {
+++      ...updatedMessages[messageIndex],
+++      content: editMessageContent,
+++      parts: [
+++        {
+++          type: 'text',
+++          text: editMessageContent,
+++        },
+++      ],
+++    };
+++    setMessages(updatedMessages);
+++    isEditSubmitRef.current = true;
+++    reload();
+++  };
+++
+++  const handleEditCancel = () => {
+++    setEditMessageId('');
+++  };
+++
++   return (
++     <Box
++       sx={{
++@@ -275,7 +320,22 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
++       {selectedRoomId ? (
++         <>
++           {/* メッセージリスト */}
++-          <MessageList messages={messages} loading={loading} status={status} />
+++          <MessageList
+++            messages={messages}
+++            loading={loading}
+++            status={status}
+++            editContent={editMessageContent}
+++            disabled={
+++              status === 'submitted' ||
+++              status === 'streaming' ||
+++              isAgentInitializing
+++            }
+++            editingMessageId={editMessageId}
+++            onEditStart={handleEditStart}
+++            onEditContentChange={handleEditContentChange}
+++            onEditSubmit={handleEditSubmit}
+++            onEditCancel={handleEditCancel}
+++          />
++ 
++           <Divider />
++ 
++diff --git a/src/renderer/components/chat/MessageItem.tsx b/src/renderer/components/chat/MessageItem.tsx
++index b38b92d60..01ac557fd 100644
++--- a/src/renderer/components/chat/MessageItem.tsx
+++++ b/src/renderer/components/chat/MessageItem.tsx
++@@ -1,6 +1,7 @@
++ import React, { memo, forwardRef, useState, useEffect, useRef } from 'react';
++ // @ts-ignore
++ import ReactMarkdown from 'react-markdown';
+++import EditIcon from '@mui/icons-material/Edit';
++ // @ts-ignore
++ import remarkGfm from 'remark-gfm';
++ import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
++@@ -25,6 +26,8 @@ import {
++   TableCell,
++   Tooltip,
++   Fade,
+++  TextField,
+++  Button,
++ } from '@mui/material';
++ import { ContentCopy as CopyIcon } from '@mui/icons-material';
++ // @ts-ignore
++@@ -361,10 +364,29 @@ const renderPart = (part: NonNullable<ChatMessage['parts']>[number]) => {
++ 
++ interface MessageProps {
++   message: ChatMessage;
+++  editContent: string;
+++  disabled: boolean;
+++  onEditSubmit: () => void;
+++  isEditing: boolean;
+++  onEditStart: (messageId: string) => void;
+++  onEditContentChange: (content: string) => void;
+++  onEditCancel: () => void;
++ }
++ 
++ const MessageItem = forwardRef<HTMLDivElement, MessageProps>(
++-  ({ message }, ref) => {
+++  (
+++    {
+++      message,
+++      editContent,
+++      disabled,
+++      onEditSubmit,
+++      isEditing,
+++      onEditStart,
+++      onEditCancel,
+++      onEditContentChange,
+++    },
+++    ref,
+++  ) => {
++     const isUser = message.role === 'user';
++ 
++     return (
++@@ -379,9 +401,10 @@ const MessageItem = forwardRef<HTMLDivElement, MessageProps>(
++         >
++           <Box
++             sx={{
++-              maxWidth: isUser ? '70%' : '100%',
++-              width: isUser ? undefined : '100%',
+++              maxWidth: isUser && !isEditing ? '70%' : '100%',
+++              width: isUser && !isEditing ? undefined : '100%',
++               textAlign: 'left',
+++              '&:hover .editBtn': { opacity: 1 },
++             }}
++           >
++             <Paper
++@@ -390,11 +413,77 @@ const MessageItem = forwardRef<HTMLDivElement, MessageProps>(
++                 px: 2,
++                 bgcolor: isUser ? 'grey.100' : 'background.paper',
++                 borderRadius: 2,
+++                position: 'relative',
++               }}
++             >
++-              {message.parts?.length
++-                ? message.parts.map(renderPart)
++-                : renderPart({ type: 'text', text: message.content ?? '' })}
+++              {isUser && !isEditing && (
+++                <IconButton
+++                  className="editBtn"
+++                  size="small"
+++                  onClick={() => {
+++                    onEditStart?.(message.id);
+++                    onEditContentChange(message.content ?? '');
+++                  }}
+++                  sx={{
+++                    position: 'absolute',
+++                    right: -36,
+++                    top: '50%',
+++                    transform: 'translateY(-50%)',
+++                    opacity: 0,
+++                    transition: 'opacity 0.2s',
+++                    bgcolor: 'background.paper',
+++                  }}
+++                >
+++                  <EditIcon fontSize="small" />
+++                </IconButton>
+++              )}
+++              {/* eslint-disable-next-line */}
+++              {isEditing && isUser ? (
+++                <Box sx={{ p: 1, width: '100%' }}>
+++                  <TextField
+++                    fullWidth
+++                    multiline
+++                    variant="standard" // アンダーラインのみのスタイルに
+++                    InputProps={{
+++                      disableUnderline: true, // アンダーラインも消す
+++                    }}
+++                    value={editContent}
+++                    onChange={(e) => onEditContentChange(e.target.value)}
+++                    sx={{ mb: 2 }}
+++                  />
+++                  <Box
+++                    sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}
+++                  >
+++                    <Button
+++                      size="small"
+++                      onClick={onEditCancel}
+++                      variant="contained"
+++                      sx={{
+++                        backgroundColor: 'white',
+++                        color: 'black',
+++                      }}
+++                    >
+++                      キャンセル
+++                    </Button>
+++                    <Button
+++                      size="small"
+++                      onClick={onEditSubmit}
+++                      variant="contained"
+++                      disabled={disabled || !editContent?.trim()}
+++                      sx={{
+++                        backgroundColor: 'black',
+++                        color: 'white',
+++                      }}
+++                    >
+++                      送信
+++                    </Button>
+++                  </Box>
+++                </Box>
+++              ) : message.parts?.length ? (
+++                message.parts.map(renderPart)
+++              ) : (
+++                renderPart({ type: 'text', text: message.content ?? '' })
+++              )}
++             </Paper>
++           </Box>
++         </Box>
++diff --git a/src/renderer/components/chat/MessageList.tsx b/src/renderer/components/chat/MessageList.tsx
++index a6d2acc06..351009614 100644
++--- a/src/renderer/components/chat/MessageList.tsx
+++++ b/src/renderer/components/chat/MessageList.tsx
++@@ -7,12 +7,26 @@ interface MessageListProps {
++   messages: ChatMessage[];
++   loading: boolean;
++   status: 'error' | 'ready' | 'submitted' | 'streaming';
+++  editContent: string;
+++  disabled: boolean;
+++  onEditStart: (messageId: string) => void;
+++  editingMessageId: string;
+++  onEditSubmit: () => void;
+++  onEditContentChange: (ontent: string) => void;
+++  onEditCancel: () => void;
++ }
++ 
++ const MessageList: React.FC<MessageListProps> = ({
++   messages,
++   loading,
++   status,
+++  editContent,
+++  disabled,
+++  onEditStart,
+++  editingMessageId,
+++  onEditSubmit,
+++  onEditContentChange,
+++  onEditCancel,
++ }) => {
++   const bottomRef = useRef<HTMLDivElement>(null);
++ 
++@@ -41,7 +55,16 @@ const MessageList: React.FC<MessageListProps> = ({
++       {messages.map((m) => {
++         return (
++           <Box key={m.id} mb={2}>
++-            <MessageItem message={m} />
+++            <MessageItem
+++              message={m}
+++              editContent={editContent}
+++              disabled={disabled}
+++              isEditing={editingMessageId === m.id}
+++              onEditStart={onEditStart}
+++              onEditSubmit={onEditSubmit}
+++              onEditContentChange={onEditContentChange}
+++              onEditCancel={onEditCancel}
+++            />
++           </Box>
++         );
++       })}
 diff --git a/src/main/main.ts b/src/main/main.ts
-index cf7771d7a..54fc83f96 100644
+index cf7771d7a..3cba49e42 100644
 --- a/src/main/main.ts
 +++ b/src/main/main.ts
 @@ -19,7 +19,11 @@ import { createDataStream } from 'ai';
@@ -24,7 +636,7 @@ index cf7771d7a..54fc83f96 100644
  import { initStore, getStore } from './store';
  import { RedmineBaseInfo } from '../mastra/tools/redmine';
  
-@@ -262,6 +266,51 @@ const setupChatHandlers = () => {
+@@ -262,6 +266,63 @@ const setupChatHandlers = () => {
      },
    );
  
@@ -33,38 +645,50 @@ index cf7771d7a..54fc83f96 100644
 +    IpcChannels.CHAT_EDIT_HISTORY,
 +    async (
 +      _,
-+      messageId: IpcRequestPayloadMap[typeof IpcChannels.CHAT_EDIT_HISTORY],
++      {
++        threadId,
++        messageId,
++      }: IpcRequestPayloadMap[typeof IpcChannels.CHAT_EDIT_HISTORY],
 +    ): Promise<IpcResponsePayloadMap[typeof IpcChannels.CHAT_EDIT_HISTORY]> => {
 +      try {
-+        // DBを直接編集
-+        // 手順：1.履歴からmessageIdに対応するメッセージを取得 2.同じthread_idを持つメッセージから取得したメッセージのcreatedAtより後のメッセージを削除(1で取得したメッセージも削除する)
-+        // テーブル定義は以下の通り
-+        // CREATE TABLE mastra_messages (id TEXT NOT NULL PRIMARY KEY, thread_id TEXT NOT NULL, content TEXT NOT NULL, role TEXT NOT NULL, type TEXT NOT NULL, createdAt TEXT NOT NULL)
-+        const store = getStore();
-+        const dbSetting = store.get('database');
-+        // データベース接続クライアントを作成
-+        const { createClient } = await import('@libsql/client');
-+        const client = createClient({
-+          url: toAbsoluteFileURL(dbSetting.dir, 'memory.db'),
-+        });
-+        console.log('messageId:', messageId);
-+        // messageIdに対応するメッセージを取得
-+        const message = await client.execute({
-+          sql: `SELECT * FROM mastra_messages WHERE id = ?;`,
-+          args: [messageId],
-+        });
-+        if (message.rows.length === 0) {
-+          throw new Error(`メッセージID ${messageId} が見つかりません`);
-+        } else if (message.rows.length > 1) {
-+          throw new Error(`メッセージID ${messageId} が複数見つかりました`);
++        const mastra = getMastra();
++        const orchestratorAgent = mastra.getAgent('orchestratorAgent');
++        const memory = orchestratorAgent.getMemory();
++
++        if (!memory) {
++          throw new Error('メモリインスタンスが初期化されていません');
 +        }
-+        const targetMessage = message.rows[0];
-+        console.log('targetMessage:', targetMessage);
-+        // 同じthread_idを持つメッセージから、取得したメッセージのcreatedAtより後のメッセージを削除
-+        await client.execute({
-+          sql: `DELETE FROM mastra_messages WHERE thread_id = ? AND createdAt >= ?;`,
-+          args: [targetMessage.thread_id, targetMessage.createdAt],
++
++        // メッセージ履歴を取得
++        const messages = await memory.storage.getMessages({
++          threadId,
 +        });
++        // messageIdに対応するメッセージを検索
++        const targetMessageIndex = messages.findIndex(
++          (msg) => msg.id === messageId,
++        );
++        if (targetMessageIndex === -1) {
++          throw new Error(`メッセージID ${messageId} が見つかりません`);
++        }
++        // 最初のメッセージからmessageIdに対応するメッセージまでの履歴を取得
++        const history = messages.slice(0, targetMessageIndex);
++
++        // スレッドを削除
++        await memory.storage.deleteThread({ threadId });
++
++        // スレッドを再作成
++        await memory.createThread({
++          resourceId: 'user',
++          title: '',
++          threadId,
++        });
++
++        // 取得した履歴をメモリに保存
++        await memory.saveMessages({
++          messages: history,
++          memoryConfig: undefined,
++        });
++
 +        return { success: true };
 +      } catch (error) {
 +        console.error('メッセージ履歴削除中にエラーが発生:', error);
@@ -77,24 +701,25 @@ index cf7771d7a..54fc83f96 100644
    ipcMain.handle(
      IpcChannels.CHAT_SEND_MESSAGE,
 diff --git a/src/main/preload.ts b/src/main/preload.ts
-index 0f226aa8c..350422ad9 100644
+index 0f226aa8c..7368ff289 100644
 --- a/src/main/preload.ts
 +++ b/src/main/preload.ts
-@@ -86,6 +86,12 @@ const electronHandler = {
+@@ -86,6 +86,13 @@ const electronHandler = {
      ): Promise<IpcResponsePayload<typeof IpcChannels.CHAT_ABORT_REQUEST>> => {
        return ipcRenderer.invoke(IpcChannels.CHAT_ABORT_REQUEST, threadId);
      },
 +    // メッセージ編集時に該当indexまでの履歴を削除する
-+    editHistory: async (
-+      messageId: string,
-+    ): Promise<IpcResponsePayload<typeof IpcChannels.CHAT_EDIT_HISTORY>> => {
-+      return ipcRenderer.invoke(IpcChannels.CHAT_EDIT_HISTORY, messageId);
++    editHistory: async (params: {
++      threadId: string;
++      messageId: string;
++    }): Promise<IpcResponsePayload<typeof IpcChannels.CHAT_EDIT_HISTORY>> => {
++      return ipcRenderer.invoke(IpcChannels.CHAT_EDIT_HISTORY, params);
 +    },
      // AIの応答を取得する（ストリーミング）
      onStream: (
        callback: (
 diff --git a/src/main/types/ipc.ts b/src/main/types/ipc.ts
-index 0f2e5160d..cfebc73e7 100644
+index 0f2e5160d..f957d618d 100644
 --- a/src/main/types/ipc.ts
 +++ b/src/main/types/ipc.ts
 @@ -31,6 +31,7 @@ export const IpcChannels = {
@@ -109,7 +734,7 @@ index 0f2e5160d..cfebc73e7 100644
      title: string;
    };
    [IpcChannels.CHAT_ABORT_REQUEST]: { threadId: string };
-+  [IpcChannels.CHAT_EDIT_HISTORY]: string;
++  [IpcChannels.CHAT_EDIT_HISTORY]: { threadId: string; messageId: string };
  };
  
  export type IpcResponsePayloadMap = {
@@ -134,7 +759,7 @@ index 9fb20f9bd..5ff5d64b9 100644
  import { toAbsoluteFileURL } from '@/main/utils/util';
  import { getStore } from '../../../main/store';
 diff --git a/src/renderer/components/chat/ChatArea.tsx b/src/renderer/components/chat/ChatArea.tsx
-index e08a3bb1e..781c04bfb 100644
+index e08a3bb1e..532f757f3 100644
 --- a/src/renderer/components/chat/ChatArea.tsx
 +++ b/src/renderer/components/chat/ChatArea.tsx
 @@ -1,4 +1,4 @@
@@ -163,13 +788,16 @@ index e08a3bb1e..781c04bfb 100644
      input,
      status,
      error,
-@@ -224,6 +229,14 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
+@@ -224,6 +229,17 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
          chatService.createThread(selectedRoomId, '');
        }
  
 +      // 編集メッセージ送信時は、編集メッセージ以降の履歴を削除
 +      if (isEditSubmitRef.current) {
-+        window.electron.chat.editHistory(editMessageId);
++        window.electron.chat.editHistory({
++          threadId: selectedRoomId!,
++          messageId: editMessageId,
++        });
 +        setEditMessageId('');
 +        setEditMessageContent('');
 +        isEditSubmitRef.current = false; // リセット
@@ -178,7 +806,7 @@ index e08a3bb1e..781c04bfb 100644
        // Return the structured body for your API route
        return {
          message: lastMessage?.content, // Send only the most recent message content/role
-@@ -254,6 +267,38 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
+@@ -254,6 +270,38 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
      setAdditionalAlerts((prev) => prev.filter((alert) => alert.id !== id));
    };
  
@@ -217,7 +845,7 @@ index e08a3bb1e..781c04bfb 100644
    return (
      <Box
        sx={{
-@@ -275,7 +320,22 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
+@@ -275,7 +323,22 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
        {selectedRoomId ? (
          <>
            {/* メッセージリスト */}
