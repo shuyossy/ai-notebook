@@ -19,7 +19,11 @@ import { createDataStream } from 'ai';
 import { eq } from 'drizzle-orm';
 import { sourceRegistrationWorkflow } from '../mastra/workflows/sourceRegistration';
 import { type Source } from '../db/schema';
-import { IpcChannels, IpcResponsePayloadMap } from './types/ipc';
+import {
+  IpcChannels,
+  IpcResponsePayloadMap,
+  IpcRequestPayloadMap,
+} from './types/ipc';
 import { AgentBootStatus, AgentBootMessage, AgentToolStatus } from './types';
 import { getOrchestratorSystemPrompt } from '../mastra/agents/prompts';
 import { sources } from '../db/schema';
@@ -27,7 +31,7 @@ import getDb from '../db';
 import SourceRegistrationManager from '../mastra/workflows/sourceRegistrationManager';
 import { getOrchestrator } from '../mastra/agents/orchestrator';
 import MenuBuilder from './menu';
-import { resolveHtmlPath } from './utils/util';
+import { resolveHtmlPath, toAbsoluteFileURL } from './utils/util';
 import { initStore, getStore } from './store';
 import { RedmineBaseInfo } from '../mastra/tools/redmine';
 
@@ -259,6 +263,51 @@ const setupChatHandlers = () => {
         error = (err as Error).message;
       }
       return { success, error };
+    },
+  );
+
+  // チャットメッセージ編集履歴ハンドラ
+  ipcMain.handle(
+    IpcChannels.CHAT_EDIT_HISTORY,
+    async (
+      _,
+      messageId: IpcRequestPayloadMap[typeof IpcChannels.CHAT_EDIT_HISTORY],
+    ): Promise<IpcResponsePayloadMap[typeof IpcChannels.CHAT_EDIT_HISTORY]> => {
+      try {
+        // DBを直接編集
+        // 手順：1.履歴からmessageIdに対応するメッセージを取得 2.同じthread_idを持つメッセージから取得したメッセージのcreatedAtより後のメッセージを削除(1で取得したメッセージも削除する)
+        // テーブル定義は以下の通り
+        // CREATE TABLE mastra_messages (id TEXT NOT NULL PRIMARY KEY, thread_id TEXT NOT NULL, content TEXT NOT NULL, role TEXT NOT NULL, type TEXT NOT NULL, createdAt TEXT NOT NULL)
+        const store = getStore();
+        const dbSetting = store.get('database');
+        // データベース接続クライアントを作成
+        const { createClient } = await import('@libsql/client');
+        const client = createClient({
+          url: toAbsoluteFileURL(dbSetting.dir, 'memory.db'),
+        });
+        console.log('messageId:', messageId);
+        // messageIdに対応するメッセージを取得
+        const message = await client.execute({
+          sql: `SELECT * FROM mastra_messages WHERE id = ?;`,
+          args: [messageId],
+        });
+        if (message.rows.length === 0) {
+          throw new Error(`メッセージID ${messageId} が見つかりません`);
+        } else if (message.rows.length > 1) {
+          throw new Error(`メッセージID ${messageId} が複数見つかりました`);
+        }
+        const targetMessage = message.rows[0];
+        console.log('targetMessage:', targetMessage);
+        // 同じthread_idを持つメッセージから、取得したメッセージのcreatedAtより後のメッセージを削除
+        await client.execute({
+          sql: `DELETE FROM mastra_messages WHERE thread_id = ? AND createdAt >= ?;`,
+          args: [targetMessage.thread_id, targetMessage.createdAt],
+        });
+        return { success: true };
+      } catch (error) {
+        console.error('メッセージ履歴削除中にエラーが発生:', error);
+        return { success: false, error: (error as Error).message };
+      }
     },
   );
 

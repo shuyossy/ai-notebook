@@ -86,6 +86,12 @@ const electronHandler = {
     ): Promise<IpcResponsePayload<typeof IpcChannels.CHAT_ABORT_REQUEST>> => {
       return ipcRenderer.invoke(IpcChannels.CHAT_ABORT_REQUEST, threadId);
     },
+    // メッセージ編集時に該当indexまでの履歴を削除する
+    editHistory: async (
+      messageId: string,
+    ): Promise<IpcResponsePayload<typeof IpcChannels.CHAT_EDIT_HISTORY>> => {
+      return ipcRenderer.invoke(IpcChannels.CHAT_EDIT_HISTORY, messageId);
+    },
     // AIの応答を取得する（ストリーミング）
     onStream: (
       callback: (

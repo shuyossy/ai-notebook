@@ -1,7 +1,6 @@
 import { Memory } from '@mastra/memory';
 import { TokenLimiter, ToolCallFilter } from '@mastra/memory/processors';
 import type { MemoryProcessor } from '@mastra/core';
-import { openai } from '@mastra/openai'
 import { LibSQLStore } from '@mastra/core/storage/libsql';
 import { toAbsoluteFileURL } from '@/main/utils/util';
 import { getStore } from '../../../main/store';

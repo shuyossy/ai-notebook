@@ -1,6 +1,7 @@
 import React, { memo, forwardRef, useState, useEffect, useRef } from 'react';
 // @ts-ignore
 import ReactMarkdown from 'react-markdown';
+import EditIcon from '@mui/icons-material/Edit';
 // @ts-ignore
 import remarkGfm from 'remark-gfm';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
@@ -25,6 +26,8 @@ import {
   TableCell,
   Tooltip,
   Fade,
+  TextField,
+  Button,
 } from '@mui/material';
 import { ContentCopy as CopyIcon } from '@mui/icons-material';
 // @ts-ignore
@@ -361,10 +364,29 @@ const renderPart = (part: NonNullable<ChatMessage['parts']>[number]) => {
 
 interface MessageProps {
   message: ChatMessage;
+  editContent: string;
+  disabled: boolean;
+  onEditSubmit: () => void;
+  isEditing: boolean;
+  onEditStart: (messageId: string) => void;
+  onEditContentChange: (content: string) => void;
+  onEditCancel: () => void;
 }
 
 const MessageItem = forwardRef<HTMLDivElement, MessageProps>(
-  ({ message }, ref) => {
+  (
+    {
+      message,
+      editContent,
+      disabled,
+      onEditSubmit,
+      isEditing,
+      onEditStart,
+      onEditCancel,
+      onEditContentChange,
+    },
+    ref,
+  ) => {
     const isUser = message.role === 'user';
 
     return (
@@ -379,9 +401,10 @@ const MessageItem = forwardRef<HTMLDivElement, MessageProps>(
         >
           <Box
             sx={{
-              maxWidth: isUser ? '70%' : '100%',
-              width: isUser ? undefined : '100%',
+              maxWidth: isUser && !isEditing ? '70%' : '100%',
+              width: isUser && !isEditing ? undefined : '100%',
               textAlign: 'left',
+              '&:hover .editBtn': { opacity: 1 },
             }}
           >
             <Paper
@@ -390,11 +413,77 @@ const MessageItem = forwardRef<HTMLDivElement, MessageProps>(
                 px: 2,
                 bgcolor: isUser ? 'grey.100' : 'background.paper',
                 borderRadius: 2,
+                position: 'relative',
               }}
             >
-              {message.parts?.length
-                ? message.parts.map(renderPart)
-                : renderPart({ type: 'text', text: message.content ?? '' })}
+              {isUser && !isEditing && (
+                <IconButton
+                  className="editBtn"
+                  size="small"
+                  onClick={() => {
+                    onEditStart?.(message.id);
+                    onEditContentChange(message.content ?? '');
+                  }}
+                  sx={{
+                    position: 'absolute',
+                    right: -36,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    opacity: 0,
+                    transition: 'opacity 0.2s',
+                    bgcolor: 'background.paper',
+                  }}
+                >
+                  <EditIcon fontSize="small" />
+                </IconButton>
+              )}
+              {/* eslint-disable-next-line */}
+              {isEditing && isUser ? (
+                <Box sx={{ p: 1, width: '100%' }}>
+                  <TextField
+                    fullWidth
+                    multiline
+                    variant="standard" // アンダーラインのみのスタイルに
+                    InputProps={{
+                      disableUnderline: true, // アンダーラインも消す
+                    }}
+                    value={editContent}
+                    onChange={(e) => onEditContentChange(e.target.value)}
+                    sx={{ mb: 2 }}
+                  />
+                  <Box
+                    sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}
+                  >
+                    <Button
+                      size="small"
+                      onClick={onEditCancel}
+                      variant="contained"
+                      sx={{
+                        backgroundColor: 'white',
+                        color: 'black',
+                      }}
+                    >
+                      キャンセル
+                    </Button>
+                    <Button
+                      size="small"
+                      onClick={onEditSubmit}
+                      variant="contained"
+                      disabled={disabled || !editContent?.trim()}
+                      sx={{
+                        backgroundColor: 'black',
+                        color: 'white',
+                      }}
+                    >
+                      送信
+                    </Button>
+                  </Box>
+                </Box>
+              ) : message.parts?.length ? (
+                message.parts.map(renderPart)
+              ) : (
+                renderPart({ type: 'text', text: message.content ?? '' })
+              )}
             </Paper>
           </Box>
         </Box>

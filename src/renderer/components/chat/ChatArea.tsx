@@ -1,4 +1,4 @@
-import React, { useState, useEffect, memo } from 'react';
+import React, { useState, useEffect, memo, useRef } from 'react';
 import { useChat } from '@ai-sdk/react';
 import { Box, Divider, Typography, Alert } from '@mui/material';
 import { v4 as uuid } from 'uuid';
@@ -171,7 +171,10 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
   const [initialMessages, setInitialMessages] = useState<ChatMessage[]>([]);
   // useChatからのエラーを表示するための状態
   const [additionalAlerts, setAdditionalAlerts] = useState<AlertMessage[]>([]);
+  const [editMessageId, setEditMessageId] = useState<string>('');
+  const [editMessageContent, setEditMessageContent] = useState<string>('');
   const { status: agentStatus } = useAgentStatus();
+  const isEditSubmitRef = useRef(false);
 
   const isAgentInitializing = agentStatus.state === 'initializing';
 
@@ -199,6 +202,8 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
 
   const {
     messages,
+    setMessages,
+    reload,
     input,
     status,
     error,
@@ -222,6 +227,14 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
       // titleについてはここで、指定してもmemoryのオプションでgenerateTitleをtrueにしていた場合、「New Thread 2025-04-27T08:20:05.694Z」のようなタイトルが自動生成されてしまう
       if (selectedRoomId && request.messages.length === 1) {
         chatService.createThread(selectedRoomId, '');
+      }
+
+      // 編集メッセージ送信時は、編集メッセージ以降の履歴を削除
+      if (isEditSubmitRef.current) {
+        window.electron.chat.editHistory(editMessageId);
+        setEditMessageId('');
+        setEditMessageContent('');
+        isEditSubmitRef.current = false; // リセット
       }
 
       // Return the structured body for your API route
@@ -254,6 +267,38 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
     setAdditionalAlerts((prev) => prev.filter((alert) => alert.id !== id));
   };
 
+  const handleEditStart = (messageId: string) => {
+    setEditMessageId(messageId);
+  };
+
+  const handleEditContentChange = (content: string) => {
+    setEditMessageContent(content);
+  };
+
+  const handleEditSubmit = () => {
+    const messageIndex = messages.findIndex((m) => m.id === editMessageId);
+    if (messageIndex === -1) return;
+
+    const updatedMessages = messages.slice(0, messageIndex + 1);
+    updatedMessages[messageIndex] = {
+      ...updatedMessages[messageIndex],
+      content: editMessageContent,
+      parts: [
+        {
+          type: 'text',
+          text: editMessageContent,
+        },
+      ],
+    };
+    setMessages(updatedMessages);
+    isEditSubmitRef.current = true;
+    reload();
+  };
+
+  const handleEditCancel = () => {
+    setEditMessageId('');
+  };
+
   return (
     <Box
       sx={{
@@ -275,7 +320,22 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
       {selectedRoomId ? (
         <>
           {/* メッセージリスト */}
-          <MessageList messages={messages} loading={loading} status={status} />
+          <MessageList
+            messages={messages}
+            loading={loading}
+            status={status}
+            editContent={editMessageContent}
+            disabled={
+              status === 'submitted' ||
+              status === 'streaming' ||
+              isAgentInitializing
+            }
+            editingMessageId={editMessageId}
+            onEditStart={handleEditStart}
+            onEditContentChange={handleEditContentChange}
+            onEditSubmit={handleEditSubmit}
+            onEditCancel={handleEditCancel}
+          />
 
           <Divider />
 

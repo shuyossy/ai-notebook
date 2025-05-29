@@ -7,12 +7,26 @@ interface MessageListProps {
   messages: ChatMessage[];
   loading: boolean;
   status: 'error' | 'ready' | 'submitted' | 'streaming';
+  editContent: string;
+  disabled: boolean;
+  onEditStart: (messageId: string) => void;
+  editingMessageId: string;
+  onEditSubmit: () => void;
+  onEditContentChange: (ontent: string) => void;
+  onEditCancel: () => void;
 }
 
 const MessageList: React.FC<MessageListProps> = ({
   messages,
   loading,
   status,
+  editContent,
+  disabled,
+  onEditStart,
+  editingMessageId,
+  onEditSubmit,
+  onEditContentChange,
+  onEditCancel,
 }) => {
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -41,7 +55,16 @@ const MessageList: React.FC<MessageListProps> = ({
       {messages.map((m) => {
         return (
           <Box key={m.id} mb={2}>
-            <MessageItem message={m} />
+            <MessageItem
+              message={m}
+              editContent={editContent}
+              disabled={disabled}
+              isEditing={editingMessageId === m.id}
+              onEditStart={onEditStart}
+              onEditSubmit={onEditSubmit}
+              onEditContentChange={onEditContentChange}
+              onEditCancel={onEditCancel}
+            />
           </Box>
         );
       })}
