@@ -271,37 +271,50 @@ const setupChatHandlers = () => {
     IpcChannels.CHAT_EDIT_HISTORY,
     async (
       _,
-      messageId: IpcRequestPayloadMap[typeof IpcChannels.CHAT_EDIT_HISTORY],
+      {
+        threadId,
+        messageId,
+      }: IpcRequestPayloadMap[typeof IpcChannels.CHAT_EDIT_HISTORY],
     ): Promise<IpcResponsePayloadMap[typeof IpcChannels.CHAT_EDIT_HISTORY]> => {
       try {
-        // DBを直接編集
-        // 手順：1.履歴からmessageIdに対応するメッセージを取得 2.同じthread_idを持つメッセージから取得したメッセージのcreatedAtより後のメッセージを削除(1で取得したメッセージも削除する)
-        // テーブル定義は以下の通り
-        // CREATE TABLE mastra_messages (id TEXT NOT NULL PRIMARY KEY, thread_id TEXT NOT NULL, content TEXT NOT NULL, role TEXT NOT NULL, type TEXT NOT NULL, createdAt TEXT NOT NULL)
-        const store = getStore();
-        const dbSetting = store.get('database');
-        // データベース接続クライアントを作成
-        const { createClient } = await import('@libsql/client');
-        const client = createClient({
-          url: toAbsoluteFileURL(dbSetting.dir, 'memory.db'),
-        });
-        // messageIdに対応するメッセージを取得
-        const message = await client.execute({
-          sql: `SELECT * FROM mastra_messages WHERE id = ?;`,
-          args: [messageId],
-        });
-        if (message.rows.length === 0) {
-          throw new Error(`メッセージID ${messageId} が見つかりません`);
-        } else if (message.rows.length > 1) {
-          throw new Error(`メッセージID ${messageId} が複数見つかりました`);
+        const mastra = getMastra();
+        const orchestratorAgent = mastra.getAgent('orchestratorAgent');
+        const memory = orchestratorAgent.getMemory();
+
+        if (!memory) {
+          throw new Error('メモリインスタンスが初期化されていません');
         }
-        const targetMessage = message.rows[0];
-        // 同じthread_idを持つメッセージから、取得したメッセージのcreatedAtより後のメッセージを削除
-        await client.execute({
-          sql: `DELETE FROM mastra_messages WHERE thread_id = ? AND createdAt >= ?;`,
-          args: [targetMessage.thread_id, targetMessage.createdAt],
+
+        // メッセージ履歴を取得
+        const messages = await memory.storage.getMessages({
+          threadId,
         });
-        client.close();
+        // messageIdに対応するメッセージを検索
+        const targetMessageIndex = messages.findIndex(
+          (msg) => msg.id === messageId,
+        );
+        if (targetMessageIndex === -1) {
+          throw new Error(`メッセージID ${messageId} が見つかりません`);
+        }
+        // 最初のメッセージからmessageIdに対応するメッセージまでの履歴を取得
+        const history = messages.slice(0, targetMessageIndex);
+
+        // スレッドを削除
+        await memory.storage.deleteThread({ threadId });
+
+        // スレッドを再作成
+        await memory.createThread({
+          resourceId: 'user',
+          title: '',
+          threadId,
+        });
+
+        // 取得した履歴をメモリに保存
+        await memory.saveMessages({
+          messages: history,
+          memoryConfig: undefined,
+        });
+
         return { success: true };
       } catch (error) {
         console.error('メッセージ履歴削除中にエラーが発生:', error);

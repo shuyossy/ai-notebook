@@ -231,7 +231,10 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
 
       // 編集メッセージ送信時は、編集メッセージ以降の履歴を削除
       if (isEditSubmitRef.current) {
-        window.electron.chat.editHistory(editMessageId);
+        window.electron.chat.editHistory({
+          threadId: selectedRoomId!,
+          messageId: editMessageId,
+        });
         setEditMessageId('');
         setEditMessageContent('');
         isEditSubmitRef.current = false; // リセット
