@@ -1,106 +1,28 @@
-// ★ 追加：axios を読み込み
-import axios, { AxiosRequestConfig } from 'axios';
+# インセプションデッキ　例
+## 我々はなぜここにいるのか
 
-/**
- * Redmine の REST API リクエストメソッド
- *  - GET  の場合 : limit / offset を使って全件取得（最大 100 件ずつ）
- *  - POST/PUT の場合 : 1 回だけ実行
- */
-async request<T = any>(
-  path: string,
-  method: 'GET' | 'POST' | 'PUT',
-  data: any = undefined,
-): Promise<T> {
-  /* --------------------------------
-   * 共通ヘッダー
-   * -------------------------------- */
-  const commonHeaders = {
-    'Content-Type': 'application/json',
-    'X-Redmine-API-Key': this.apiKey,
-  } as const;
+課題•背景
+当行において、生成AIの活用範囲はチャットや情報検索(rag、事前登録、会話を続けることはできない)に留まっている。APIを申請することでコーディングエージェント(cline)を利用することもできるが、現状十分に活用されてはおらず、対象はシステム開発者に限定されてしまう。
+そこで本施策にて生成AIの更なる活用を模索し、事例の展開、ひいてはシステムの展開に繋げたいもの。
 
-  /* =======================================================
-   * 1. POST / PUT : １度だけ呼び出して終わり
-   * ======================================================= */
-  if (method !== 'GET') {
-    // URL は fetch 時と同じく base + 相対パスで組み立て
-    const url = new URL(path, this.apiUrl).toString();
+対象者
+MUITシステム開発者
+銀行行員(API利用は銀行業務に限られるという建付なので、行員向けの機能もあればマル)
 
-    // validateStatus を自前で評価できるように true を返す
-    const res = await axios.request({
-      url,
-      method,
-      headers: commonHeaders,
-      data: data ?? undefined,
-      validateStatus: () => true,
-    });
+## エレベーターピッチ
 
-    if (res.status < 200 || res.status >= 300) {
-      // fetch と同じエラーメッセージになるよう整形
-      throw new Error(`Redmine API Error: ${res.status} ${res.statusText}`);
-    }
+全行員向けのAIKATAは、
+ローカルドキュメント検索、GitLab操作、Redmine操作、ブラウザ操作ができるAIエージェントアプリです。
+これは従来のチャットベースのアプリケーションとは異なり、AIが自律的に上記機能を利用し、質問や依頼事項に対応することができます。
 
-    // 204 No Content のときは空オブジェクトを返す
-    return (res.status === 204 ? {} : res.data) as T;
-  }
+## やらないことリスト
+AIBow提供RAG機能の模倣(API提供の予定があるため)
 
-  /* =======================================================
-   * 2. GET : limit / offset でページネーション
-   * ======================================================= */
-  const limit = 100;        // Redmine の１リクエスト上限
-  let offset = 0;           // 現在の取得開始位置
-  let aggregatedJson: any;  // 返却用のマージ済み JSON
-  let arrayKey: string|null = null; // "projects" / "issues" など
+## 解決策を描く
+ぜひ皆さんで考えてみてください
 
-  while (true) {
-    // GET ごとに limit / offset を付け替えて URL を生成
-    const url = new URL(path, this.apiUrl);
-    url.searchParams.set('limit', limit.toString());
-    url.searchParams.set('offset', offset.toString());
-
-    // axios GET
-    const res = await axios.get(url.toString(), {
-      headers: commonHeaders,
-      validateStatus: () => true,
-    });
-
-    if (res.status < 200 || res.status >= 300) {
-      throw new Error(`Redmine API Error: ${res.status} ${res.statusText}`);
-    }
-
-    const json = res.data as Record<string, any>;
-
-    /* ------------------------------
-     *  2-1. １ページ目：
-     *       配列キーと total_count を特定
-     * ------------------------------ */
-    if (arrayKey === null) {
-      arrayKey = Object.keys(json).find(k => Array.isArray(json[k])) ?? null;
-      if (!arrayKey) {
-        // 一覧 API でなければそのまま返す
-        return json as T;
-      }
-      // 雛形を作成（total_count 等のメタ情報は保持）
-      aggregatedJson = { ...json, [arrayKey]: [...json[arrayKey]] };
-    } else {
-      // ２ページ目以降：配列のみ push でマージ
-      aggregatedJson[arrayKey].push(...json[arrayKey]);
-    }
-
-    // 現在取得済み件数 と total_count を比較
-    const currentCount = aggregatedJson[arrayKey].length;
-    const total: number|undefined = aggregatedJson.total_count;
-
-    // --- ループ終了判定 ---
-    if (
-      (total !== undefined && currentCount >= total) || // 1) total_count に達した
-      json[arrayKey].length < limit                      // 2) 返却件数 < limit ⇒ 最終ページ
-    ) {
-      break;
-    }
-
-    offset += limit; // 次ページへ
-  }
-
-  return aggregatedJson as T;
-}
+## 夜も眠れない問題
+本番化を見据えた機能設計
+- (監査)ログ出力、永続化
+- ID管理
+- …
