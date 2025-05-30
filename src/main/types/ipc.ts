@@ -70,7 +70,11 @@ export type IpcRequestPayloadMap = {
     title: string;
   };
   [IpcChannels.CHAT_ABORT_REQUEST]: { threadId: string };
-  [IpcChannels.CHAT_EDIT_HISTORY]: { threadId: string; messageId: string };
+  [IpcChannels.CHAT_EDIT_HISTORY]: {
+    threadId: string;
+    oldContent: string;
+    oldCreatedAt: Date;
+  };
 };
 
 export type IpcResponsePayloadMap = {

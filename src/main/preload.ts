@@ -1,7 +1,12 @@
 // Disable no-unused-vars, broken for spread args
 /* eslint no-unused-vars: off */
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
-import { IpcChannels, IpcResponsePayload, IpcEventPayload } from './types/ipc';
+import {
+  IpcChannels,
+  IpcResponsePayload,
+  IpcEventPayload,
+  IpcRequestPayload,
+} from './types/ipc';
 
 export type Channels = (typeof IpcChannels)[keyof typeof IpcChannels];
 
@@ -87,10 +92,9 @@ const electronHandler = {
       return ipcRenderer.invoke(IpcChannels.CHAT_ABORT_REQUEST, threadId);
     },
     // メッセージ編集時に該当indexまでの履歴を削除する
-    editHistory: async (params: {
-      threadId: string;
-      messageId: string;
-    }): Promise<IpcResponsePayload<typeof IpcChannels.CHAT_EDIT_HISTORY>> => {
+    editHistory: async (
+      params: IpcRequestPayload<typeof IpcChannels.CHAT_EDIT_HISTORY>,
+    ): Promise<IpcResponsePayload<typeof IpcChannels.CHAT_EDIT_HISTORY>> => {
       return ipcRenderer.invoke(IpcChannels.CHAT_EDIT_HISTORY, params);
     },
     // AIの応答を取得する（ストリーミング）

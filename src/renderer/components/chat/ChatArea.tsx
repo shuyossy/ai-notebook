@@ -1,4 +1,4 @@
-import React, { useState, useEffect, memo, useRef } from 'react';
+import React, { useState, useEffect, memo } from 'react';
 import { useChat } from '@ai-sdk/react';
 import { Box, Divider, Typography, Alert } from '@mui/material';
 import { v4 as uuid } from 'uuid';
@@ -174,7 +174,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
   const [editMessageId, setEditMessageId] = useState<string>('');
   const [editMessageContent, setEditMessageContent] = useState<string>('');
   const { status: agentStatus } = useAgentStatus();
-  const isEditSubmitRef = useRef(false);
+  const [isEditHistory, setIsEditHistory] = useState(false);
 
   const isAgentInitializing = agentStatus.state === 'initializing';
 
@@ -229,17 +229,6 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
         chatService.createThread(selectedRoomId, '');
       }
 
-      // 編集メッセージ送信時は、編集メッセージ以降の履歴を削除
-      if (isEditSubmitRef.current) {
-        window.electron.chat.editHistory({
-          threadId: selectedRoomId!,
-          messageId: editMessageId,
-        });
-        setEditMessageId('');
-        setEditMessageContent('');
-        isEditSubmitRef.current = false; // リセット
-      }
-
       // Return the structured body for your API route
       return {
         message: lastMessage?.content, // Send only the most recent message content/role
@@ -278,9 +267,11 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
     setEditMessageContent(content);
   };
 
-  const handleEditSubmit = () => {
+  const handleEditSubmit = async () => {
     const messageIndex = messages.findIndex((m) => m.id === editMessageId);
     if (messageIndex === -1) return;
+    const oldCreatedAt = messages[messageIndex].createdAt!;
+    const oldContent = messages[messageIndex].content;
 
     const updatedMessages = messages.slice(0, messageIndex + 1);
     updatedMessages[messageIndex] = {
@@ -294,7 +285,15 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
       ],
     };
     setMessages(updatedMessages);
-    isEditSubmitRef.current = true;
+    setIsEditHistory(true);
+    await window.electron.chat.editHistory({
+      threadId: selectedRoomId!,
+      oldContent,
+      oldCreatedAt,
+    });
+    setEditMessageId('');
+    setEditMessageContent('');
+    setIsEditHistory(false);
     reload();
   };
 
@@ -331,7 +330,8 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
             disabled={
               status === 'submitted' ||
               status === 'streaming' ||
-              isAgentInitializing
+              isAgentInitializing ||
+              isEditHistory
             }
             editingMessageId={editMessageId}
             onEditStart={handleEditStart}
@@ -350,7 +350,8 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
             disabled={
               status === 'submitted' ||
               status === 'streaming' ||
-              isAgentInitializing
+              isAgentInitializing ||
+              isEditHistory
             }
             placeholder={getPlaceholderText(status, isAgentInitializing)}
             isStreaming={status === 'streaming'}

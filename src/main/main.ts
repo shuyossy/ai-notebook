@@ -31,7 +31,7 @@ import getDb from '../db';
 import SourceRegistrationManager from '../mastra/workflows/sourceRegistrationManager';
 import { getOrchestrator } from '../mastra/agents/orchestrator';
 import MenuBuilder from './menu';
-import { resolveHtmlPath, toAbsoluteFileURL } from './utils/util';
+import { resolveHtmlPath } from './utils/util';
 import { initStore, getStore } from './store';
 import { RedmineBaseInfo } from '../mastra/tools/redmine';
 
@@ -273,7 +273,8 @@ const setupChatHandlers = () => {
       _,
       {
         threadId,
-        messageId,
+        oldContent,
+        oldCreatedAt,
       }: IpcRequestPayloadMap[typeof IpcChannels.CHAT_EDIT_HISTORY],
     ): Promise<IpcResponsePayloadMap[typeof IpcChannels.CHAT_EDIT_HISTORY]> => {
       try {
@@ -289,12 +290,32 @@ const setupChatHandlers = () => {
         const messages = await memory.storage.getMessages({
           threadId,
         });
+
+        // oldContentと一致するメッセージのリストを取得
+        const targetMessages = messages.filter(
+          (msg) => msg.content === oldContent,
+        );
+
+        if (targetMessages.length === 0) {
+          throw new Error('指定されたメッセージが見つかりません');
+        }
+
+        // 取得したメッセージリストからoldCreatedAtと最も近いメッセージを検索
+        const targetMessage = targetMessages.reduce((closest, current) => {
+          const currentDate = new Date(current.createdAt);
+          const closestDate = new Date(closest.createdAt);
+          return Math.abs(currentDate.getTime() - oldCreatedAt.getTime()) <
+            Math.abs(closestDate.getTime() - oldCreatedAt.getTime())
+            ? current
+            : closest;
+        });
+
         // messageIdに対応するメッセージを検索
         const targetMessageIndex = messages.findIndex(
-          (msg) => msg.id === messageId,
+          (msg) => msg.id === targetMessage.id,
         );
         if (targetMessageIndex === -1) {
-          throw new Error(`メッセージID ${messageId} が見つかりません`);
+          throw new Error(`メッセージID ${targetMessage.id} が見つかりません`);
         }
         // 最初のメッセージからmessageIdに対応するメッセージまでの履歴を取得
         const history = messages.slice(0, targetMessageIndex);
@@ -303,11 +324,11 @@ const setupChatHandlers = () => {
         await memory.storage.deleteThread({ threadId });
 
         // スレッドを再作成
-        await memory.createThread({
-          resourceId: 'user',
-          title: '',
-          threadId,
-        });
+        // await memory.createThread({
+        //   resourceId: 'user',
+        //   title: '',
+        //   threadId,
+        // });
 
         // 取得した履歴をメモリに保存
         await memory.saveMessages({
