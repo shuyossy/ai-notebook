@@ -17,6 +17,11 @@ import { Mastra } from '@mastra/core';
 import { createLogger } from '@mastra/core/logger';
 import { createDataStream } from 'ai';
 import { eq } from 'drizzle-orm';
+import {
+  ReadableStream,
+  WritableStream,
+  TransformStream,
+} from 'node:stream/web';
 import { sourceRegistrationWorkflow } from '../mastra/workflows/sourceRegistration';
 import { type Source } from '../db/schema';
 import {
@@ -42,6 +47,12 @@ class AppUpdater {
     autoUpdater.checkForUpdatesAndNotify();
   }
 }
+
+// MCPのSSE通信時に、パッケージング後に正常にストリームを作成できない問題の対策
+// パッケージング後はstream型のライブラリはweb-streams-polyfillが適用されてしまうため、開発環境と同じくnode:stream/webを使用するように設定
+(globalThis as any).ReadableStream = ReadableStream;
+(globalThis as any).WritableStream = WritableStream;
+(globalThis as any).TransformStream = TransformStream;
 
 // Mastraのインスタンスと状態を保持する変数
 let mastraInstance: Mastra | null = null;
@@ -779,7 +790,7 @@ const createWindow = async () => {
 
   // Remove this if your app does not use auto updates
   // eslint-disable-next-line
-  new AppUpdater();
+  // new AppUpdater();
 };
 
 /**
