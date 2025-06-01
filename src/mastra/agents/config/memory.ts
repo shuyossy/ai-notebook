@@ -1,9 +1,9 @@
 import { Memory } from '@mastra/memory';
 import { TokenLimiter, ToolCallFilter } from '@mastra/memory/processors';
 import type { MemoryProcessor } from '@mastra/core';
-import { LibSQLStore } from '@mastra/core/storage/libsql';
 import { toAbsoluteFileURL } from '@/main/utils/util';
 import { getStore } from '../../../main/store';
+import { CustomLibSQLStore } from '../../store/libsql/customLibSQLStore';
 
 // メモリオプションの型定義
 export interface MemoryConfig {
@@ -60,14 +60,17 @@ export const getMemory = (config: MemoryConfig = {}): Memory => {
     );
   }
 
+  const customLibSQLStore = new CustomLibSQLStore();
+  customLibSQLStore.customConstruct({
+    config: {
+      url: toAbsoluteFileURL(dbSetting.dir, 'memory.db'),
+    },
+  });
+
   memoryInstance = new Memory({
     options,
     processors: memoryProcessors.length > 0 ? memoryProcessors : undefined,
-    storage: new LibSQLStore({
-      config: {
-        url: toAbsoluteFileURL(dbSetting.dir, 'memory.db'),
-      },
-    }),
+    storage: customLibSQLStore,
   });
 
   return memoryInstance;
