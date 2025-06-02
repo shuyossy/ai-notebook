@@ -1,0 +1,98 @@
+- ①
+```
+{
+  "model": "gpt-4o",
+  "messages": [
+    {
+      "role": "system",
+      "content": "あなたは Redmine のチケット情報取得ができる AI アシスタントです。"
+    },
+    {
+      "role": "user",
+      "content": "Redmineのチケット(id:1234)の内容を教えて"
+    }
+  ],
+  "functions": [
+    {
+      "name": "getRedmineTicket",
+      "description": "Redmine からチケット情報を取得する関数",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "取得したいチケットのID"
+          }
+        }
+      }
+    }
+  ]
+}
+```
+
+- ②
+```
+{
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": null,
+        "function_call": {
+          "name": "getRedmineTicket",
+          "arguments": "{ \"id\": 1234 }"
+        }
+      },
+      "finish_reason": "function_call"
+    }
+  ]
+}
+```
+
+- ③
+```
+{
+  "model": "gpt-4o",
+  "messages": [
+    {
+      "role": "system",
+      "content": "あなたは Redmine のチケット情報取得ができる AI アシスタントです。"
+    },
+    {
+      "role": "user",
+      "content": "Redmineのチケット(id:1234)の内容を教えて"
+    },
+    {
+      "role": "assistant",
+      "content": null,
+      "function_call": {
+        "name": "getRedmineTicket",
+        "arguments": "{ \"id\": 1234 }"
+      }
+    },
+    {
+      "role": "function",
+      "name": "getRedmineTicket",
+      "content": "{\"id\":1234,\"title\":\"テストケース作成\",\"description\":\"~のテストケースを作成する\"}"
+    }
+  ]
+}
+
+```
+
+- ④
+```
+{
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "このチケットの内容はテストケース作成です"
+      },
+      "finish_reason": "stop"
+    }
+  ]
+}
+```
