@@ -1,3 +1,7 @@
+// Mastra提供のtool-call-filterのカスタム実装
+// toolの呼び出し履歴は除外せず、toolの呼び出し結果については特定の文言に置き換える
+// https://github.com/mastra-ai/mastra/blob/%40mastra/core%400.8.3/packages/memory/src/processors/tool-call-filter.ts
+
 import type { CoreMessage } from '@mastra/core';
 import { MemoryProcessor } from '@mastra/core';
 
@@ -15,7 +19,7 @@ export class customToolCallFilter extends MemoryProcessor {
    * @param options.exclude List of specific tool names to exclude. If not provided, all tool calls are excluded.
    */
   constructor(options: { exclude?: string[] } = {}) {
-    super({ name: 'ToolCallFilter' });
+    super({ name: 'customToolCallFilter' });
     // If no options or exclude is provided, exclude all tools
     if (!options || !options.exclude) {
       this.exclude = 'all'; // Exclude all tools

@@ -1,9 +1,10 @@
 import { Memory } from '@mastra/memory';
-import { TokenLimiter, ToolCallFilter } from '@mastra/memory/processors';
+import { ToolCallFilter } from '@mastra/memory/processors';
 import type { MemoryProcessor } from '@mastra/core';
 import { toAbsoluteFileURL } from '@/main/utils/util';
 import { getStore } from '../../../main/store';
 import { CustomLibSQLStore } from '../../store/libsql/customLibSQLStore';
+import { TokenLimiter0_10_2 } from '../../memory/filter/tokenLimiter_0.10.2';
 
 // メモリオプションの型定義
 export interface MemoryConfig {
@@ -52,7 +53,7 @@ export const getMemory = (config: MemoryConfig = {}): Memory => {
 
   const memoryProcessors: MemoryProcessor[] | undefined = [];
   if (config.tokenLimit) {
-    memoryProcessors.push(new TokenLimiter(config.tokenLimit));
+    memoryProcessors.push(new TokenLimiter0_10_2(config.tokenLimit));
   }
   if (config.excduldeTools) {
     memoryProcessors.push(
