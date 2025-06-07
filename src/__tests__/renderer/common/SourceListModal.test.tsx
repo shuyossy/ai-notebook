@@ -10,6 +10,7 @@ import {
   act,
 } from '@testing-library/react';
 import '@testing-library/jest-dom';
+// import userEvent from '@testing-library/user-event';
 
 import SourceListModal from '../../../renderer/components/common/SourceListModal';
 import { Source } from '../../../db/schema';
@@ -366,6 +367,325 @@ describe('SourceListModal Component', () => {
         expect(checkbox).toBeEnabled();
       });
     });
+  });
+
+  // テスト7: チェックボックス更新失敗時のエラー表示
+  test('チェックボックス更新失敗時のエラー表示', async () => {
+    const props = {
+      ...defaultProps,
+    };
+
+    // 更新失敗のモックを設定
+    window.electron.source.updateSourceEnabled = jest.fn().mockResolvedValue({
+      success: false,
+      error: 'Update failed',
+    });
+
+    // モックデータをセットアップ
+    window.electron.source.getSources = jest.fn().mockResolvedValue({
+      success: true,
+      sources: mockSources,
+    });
+
+    // コンポーネントをレンダリング
+    render(
+      <SourceListModal
+        open={props.open}
+        processing={props.processing}
+        onClose={props.onClose}
+        onReloadSources={props.onReloadSources}
+        onStatusUpdate={props.onStatusUpdate}
+        showSnackbar={props.showSnackbar}
+      />,
+    );
+
+    // 進める
+    act(() => {
+      jest.advanceTimersByTime(5000);
+    });
+
+    // ソースデータが取得されるまで待機
+    await waitFor(() => {
+      expect(window.electron.source.getSources).toHaveBeenCalled();
+    });
+
+    // テーブルの内容がレンダリングされるまで待機
+    await waitFor(() => {
+      expect(screen.queryAllByRole('checkbox').length).toBeGreaterThan(1);
+    });
+
+    // チェックボックスをクリック
+    const checkboxes = screen.getAllByRole('checkbox');
+    fireEvent.click(checkboxes[1]);
+
+    // エラーメッセージが表示されることを確認
+    await waitFor(() => {
+      expect(props.showSnackbar).toHaveBeenCalledWith(
+        `${mockSources[0].path}の有効化/無効化に失敗しました: Update failed`,
+        'error',
+      );
+    });
+
+    // チェックボックスの状態が元に戻ることを確認
+    await waitFor(() => {
+      expect(checkboxes[1]).toBeChecked();
+    });
+  });
+
+  // テスト8: 全選択チェックボックス更新失敗時のエラー表示
+  test('全選択チェックボックス更新失敗時のエラー表示', async () => {
+    const props = {
+      ...defaultProps,
+    };
+
+    // 更新失敗のモックを設定
+    window.electron.source.updateSourceEnabled = jest.fn().mockResolvedValue({
+      success: false,
+      error: 'Update failed',
+    });
+
+    // モックデータをセットアップ
+    window.electron.source.getSources = jest.fn().mockResolvedValue({
+      success: true,
+      sources: mockSources,
+    });
+
+    // コンポーネントをレンダリング
+    render(
+      <SourceListModal
+        open={props.open}
+        processing={props.processing}
+        onClose={props.onClose}
+        onReloadSources={props.onReloadSources}
+        onStatusUpdate={props.onStatusUpdate}
+        showSnackbar={props.showSnackbar}
+      />,
+    );
+
+    // 進める
+    act(() => {
+      jest.advanceTimersByTime(5000);
+    });
+
+    // ソースデータが取得されるまで待機
+    await waitFor(() => {
+      expect(window.electron.source.getSources).toHaveBeenCalled();
+    });
+
+    // テーブルの内容がレンダリングされるまで待機
+    await waitFor(() => {
+      expect(screen.queryAllByRole('checkbox').length).toBeGreaterThan(1);
+    });
+
+    // 全選択チェックボックスをクリック
+    const checkboxes = screen.getAllByRole('checkbox');
+    fireEvent.click(checkboxes[0]);
+
+    // エラーメッセージが表示されることを確認
+    await waitFor(() => {
+      expect(props.showSnackbar).toHaveBeenCalledWith(
+        `${mockSources[0].path}の有効化/無効化に失敗しました: Update failed`,
+        'error',
+      );
+      expect(props.showSnackbar).toHaveBeenCalledWith(
+        `${mockSources[1].path}の有効化/無効化に失敗しました: Update failed`,
+        'error',
+      );
+      expect(props.showSnackbar).toHaveBeenCalledWith(
+        `${mockSources[2].path}の有効化/無効化に失敗しました: Update failed`,
+        'error',
+      );
+    });
+
+    // チェックボックスの状態が元に戻ることを確認
+    await waitFor(() => {
+      expect(checkboxes[1]).not.toBeChecked();
+      expect(checkboxes[2]).not.toBeChecked();
+      expect(checkboxes[3]).not.toBeChecked();
+    });
+  });
+
+  // テスト9: 各ステータスアイコンの表示確認
+  test('各ステータスアイコンの表示確認', async () => {
+    const allStatusSources: Source[] = [
+      {
+        id: 1,
+        path: '/path/to/source1.md',
+        title: 'Source 1',
+        summary: 'Summary of source 1',
+        createdAt: '2025-05-01T12:00:00.000Z',
+        updatedAt: '2025-05-01T12:00:00.000Z',
+        status: 'completed',
+        isEnabled: 1,
+        error: null,
+      },
+      {
+        id: 2,
+        path: '/path/to/source2.md',
+        title: 'Source 2',
+        summary: 'Summary of source 2',
+        createdAt: '2025-05-02T12:00:00.000Z',
+        updatedAt: '2025-05-02T12:00:00.000Z',
+        status: 'failed',
+        isEnabled: 0,
+        error: 'Error message',
+      },
+      {
+        id: 3,
+        path: '/path/to/source3.md',
+        title: 'Source 3',
+        summary: 'Summary of source 3',
+        createdAt: '2025-05-03T12:00:00.000Z',
+        updatedAt: '2025-05-03T12:00:00.000Z',
+        status: 'processing',
+        isEnabled: 1,
+        error: null,
+      },
+      {
+        id: 4,
+        path: '/path/to/source4.md',
+        title: 'Source 4',
+        summary: 'Summary of source 4',
+        createdAt: '2025-05-04T12:00:00.000Z',
+        updatedAt: '2025-05-04T12:00:00.000Z',
+        status: 'idle',
+        isEnabled: 1,
+        error: null,
+      },
+      {
+        id: 5,
+        path: '/path/to/source5.md',
+        title: 'Source 5',
+        summary: 'Summary of source 5',
+        createdAt: '2025-05-05T12:00:00.000Z',
+        updatedAt: '2025-05-05T12:00:00.000Z',
+        status: 'unknown' as any,
+        isEnabled: 1,
+        error: null,
+      },
+    ];
+
+    // モックデータをセットアップ
+    window.electron.source.getSources = jest.fn().mockResolvedValue({
+      success: true,
+      sources: allStatusSources,
+    });
+
+    const props = {
+      ...defaultProps,
+    };
+
+    // コンポーネントをレンダリング
+    render(
+      <SourceListModal
+        open={props.open}
+        processing={props.processing}
+        onClose={props.onClose}
+        onReloadSources={props.onReloadSources}
+        onStatusUpdate={props.onStatusUpdate}
+        showSnackbar={props.showSnackbar}
+      />,
+    );
+
+    // 進める
+    act(() => {
+      jest.advanceTimersByTime(5000);
+    });
+
+    // ソースデータが取得されるまで待機
+    await waitFor(() => {
+      expect(window.electron.source.getSources).toHaveBeenCalled();
+    });
+
+    // データが表示されるまで待機
+    await waitFor(() => {
+      expect(screen.getByText('/path/to/source1.md')).toBeInTheDocument();
+    });
+
+    // 各ステータスのアイコンとラベルが表示されていることを確認
+    expect(screen.getByText('完了')).toBeInTheDocument();
+    expect(screen.getByText('エラー')).toBeInTheDocument();
+    expect(screen.getByText('処理中')).toBeInTheDocument();
+    expect(screen.getByText('待機中')).toBeInTheDocument();
+    expect(screen.getByText('不明')).toBeInTheDocument();
+
+    // エラーツールチップのテスト
+    // const errorIcon = screen.getByText('エラー');
+    // await userEvent.hover(errorIcon);
+    // await waitFor(() => {
+    //   const errorTooltip = screen.getByText('Error message');
+    //   expect(errorTooltip).toBeInTheDocument();
+    // });
+  });
+
+  // テスト10: 定期更新処理のエラーハンドリング
+  test('定期更新処理のエラーハンドリング', async () => {
+    const props = {
+      ...defaultProps,
+    };
+
+    // コンソールエラーをスパイ
+    const consoleSpy = jest
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
+
+    // 最初は成功、その後エラーを返すモック
+    window.electron.source.getSources = jest
+      .fn()
+      .mockRejectedValueOnce(new Error('Failed to fetch sources'));
+
+    // コンポーネントをレンダリング
+    render(
+      <SourceListModal
+        open={props.open}
+        processing={props.processing}
+        onClose={props.onClose}
+        onReloadSources={props.onReloadSources}
+        onStatusUpdate={props.onStatusUpdate}
+        showSnackbar={props.showSnackbar}
+      />,
+    );
+
+    // 5秒進める（次の更新でエラー）
+    act(() => {
+      jest.advanceTimersByTime(5000);
+    });
+
+    // エラーログが出力されることを確認
+    await waitFor(() => {
+      expect(consoleSpy).toHaveBeenCalledWith(
+        'ソースデータの取得に失敗しました:',
+        expect.any(Error),
+      );
+    });
+
+    consoleSpy.mockRestore();
+  });
+
+  // テスト12: モーダルを閉じる機能の確認
+  test('モーダルを閉じる機能の確認', async () => {
+    const props = {
+      ...defaultProps,
+    };
+
+    // コンポーネントをレンダリング
+    render(
+      <SourceListModal
+        open={props.open}
+        processing={props.processing}
+        onClose={props.onClose}
+        onReloadSources={props.onReloadSources}
+        onStatusUpdate={props.onStatusUpdate}
+        showSnackbar={props.showSnackbar}
+      />,
+    );
+
+    // バックドロップをクリック
+    const backdrop = screen.getByRole('presentation').firstChild;
+    fireEvent.click(backdrop as Element);
+
+    // onCloseが呼ばれることを確認
+    expect(props.onClose).toHaveBeenCalled();
   });
 
   // テスト6: 全てのソースが完了状態の場合のボタン制御
