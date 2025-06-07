@@ -17,9 +17,18 @@ import { Mastra } from '@mastra/core';
 import { createLogger } from '@mastra/core/logger';
 import { createDataStream } from 'ai';
 import { eq } from 'drizzle-orm';
+import {
+  ReadableStream,
+  WritableStream,
+  TransformStream,
+} from 'node:stream/web';
 import { sourceRegistrationWorkflow } from '../mastra/workflows/sourceRegistration';
 import { type Source } from '../db/schema';
-import { IpcChannels, IpcResponsePayloadMap } from './types/ipc';
+import {
+  IpcChannels,
+  IpcResponsePayloadMap,
+  IpcRequestPayloadMap,
+} from './types/ipc';
 import { AgentBootStatus, AgentBootMessage, AgentToolStatus } from './types';
 import { getOrchestratorSystemPrompt } from '../mastra/agents/prompts';
 import { sources } from '../db/schema';
@@ -29,6 +38,7 @@ import { getOrchestrator } from '../mastra/agents/orchestrator';
 import MenuBuilder from './menu';
 import { resolveHtmlPath } from './utils/util';
 import { initStore, getStore } from './store';
+import { RedmineBaseInfo } from '../mastra/tools/redmine';
 
 class AppUpdater {
   constructor() {
@@ -38,8 +48,16 @@ class AppUpdater {
   }
 }
 
+// MCPのSSE通信時に、パッケージング後に正常にストリームを作成できない問題の対策
+// パッケージング後はstream型のライブラリはweb-streams-polyfillが適用されてしまうため、開発環境と同じくnode:stream/webを使用するように設定
+(globalThis as any).ReadableStream = ReadableStream;
+(globalThis as any).WritableStream = WritableStream;
+(globalThis as any).TransformStream = TransformStream;
+
 // Mastraのインスタンスと状態を保持する変数
 let mastraInstance: Mastra | null = null;
+// スレッドごとのAbortControllerを管理するMap
+const threadAbortControllers = new Map<string, AbortController>();
 const mastraStatus: AgentBootStatus = {
   state: 'initializing',
   messages: [],
@@ -47,8 +65,11 @@ const mastraStatus: AgentBootStatus = {
     redmine: false,
     gitlab: false,
     mcp: false,
+    stagehand: false,
   },
 };
+// Redmineの基本情報を保持する変数
+let redmineBaseInfo: RedmineBaseInfo | null = null;
 
 /**
  * Mastraの状態を変更し、レンダラーに通知する
@@ -117,7 +138,11 @@ const initializeMastra = async (): Promise<void> => {
     });
 
     // オーケストレーターエージェントを取得
-    const { agent, alertMessages, toolStatus } = await getOrchestrator();
+    const { agent, alertMessages, toolStatus, redmineInfo } =
+      await getOrchestrator();
+
+    // Redmineの基本情報を保存
+    redmineBaseInfo = redmineInfo;
 
     // 起動メッセージを更新
     alertMessages.forEach((message) => {
@@ -224,6 +249,112 @@ ipcMain.handle(
 
 // チャット関連のIPCハンドラー
 const setupChatHandlers = () => {
+  // チャット中断ハンドラ
+  ipcMain.handle(
+    IpcChannels.CHAT_ABORT_REQUEST,
+    async (
+      _,
+      threadId,
+    ): Promise<
+      IpcResponsePayloadMap[typeof IpcChannels.CHAT_ABORT_REQUEST]
+    > => {
+      let success = false;
+      let error: string | undefined;
+      try {
+        const controller = threadAbortControllers.get(threadId);
+        if (controller) {
+          controller.abort();
+          threadAbortControllers.delete(threadId);
+          console.log(`Thread ${threadId} の生成を中断しました`);
+          success = true;
+        }
+      } catch (err) {
+        console.error('スレッドの中断中にエラーが発生:', err);
+        success = false;
+        error = (err as Error).message;
+      }
+      return { success, error };
+    },
+  );
+
+  // チャットメッセージ編集履歴ハンドラ
+  ipcMain.handle(
+    IpcChannels.CHAT_EDIT_HISTORY,
+    async (
+      _,
+      {
+        threadId,
+        oldContent,
+        oldCreatedAt,
+      }: IpcRequestPayloadMap[typeof IpcChannels.CHAT_EDIT_HISTORY],
+    ): Promise<IpcResponsePayloadMap[typeof IpcChannels.CHAT_EDIT_HISTORY]> => {
+      try {
+        const mastra = getMastra();
+        const orchestratorAgent = mastra.getAgent('orchestratorAgent');
+        const memory = orchestratorAgent.getMemory();
+
+        if (!memory) {
+          throw new Error('メモリインスタンスが初期化されていません');
+        }
+
+        // メッセージ履歴を取得
+        const messages = await memory.storage.getMessages({
+          threadId,
+        });
+
+        // oldContentと一致するメッセージのリストを取得
+        const targetMessages = messages.filter(
+          (msg) => msg.content === oldContent,
+        );
+
+        if (targetMessages.length === 0) {
+          throw new Error('指定されたメッセージが見つかりません');
+        }
+
+        // 取得したメッセージリストからoldCreatedAtと最も近いメッセージを検索
+        const targetMessage = targetMessages.reduce((closest, current) => {
+          const currentDate = new Date(current.createdAt);
+          const closestDate = new Date(closest.createdAt);
+          return Math.abs(currentDate.getTime() - oldCreatedAt.getTime()) <
+            Math.abs(closestDate.getTime() - oldCreatedAt.getTime())
+            ? current
+            : closest;
+        });
+
+        // messageIdに対応するメッセージを検索
+        const targetMessageIndex = messages.findIndex(
+          (msg) => msg.id === targetMessage.id,
+        );
+        if (targetMessageIndex === -1) {
+          throw new Error(`メッセージID ${targetMessage.id} が見つかりません`);
+        }
+        // 最初のメッセージからmessageIdに対応するメッセージまでの履歴を取得
+        const history = messages.slice(0, targetMessageIndex);
+
+        // スレッドを削除
+        await memory.storage.deleteThread({ threadId });
+
+        // スレッドを再作成
+        // await memory.createThread({
+        //   resourceId: 'user',
+        //   title: '',
+        //   threadId,
+        // });
+
+        // 取得した履歴をメモリに保存
+        await memory.saveMessages({
+          messages: history,
+          memoryConfig: undefined,
+        });
+
+        return { success: true };
+      } catch (error) {
+        console.error('メッセージ履歴削除中にエラーが発生:', error);
+        return { success: false, error: (error as Error).message };
+      }
+    },
+  );
+
   // メッセージ送信ハンドラ
   ipcMain.handle(
     IpcChannels.CHAT_SEND_MESSAGE,
@@ -232,6 +363,10 @@ const setupChatHandlers = () => {
       { roomId, content },
     ): Promise<IpcResponsePayloadMap[typeof IpcChannels.CHAT_SEND_MESSAGE]> => {
       try {
+        // 新しいAbortControllerを作成
+        const controller = new AbortController();
+        threadAbortControllers.set(roomId, controller);
+
         // Mastraインスタンスからオーケストレーターエージェントを取得
         const mastra = getMastra();
         const orchestratorAgent = mastra.getAgent('orchestratorAgent');
@@ -287,12 +422,14 @@ const setupChatHandlers = () => {
                   redmine: false,
                   gitlab: false,
                   mcp: false,
+                  stagehand: false,
                 },
+                redmineBaseInfo,
               ),
               threadId: roomId, // チャットルームIDをスレッドIDとして使用
               maxSteps: 30, // ツールの利用上限
+              abortSignal: controller.signal, // 中断シグナルを設定
               onStepFinish: (stepResult) => {
-                console.log('onStepFinish', stepResult);
                 // https://ai-sdk.dev/docs/ai-sdk-ui/stream-protocol
                 // 上記を参考にai-sdkのストリームプロトコルに従ってメッセージを送信
                 writer.write(`0:${JSON.stringify(stepResult.text)}\n`);
@@ -311,10 +448,14 @@ const setupChatHandlers = () => {
               `d:${JSON.stringify({ finishReason: res.finishReason, ...res.usage })}\n`,
             );
             event.sender.send(IpcChannels.CHAT_COMPLETE);
+            // 処理が完了したらAbortControllerを削除
+            threadAbortControllers.delete(roomId);
           },
           onError(error) {
             // エラーが発生したときの処理
             console.error('テキスト生成中にエラーが発生:', error);
+            // エラー時もAbortControllerを削除
+            threadAbortControllers.delete(roomId);
             if (error == null) return 'unknown error';
             if (typeof error === 'string') return error;
             if (error instanceof Error) return error.message;
@@ -325,7 +466,6 @@ const setupChatHandlers = () => {
         // テキストストリームを処理
         // @ts-ignore
         for await (const chunk of dataStream) {
-          console.log('ストリーミングデータ:', chunk);
           // チャンクをフロントエンドに送信
           event.sender.send(IpcChannels.CHAT_STREAM, chunk);
         }
@@ -333,6 +473,8 @@ const setupChatHandlers = () => {
         return { success: true };
       } catch (error) {
         console.error('メッセージ送信中にエラーが発生:', error);
+        // エラー時もAbortControllerを削除
+        threadAbortControllers.delete(roomId);
         event.sender.send(IpcChannels.CHAT_ERROR, {
           message: `${(error as Error).message}`,
         });
@@ -648,7 +790,7 @@ const createWindow = async () => {
 
   // Remove this if your app does not use auto updates
   // eslint-disable-next-line
-  new AppUpdater();
+  // new AppUpdater();
 };
 
 /**

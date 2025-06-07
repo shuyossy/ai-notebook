@@ -1,12 +1,15 @@
 import { Memory } from '@mastra/memory';
-import { TokenLimiter } from '@mastra/memory/processors';
-import { LibSQLStore } from '@mastra/core/storage/libsql';
+import { ToolCallFilter } from '@mastra/memory/processors';
+import type { MemoryProcessor } from '@mastra/core';
 import { toAbsoluteFileURL } from '@/main/utils/util';
 import { getStore } from '../../../main/store';
+import { CustomLibSQLStore } from '../../store/libsql/customLibSQLStore';
+import { TokenLimiter0_10_2 } from '../../memory/filter/tokenLimiter_0.10.2';
 
 // メモリオプションの型定義
 export interface MemoryConfig {
   tokenLimit?: number;
+  excduldeTools?: string[];
   lastMessages?: number;
   semanticRecall?: boolean;
   workingMemory?: {
@@ -48,16 +51,27 @@ export const getMemory = (config: MemoryConfig = {}): Memory => {
     },
   };
 
+  const memoryProcessors: MemoryProcessor[] | undefined = [];
+  if (config.tokenLimit) {
+    memoryProcessors.push(new TokenLimiter0_10_2(config.tokenLimit));
+  }
+  if (config.excduldeTools) {
+    memoryProcessors.push(
+      new ToolCallFilter({ exclude: config.excduldeTools }),
+    );
+  }
+
+  const customLibSQLStore = new CustomLibSQLStore();
+  customLibSQLStore.customConstruct({
+    config: {
+      url: toAbsoluteFileURL(dbSetting.dir, 'memory.db'),
+    },
+  });
+
   memoryInstance = new Memory({
     options,
-    processors: config.tokenLimit
-      ? [new TokenLimiter(config.tokenLimit)]
-      : undefined,
-    storage: new LibSQLStore({
-      config: {
-        url: toAbsoluteFileURL(dbSetting.dir, 'memory.db'),
-      },
-    }),
+    processors: memoryProcessors.length > 0 ? memoryProcessors : undefined,
+    storage: customLibSQLStore,
   });
 
   return memoryInstance;

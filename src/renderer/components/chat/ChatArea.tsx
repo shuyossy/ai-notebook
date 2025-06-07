@@ -127,6 +127,12 @@ const customFetch: typeof fetch = async (input, init) => {
         });
 
         const { message, threadId } = JSON.parse(init!.body as string);
+        init?.signal?.addEventListener('abort', () => {
+          console.log('Abort signal received, from threadId: ', threadId);
+          window.electron.chat.requestAbort(threadId);
+          unsubscribe();
+          controller.close();
+        });
         window.electron.chat.sendMessage(threadId, message);
       },
       cancel() {
@@ -165,7 +171,10 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
   const [initialMessages, setInitialMessages] = useState<ChatMessage[]>([]);
   // useChatからのエラーを表示するための状態
   const [additionalAlerts, setAdditionalAlerts] = useState<AlertMessage[]>([]);
+  const [editMessageId, setEditMessageId] = useState<string>('');
+  const [editMessageContent, setEditMessageContent] = useState<string>('');
   const { status: agentStatus } = useAgentStatus();
+  const [isEditHistory, setIsEditHistory] = useState(false);
 
   const isAgentInitializing = agentStatus.state === 'initializing';
 
@@ -191,36 +200,45 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
     }
   }, [selectedRoomId]);
 
-  const { messages, input, status, error, handleInputChange, handleSubmit } =
-    useChat({
-      id: selectedRoomId ?? undefined,
-      api: '/api/chat',
-      fetch: customFetch,
-      initialMessages,
-      experimental_throttle: 75,
-      experimental_prepareRequestBody: (request) => {
-        // Ensure messages array is not empty and get the last message
-        const lastMessage =
-          request.messages.length > 0
-            ? request.messages[request.messages.length - 1]
-            : null;
+  const {
+    messages,
+    setMessages,
+    reload,
+    input,
+    status,
+    error,
+    handleInputChange,
+    handleSubmit,
+    stop,
+  } = useChat({
+    id: selectedRoomId ?? undefined,
+    api: '/api/chat',
+    fetch: customFetch,
+    initialMessages,
+    experimental_throttle: 75,
+    experimental_prepareRequestBody: (request) => {
+      // Ensure messages array is not empty and get the last message
+      const lastMessage =
+        request.messages.length > 0
+          ? request.messages[request.messages.length - 1]
+          : null;
 
-        // 初回メッセージ送信時にスレッドを作成
-        // titleについてはここで、指定してもmemoryのオプションでgenerateTitleをtrueにしていた場合、「New Thread 2025-04-27T08:20:05.694Z」のようなタイトルが自動生成されてしまう
-        if (selectedRoomId && request.messages.length === 1) {
-          chatService.createThread(selectedRoomId, '');
-        }
+      // 初回メッセージ送信時にスレッドを作成
+      // titleについてはここで、指定してもmemoryのオプションでgenerateTitleをtrueにしていた場合、「New Thread 2025-04-27T08:20:05.694Z」のようなタイトルが自動生成されてしまう
+      if (selectedRoomId && request.messages.length === 1) {
+        chatService.createThread(selectedRoomId, '');
+      }
 
-        // Return the structured body for your API route
-        return {
-          message: lastMessage?.content, // Send only the most recent message content/role
-          threadId: selectedRoomId ?? undefined,
-        };
-      },
-      onError(err) {
-        console.error('useChat error:', err);
-      },
-    });
+      // Return the structured body for your API route
+      return {
+        message: lastMessage?.content, // Send only the most recent message content/role
+        threadId: selectedRoomId ?? undefined,
+      };
+    },
+    onError(err) {
+      console.error('useChat error:', err);
+    },
+  });
 
   // useChatのエラーをアラートとして表示
   useEffect(() => {
@@ -239,6 +257,48 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
   // メッセージアラートが閉じられる際の挙動
   const closeAdditionalAlerts = (id: string) => {
     setAdditionalAlerts((prev) => prev.filter((alert) => alert.id !== id));
+  };
+
+  const handleEditStart = (messageId: string) => {
+    setEditMessageId(messageId);
+  };
+
+  const handleEditContentChange = (content: string) => {
+    setEditMessageContent(content);
+  };
+
+  const handleEditSubmit = async () => {
+    const messageIndex = messages.findIndex((m) => m.id === editMessageId);
+    if (messageIndex === -1) return;
+    const oldCreatedAt = messages[messageIndex].createdAt!;
+    const oldContent = messages[messageIndex].content;
+
+    const updatedMessages = messages.slice(0, messageIndex + 1);
+    updatedMessages[messageIndex] = {
+      ...updatedMessages[messageIndex],
+      content: editMessageContent,
+      parts: [
+        {
+          type: 'text',
+          text: editMessageContent,
+        },
+      ],
+    };
+    setMessages(updatedMessages);
+    setIsEditHistory(true);
+    await window.electron.chat.editHistory({
+      threadId: selectedRoomId!,
+      oldContent,
+      oldCreatedAt,
+    });
+    setEditMessageId('');
+    setEditMessageContent('');
+    setIsEditHistory(false);
+    reload();
+  };
+
+  const handleEditCancel = () => {
+    setEditMessageId('');
   };
 
   return (
@@ -262,7 +322,23 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
       {selectedRoomId ? (
         <>
           {/* メッセージリスト */}
-          <MessageList messages={messages} loading={loading} status={status} />
+          <MessageList
+            messages={messages}
+            loading={loading}
+            status={status}
+            editContent={editMessageContent}
+            disabled={
+              status === 'submitted' ||
+              status === 'streaming' ||
+              isAgentInitializing ||
+              isEditHistory
+            }
+            editingMessageId={editMessageId}
+            onEditStart={handleEditStart}
+            onEditContentChange={handleEditContentChange}
+            onEditSubmit={handleEditSubmit}
+            onEditCancel={handleEditCancel}
+          />
 
           <Divider />
 
@@ -274,9 +350,12 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
             disabled={
               status === 'submitted' ||
               status === 'streaming' ||
-              isAgentInitializing
+              isAgentInitializing ||
+              isEditHistory
             }
             placeholder={getPlaceholderText(status, isAgentInitializing)}
+            isStreaming={status === 'streaming'}
+            onStop={stop}
           />
 
           {/* {error && !isAgentInitializing && (

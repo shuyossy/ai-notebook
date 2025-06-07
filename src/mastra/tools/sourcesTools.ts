@@ -90,60 +90,82 @@ import { createBaseToolResponseSchema, RunToolStatus } from './types';
  * ソースクエリツール
  * 指定されたソースを読み込み、LLMが検索内容に応答する
  */
-export const querySourceTool = createTool({
-  id: 'sourceQueryTool',
+export const documentQueryTool = createTool({
+  id: 'documentQueryTool',
   description:
-    '登録されたソースの内容に基づいて専門家(別のAIエージェント)が質問に回答します。一度の複数の質問を実行することができます',
+    'The expert AI agent processes each query in isolation using the registered document content. Each query will be handled without any dependence on prior or subsequent queries, ensuring no shared context or state is used.',
   inputSchema: z.object({
-    sourceId: z.number().describe('対象のソースID:必須'),
-    path: z.string().describe('ソースファイルのパス:必須'),
-    queries: z.array(z.string()).describe('検索内容や質問のリスト:必須'),
+    documentQueries: z.array(
+      z.object({
+        sourceId: z.number().describe('Document ID to query (required)'),
+        path: z.string().describe('Document file path (required)'),
+        query: z.string().describe('Search query or question (required)'),
+      }),
+    ),
   }),
   outputSchema: createBaseToolResponseSchema(
     z.object({
       answers: z.array(
         z.object({
+          sourceId: z.number(),
+          path: z.string(),
           query: z.string(),
           answer: z.string(),
         }),
       ),
     }),
   ),
-  execute: async ({ context: { sourceId, queries } }) => {
+  execute: async ({ context: { documentQueries } }, options) => {
     let status: RunToolStatus = 'failed';
     try {
       const db = await getDb();
-      // ソース情報を取得（将来的にisEnabled=trueのみに絞り込む）
-      const sourceData = await db
-        .select()
-        .from(sources)
-        .where(and(eq(sources.id, sourceId), eq(sources.isEnabled, 1)));
+      // 各クエリに対応するソースの情報を取得
+      const uniqueSourceIds = [
+        ...new Set(documentQueries.map((item) => item.sourceId)),
+      ];
+      const sourceDataMap = new Map();
 
-      if (sourceData.length === 0) {
-        status = 'failed';
-        return {
-          status,
-          error: 'ソースが見つかりませんでした',
-        };
+      // 全ての必要なソース情報を一括で取得
+      for (const sourceId of uniqueSourceIds) {
+        const sourceData = await db
+          .select()
+          .from(sources)
+          .where(and(eq(sources.id, sourceId), eq(sources.isEnabled, 1)));
+
+        if (sourceData.length === 0) {
+          status = 'failed';
+          return {
+            status,
+            error: `Source not found for ID: ${sourceId}`,
+          };
+        }
+
+        sourceDataMap.set(sourceId, sourceData[0]);
       }
 
-      const source = sourceData[0];
-
-      // ファイルのテキストを抽出
-      const filePath = source.path;
-      const { content } = await FileExtractor.extractText(filePath);
-
-      const sourceExpertAgent = new Agent({
-        name: 'sourceExpertAgent',
-        instructions: getSourceQuerySystemPrompt(content),
-        model: openAICompatibleModel(),
-      });
-
+      // 各クエリを並列で処理
       const answers = await Promise.all(
-        queries.map(async (query) => ({
-          query,
-          answer: (await sourceExpertAgent.generate(query)).text,
-        })),
+        documentQueries.map(async (item) => {
+          const source = sourceDataMap.get(item.sourceId);
+          const { content } = await FileExtractor.extractText(source.path);
+
+          const sourceExpertAgent = new Agent({
+            name: 'documentExpertAgent',
+            instructions: getSourceQuerySystemPrompt(content),
+            model: openAICompatibleModel(),
+          });
+
+          return {
+            sourceId: item.sourceId,
+            path: item.path,
+            query: item.query,
+            answer: (
+              await sourceExpertAgent.generate(item.query, {
+                abortSignal: options?.abortSignal,
+              })
+            ).text,
+          };
+        }),
       );
       status = 'success';
       return {
@@ -161,7 +183,7 @@ export const querySourceTool = createTool({
       status = 'failed';
       return {
         status,
-        error: `ソース検索に失敗しました: ${errorMessage}`,
+        error: `Source query failed: ${errorMessage}`,
       };
     }
   },

@@ -2,13 +2,18 @@ import { Agent } from '@mastra/core/agent';
 import { MCPConfiguration, LogMessage } from '@mastra/mcp';
 import { v4 as uuid } from 'uuid';
 import { writeFileSync } from 'fs';
-import { querySourceTool } from '../tools/sourcesTools';
+import { documentQueryTool } from '../tools/sourcesTools';
+import { createStagehandTools } from '../tools/stagehand';
 import { createAgent } from './config/agent';
 import { getStore } from '../../main/store';
-import { setupRedmineTools } from '../tools/redmine';
+import {
+  setupRedmineTools,
+  createRedmineClient,
+  RedmineBaseInfo,
+} from '../tools/redmine';
 import { setupGitLabTools } from '../tools/gitlab';
 import { McpSchema } from '../../main/types/schema';
-import { AgentBootMessage } from '../../main/types';
+import { AgentBootMessage, AgentToolStatus } from '../../main/types';
 
 const ORCHESTRATOR_NAME = 'orchestrator';
 const LOG_FILE_PATH = './mcp.log';
@@ -54,32 +59,38 @@ const deleteLogFile = (): void => {
 export const getOrchestrator = async (): Promise<{
   agent: Agent | null;
   alertMessages: AgentBootMessage[];
-  toolStatus: {
-    redmine: boolean;
-    gitlab: boolean;
-    mcp: boolean;
-  };
+  redmineInfo: RedmineBaseInfo | null;
+  toolStatus: AgentToolStatus;
 }> => {
   const alertMessages: AgentBootMessage[] = [];
   let agent: Agent | null = null;
   let redmineTools = {};
   let gitlabTools = {};
   let mcpTools = {};
+  let stagehandTools = {};
+  let redmineInfo: RedmineBaseInfo | null = null;
+
+  const excduldeTools: string[] = [];
 
   try {
     const store = getStore();
 
-    // Redinmeツールの登録
+    // Redmineツールの登録
     // APIキーとエンドポイントが登録されていた場合は登録する
     const redmineApiKey = store.get('redmine').apiKey;
     const redmineEndpoint = store.get('redmine').endpoint;
     if (redmineApiKey && redmineEndpoint) {
       try {
-        // Redmineクライアントの初期化
-        redmineTools = await setupRedmineTools({
+        // Redmineクライアントを作成
+        const client = createRedmineClient({
           apiKey: redmineApiKey,
           apiUrl: redmineEndpoint,
         });
+
+        // 基本情報の取得
+        redmineInfo = await client.getBaseInfo();
+        // 作成したクライアントを使ってツールを初期化
+        redmineTools = await setupRedmineTools(client);
         alertMessages.push({
           id: uuid(),
           type: 'info',
@@ -91,6 +102,7 @@ export const getOrchestrator = async (): Promise<{
           type: 'warning',
           content: `Redmineクライアントの初期化に失敗しました\n設定を確認してください\n${error}`,
         });
+        redmineInfo = null;
       }
     } else {
       console.warn(
@@ -110,6 +122,11 @@ export const getOrchestrator = async (): Promise<{
           token: gitlabApiKey,
           host: gitlabEndpoint,
         });
+        excduldeTools.push(
+          'getGitLabFileContent',
+          'getGitLabRawFile',
+          'getGitLabBlameFile',
+        );
         alertMessages.push({
           id: uuid(),
           type: 'info',
@@ -167,19 +184,43 @@ export const getOrchestrator = async (): Promise<{
       }
     }
 
+    // Stagehandツールの登録
+    // Stagehandが有効な場合は登録する
+    const stagehandStore = store.get('stagehand');
+    const stagehandEnabled = stagehandStore.enabled;
+    if (stagehandEnabled) {
+      try {
+        stagehandTools = await createStagehandTools();
+        alertMessages.push({
+          id: uuid(),
+          type: 'info',
+          content: 'ブラウザ操作ツールの初期化に成功しました。',
+        });
+      } catch (error) {
+        alertMessages.push({
+          id: uuid(),
+          type: 'warning',
+          content: `ブラウザ操作ツールの初期化に失敗しました\n${error}`,
+        });
+        console.error('ブラウザ操作ツールの初期化に失敗しました:', error);
+      }
+    }
+
     // エージェントの作成
     agent = createAgent({
       name: ORCHESTRATOR_NAME,
       instructions: '', // 空の指示を設定（streamメソッド時に動的に設定するため）
       tools: {
         // sourceListTool,
-        querySourceTool,
+        documentQueryTool,
+        ...stagehandTools,
         ...redmineTools,
         ...gitlabTools,
         ...mcpTools,
       },
       memoryConfig: {
         tokenLimit: 4000, // トークン上限値-(システム＋ユーザプロンプト＋バッファ＋メモリ+バッファ)
+        excduldeTools: excduldeTools.length > 0 ? excduldeTools : undefined,
         lastMessages: 20,
         semanticRecall: false,
         threads: {
@@ -189,44 +230,19 @@ export const getOrchestrator = async (): Promise<{
           enabled: true,
           use: 'tool-call',
           tmplate: `
-# スレッド全体の内容
+# Session Status
+- Current Main Task: {task}
 
-## 要約：
-...
+# Task Management
+- Progress: {progress}
+- Action Steps:
+  - {Step 1}
+  - {Step 2}
+  - ...
 
-## トピック：
-- [トピック 1]
-- [トピック 2]
-- ...
-
-# 現在対応中の質問内容
-
-## 質問内容:
-...
-
-## 対応手順
-- [ステップ 1]
-  - 内容：
-  - 完了条件：
-  - 進捗率：
-  - メモ
-    - [メモ 1]
-    - ...
-  - 結果：
-- [ステップ 2]
-  - 内容：
-  - 完了条件：
-  - 進捗率：
-  - メモ
-    - [メモ 1]
-    - ...
-  - 結果：
-- ...
-
-## 回答用メモ
-
-- [メモ 1]
-- [メモ 2]
+## Response Notes
+- {Note 1}
+- {Note 2}
 - ...
 `,
         },
@@ -246,7 +262,9 @@ export const getOrchestrator = async (): Promise<{
       redmine: !!redmineTools && Object.keys(redmineTools).length > 0,
       gitlab: !!gitlabTools && Object.keys(gitlabTools).length > 0,
       mcp: !!mcpTools && Object.keys(mcpTools).length > 0,
+      stagehand: !!stagehandTools && Object.keys(stagehandTools).length > 0,
     },
+    redmineInfo,
   };
 };
 

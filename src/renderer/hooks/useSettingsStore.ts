@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { z } from 'zod';
 import type { StoreSchema as Settings } from '../../main/store';
 import {
@@ -50,6 +50,18 @@ const useSettingsStore = () => {
     setValue: setMcpStore,
   } = useElectronStore<Settings['mcp']>('mcp');
 
+  const {
+    value: stagehandStore,
+    loading: loadingStagehand,
+    setValue: setStagehandStore,
+  } = useElectronStore<Settings['stagehand']>('stagehand');
+
+  const {
+    value: systemPromptStore,
+    loading: loadingSystemPrompt,
+    setValue: setSystemPromptStore,
+  } = useElectronStore<Settings['systemPrompt']>('systemPrompt');
+
   // ローディング状態の管理
   const loading =
     loadingDatabase ||
@@ -57,7 +69,9 @@ const useSettingsStore = () => {
     loadingApi ||
     loadingRedmine ||
     loadingGitlab ||
-    loadingMcp;
+    loadingMcp ||
+    loadingStagehand ||
+    loadingSystemPrompt;
 
   // 設定値の状態管理
   const [settings, setSettings] = useState<Settings>({
@@ -67,6 +81,20 @@ const useSettingsStore = () => {
     redmine: { endpoint: '', apiKey: '' },
     gitlab: { endpoint: '', apiKey: '' },
     mcp: { serverConfigText: '{}' },
+    stagehand: { enabled: false, headless: false },
+    systemPrompt: { content: '' },
+  });
+
+  // 変更前の設定値を保持するstate
+  const [originalSettings, setOriginalSettings] = useState<Settings>({
+    database: { dir: '' },
+    source: { registerDir: './source' },
+    api: { key: '', url: '', model: '' },
+    redmine: { endpoint: '', apiKey: '' },
+    gitlab: { endpoint: '', apiKey: '' },
+    mcp: { serverConfigText: '{}' },
+    stagehand: { enabled: false, headless: false },
+    systemPrompt: { content: '' },
   });
 
   // バリデーションエラーの状態管理
@@ -77,6 +105,8 @@ const useSettingsStore = () => {
     redmine: {},
     gitlab: {},
     mcp: {},
+    stagehand: {},
+    systemPrompt: {},
   });
 
   const [saving, setSaving] = useState(false);
@@ -157,9 +187,12 @@ const useSettingsStore = () => {
             serverConfigText: '{}',
           },
         },
+        stagehand: stagehandStore ?? { enabled: false, headless: false },
+        systemPrompt: systemPromptStore ?? { content: '' },
       };
 
       setSettings(newSettings);
+      setOriginalSettings(newSettings);
 
       // 各セクションのバリデーションを実行
       Object.entries(newSettings).forEach(([section, value]) => {
@@ -173,6 +206,8 @@ const useSettingsStore = () => {
     redmineStore,
     gitlabStore,
     mcpStore,
+    stagehandStore,
+    systemPromptStore,
     loading,
     validateSection,
   ]);
@@ -214,6 +249,37 @@ const useSettingsStore = () => {
   };
 
   /**
+   * 設定が変更されたかどうかを判定する
+   */
+  const hasSettingsChanged = useMemo(() => {
+    return JSON.stringify(settings) !== JSON.stringify(originalSettings);
+  }, [settings, originalSettings]);
+
+  /**
+   * Mastra初期化に関わる設定が変更されたかをチェック
+   */
+  const requiresReinitialization = useMemo(() => {
+    // 設定が変更されていない場合は初期化不要
+    if (!hasSettingsChanged) {
+      return false;
+    }
+
+    // システムプロンプトとドキュメントディレクトリ以外の変更があるかチェック
+    const hasChanges = Object.entries(settings).some(([key, value]) => {
+      if (key === 'systemPrompt' || key === 'source') {
+        return false;
+      }
+      return (
+        JSON.stringify(value) !==
+        JSON.stringify(originalSettings[key as keyof Settings])
+      );
+    });
+
+    // システムプロンプトまたはドキュメントディレクトリのみの変更の場合はfalse
+    return hasChanges;
+  }, [settings, originalSettings, hasSettingsChanged]);
+
+  /**
    * 設定の保存処理
    */
   const saveSettings = async (): Promise<boolean> => {
@@ -235,11 +301,18 @@ const useSettingsStore = () => {
         setRedmineStore(settings.redmine),
         setGitlabStore(settings.gitlab),
         setMcpStore(settings.mcp),
+        setStagehandStore(settings.stagehand),
+        setSystemPromptStore(settings.systemPrompt),
       ]);
 
-      // 設定保存後にMastraを再初期化
-      await window.electron.agent.reinitialize();
+      // 必要な場合のみMastraを再初期化
+      if (requiresReinitialization) {
+        await window.electron.agent.reinitialize();
+      }
       setUpdatedFlg(true);
+
+      // 新しい設定を元の設定として保存
+      setOriginalSettings(settings);
 
       return true;
     } catch (err) {

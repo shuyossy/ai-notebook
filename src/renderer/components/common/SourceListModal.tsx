@@ -184,7 +184,7 @@ function SourceListModal({
       }
     };
 
-    const intervalId = setInterval(fetchSources, 3000);
+    const intervalId = setInterval(fetchSources, 5000);
 
     return () => {
       if (intervalId) {

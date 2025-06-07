@@ -1,4 +1,13 @@
 /**
+ * Redmineプロジェクト情報
+ */
+export interface RedmineProject {
+  id: number;
+  name: string;
+  identifier: string;
+}
+
+/**
  * Redmineチケット作成/更新用の共通データ
  */
 interface RedmineIssueCommonData {
@@ -41,6 +50,24 @@ export interface IssueFilter {
   priority_id?: number | string;
   fixed_version_id?: number | string;
   sort?: string;
+}
+
+/**
+ * Redmine基本情報
+ */
+export interface RedmineBaseInfo {
+  trackers: Array<{
+    id: number;
+    name: string;
+  }>;
+  statuses: Array<{
+    id: number;
+    name: string;
+  }>;
+  priorities: Array<{
+    id: number;
+    name: string;
+  }>;
 }
 
 /**

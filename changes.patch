@@ -1,0 +1,1637 @@
+diff --git a/changes.patch b/changes.patch
+index c11ceb897..a70044f28 100644
+--- a/changes.patch
++++ b/changes.patch
+@@ -1,176 +1,211 @@
+-diff --git a/src/mastra/agents/prompts.ts b/src/mastra/agents/prompts.ts
+-index 3efc30690..b29c41651 100644
+---- a/src/mastra/agents/prompts.ts
+-+++ b/src/mastra/agents/prompts.ts
+-@@ -183,6 +183,7 @@ ${
+-   getGitLabBlameFile: Get file blame information.
+-   getGitLabRepositoryTree: List repository tree.
+-   getMergeRequestDetail: Fetch merge request details.
+-+  getMergeRequestDiff: Get merge request diff.
+-   addMergeRequestComment: Add a comment to an MR.
+-   addMergeRequestDiffComment: Comment on specific diffs.
+-   _Note:_
+-diff --git a/src/mastra/tools/gitlab/mergeRequestTools.ts b/src/mastra/tools/gitlab/mergeRequestTools.ts
+-index 0f88d76aa..16e725aa5 100644
+---- a/src/mastra/tools/gitlab/mergeRequestTools.ts
+-+++ b/src/mastra/tools/gitlab/mergeRequestTools.ts
+-@@ -24,7 +24,9 @@ export const createGetMergeRequestDetailTool = (client: GitLabClient) => {
+-         .describe('Project ID or non-encoded project path (required)'),
+-       merge_request_iid: z
+-         .number()
+--        .describe('Internal ID of the merge request within the project (required)'),
+-+        .describe(
+-+          'Internal ID of the merge request within the project (required)',
+-+        ),
+-     }),
+-     outputSchema: createBaseToolResponseSchema(
+-       z.object({
+-@@ -62,6 +64,60 @@ export const createGetMergeRequestDetailTool = (client: GitLabClient) => {
+-   });
+- };
++diff --git a/src/main/main.ts b/src/main/main.ts
++index 3cba49e42..4ba4e0ad7 100644
++--- a/src/main/main.ts
+++++ b/src/main/main.ts
++@@ -31,7 +31,7 @@ import getDb from '../db';
++ import SourceRegistrationManager from '../mastra/workflows/sourceRegistrationManager';
++ import { getOrchestrator } from '../mastra/agents/orchestrator';
++ import MenuBuilder from './menu';
++-import { resolveHtmlPath, toAbsoluteFileURL } from './utils/util';
+++import { resolveHtmlPath } from './utils/util';
++ import { initStore, getStore } from './store';
++ import { RedmineBaseInfo } from '../mastra/tools/redmine';
+  
+-+/**
+-+ * 特定のマージリクエスト差分を取得するツール
+-+ * @param client GitLabClient - GitLab APIクライアント
+-+ * @returns マージリクエスト差分取得ツール
+-+ */
+-+export const createGetMergeRequestDiffTool = (client: GitLabClient) => {
+-+  return createTool({
+-+    id: 'gitlab-get-merge-request-diff',
+-+    description:
+-+      'Retrieves the diff of a specific merge request in a GitLab project.',
+-+    inputSchema: z.object({
+-+      project_id: z
+-+        .union([z.string(), z.number()])
+-+        .describe('Project ID or non-encoded project path (required)'),
+-+      merge_request_iid: z
+-+        .number()
+-+        .describe(
+-+          'Internal ID of the merge request within the project (required)',
+-+        ),
+-+    }),
+-+    outputSchema: createBaseToolResponseSchema(
+-+      z.object({
+-+        diff: z.any(),
+-+      }),
+-+    ),
+-+    execute: async ({ context }) => {
+-+      let status: RunToolStatus = 'failed';
+-+      try {
+-+        const { mergeRequests } = client.getApiResources();
++@@ -273,7 +273,8 @@ const setupChatHandlers = () => {
++       _,
++       {
++         threadId,
++-        messageId,
+++        oldContent,
+++        oldCreatedAt,
++       }: IpcRequestPayloadMap[typeof IpcChannels.CHAT_EDIT_HISTORY],
++     ): Promise<IpcResponsePayloadMap[typeof IpcChannels.CHAT_EDIT_HISTORY]> => {
++       try {
++@@ -289,12 +290,32 @@ const setupChatHandlers = () => {
++         const messages = await memory.storage.getMessages({
++           threadId,
++         });
+ +
+-+        // マージリクエスト差分を取得
+-+        const diff = await mergeRequests.allDiffs(
+-+          context.project_id,
+-+          context.merge_request_iid,
+++        // oldContentと一致するメッセージのリストを取得
+++        const targetMessages = messages.filter(
+++          (msg) => msg.content === oldContent,
+ +        );
+ +
+-+        status = 'success';
+-+        return {
+-+          status,
+-+          result: {
+-+            diff,
+-+          },
+-+        };
+-+      } catch (error) {
+-+        status = 'failed';
+-+        return {
+-+          status,
+-+          error: `Failed to retrieve merge request diff: ${error}`,
+-+        };
+-+      }
+-+    },
+-+  });
+-+};
+++        if (targetMessages.length === 0) {
+++          throw new Error('指定されたメッセージが見つかりません');
+++        }
+++
+++        // 取得したメッセージリストからoldCreatedAtと最も近いメッセージを検索
+++        const targetMessage = targetMessages.reduce((closest, current) => {
+++          const currentDate = new Date(current.createdAt);
+++          const closestDate = new Date(closest.createdAt);
+++          return Math.abs(currentDate.getTime() - oldCreatedAt.getTime()) <
+++            Math.abs(closestDate.getTime() - oldCreatedAt.getTime())
+++            ? current
+++            : closest;
+++        });
+ +
+- /**
+-  * マージリクエストにコメントを追加するツール
+-  * @param client GitLabClient - GitLab APIクライアント
+-@@ -70,15 +126,16 @@ export const createGetMergeRequestDetailTool = (client: GitLabClient) => {
+- export const createAddMergeRequestCommentTool = (client: GitLabClient) => {
+-   return createTool({
+-     id: 'gitlab-add-merge-request-comment',
+--    description:
+--      'Adds a comment to a merge request in a GitLab project.',
+-+    description: 'Adds a comment to a merge request in a GitLab project.',
+-     inputSchema: z.object({
+-       project_id: z
+-         .union([z.string(), z.number()])
+-         .describe('Project ID or non-encoded project path (required)'),
+-       merge_request_iid: z
+-         .number()
+--        .describe('Internal ID of the merge request within the project (required)'),
+-+        .describe(
+-+          'Internal ID of the merge request within the project (required)',
+-+        ),
+-       body: z.string().describe('Comment content (required)'),
+-     }),
+-     outputSchema: createBaseToolResponseSchema(
+-@@ -124,15 +181,16 @@ export const createAddMergeRequestCommentTool = (client: GitLabClient) => {
+- export const createAddMergeRequestDiffCommentTool = (client: GitLabClient) => {
+-   return createTool({
+-     id: 'gitlab-add-merge-request-diff-comment',
+--    description:
+--      'Adds a comment to specific lines in a merge request diff.',
+-+    description: 'Adds a comment to specific lines in a merge request diff.',
+-     inputSchema: z.object({
+-       project_id: z
+-         .union([z.string(), z.number()])
+-         .describe('Project ID or non-encoded project path (required)'),
+-       merge_request_iid: z
+-         .number()
+--        .describe('Internal ID of the merge request within the project (required)'),
+-+        .describe(
+-+          'Internal ID of the merge request within the project (required)',
+-+        ),
+-       body: z.string().describe('Comment content (required)'),
+-       position: z
+-         .object({
+-@@ -145,15 +203,16 @@ export const createAddMergeRequestDiffCommentTool = (client: GitLabClient) => {
+-           headSha: z.string().describe('Head commit SHA (required)'),
+-           oldPath: z.string().describe('Previous file path (required)'),
+-           newPath: z.string().describe('New file path (required)'),
+--          oldLine: z.string().optional().describe('Previous line number (optional)'),
+-+          oldLine: z
+-+            .string()
+-+            .optional()
+-+            .describe('Previous line number (optional)'),
+-           newLine: z.string().optional().describe('New line number (optional)'),
+-           lineRange: z
+-             .object({
+-               start: z
+-                 .object({
+--                  lineCode: z
+--                    .string()
+--                    .describe('Start line code (required)'),
+-+                  lineCode: z.string().describe('Start line code (required)'),
+-                   type: z
+-                     .enum(['new', 'old'])
+-                     .describe(
+-@@ -162,14 +221,14 @@ export const createAddMergeRequestDiffCommentTool = (client: GitLabClient) => {
+-                   hash: z
+-                     .string()
+-                     .optional()
+--                    .describe('Start line hash for multi-line notes (optional)'),
+-+                    .describe(
+-+                      'Start line hash for multi-line notes (optional)',
+-+                    ),
+-                 })
+-                 .describe('Multi-line note start line information'),
+-               end: z
+-                 .object({
+--                  lineCode: z
+--                    .string()
+--                    .describe('End line code (required)'),
+-+                  lineCode: z.string().describe('End line code (required)'),
+-                   type: z
+-                     .enum(['new', 'old'])
+-                     .describe(
+-@@ -233,6 +292,7 @@ export const createAddMergeRequestDiffCommentTool = (client: GitLabClient) => {
+- export const createMergeRequestTools = (client: GitLabClient) => {
+-   return {
+-     getMergeRequestDetail: createGetMergeRequestDetailTool(client),
+-+    getMergeRequestDiff: createGetMergeRequestDiffTool(client),
+-     addMergeRequestComment: createAddMergeRequestCommentTool(client),
+-     addMergeRequestDiffComment: createAddMergeRequestDiffCommentTool(client),
++         // messageIdに対応するメッセージを検索
++         const targetMessageIndex = messages.findIndex(
++-          (msg) => msg.id === messageId,
+++          (msg) => msg.id === targetMessage.id,
++         );
++         if (targetMessageIndex === -1) {
++-          throw new Error(`メッセージID ${messageId} が見つかりません`);
+++          throw new Error(`メッセージID ${targetMessage.id} が見つかりません`);
++         }
++         // 最初のメッセージからmessageIdに対応するメッセージまでの履歴を取得
++         const history = messages.slice(0, targetMessageIndex);
++@@ -303,11 +324,11 @@ const setupChatHandlers = () => {
++         await memory.storage.deleteThread({ threadId });
++ 
++         // スレッドを再作成
++-        await memory.createThread({
++-          resourceId: 'user',
++-          title: '',
++-          threadId,
++-        });
+++        // await memory.createThread({
+++        //   resourceId: 'user',
+++        //   title: '',
+++        //   threadId,
+++        // });
++ 
++         // 取得した履歴をメモリに保存
++         await memory.saveMessages({
++diff --git a/src/main/preload.ts b/src/main/preload.ts
++index 7368ff289..536963ac2 100644
++--- a/src/main/preload.ts
+++++ b/src/main/preload.ts
++@@ -1,7 +1,12 @@
++ // Disable no-unused-vars, broken for spread args
++ /* eslint no-unused-vars: off */
++ import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
++-import { IpcChannels, IpcResponsePayload, IpcEventPayload } from './types/ipc';
+++import {
+++  IpcChannels,
+++  IpcResponsePayload,
+++  IpcEventPayload,
+++  IpcRequestPayload,
+++} from './types/ipc';
++ 
++ export type Channels = (typeof IpcChannels)[keyof typeof IpcChannels];
++ 
++@@ -87,10 +92,9 @@ const electronHandler = {
++       return ipcRenderer.invoke(IpcChannels.CHAT_ABORT_REQUEST, threadId);
++     },
++     // メッセージ編集時に該当indexまでの履歴を削除する
++-    editHistory: async (params: {
++-      threadId: string;
++-      messageId: string;
++-    }): Promise<IpcResponsePayload<typeof IpcChannels.CHAT_EDIT_HISTORY>> => {
+++    editHistory: async (
+++      params: IpcRequestPayload<typeof IpcChannels.CHAT_EDIT_HISTORY>,
+++    ): Promise<IpcResponsePayload<typeof IpcChannels.CHAT_EDIT_HISTORY>> => {
++       return ipcRenderer.invoke(IpcChannels.CHAT_EDIT_HISTORY, params);
++     },
++     // AIの応答を取得する（ストリーミング）
++diff --git a/src/main/types/ipc.ts b/src/main/types/ipc.ts
++index f957d618d..137105d47 100644
++--- a/src/main/types/ipc.ts
+++++ b/src/main/types/ipc.ts
++@@ -70,7 +70,11 @@ export type IpcRequestPayloadMap = {
++     title: string;
++   };
++   [IpcChannels.CHAT_ABORT_REQUEST]: { threadId: string };
++-  [IpcChannels.CHAT_EDIT_HISTORY]: { threadId: string; messageId: string };
+++  [IpcChannels.CHAT_EDIT_HISTORY]: {
+++    threadId: string;
+++    oldContent: string;
+++    oldCreatedAt: Date;
+++  };
++ };
++ 
++ export type IpcResponsePayloadMap = {
++diff --git a/src/renderer/components/chat/ChatArea.tsx b/src/renderer/components/chat/ChatArea.tsx
++index 532f757f3..ce4fc8fd3 100644
++--- a/src/renderer/components/chat/ChatArea.tsx
+++++ b/src/renderer/components/chat/ChatArea.tsx
++@@ -1,4 +1,4 @@
++-import React, { useState, useEffect, memo, useRef } from 'react';
+++import React, { useState, useEffect, memo } from 'react';
++ import { useChat } from '@ai-sdk/react';
++ import { Box, Divider, Typography, Alert } from '@mui/material';
++ import { v4 as uuid } from 'uuid';
++@@ -174,7 +174,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
++   const [editMessageId, setEditMessageId] = useState<string>('');
++   const [editMessageContent, setEditMessageContent] = useState<string>('');
++   const { status: agentStatus } = useAgentStatus();
++-  const isEditSubmitRef = useRef(false);
+++  const [isEditHistory, setIsEditHistory] = useState(false);
++ 
++   const isAgentInitializing = agentStatus.state === 'initializing';
++ 
++@@ -229,17 +229,6 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
++         chatService.createThread(selectedRoomId, '');
++       }
++ 
++-      // 編集メッセージ送信時は、編集メッセージ以降の履歴を削除
++-      if (isEditSubmitRef.current) {
++-        window.electron.chat.editHistory({
++-          threadId: selectedRoomId!,
++-          messageId: editMessageId,
++-        });
++-        setEditMessageId('');
++-        setEditMessageContent('');
++-        isEditSubmitRef.current = false; // リセット
++-      }
++-
++       // Return the structured body for your API route
++       return {
++         message: lastMessage?.content, // Send only the most recent message content/role
++@@ -278,9 +267,11 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
++     setEditMessageContent(content);
+    };
++ 
++-  const handleEditSubmit = () => {
+++  const handleEditSubmit = async () => {
++     const messageIndex = messages.findIndex((m) => m.id === editMessageId);
++     if (messageIndex === -1) return;
+++    const oldCreatedAt = messages[messageIndex].createdAt!;
+++    const oldContent = messages[messageIndex].content;
++ 
++     const updatedMessages = messages.slice(0, messageIndex + 1);
++     updatedMessages[messageIndex] = {
++@@ -294,7 +285,15 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
++       ],
++     };
++     setMessages(updatedMessages);
++-    isEditSubmitRef.current = true;
+++    setIsEditHistory(true);
+++    await window.electron.chat.editHistory({
+++      threadId: selectedRoomId!,
+++      oldContent,
+++      oldCreatedAt,
+++    });
+++    setEditMessageId('');
+++    setEditMessageContent('');
+++    setIsEditHistory(false);
++     reload();
++   };
++ 
++@@ -331,7 +330,8 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
++             disabled={
++               status === 'submitted' ||
++               status === 'streaming' ||
++-              isAgentInitializing
+++              isAgentInitializing ||
+++              isEditHistory
++             }
++             editingMessageId={editMessageId}
++             onEditStart={handleEditStart}
++@@ -350,7 +350,8 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
++             disabled={
++               status === 'submitted' ||
++               status === 'streaming' ||
++-              isAgentInitializing
+++              isAgentInitializing ||
+++              isEditHistory
++             }
++             placeholder={getPlaceholderText(status, isAgentInitializing)}
++             isStreaming={status === 'streaming'}
+diff --git a/src/main/main.ts b/src/main/main.ts
+index cf7771d7a..7783b1541 100644
+--- a/src/main/main.ts
++++ b/src/main/main.ts
+@@ -17,9 +17,18 @@ import { Mastra } from '@mastra/core';
+ import { createLogger } from '@mastra/core/logger';
+ import { createDataStream } from 'ai';
+ import { eq } from 'drizzle-orm';
++import {
++  ReadableStream,
++  WritableStream,
++  TransformStream,
++} from 'node:stream/web';
+ import { sourceRegistrationWorkflow } from '../mastra/workflows/sourceRegistration';
+ import { type Source } from '../db/schema';
+-import { IpcChannels, IpcResponsePayloadMap } from './types/ipc';
++import {
++  IpcChannels,
++  IpcResponsePayloadMap,
++  IpcRequestPayloadMap,
++} from './types/ipc';
+ import { AgentBootStatus, AgentBootMessage, AgentToolStatus } from './types';
+ import { getOrchestratorSystemPrompt } from '../mastra/agents/prompts';
+ import { sources } from '../db/schema';
+@@ -39,6 +48,12 @@ class AppUpdater {
+   }
+ }
+ 
++// MCPのSSE通信時に、パッケージング後に正常にストリームを作成できない問題の対策
++// パッケージング後はstream型のライブラリはweb-streams-polyfillが適用されてしまうため、開発環境と同じくnode:stream/webを使用するように設定
++(globalThis as any).ReadableStream = ReadableStream;
++(globalThis as any).WritableStream = WritableStream;
++(globalThis as any).TransformStream = TransformStream;
++
+ // Mastraのインスタンスと状態を保持する変数
+ let mastraInstance: Mastra | null = null;
+ // スレッドごとのAbortControllerを管理するMap
+@@ -262,6 +277,84 @@ const setupChatHandlers = () => {
+     },
+   );
+ 
++  // チャットメッセージ編集履歴ハンドラ
++  ipcMain.handle(
++    IpcChannels.CHAT_EDIT_HISTORY,
++    async (
++      _,
++      {
++        threadId,
++        oldContent,
++        oldCreatedAt,
++      }: IpcRequestPayloadMap[typeof IpcChannels.CHAT_EDIT_HISTORY],
++    ): Promise<IpcResponsePayloadMap[typeof IpcChannels.CHAT_EDIT_HISTORY]> => {
++      try {
++        const mastra = getMastra();
++        const orchestratorAgent = mastra.getAgent('orchestratorAgent');
++        const memory = orchestratorAgent.getMemory();
++
++        if (!memory) {
++          throw new Error('メモリインスタンスが初期化されていません');
++        }
++
++        // メッセージ履歴を取得
++        const messages = await memory.storage.getMessages({
++          threadId,
++        });
++
++        // oldContentと一致するメッセージのリストを取得
++        const targetMessages = messages.filter(
++          (msg) => msg.content === oldContent,
++        );
++
++        if (targetMessages.length === 0) {
++          throw new Error('指定されたメッセージが見つかりません');
++        }
++
++        // 取得したメッセージリストからoldCreatedAtと最も近いメッセージを検索
++        const targetMessage = targetMessages.reduce((closest, current) => {
++          const currentDate = new Date(current.createdAt);
++          const closestDate = new Date(closest.createdAt);
++          return Math.abs(currentDate.getTime() - oldCreatedAt.getTime()) <
++            Math.abs(closestDate.getTime() - oldCreatedAt.getTime())
++            ? current
++            : closest;
++        });
++
++        // messageIdに対応するメッセージを検索
++        const targetMessageIndex = messages.findIndex(
++          (msg) => msg.id === targetMessage.id,
++        );
++        if (targetMessageIndex === -1) {
++          throw new Error(`メッセージID ${targetMessage.id} が見つかりません`);
++        }
++        // 最初のメッセージからmessageIdに対応するメッセージまでの履歴を取得
++        const history = messages.slice(0, targetMessageIndex);
++
++        // スレッドを削除
++        await memory.storage.deleteThread({ threadId });
++
++        // スレッドを再作成
++        // await memory.createThread({
++        //   resourceId: 'user',
++        //   title: '',
++        //   threadId,
++        // });
++
++        // 取得した履歴をメモリに保存
++        await memory.saveMessages({
++          messages: history,
++          memoryConfig: undefined,
++        });
++
++        return { success: true };
++      } catch (error) {
++        console.error('メッセージ履歴削除中にエラーが発生:', error);
++        return { success: false, error: (error as Error).message };
++      }
++    },
++  );
++
+   // メッセージ送信ハンドラ
+   ipcMain.handle(
+     IpcChannels.CHAT_SEND_MESSAGE,
+@@ -697,7 +790,7 @@ const createWindow = async () => {
+ 
+   // Remove this if your app does not use auto updates
+   // eslint-disable-next-line
+-  new AppUpdater();
++  // new AppUpdater();
+ };
+ 
+ /**
+diff --git a/src/main/preload.ts b/src/main/preload.ts
+index 0f226aa8c..536963ac2 100644
+--- a/src/main/preload.ts
++++ b/src/main/preload.ts
+@@ -1,7 +1,12 @@
+ // Disable no-unused-vars, broken for spread args
+ /* eslint no-unused-vars: off */
+ import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
+-import { IpcChannels, IpcResponsePayload, IpcEventPayload } from './types/ipc';
++import {
++  IpcChannels,
++  IpcResponsePayload,
++  IpcEventPayload,
++  IpcRequestPayload,
++} from './types/ipc';
+ 
+ export type Channels = (typeof IpcChannels)[keyof typeof IpcChannels];
+ 
+@@ -86,6 +91,12 @@ const electronHandler = {
+     ): Promise<IpcResponsePayload<typeof IpcChannels.CHAT_ABORT_REQUEST>> => {
+       return ipcRenderer.invoke(IpcChannels.CHAT_ABORT_REQUEST, threadId);
+     },
++    // メッセージ編集時に該当indexまでの履歴を削除する
++    editHistory: async (
++      params: IpcRequestPayload<typeof IpcChannels.CHAT_EDIT_HISTORY>,
++    ): Promise<IpcResponsePayload<typeof IpcChannels.CHAT_EDIT_HISTORY>> => {
++      return ipcRenderer.invoke(IpcChannels.CHAT_EDIT_HISTORY, params);
++    },
+     // AIの応答を取得する（ストリーミング）
+     onStream: (
+       callback: (
+diff --git a/src/main/types/ipc.ts b/src/main/types/ipc.ts
+index 0f2e5160d..137105d47 100644
+--- a/src/main/types/ipc.ts
++++ b/src/main/types/ipc.ts
+@@ -31,6 +31,7 @@ export const IpcChannels = {
+   CHAT_STEP: 'chat-step',
+   CHAT_ERROR: 'chat-error',
+   CHAT_ABORT_REQUEST: 'chat-abort-request',
++  CHAT_EDIT_HISTORY: 'chat-edit-history',
+ 
+   // ファイルシステム関連
+   FS_CHECK_PATH_EXISTS: 'fs-check-path-exists',
+@@ -69,6 +70,11 @@ export type IpcRequestPayloadMap = {
+     title: string;
+   };
+   [IpcChannels.CHAT_ABORT_REQUEST]: { threadId: string };
++  [IpcChannels.CHAT_EDIT_HISTORY]: {
++    threadId: string;
++    oldContent: string;
++    oldCreatedAt: Date;
++  };
+ };
+ 
+ export type IpcResponsePayloadMap = {
+@@ -100,6 +106,7 @@ export type IpcResponsePayloadMap = {
+   [IpcChannels.CHAT_DELETE_ROOM]: { success: boolean; error?: string };
+   [IpcChannels.CHAT_CREATE_THREAD]: { success: boolean; error?: string };
+   [IpcChannels.CHAT_ABORT_REQUEST]: { success: boolean; error?: string };
++  [IpcChannels.CHAT_EDIT_HISTORY]: { success: boolean; error?: string };
+ };
+ 
+ export type IpcEventPayloadMap = {
+diff --git a/src/main/types/schema.ts b/src/main/types/schema.ts
+index 1b36ee3f1..4616f8c96 100644
+--- a/src/main/types/schema.ts
++++ b/src/main/types/schema.ts
+@@ -3,12 +3,20 @@ import { z } from 'zod';
+ // StdioServerParameters(Mastraで設定されているMCPサーバ設定)のZodスキーマ定義
+ // eslint-disable-next-line
+ export const McpSchema = z.record(
+-  z.object({
+-    command: z.string(),
+-    args: z.array(z.string()).optional(),
+-    env: z.record(z.string()).optional(),
+-    cwd: z.string().optional(),
+-  }),
++  z.union([
++    z.object({
++      command: z.string(),
++      args: z.array(z.string()).optional(),
++      env: z.record(z.string()).optional(),
++      cwd: z.string().optional(),
++    }),
++    z.object({
++      url: z
++        .string()
++        .url()
++        .transform((s) => new URL(s)),
++    }),
++  ]),
+ );
+ 
+ export type McpSchemaType = z.infer<typeof McpSchema>;
+diff --git a/src/mastra/agents/config/memory.ts b/src/mastra/agents/config/memory.ts
+index 9fb20f9bd..3d8e42004 100644
+--- a/src/mastra/agents/config/memory.ts
++++ b/src/mastra/agents/config/memory.ts
+@@ -1,10 +1,9 @@
+ import { Memory } from '@mastra/memory';
+ import { TokenLimiter, ToolCallFilter } from '@mastra/memory/processors';
+ import type { MemoryProcessor } from '@mastra/core';
+-import { openai } from '@mastra/openai'
+-import { LibSQLStore } from '@mastra/core/storage/libsql';
+ import { toAbsoluteFileURL } from '@/main/utils/util';
+ import { getStore } from '../../../main/store';
++import { CustomLibSQLStore } from '../../store/libsql/customLibSQLStore';
+ 
+ // メモリオプションの型定義
+ export interface MemoryConfig {
+@@ -61,14 +60,17 @@ export const getMemory = (config: MemoryConfig = {}): Memory => {
+     );
+   }
+ 
++  const customLibSQLStore = new CustomLibSQLStore();
++  customLibSQLStore.customConstruct({
++    config: {
++      url: toAbsoluteFileURL(dbSetting.dir, 'memory.db'),
++    },
++  });
++
+   memoryInstance = new Memory({
+     options,
+     processors: memoryProcessors.length > 0 ? memoryProcessors : undefined,
+-    storage: new LibSQLStore({
+-      config: {
+-        url: toAbsoluteFileURL(dbSetting.dir, 'memory.db'),
+-      },
+-    }),
++    storage: customLibSQLStore,
+   });
+ 
+   return memoryInstance;
+diff --git a/src/mastra/store/libsql/customLibSQLStore.ts b/src/mastra/store/libsql/customLibSQLStore.ts
+new file mode 100644
+index 000000000..702616bf1
+--- /dev/null
++++ b/src/mastra/store/libsql/customLibSQLStore.ts
+@@ -0,0 +1,678 @@
++// Memory用のLibSQLストアをカスタム
++// deleteThread関数にて対応するmessageが削除されない問題に対応
++// オリジナルだと、messageはthread削除に伴いcascade削除されるとコメントにあるが、実際には外部キーが付与されていないため、明示的に削除する必要がある
++// オリジナルのコード： https://github.com/mastra-ai/mastra/blob/%40mastra/core%400.8.3/packages/core/src/storage/libsql/index.ts
++// 実装方針：ほぼ、オリジナルのコードをコピーし、deleteThread関数のみを修正。libsqlについては動的importをする必要があるため、カスタム初期化関数（customConstruct）を作成して対応。そのほかライブラリのインポートは相対パスから絶対パスに変換
++
++import { join, resolve, isAbsolute } from 'node:path';
++import type { Client, InValue } from '@libsql/client' with { "resolution-mode": "require" };
++import type { MetricResult, TestInfo } from '@mastra/core/eval';
++import type { MessageType, StorageThreadType } from '@mastra/core/memory';
++import type { WorkflowRunState } from '@mastra/core/workflows';
++import { MastraStorage } from '@mastra/core/storage';
++import { TABLE_EVALS, TABLE_MESSAGES, TABLE_THREADS, TABLE_TRACES, TABLE_WORKFLOW_SNAPSHOT } from '@mastra/core/storage';
++import type { TABLE_NAMES } from '@mastra/core/storage';
++import type { StorageColumn, StorageGetMessagesArg, EvalRow } from '@mastra/core/storage';
++
++
++function safelyParseJSON(jsonString: string): any {
++  try {
++    return JSON.parse(jsonString);
++  } catch {
++    return {};
++  }
++}
++
++export interface LibSQLConfig {
++  url: string;
++  authToken?: string;
++}
++
++export class CustomLibSQLStore extends MastraStorage {
++  private client: Client;
++
++  constructor() {
++    super({ name: `LibSQLStore` });
++    // customConstructを使用するため、初期化時にクライアントをnullに設定
++    this.client = null as any;
++  }
++
++  // libsql/clientの動的インポートが必要なため、カスタム初期化関数を定義
++  async customConstruct({ config }: { config: LibSQLConfig }): Promise<void> {
++    const { createClient } = await import('@libsql/client');
++
++    // need to re-init every time for in memory dbs or the tables might not exist
++    if (config.url === ':memory:' || config.url.startsWith('file::memory:')) {
++      this.shouldCacheInit = false;
++    }
++
++    this.client = createClient({
++      url: this.rewriteDbUrl(config.url),
++      authToken: config.authToken,
++    });
++  }
++
++  // If we're in the .mastra/output directory, use the dir outside .mastra dir
++  // reason we need to do this is libsql relative file paths are based on cwd, not current file path
++  // since mastra dev sets cwd to .mastra/output this means running an agent directly vs running with mastra dev
++  // will put db files in different locations, leading to an inconsistent experience between the two.
++  // Ex: with `file:ex.db`
++  // 1. `mastra dev`: ${cwd}/.mastra/output/ex.db
++  // 2. `tsx src/index.ts`: ${cwd}/ex.db
++  // so if we're in .mastra/output we need to rewrite the file url to be relative to the project root dir
++  // or the experience will be inconsistent
++  // this means `file:` urls are always relative to project root
++  // TODO: can we make this easier via bundling? https://github.com/mastra-ai/mastra/pull/2783#pullrequestreview-2662444241
++  protected rewriteDbUrl(url: string): string {
++    if (url.startsWith('file:') && url !== 'file::memory:') {
++      const pathPart = url.slice('file:'.length);
++
++      if (isAbsolute(pathPart)) {
++        return url;
++      }
++
++      const cwd = process.cwd();
++
++      if (cwd.includes('.mastra') && (cwd.endsWith(`output`) || cwd.endsWith(`output/`) || cwd.endsWith(`output\\`))) {
++        const baseDir = join(cwd, `..`, `..`); // <- .mastra/output/../../
++
++        const fullPath = resolve(baseDir, pathPart);
++
++        this.logger.debug(
++          `Initializing LibSQL db with url ${url} with relative file path from inside .mastra/output directory. Rewriting relative file url to "file:${fullPath}". This ensures it's outside the .mastra/output directory.`,
++        );
++
++        return `file:${fullPath}`;
++      }
++    }
++
++    return url;
++  }
++
++  private getCreateTableSQL(tableName: TABLE_NAMES, schema: Record<string, StorageColumn>): string {
++    const columns = Object.entries(schema).map(([name, col]) => {
++      let type = col.type.toUpperCase();
++      if (type === 'TEXT') type = 'TEXT';
++      if (type === 'TIMESTAMP') type = 'TEXT'; // Store timestamps as ISO strings
++      // if (type === 'BIGINT') type = 'INTEGER';
++
++      const nullable = col.nullable ? '' : 'NOT NULL';
++      const primaryKey = col.primaryKey ? 'PRIMARY KEY' : '';
++
++      return `${name} ${type} ${nullable} ${primaryKey}`.trim();
++    });
++
++    // For workflow_snapshot table, create a composite primary key
++    if (tableName === TABLE_WORKFLOW_SNAPSHOT) {
++      const stmnt = `CREATE TABLE IF NOT EXISTS ${tableName} (
++                ${columns.join(',\n')},
++                PRIMARY KEY (workflow_name, run_id)
++            )`;
++      return stmnt;
++    }
++
++    return `CREATE TABLE IF NOT EXISTS ${tableName} (${columns.join(', ')})`;
++  }
++
++  async createTable({
++    tableName,
++    schema,
++  }: {
++    tableName: TABLE_NAMES;
++    schema: Record<string, StorageColumn>;
++  }): Promise<void> {
++    try {
++      this.logger.debug(`Creating database table`, { tableName, operation: 'schema init' });
++      const sql = this.getCreateTableSQL(tableName, schema);
++      await this.client.execute(sql);
++    } catch (error) {
++      this.logger.error(`Error creating table ${tableName}: ${error}`);
++      throw error;
++    }
++  }
++
++  async clearTable({ tableName }: { tableName: TABLE_NAMES }): Promise<void> {
++    try {
++      await this.client.execute(`DELETE FROM ${tableName}`);
++    } catch (e) {
++      if (e instanceof Error) {
++        this.logger.error(e.message);
++      }
++    }
++  }
++
++  private prepareStatement({ tableName, record }: { tableName: TABLE_NAMES; record: Record<string, any> }): {
++    sql: string;
++    args: InValue[];
++  } {
++    const columns = Object.keys(record);
++    const values = Object.values(record).map(v => {
++      if (typeof v === `undefined`) {
++        // returning an undefined value will cause libsql to throw
++        return null;
++      }
++      if (v instanceof Date) {
++        return v.toISOString();
++      }
++      return typeof v === 'object' ? JSON.stringify(v) : v;
++    });
++    const placeholders = values.map(() => '?').join(', ');
++
++    return {
++      sql: `INSERT OR REPLACE INTO ${tableName} (${columns.join(', ')}) VALUES (${placeholders})`,
++      args: values,
++    };
++  }
++
++  async insert({ tableName, record }: { tableName: TABLE_NAMES; record: Record<string, any> }): Promise<void> {
++    try {
++      await this.client.execute(
++        this.prepareStatement({
++          tableName,
++          record,
++        }),
++      );
++    } catch (error) {
++      this.logger.error(`Error upserting into table ${tableName}: ${error}`);
++      throw error;
++    }
++  }
++
++  async batchInsert({ tableName, records }: { tableName: TABLE_NAMES; records: Record<string, any>[] }): Promise<void> {
++    if (records.length === 0) return;
++
++    try {
++      const batchStatements = records.map(r => this.prepareStatement({ tableName, record: r }));
++      await this.client.batch(batchStatements, 'write');
++    } catch (error) {
++      this.logger.error(`Error upserting into table ${tableName}: ${error}`);
++      throw error;
++    }
++  }
++
++  async load<R>({ tableName, keys }: { tableName: TABLE_NAMES; keys: Record<string, string> }): Promise<R | null> {
++    const conditions = Object.entries(keys)
++      .map(([key]) => `${key} = ?`)
++      .join(' AND ');
++    const values = Object.values(keys);
++
++    const result = await this.client.execute({
++      sql: `SELECT * FROM ${tableName} WHERE ${conditions} ORDER BY createdAt DESC LIMIT 1`,
++      args: values,
++    });
++
++    if (!result.rows || result.rows.length === 0) {
++      return null;
++    }
++
++    const row = result.rows[0];
++    // Checks whether the string looks like a JSON object ({}) or array ([])
++    // If the string starts with { or [, it assumes it's JSON and parses it
++    // Otherwise, it just returns, preventing unintended number conversions
++    const parsed = Object.fromEntries(
++      Object.entries(row || {}).map(([k, v]) => {
++        try {
++          return [k, typeof v === 'string' ? (v.startsWith('{') || v.startsWith('[') ? JSON.parse(v) : v) : v];
++        } catch {
++          return [k, v];
++        }
++      }),
++    );
++
++    return parsed as R;
++  }
++
++  async getThreadById({ threadId }: { threadId: string }): Promise<StorageThreadType | null> {
++    const result = await this.load<StorageThreadType>({
++      tableName: TABLE_THREADS,
++      keys: { id: threadId },
++    });
++
++    if (!result) {
++      return null;
++    }
++
++    return {
++      ...result,
++      metadata: typeof result.metadata === 'string' ? JSON.parse(result.metadata) : result.metadata,
++    };
++  }
++
++  async getThreadsByResourceId({ resourceId }: { resourceId: string }): Promise<StorageThreadType[]> {
++    const result = await this.client.execute({
++      sql: `SELECT * FROM ${TABLE_THREADS} WHERE resourceId = ?`,
++      args: [resourceId],
++    });
++
++    if (!result.rows) {
++      return [];
++    }
++
++    return result.rows.map(thread => ({
++      id: thread.id,
++      resourceId: thread.resourceId,
++      title: thread.title,
++      createdAt: thread.createdAt,
++      updatedAt: thread.updatedAt,
++      metadata: typeof thread.metadata === 'string' ? JSON.parse(thread.metadata) : thread.metadata,
++    })) as any as StorageThreadType[];
++  }
++
++  async saveThread({ thread }: { thread: StorageThreadType }): Promise<StorageThreadType> {
++    await this.insert({
++      tableName: TABLE_THREADS,
++      record: {
++        ...thread,
++        metadata: JSON.stringify(thread.metadata),
++      },
++    });
++
++    return thread;
++  }
++
++  async updateThread({
++    id,
++    title,
++    metadata,
++  }: {
++    id: string;
++    title: string;
++    metadata: Record<string, unknown>;
++  }): Promise<StorageThreadType> {
++    const thread = await this.getThreadById({ threadId: id });
++    if (!thread) {
++      throw new Error(`Thread ${id} not found`);
++    }
++
++    const updatedThread = {
++      ...thread,
++      title,
++      metadata: {
++        ...thread.metadata,
++        ...metadata,
++      },
++    };
++
++    await this.client.execute({
++      sql: `UPDATE ${TABLE_THREADS} SET title = ?, metadata = ? WHERE id = ?`,
++      args: [title, JSON.stringify(updatedThread.metadata), id],
++    });
++
++    return updatedThread;
++  }
++
++  // ここだけ修正
++  async deleteThread({ threadId }: { threadId: string }): Promise<void> {
++    await this.client.execute({
++      sql: `DELETE FROM ${TABLE_THREADS} WHERE id = ?`,
++      args: [threadId],
++    });
++    // threadに紐づくメッセージも明示的に削除する
++    await this.client.execute({
++      sql: `DELETE FROM ${TABLE_MESSAGES} WHERE thread_id = ?`,
++      args: [threadId],
++    });
++  }
++
++  private parseRow(row: any): MessageType {
++    let content = row.content;
++    try {
++      content = JSON.parse(row.content);
++    } catch {
++      // use content as is if it's not JSON
++    }
++    return {
++      id: row.id,
++      content,
++      role: row.role,
++      type: row.type,
++      createdAt: new Date(row.createdAt as string),
++      threadId: row.thread_id,
++    } as MessageType;
++  }
++
++  async getMessages<T extends MessageType[]>({ threadId, selectBy }: StorageGetMessagesArg): Promise<T> {
++    try {
++      const messages: MessageType[] = [];
++      const limit = typeof selectBy?.last === `number` ? selectBy.last : 40;
++
++      // If we have specific messages to select
++      if (selectBy?.include?.length) {
++        const includeIds = selectBy.include.map(i => i.id);
++        const maxPrev = Math.max(...selectBy.include.map(i => i.withPreviousMessages || 0));
++        const maxNext = Math.max(...selectBy.include.map(i => i.withNextMessages || 0));
++
++        // Get messages around all specified IDs in one query using row numbers
++        const includeResult = await this.client.execute({
++          sql: `
++            WITH numbered_messages AS (
++              SELECT
++                id,
++                content,
++                role,
++                type,
++                "createdAt",
++                thread_id,
++                ROW_NUMBER() OVER (ORDER BY "createdAt" ASC) as row_num
++              FROM "${TABLE_MESSAGES}"
++              WHERE thread_id = ?
++            ),
++            target_positions AS (
++              SELECT row_num as target_pos
++              FROM numbered_messages
++              WHERE id IN (${includeIds.map(() => '?').join(', ')})
++            )
++            SELECT DISTINCT m.*
++            FROM numbered_messages m
++            CROSS JOIN target_positions t
++            WHERE m.row_num BETWEEN (t.target_pos - ?) AND (t.target_pos + ?)
++            ORDER BY m."createdAt" ASC
++          `,
++          args: [threadId, ...includeIds, maxPrev, maxNext],
++        });
++
++        if (includeResult.rows) {
++          messages.push(...includeResult.rows.map((row: any) => this.parseRow(row)));
++        }
++      }
++
++      // Get remaining messages, excluding already fetched IDs
++      const excludeIds = messages.map(m => m.id);
++      const remainingSql = `
++        SELECT
++          id,
++          content,
++          role,
++          type,
++          "createdAt",
++          thread_id
++        FROM "${TABLE_MESSAGES}"
++        WHERE thread_id = ?
++        ${excludeIds.length ? `AND id NOT IN (${excludeIds.map(() => '?').join(', ')})` : ''}
++        ORDER BY "createdAt" DESC
++        LIMIT ?
++      `;
++      const remainingArgs = [threadId, ...(excludeIds.length ? excludeIds : []), limit];
++
++      const remainingResult = await this.client.execute({
++        sql: remainingSql,
++        args: remainingArgs,
++      });
++
++      if (remainingResult.rows) {
++        messages.push(...remainingResult.rows.map((row: any) => this.parseRow(row)));
++      }
++
++      // Sort all messages by creation date
++      messages.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
++
++      return messages as T;
++    } catch (error) {
++      this.logger.error('Error getting messages:', error as Error);
++      throw error;
++    }
++  }
++
++  async saveMessages({ messages }: { messages: MessageType[] }): Promise<MessageType[]> {
++    if (messages.length === 0) return messages;
++
++    try {
++      const threadId = messages[0]?.threadId;
++      if (!threadId) {
++        throw new Error('Thread ID is required');
++      }
++
++      // Prepare batch statements for all messages
++      const batchStatements = messages.map(message => {
++        const time = message.createdAt || new Date();
++        return {
++          sql: `INSERT INTO ${TABLE_MESSAGES} (id, thread_id, content, role, type, createdAt)
++                VALUES (?, ?, ?, ?, ?, ?)`,
++          args: [
++            message.id,
++            threadId,
++            typeof message.content === 'object' ? JSON.stringify(message.content) : message.content,
++            message.role,
++            message.type,
++            time instanceof Date ? time.toISOString() : time,
++          ],
++        };
++      });
++
++      // Execute all inserts in a single batch
++      await this.client.batch(batchStatements, 'write');
++
++      return messages;
++    } catch (error) {
++      this.logger.error('Failed to save messages in database: ' + (error as { message: string })?.message);
++      throw error;
++    }
++  }
++
++  private transformEvalRow(row: Record<string, any>): EvalRow {
++    const resultValue = JSON.parse(row.result as string);
++    const testInfoValue = row.test_info ? JSON.parse(row.test_info as string) : undefined;
++
++    if (!resultValue || typeof resultValue !== 'object' || !('score' in resultValue)) {
++      throw new Error(`Invalid MetricResult format: ${JSON.stringify(resultValue)}`);
++    }
++
++    return {
++      input: row.input as string,
++      output: row.output as string,
++      result: resultValue as MetricResult,
++      agentName: row.agent_name as string,
++      metricName: row.metric_name as string,
++      instructions: row.instructions as string,
++      testInfo: testInfoValue as TestInfo,
++      globalRunId: row.global_run_id as string,
++      runId: row.run_id as string,
++      createdAt: row.created_at as string,
++    };
++  }
++
++  async getEvalsByAgentName(agentName: string, type?: 'test' | 'live'): Promise<EvalRow[]> {
++    try {
++      const baseQuery = `SELECT * FROM ${TABLE_EVALS} WHERE agent_name = ?`;
++      const typeCondition =
++        type === 'test'
++          ? " AND test_info IS NOT NULL AND test_info->>'testPath' IS NOT NULL"
++          : type === 'live'
++            ? " AND (test_info IS NULL OR test_info->>'testPath' IS NULL)"
++            : '';
++
++      const result = await this.client.execute({
++        sql: `${baseQuery}${typeCondition} ORDER BY created_at DESC`,
++        args: [agentName],
++      });
++
++      return result.rows?.map(row => this.transformEvalRow(row)) ?? [];
++    } catch (error) {
++      // Handle case where table doesn't exist yet
++      if (error instanceof Error && error.message.includes('no such table')) {
++        return [];
++      }
++      this.logger.error('Failed to get evals for the specified agent: ' + (error as any)?.message);
++      throw error;
++    }
++  }
++
++  // TODO: add types
++  async getTraces(
++    {
++      name,
++      scope,
++      page,
++      perPage,
++      attributes,
++      filters,
++    }: {
++      name?: string;
++      scope?: string;
++      page: number;
++      perPage: number;
++      attributes?: Record<string, string>;
++      filters?: Record<string, any>;
++    } = {
++      page: 0,
++      perPage: 100,
++    },
++  ): Promise<any[]> {
++    const limit = perPage;
++    const offset = page * perPage;
++
++    const args: (string | number)[] = [];
++
++    const conditions: string[] = [];
++    if (name) {
++      conditions.push("name LIKE CONCAT(?, '%')");
++    }
++    if (scope) {
++      conditions.push('scope = ?');
++    }
++    if (attributes) {
++      Object.keys(attributes).forEach(key => {
++        conditions.push(`attributes->>'$.${key}' = ?`);
++      });
++    }
++
++    if (filters) {
++      Object.entries(filters).forEach(([key, _value]) => {
++        conditions.push(`${key} = ?`);
++      });
++    }
++    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
++
++    if (name) {
++      args.push(name);
++    }
++
++    if (scope) {
++      args.push(scope);
++    }
++
++    if (attributes) {
++      for (const [, value] of Object.entries(attributes)) {
++        args.push(value);
++      }
++    }
++
++    if (filters) {
++      for (const [, value] of Object.entries(filters)) {
++        args.push(value);
++      }
++    }
++
++    args.push(limit, offset);
++
++    const result = await this.client.execute({
++      sql: `SELECT * FROM ${TABLE_TRACES} ${whereClause} ORDER BY "startTime" DESC LIMIT ? OFFSET ?`,
++      args,
++    });
++
++    if (!result.rows) {
++      return [];
++    }
++
++    return result.rows.map(row => ({
++      id: row.id,
++      parentSpanId: row.parentSpanId,
++      traceId: row.traceId,
++      name: row.name,
++      scope: row.scope,
++      kind: row.kind,
++      status: safelyParseJSON(row.status as string),
++      events: safelyParseJSON(row.events as string),
++      links: safelyParseJSON(row.links as string),
++      attributes: safelyParseJSON(row.attributes as string),
++      startTime: row.startTime,
++      endTime: row.endTime,
++      other: safelyParseJSON(row.other as string),
++      createdAt: row.createdAt,
++    })) as any;
++  }
++
++  async getWorkflowRuns({
++    workflowName,
++    fromDate,
++    toDate,
++    limit,
++    offset,
++  }: {
++    workflowName?: string;
++    fromDate?: Date;
++    toDate?: Date;
++    limit?: number;
++    offset?: number;
++  } = {}): Promise<{
++    runs: Array<{
++      workflowName: string;
++      runId: string;
++      snapshot: WorkflowRunState | string;
++      createdAt: Date;
++      updatedAt: Date;
++    }>;
++    total: number;
++  }> {
++    const conditions: string[] = [];
++    const args: InValue[] = [];
++
++    if (workflowName) {
++      conditions.push('workflow_name = ?');
++      args.push(workflowName);
++    }
++
++    if (fromDate) {
++      conditions.push('createdAt >= ?');
++      args.push(fromDate.toISOString());
++    }
++
++    if (toDate) {
++      conditions.push('createdAt <= ?');
++      args.push(toDate.toISOString());
++    }
++
++    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
++
++    let total = 0;
++    // Only get total count when using pagination
++    if (limit !== undefined && offset !== undefined) {
++      const countResult = await this.client.execute({
++        sql: `SELECT COUNT(*) as count FROM ${TABLE_WORKFLOW_SNAPSHOT} ${whereClause}`,
++        args,
++      });
++      total = Number(countResult.rows?.[0]?.count ?? 0);
++    }
++
++    // Get results
++    const result = await this.client.execute({
++      sql: `SELECT * FROM ${TABLE_WORKFLOW_SNAPSHOT} ${whereClause} ORDER BY createdAt DESC${limit !== undefined && offset !== undefined ? ` LIMIT ? OFFSET ?` : ''}`,
++      args: limit !== undefined && offset !== undefined ? [...args, limit, offset] : args,
++    });
++
++    const runs = (result.rows || []).map(row => {
++      let parsedSnapshot: WorkflowRunState | string = row.snapshot as string;
++      if (typeof parsedSnapshot === 'string') {
++        try {
++          parsedSnapshot = JSON.parse(row.snapshot as string) as WorkflowRunState;
++        } catch (e) {
++          // If parsing fails, return the raw snapshot string
++          console.warn(`Failed to parse snapshot for workflow ${row.workflow_name}: ${e}`);
++        }
++      }
++
++      return {
++        workflowName: row.workflow_name as string,
++        runId: row.run_id as string,
++        snapshot: parsedSnapshot,
++        createdAt: new Date(row.createdAt as string),
++        updatedAt: new Date(row.updatedAt as string),
++      };
++    });
++
++    // Use runs.length as total when not paginating
++    return { runs, total: total || runs.length };
++  }
++}
++
++export { LibSQLStore as DefaultStorage };
+diff --git a/src/renderer/components/chat/ChatArea.tsx b/src/renderer/components/chat/ChatArea.tsx
+index e08a3bb1e..ce4fc8fd3 100644
+--- a/src/renderer/components/chat/ChatArea.tsx
++++ b/src/renderer/components/chat/ChatArea.tsx
+@@ -171,7 +171,10 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
+   const [initialMessages, setInitialMessages] = useState<ChatMessage[]>([]);
+   // useChatからのエラーを表示するための状態
+   const [additionalAlerts, setAdditionalAlerts] = useState<AlertMessage[]>([]);
++  const [editMessageId, setEditMessageId] = useState<string>('');
++  const [editMessageContent, setEditMessageContent] = useState<string>('');
+   const { status: agentStatus } = useAgentStatus();
++  const [isEditHistory, setIsEditHistory] = useState(false);
+ 
+   const isAgentInitializing = agentStatus.state === 'initializing';
+ 
+@@ -199,6 +202,8 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
+ 
+   const {
+     messages,
++    setMessages,
++    reload,
+     input,
+     status,
+     error,
+@@ -254,6 +259,48 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
+     setAdditionalAlerts((prev) => prev.filter((alert) => alert.id !== id));
+   };
+ 
++  const handleEditStart = (messageId: string) => {
++    setEditMessageId(messageId);
++  };
++
++  const handleEditContentChange = (content: string) => {
++    setEditMessageContent(content);
++  };
++
++  const handleEditSubmit = async () => {
++    const messageIndex = messages.findIndex((m) => m.id === editMessageId);
++    if (messageIndex === -1) return;
++    const oldCreatedAt = messages[messageIndex].createdAt!;
++    const oldContent = messages[messageIndex].content;
++
++    const updatedMessages = messages.slice(0, messageIndex + 1);
++    updatedMessages[messageIndex] = {
++      ...updatedMessages[messageIndex],
++      content: editMessageContent,
++      parts: [
++        {
++          type: 'text',
++          text: editMessageContent,
++        },
++      ],
++    };
++    setMessages(updatedMessages);
++    setIsEditHistory(true);
++    await window.electron.chat.editHistory({
++      threadId: selectedRoomId!,
++      oldContent,
++      oldCreatedAt,
++    });
++    setEditMessageId('');
++    setEditMessageContent('');
++    setIsEditHistory(false);
++    reload();
++  };
++
++  const handleEditCancel = () => {
++    setEditMessageId('');
++  };
++
+   return (
+     <Box
+       sx={{
+@@ -275,7 +322,23 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
+       {selectedRoomId ? (
+         <>
+           {/* メッセージリスト */}
+-          <MessageList messages={messages} loading={loading} status={status} />
++          <MessageList
++            messages={messages}
++            loading={loading}
++            status={status}
++            editContent={editMessageContent}
++            disabled={
++              status === 'submitted' ||
++              status === 'streaming' ||
++              isAgentInitializing ||
++              isEditHistory
++            }
++            editingMessageId={editMessageId}
++            onEditStart={handleEditStart}
++            onEditContentChange={handleEditContentChange}
++            onEditSubmit={handleEditSubmit}
++            onEditCancel={handleEditCancel}
++          />
+ 
+           <Divider />
+ 
+@@ -287,7 +350,8 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
+             disabled={
+               status === 'submitted' ||
+               status === 'streaming' ||
+-              isAgentInitializing
++              isAgentInitializing ||
++              isEditHistory
+             }
+             placeholder={getPlaceholderText(status, isAgentInitializing)}
+             isStreaming={status === 'streaming'}
+diff --git a/src/renderer/components/chat/MessageItem.tsx b/src/renderer/components/chat/MessageItem.tsx
+index b38b92d60..01ac557fd 100644
+--- a/src/renderer/components/chat/MessageItem.tsx
++++ b/src/renderer/components/chat/MessageItem.tsx
+@@ -1,6 +1,7 @@
+ import React, { memo, forwardRef, useState, useEffect, useRef } from 'react';
+ // @ts-ignore
+ import ReactMarkdown from 'react-markdown';
++import EditIcon from '@mui/icons-material/Edit';
+ // @ts-ignore
+ import remarkGfm from 'remark-gfm';
+ import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+@@ -25,6 +26,8 @@ import {
+   TableCell,
+   Tooltip,
+   Fade,
++  TextField,
++  Button,
+ } from '@mui/material';
+ import { ContentCopy as CopyIcon } from '@mui/icons-material';
+ // @ts-ignore
+@@ -361,10 +364,29 @@ const renderPart = (part: NonNullable<ChatMessage['parts']>[number]) => {
+ 
+ interface MessageProps {
+   message: ChatMessage;
++  editContent: string;
++  disabled: boolean;
++  onEditSubmit: () => void;
++  isEditing: boolean;
++  onEditStart: (messageId: string) => void;
++  onEditContentChange: (content: string) => void;
++  onEditCancel: () => void;
+ }
+ 
+ const MessageItem = forwardRef<HTMLDivElement, MessageProps>(
+-  ({ message }, ref) => {
++  (
++    {
++      message,
++      editContent,
++      disabled,
++      onEditSubmit,
++      isEditing,
++      onEditStart,
++      onEditCancel,
++      onEditContentChange,
++    },
++    ref,
++  ) => {
+     const isUser = message.role === 'user';
+ 
+     return (
+@@ -379,9 +401,10 @@ const MessageItem = forwardRef<HTMLDivElement, MessageProps>(
+         >
+           <Box
+             sx={{
+-              maxWidth: isUser ? '70%' : '100%',
+-              width: isUser ? undefined : '100%',
++              maxWidth: isUser && !isEditing ? '70%' : '100%',
++              width: isUser && !isEditing ? undefined : '100%',
+               textAlign: 'left',
++              '&:hover .editBtn': { opacity: 1 },
+             }}
+           >
+             <Paper
+@@ -390,11 +413,77 @@ const MessageItem = forwardRef<HTMLDivElement, MessageProps>(
+                 px: 2,
+                 bgcolor: isUser ? 'grey.100' : 'background.paper',
+                 borderRadius: 2,
++                position: 'relative',
+               }}
+             >
+-              {message.parts?.length
+-                ? message.parts.map(renderPart)
+-                : renderPart({ type: 'text', text: message.content ?? '' })}
++              {isUser && !isEditing && (
++                <IconButton
++                  className="editBtn"
++                  size="small"
++                  onClick={() => {
++                    onEditStart?.(message.id);
++                    onEditContentChange(message.content ?? '');
++                  }}
++                  sx={{
++                    position: 'absolute',
++                    right: -36,
++                    top: '50%',
++                    transform: 'translateY(-50%)',
++                    opacity: 0,
++                    transition: 'opacity 0.2s',
++                    bgcolor: 'background.paper',
++                  }}
++                >
++                  <EditIcon fontSize="small" />
++                </IconButton>
++              )}
++              {/* eslint-disable-next-line */}
++              {isEditing && isUser ? (
++                <Box sx={{ p: 1, width: '100%' }}>
++                  <TextField
++                    fullWidth
++                    multiline
++                    variant="standard" // アンダーラインのみのスタイルに
++                    InputProps={{
++                      disableUnderline: true, // アンダーラインも消す
++                    }}
++                    value={editContent}
++                    onChange={(e) => onEditContentChange(e.target.value)}
++                    sx={{ mb: 2 }}
++                  />
++                  <Box
++                    sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}
++                  >
++                    <Button
++                      size="small"
++                      onClick={onEditCancel}
++                      variant="contained"
++                      sx={{
++                        backgroundColor: 'white',
++                        color: 'black',
++                      }}
++                    >
++                      キャンセル
++                    </Button>
++                    <Button
++                      size="small"
++                      onClick={onEditSubmit}
++                      variant="contained"
++                      disabled={disabled || !editContent?.trim()}
++                      sx={{
++                        backgroundColor: 'black',
++                        color: 'white',
++                      }}
++                    >
++                      送信
++                    </Button>
++                  </Box>
++                </Box>
++              ) : message.parts?.length ? (
++                message.parts.map(renderPart)
++              ) : (
++                renderPart({ type: 'text', text: message.content ?? '' })
++              )}
+             </Paper>
+           </Box>
+         </Box>
+diff --git a/src/renderer/components/chat/MessageList.tsx b/src/renderer/components/chat/MessageList.tsx
+index a6d2acc06..351009614 100644
+--- a/src/renderer/components/chat/MessageList.tsx
++++ b/src/renderer/components/chat/MessageList.tsx
+@@ -7,12 +7,26 @@ interface MessageListProps {
+   messages: ChatMessage[];
+   loading: boolean;
+   status: 'error' | 'ready' | 'submitted' | 'streaming';
++  editContent: string;
++  disabled: boolean;
++  onEditStart: (messageId: string) => void;
++  editingMessageId: string;
++  onEditSubmit: () => void;
++  onEditContentChange: (ontent: string) => void;
++  onEditCancel: () => void;
+ }
+ 
+ const MessageList: React.FC<MessageListProps> = ({
+   messages,
+   loading,
+   status,
++  editContent,
++  disabled,
++  onEditStart,
++  editingMessageId,
++  onEditSubmit,
++  onEditContentChange,
++  onEditCancel,
+ }) => {
+   const bottomRef = useRef<HTMLDivElement>(null);
+ 
+@@ -41,7 +55,16 @@ const MessageList: React.FC<MessageListProps> = ({
+       {messages.map((m) => {
+         return (
+           <Box key={m.id} mb={2}>
+-            <MessageItem message={m} />
++            <MessageItem
++              message={m}
++              editContent={editContent}
++              disabled={disabled}
++              isEditing={editingMessageId === m.id}
++              onEditStart={onEditStart}
++              onEditSubmit={onEditSubmit}
++              onEditContentChange={onEditContentChange}
++              onEditCancel={onEditCancel}
++            />
+           </Box>
+         );
+       })}
