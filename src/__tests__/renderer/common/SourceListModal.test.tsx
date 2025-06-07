@@ -295,6 +295,139 @@ describe('SourceListModal Component', () => {
     });
   });
 
+  // テスト13: チェックボックス更新時にupdateSourceEnabledが例外をスローする場合
+  test('チェックボックス更新時にupdateSourceEnabledが例外をスローする場合', async () => {
+    // エラーをスローするように設定
+    window.electron.source.updateSourceEnabled = jest
+      .fn()
+      .mockRejectedValue(new Error('API error occurred'));
+
+    // コンソールエラーをスパイ
+    const consoleSpy = jest
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
+
+    // モックデータをセットアップ
+    window.electron.source.getSources = jest.fn().mockResolvedValue({
+      success: true,
+      sources: mockSources,
+    });
+
+    // コンポーネントをレンダリング
+    render(
+      <SourceListModal
+        open={defaultProps.open}
+        processing={defaultProps.processing}
+        onClose={defaultProps.onClose}
+        onReloadSources={defaultProps.onReloadSources}
+        onStatusUpdate={defaultProps.onStatusUpdate}
+        showSnackbar={defaultProps.showSnackbar}
+      />,
+    );
+
+    // 進める
+    act(() => {
+      jest.advanceTimersByTime(5000);
+    });
+
+    // ソースデータが取得されるまで待機
+    await waitFor(() => {
+      expect(window.electron.source.getSources).toHaveBeenCalled();
+    });
+
+    // テーブルの内容がレンダリングされるまで待機
+    await waitFor(() => {
+      expect(screen.queryAllByRole('checkbox').length).toBeGreaterThan(1);
+    });
+
+    // チェックボックスをクリック
+    const sourceCheckboxes = screen.getAllByRole('checkbox');
+    fireEvent.click(sourceCheckboxes[1]);
+
+    // エラーログが出力されることを確認
+    await waitFor(() => {
+      expect(consoleSpy).toHaveBeenCalledWith(
+        'ソース状態の更新に失敗しました:',
+        expect.any(Error),
+      );
+    });
+
+    // チェックボックスが再度有効化されることを確認
+    await waitFor(() => {
+      expect(sourceCheckboxes[1]).toBeEnabled();
+    });
+
+    consoleSpy.mockRestore();
+  });
+
+  // テスト14: 全選択チェックボックス更新時にupdateSourceEnabledが例外をスローする場合
+  test('全選択チェックボックス更新時にupdateSourceEnabledが例外をスローする場合', async () => {
+    // エラーをスローするように設定
+    window.electron.source.updateSourceEnabled = jest
+      .fn()
+      .mockRejectedValue(new Error('API error occurred'));
+
+    // コンソールエラーをスパイ
+    const consoleSpy = jest
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
+
+    // モックデータをセットアップ
+    window.electron.source.getSources = jest.fn().mockResolvedValue({
+      success: true,
+      sources: mockSources,
+    });
+
+    // コンポーネントをレンダリング
+    render(
+      <SourceListModal
+        open={defaultProps.open}
+        processing={defaultProps.processing}
+        onClose={defaultProps.onClose}
+        onReloadSources={defaultProps.onReloadSources}
+        onStatusUpdate={defaultProps.onStatusUpdate}
+        showSnackbar={defaultProps.showSnackbar}
+      />,
+    );
+
+    // 進める
+    act(() => {
+      jest.advanceTimersByTime(5000);
+    });
+
+    // ソースデータが取得されるまで待機
+    await waitFor(() => {
+      expect(window.electron.source.getSources).toHaveBeenCalled();
+    });
+
+    // テーブルの内容がレンダリングされるまで待機
+    await waitFor(() => {
+      expect(screen.queryAllByRole('checkbox').length).toBeGreaterThan(1);
+    });
+
+    // 全選択チェックボックスをクリック
+    const sourceCheckboxes = screen.getAllByRole('checkbox');
+    fireEvent.click(sourceCheckboxes[0]);
+
+    // エラーログが出力されることを確認（各ソースごとにエラーが発生）
+    await waitFor(() => {
+      expect(consoleSpy).toHaveBeenCalledWith(
+        'ソース状態の更新に失敗しました:',
+        expect.any(Error),
+      );
+      expect(consoleSpy).toHaveBeenCalledTimes(mockSources.length);
+    });
+
+    // チェックボックスが再度有効化されることを確認
+    await waitFor(() => {
+      for (const checkbox of sourceCheckboxes) {
+        expect(checkbox).toBeEnabled();
+      }
+    });
+
+    consoleSpy.mockRestore();
+  });
+
   // テスト5: 全選択チェックボックスの動作検証
   test('全選択チェックボックスの動作検証', async () => {
     const props = {
