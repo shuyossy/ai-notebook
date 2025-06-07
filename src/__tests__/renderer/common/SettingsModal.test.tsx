@@ -1,0 +1,566 @@
+/**
+ * @jest-environment jsdom
+ */
+import React from 'react';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import '@testing-library/jest-dom';
+
+import SettingsModal from '../../../renderer/components/common/SettingsModal';
+import { StoreSchema as Settings } from '../../../main/store';
+
+// 設定のモックデータ
+const mockSettings: Settings = {
+  database: {
+    dir: '/test/db',
+  },
+  source: {
+    registerDir: './test/source',
+  },
+  api: {
+    key: 'test-api-key',
+    url: 'https://api.test.com',
+    model: 'test-model',
+  },
+  redmine: {
+    endpoint: 'https://redmine.test.com',
+    apiKey: 'test-redmine-key',
+  },
+  gitlab: {
+    endpoint: 'https://gitlab.test.com',
+    apiKey: 'test-gitlab-key',
+  },
+  mcp: {
+    serverConfigText: '{"testMcp": {"url": "https://mcp.test.com"} }',
+  },
+  stagehand: {
+    enabled: true,
+    headless: false,
+  },
+  systemPrompt: {
+    content: 'test system prompt',
+  },
+};
+
+describe('SettingsModal Component', () => {
+  // テスト前のセットアップ
+  beforeEach(() => {
+    // window.electronをモック化
+    window.electron = {
+      store: {
+        get: jest.fn().mockImplementation((key: string) => {
+          if (key === 'all') return mockSettings;
+          if (key === 'database') return mockSettings.database;
+          if (key === 'source') return mockSettings.source;
+          if (key === 'api') return mockSettings.api;
+          if (key === 'redmine') return mockSettings.redmine;
+          if (key === 'gitlab') return mockSettings.gitlab;
+          if (key === 'mcp') return mockSettings.mcp;
+          if (key === 'stagehand') return mockSettings.stagehand;
+          if (key === 'systemPrompt') return mockSettings.systemPrompt;
+          return undefined;
+        }),
+        set: jest.fn().mockResolvedValue(undefined),
+      },
+      agent: {
+        reinitialize: jest.fn().mockResolvedValue(undefined),
+      },
+      dialog: {
+        showOpenDialog: jest
+          .fn()
+          .mockResolvedValue({ filePaths: ['/selected/path'] }),
+      },
+      fs: {
+        access: jest.fn().mockResolvedValue(true),
+      },
+    } as any;
+  });
+
+  // テスト後のクリーンアップ
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
+  // 共通のプロップス
+  const defaultProps = {
+    open: true,
+    onClose: jest.fn(),
+    onSettingsUpdated: jest.fn(),
+    onValidChange: jest.fn(),
+  };
+
+  // テスト1: 正常に設定モーダルが表示され、初期値が設定されること
+  test('正常に設定モーダルが表示され、初期値が設定されること', async () => {
+    // コンポーネントをレンダリング
+    render(
+      <SettingsModal
+        open={defaultProps.open}
+        onClose={defaultProps.onClose}
+        onSettingsUpdated={defaultProps.onSettingsUpdated}
+        onValidChange={defaultProps.onValidChange}
+      />,
+    );
+
+    // 設定値が取得されるまで待機
+    await waitFor(() => {
+      expect(window.electron.store.get).toHaveBeenCalledTimes(8);
+    });
+
+    // データベース設定
+    await waitFor(() => {
+      const dbPath = screen.getByRole('textbox', { name: 'データベースパス' });
+      expect(dbPath).toHaveValue(mockSettings.database.dir);
+    });
+
+    // ソース設定
+    expect(screen.getByLabelText('ソース登録ディレクトリ')).toHaveValue(
+      mockSettings.source.registerDir,
+    );
+
+    // API設定
+    const apiKeyInput = screen.getAllByLabelText('APIキー')[0];
+    expect(apiKeyInput).toHaveValue(mockSettings.api.key);
+    expect(screen.getByLabelText('APIエンドポイントURL')).toHaveValue(
+      mockSettings.api.url,
+    );
+    expect(screen.getByLabelText('モデル名')).toHaveValue(
+      mockSettings.api.model,
+    );
+
+    // Redmine設定
+    const redmineEndpoint = screen.getAllByLabelText('エンドポイント')[0];
+    const redmineApiKey = screen.getAllByLabelText('APIキー')[1];
+    expect(redmineEndpoint).toHaveValue(mockSettings.redmine.endpoint);
+    expect(redmineApiKey).toHaveValue(mockSettings.redmine.apiKey);
+
+    // GitLab設定
+    const gitlabEndpoint = screen.getAllByLabelText('エンドポイント')[1];
+    const gitlabApiKey = screen.getAllByLabelText('APIキー')[2];
+    expect(gitlabEndpoint).toHaveValue(mockSettings.gitlab.endpoint);
+    expect(gitlabApiKey).toHaveValue(mockSettings.gitlab.apiKey);
+
+    // ブラウザ操作設定
+    const enabledSwitch = screen.getByLabelText('ブラウザ操作を有効化');
+    const headlessSwitch = screen.getByLabelText('ヘッドレスモードを有効化');
+    expect(enabledSwitch).toBeChecked();
+    expect(headlessSwitch).not.toBeChecked();
+
+    // MCPサーバー設定
+    expect(screen.getByLabelText('MCPサーバー設定（JSON）')).toHaveValue(
+      mockSettings.mcp.serverConfigText,
+    );
+
+    // システムプロンプト設定
+    expect(
+      screen.getByLabelText('システムプロンプトのカスタマイズが可能です'),
+    ).toHaveValue(mockSettings.systemPrompt.content);
+  });
+
+  // テスト2: 設定値を更新して保存できること
+  test('設定値を更新して保存できること', async () => {
+    jest.setTimeout(10000); // タイムアウトを延長
+    const user = userEvent.setup();
+
+    render(
+      <SettingsModal
+        open={defaultProps.open}
+        onClose={defaultProps.onClose}
+        onSettingsUpdated={defaultProps.onSettingsUpdated}
+        onValidChange={defaultProps.onValidChange}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(window.electron.store.get).toHaveBeenCalledTimes(8);
+    });
+
+    // 入力フィールドの準備
+    const apiKeyInput = screen.getAllByLabelText('APIキー')[0];
+    await waitFor(() => {
+      expect(apiKeyInput).toBeEnabled();
+    });
+
+    // バリデーションの初期状態を確認
+    await waitFor(() => {
+      expect(defaultProps.onValidChange).toHaveBeenCalledWith(true);
+    });
+
+    // 値の更新とバリデーション待機
+    await user.clear(apiKeyInput);
+    await user.type(apiKeyInput, 'new-api-key');
+
+    // 必要なフィールドが正しい値を持つことを確認
+    await waitFor(() => {
+      expect(apiKeyInput).toHaveValue('new-api-key');
+      expect(screen.getByLabelText('APIエンドポイントURL')).toHaveValue(
+        mockSettings.api.url,
+      );
+      expect(screen.getByLabelText('モデル名')).toHaveValue(
+        mockSettings.api.model,
+      );
+    });
+
+    // バリデーション状態の確認
+    await waitFor(
+      () => {
+        expect(defaultProps.onValidChange).toHaveBeenCalledWith(true);
+      },
+      { timeout: 5000 },
+    );
+
+    // 保存ボタンの有効化を確認
+    screen.debug();
+    await waitFor(
+      () => {
+        const saveButton = screen.getByText('保存');
+        expect(saveButton).toBeEnabled();
+      },
+      { timeout: 5000 },
+    );
+
+    // バリデーションのコールバックが呼ばれることを確認
+    await waitFor(() => {
+      expect(defaultProps.onValidChange).toHaveBeenCalled();
+    });
+
+    // APIエンドポイントを更新
+    const apiEndpointInput = screen.getByLabelText('APIエンドポイントURL');
+    await waitFor(() => {
+      expect(apiEndpointInput).toBeEnabled();
+    });
+    await user.clear(apiEndpointInput);
+    await user.type(apiEndpointInput, 'https://new-api.test.com');
+
+    // ソース登録ディレクトリを更新
+    const sourceInput = screen.getByLabelText('ソース登録ディレクトリ');
+    await waitFor(() => {
+      expect(sourceInput).toBeEnabled();
+    });
+    await user.clear(sourceInput);
+    await user.type(sourceInput, './new-source');
+
+    // ブラウザ操作設定を更新
+    await user.click(screen.getByLabelText('ブラウザ操作を有効化'));
+    await user.click(screen.getByLabelText('ヘッドレスモードを有効化'));
+
+    // 保存ボタンが有効になるまで待機
+    // 保存ボタンをクリック
+    await waitFor(() => {
+      expect(screen.getByText('保存')).toBeEnabled();
+    });
+    await user.click(screen.getByText('保存'));
+
+    // storeのset関数が正しく呼ばれることを確認
+    await waitFor(() => {
+      expect(window.electron.store.set).toHaveBeenCalledWith('api', {
+        ...mockSettings.api,
+        key: 'new-api-key',
+        url: 'https://new-api.test.com',
+      });
+    });
+
+    // stagehandの設定が更新されることを確認
+    await waitFor(() => {
+      expect(window.electron.store.set).toHaveBeenCalledWith('stagehand', {
+        enabled: false,
+        headless: true,
+      });
+    });
+
+    // sourceの設定が更新されることを確認
+    await waitFor(() => {
+      expect(window.electron.store.set).toHaveBeenCalledWith('source', {
+        registerDir: './new-source',
+      });
+    });
+
+    // エージェントの再初期化が呼ばれることを確認
+    expect(window.electron.agent.reinitialize).toHaveBeenCalled();
+
+    // コールバック関数が呼ばれることを確認
+    expect(defaultProps.onSettingsUpdated).toHaveBeenCalled();
+    expect(defaultProps.onClose).toHaveBeenCalled();
+  });
+
+  // テスト3: バリデーションエラーが正しく表示されること
+  test('バリデーションエラーが正しく表示されること', async () => {
+    const user = userEvent.setup();
+
+    render(
+      <SettingsModal
+        open={defaultProps.open}
+        onClose={defaultProps.onClose}
+        onSettingsUpdated={defaultProps.onSettingsUpdated}
+        onValidChange={defaultProps.onValidChange}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(window.electron.store.get).toHaveBeenCalledTimes(8);
+    });
+
+    // APIキーを空にする
+    const apiKeyInput = screen.getAllByLabelText('APIキー')[0];
+    await waitFor(() => {
+      expect(apiKeyInput).toBeEnabled();
+    });
+    await user.clear(apiKeyInput);
+
+    // APIエンドポイントを無効なURLにする
+    const apiEndpointInput = screen.getByLabelText('APIエンドポイントURL');
+    await waitFor(() => {
+      expect(apiEndpointInput).toBeEnabled();
+    });
+    await user.clear(apiEndpointInput);
+    await user.type(apiEndpointInput, 'invalid-url');
+
+    // MCPサーバー設定を無効なJSONにする
+    const mcpConfigInput = screen.getByLabelText('MCPサーバー設定（JSON）');
+    await waitFor(() => {
+      expect(mcpConfigInput).toBeEnabled();
+    });
+    await user.clear(mcpConfigInput);
+    await user.type(mcpConfigInput, 'invalid-json');
+
+    // 保存ボタンが無効化されていることを確認
+    expect(screen.getByText('保存')).toBeDisabled();
+
+    // バリデーションエラーメッセージが表示されることを確認
+    await waitFor(() => {
+      expect(defaultProps.onValidChange).toHaveBeenLastCalledWith(false);
+    });
+  });
+
+  // テスト4: 保存に失敗した場合のエラー表示を確認
+  test('保存に失敗した場合のエラー表示を確認', async () => {
+    const user = userEvent.setup();
+
+    // ストアの更新に失敗するようにモックを設定
+    window.electron.store.set = jest
+      .fn()
+      .mockRejectedValue(new Error('Failed to save settings'));
+
+    render(
+      <SettingsModal
+        open={defaultProps.open}
+        onClose={defaultProps.onClose}
+        onSettingsUpdated={defaultProps.onSettingsUpdated}
+        onValidChange={defaultProps.onValidChange}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(window.electron.store.get).toHaveBeenCalledTimes(8);
+    });
+
+    // APIキーを更新してバリデーション完了を待機
+    const apiKeyInput = screen.getAllByLabelText('APIキー')[0];
+    await waitFor(() => {
+      expect(apiKeyInput).toBeEnabled();
+    });
+
+    await user.type(apiKeyInput, 'new-api-key');
+
+    // バリデーションの完了を待機
+    await waitFor(() => {
+      expect(defaultProps.onValidChange).toHaveBeenCalledWith(true);
+    });
+
+    // 保存ボタンが有効になることを確認
+    await waitFor(() => {
+      expect(screen.getByText('保存')).toBeEnabled();
+    });
+
+    // 保存ボタンをクリック
+    await user.click(screen.getByText('保存'));
+
+    // エラーメッセージが表示されることを確認
+    await waitFor(() => {
+      expect(screen.getByText('Failed to save settings')).toBeInTheDocument();
+    });
+
+    // モーダルが閉じられないことを確認
+    expect(defaultProps.onClose).not.toHaveBeenCalled();
+  });
+
+  // テスト5: キャンセルボタンの動作を確認
+  test('キャンセルボタンの動作を確認', async () => {
+    const user = userEvent.setup();
+
+    render(
+      <SettingsModal
+        open={defaultProps.open}
+        onClose={defaultProps.onClose}
+        onSettingsUpdated={defaultProps.onSettingsUpdated}
+        onValidChange={defaultProps.onValidChange}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(window.electron.store.get).toHaveBeenCalledTimes(8);
+    });
+
+    // APIキーを更新
+    const apiKeyInput = screen.getAllByLabelText('APIキー')[0];
+    await waitFor(() => {
+      expect(apiKeyInput).toBeEnabled();
+    });
+    await user.clear(apiKeyInput);
+    await user.type(apiKeyInput, 'new-api-key');
+
+    // キャンセルボタンをクリック
+    await user.click(screen.getByText('キャンセル'));
+
+    // storeのset関数が呼ばれないことを確認
+    expect(window.electron.store.set).not.toHaveBeenCalled();
+
+    // モーダルが閉じられることを確認
+    expect(defaultProps.onClose).toHaveBeenCalled();
+  });
+
+  // テスト6: ローディング状態の表示を確認
+  test('ローディング状態の表示を確認', async () => {
+    // ストアの取得を遅延させる
+    window.electron.store.get = jest.fn().mockImplementation((key: string) => {
+      return new Promise((resolve) => {
+        setTimeout(() => {
+          resolve(key === 'api' ? mockSettings.api : undefined);
+        }, 100);
+      });
+    });
+
+    render(
+      <SettingsModal
+        open={defaultProps.open}
+        onClose={defaultProps.onClose}
+        onSettingsUpdated={defaultProps.onSettingsUpdated}
+        onValidChange={defaultProps.onValidChange}
+      />,
+    );
+
+    // 全ての入力フィールドが無効化されていることを確認
+    const inputs = screen.getAllByRole('textbox');
+    inputs.forEach((input) => {
+      expect(input).toBeDisabled();
+    });
+
+    // スイッチが無効化されていることを確認
+    const switches = screen.getAllByRole('checkbox');
+    switches.forEach((switchEl) => {
+      expect(switchEl).toBeDisabled();
+    });
+
+    // データがロードされるまで待機
+    await waitFor(
+      () => {
+        const textInputs = screen.getAllByRole('textbox');
+        expect(textInputs[0]).toBeEnabled();
+      },
+      { timeout: 1000 },
+    );
+  });
+
+  // テスト7: 保存中の状態表示を確認
+  test('保存中の状態表示を確認', async () => {
+    const user = userEvent.setup();
+
+    // ストアの更新を遅延させる
+    window.electron.store.set = jest.fn().mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          setTimeout(() => {
+            resolve(undefined);
+          }, 100);
+        }),
+    );
+
+    render(
+      <SettingsModal
+        open={defaultProps.open}
+        onClose={defaultProps.onClose}
+        onSettingsUpdated={defaultProps.onSettingsUpdated}
+        onValidChange={defaultProps.onValidChange}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(window.electron.store.get).toHaveBeenCalledTimes(8);
+    });
+
+    // APIキーを更新
+    const apiKeyInput = screen.getAllByLabelText('APIキー')[0];
+    await waitFor(() => {
+      expect(apiKeyInput).toBeEnabled();
+    });
+    await user.clear(apiKeyInput);
+    await user.type(apiKeyInput, 'new-api-key');
+    await new Promise((resolve) => {
+      setTimeout(resolve, 500);
+    });
+
+    // バリデーション状態の確認
+    await waitFor(
+      () => {
+        const { mock } = defaultProps.onValidChange as jest.Mock;
+        expect(mock.calls[mock.calls.length - 1][0]).toBe(true);
+      },
+      { timeout: 5000 },
+    );
+
+    // 保存ボタンの状態を確認
+    await waitFor(
+      () => {
+        const saveButton = screen.getByText('保存');
+        expect(saveButton).toBeEnabled();
+      },
+      { timeout: 2000 },
+    );
+
+    // 保存ボタンをクリック
+    await user.click(screen.getByText('保存'));
+
+    // ボタンが無効化され、ローディングアイコンが表示されることを確認
+    expect(screen.getByText('保存')).toBeDisabled();
+    expect(screen.getByRole('progressbar')).toBeInTheDocument();
+
+    // 保存が完了するまで待機
+    await waitFor(
+      () => {
+        expect(defaultProps.onClose).toHaveBeenCalled();
+      },
+      { timeout: 1000 },
+    );
+  });
+
+  // テスト8: 設定の取得に失敗した場合のエラー表示を確認
+  test('設定の取得に失敗した場合のエラー表示を確認', async () => {
+    // コンソールエラーをスパイ
+    const consoleSpy = jest
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
+
+    // ストアの取得に失敗するようにモックを設定
+    window.electron.store.get = jest
+      .fn()
+      .mockRejectedValue(new Error('Failed to get settings'));
+
+    render(
+      <SettingsModal
+        open={defaultProps.open}
+        onClose={defaultProps.onClose}
+        onSettingsUpdated={defaultProps.onSettingsUpdated}
+        onValidChange={defaultProps.onValidChange}
+      />,
+    );
+
+    // エラーログが出力されることを確認
+    await waitFor(() => {
+      expect(consoleSpy).toHaveBeenCalledWith(
+        'Failed to get value for key "database":',
+        expect.any(Error),
+      );
+    });
+
+    consoleSpy.mockRestore();
+  });
+});
