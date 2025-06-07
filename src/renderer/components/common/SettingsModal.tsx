@@ -156,7 +156,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
             </Typography>
             <TextField
               fullWidth
-              label="エンドポイント"
+              label="Redmineエンドポイント"
               value={settings.redmine.endpoint}
               disabled={loading || saving}
               onChange={(e) =>
@@ -169,7 +169,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
             />
             <TextField
               fullWidth
-              label="APIキー"
+              label="RedmineAPIキー"
               value={settings.redmine.apiKey}
               disabled={loading || saving}
               onChange={(e) =>
@@ -188,7 +188,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
             </Typography>
             <TextField
               fullWidth
-              label="エンドポイント"
+              label="GitLabエンドポイント"
               value={settings.gitlab.endpoint}
               disabled={loading || saving}
               onChange={(e) =>
@@ -201,7 +201,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
             />
             <TextField
               fullWidth
-              label="APIキー"
+              label="GitLabAPIキー"
               value={settings.gitlab.apiKey}
               disabled={loading || saving}
               onChange={(e) => handleChange('gitlab', 'apiKey', e.target.value)}

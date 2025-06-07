@@ -6,8 +6,8 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 
-import SettingsModal from '../../../renderer/components/common/SettingsModal';
-import { StoreSchema as Settings } from '../../../main/store';
+import SettingsModal from '../../renderer/components/common/SettingsModal';
+import { StoreSchema as Settings } from '../../main/store';
 
 // 設定のモックデータ
 const mockSettings: Settings = {

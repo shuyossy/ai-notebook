@@ -12,8 +12,8 @@ import {
 import '@testing-library/jest-dom';
 // import userEvent from '@testing-library/user-event';
 
-import SourceListModal from '../../../renderer/components/common/SourceListModal';
-import { Source } from '../../../db/schema';
+import SourceListModal from '../../renderer/components/common/SourceListModal';
+import { Source } from '../../db/schema';
 
 // テスト用のモックデータ
 const mockSources: Source[] = [
