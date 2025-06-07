@@ -128,14 +128,14 @@ describe('SettingsModal Component', () => {
     );
 
     // Redmine設定
-    const redmineEndpoint = screen.getAllByLabelText('エンドポイント')[0];
-    const redmineApiKey = screen.getAllByLabelText('APIキー')[1];
+    const redmineEndpoint = screen.getByLabelText('Redmineエンドポイント');
+    const redmineApiKey = screen.getByLabelText('RedmineAPIキー');
     expect(redmineEndpoint).toHaveValue(mockSettings.redmine.endpoint);
     expect(redmineApiKey).toHaveValue(mockSettings.redmine.apiKey);
 
     // GitLab設定
-    const gitlabEndpoint = screen.getAllByLabelText('エンドポイント')[1];
-    const gitlabApiKey = screen.getAllByLabelText('APIキー')[2];
+    const gitlabEndpoint = screen.getByLabelText('GitLabエンドポイント');
+    const gitlabApiKey = screen.getByLabelText('GitLabAPIキー');
     expect(gitlabEndpoint).toHaveValue(mockSettings.gitlab.endpoint);
     expect(gitlabApiKey).toHaveValue(mockSettings.gitlab.apiKey);
 
@@ -158,8 +158,7 @@ describe('SettingsModal Component', () => {
 
   // テスト2: 設定値を更新して保存できること
   test('設定値を更新して保存できること', async () => {
-    jest.setTimeout(10000); // タイムアウトを延長
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
 
     render(
       <SettingsModal
@@ -174,103 +173,134 @@ describe('SettingsModal Component', () => {
       expect(window.electron.store.get).toHaveBeenCalledTimes(8);
     });
 
-    // 入力フィールドの準備
-    const apiKeyInput = screen.getAllByLabelText('APIキー')[0];
+    // 全ての入力フィールドが有効になるまで待機
     await waitFor(() => {
+      const apiKeyInput = screen.getAllByLabelText('APIキー')[0];
       expect(apiKeyInput).toBeEnabled();
     });
 
-    // バリデーションの初期状態を確認
-    await waitFor(() => {
-      expect(defaultProps.onValidChange).toHaveBeenCalledWith(true);
-    });
-
-    // 値の更新とバリデーション待機
-    await user.clear(apiKeyInput);
-    await user.type(apiKeyInput, 'new-api-key');
-
-    // 必要なフィールドが正しい値を持つことを確認
-    await waitFor(() => {
-      expect(apiKeyInput).toHaveValue('new-api-key');
-      expect(screen.getByLabelText('APIエンドポイントURL')).toHaveValue(
-        mockSettings.api.url,
-      );
-      expect(screen.getByLabelText('モデル名')).toHaveValue(
-        mockSettings.api.model,
-      );
-    });
-
-    // バリデーション状態の確認
-    await waitFor(
-      () => {
-        expect(defaultProps.onValidChange).toHaveBeenCalledWith(true);
-      },
-      { timeout: 5000 },
-    );
-
-    // 保存ボタンの有効化を確認
-    screen.debug();
-    await waitFor(
-      () => {
-        const saveButton = screen.getByText('保存');
-        expect(saveButton).toBeEnabled();
-      },
-      { timeout: 5000 },
-    );
-
-    // バリデーションのコールバックが呼ばれることを確認
-    await waitFor(() => {
-      expect(defaultProps.onValidChange).toHaveBeenCalled();
-    });
-
-    // APIエンドポイントを更新
+    // API設定の更新
+    const apiKeyInput = screen.getAllByLabelText('APIキー')[0];
     const apiEndpointInput = screen.getByLabelText('APIエンドポイントURL');
-    await waitFor(() => {
-      expect(apiEndpointInput).toBeEnabled();
-    });
+    const apiModelInput = screen.getByLabelText('モデル名');
+
+    await user.clear(apiKeyInput);
+    await user.type(apiKeyInput, 'new-test-api-key');
+
     await user.clear(apiEndpointInput);
-    await user.type(apiEndpointInput, 'https://new-api.test.com');
+    await user.type(apiEndpointInput, 'https://new.api.test.com');
 
-    // ソース登録ディレクトリを更新
+    await user.clear(apiModelInput);
+    await user.type(apiModelInput, 'new-test-model');
+
+    // データベース設定の更新
+    const dbDirInput = screen.getByLabelText('データベースパス');
+    await user.clear(dbDirInput);
+    await user.type(dbDirInput, '/new/test/db');
+
+    // ソース設定の更新
     const sourceInput = screen.getByLabelText('ソース登録ディレクトリ');
-    await waitFor(() => {
-      expect(sourceInput).toBeEnabled();
-    });
     await user.clear(sourceInput);
-    await user.type(sourceInput, './new-source');
+    await user.type(sourceInput, './new/test/source');
 
-    // ブラウザ操作設定を更新
+    // Redmine設定の更新
+    const redmineEndpoint = screen.getByLabelText('Redmineエンドポイント');
+    const redmineApiKey = screen.getByLabelText('RedmineAPIキー');
+
+    await user.clear(redmineEndpoint);
+    await user.type(redmineEndpoint, 'https://new.redmine.test.com');
+
+    await user.clear(redmineApiKey);
+    await user.type(redmineApiKey, 'new-test-redmine-key');
+
+    // GitLab設定の更新
+    const gitlabEndpoint = screen.getByLabelText('GitLabエンドポイント');
+    const gitlabApiKey = screen.getByLabelText('GitLabAPIキー');
+
+    await user.clear(gitlabEndpoint);
+    await user.type(gitlabEndpoint, 'https://new.gitlab.test.com');
+
+    await user.clear(gitlabApiKey);
+    await user.type(gitlabApiKey, 'new-test-gitlab-key');
+
+    // MCPサーバー設定の更新
+    const mcpConfigInput = screen.getByLabelText('MCPサーバー設定（JSON）');
+    const validMcpConfig = {
+      weather: {
+        command: 'npx',
+        args: ['tsx', 'weather.ts'],
+        env: { API_KEY: 'test-key' },
+        cwd: '/test/weather',
+      },
+    };
+    await user.clear(mcpConfigInput);
+    await userEvent.type(
+      mcpConfigInput,
+      JSON.stringify(validMcpConfig, null, 2).replace(/[{[]/g, '$&$&'),
+    );
+
+    // ブラウザ操作設定の更新
     await user.click(screen.getByLabelText('ブラウザ操作を有効化'));
     await user.click(screen.getByLabelText('ヘッドレスモードを有効化'));
 
-    // 保存ボタンが有効になるまで待機
+    // システムプロンプト設定の更新
+    const systemPromptInput = screen.getByLabelText(
+      'システムプロンプトのカスタマイズが可能です',
+    );
+    await user.clear(systemPromptInput);
+    await user.type(systemPromptInput, 'new test system prompt');
+
     // 保存ボタンをクリック
     await waitFor(() => {
       expect(screen.getByText('保存')).toBeEnabled();
     });
     await user.click(screen.getByText('保存'));
 
-    // storeのset関数が正しく呼ばれることを確認
+    // 各設定の更新が正しく呼ばれることを確認
     await waitFor(() => {
+      // API設定
       expect(window.electron.store.set).toHaveBeenCalledWith('api', {
-        ...mockSettings.api,
-        key: 'new-api-key',
-        url: 'https://new-api.test.com',
+        key: 'new-test-api-key',
+        url: 'https://new.api.test.com',
+        model: 'new-test-model',
       });
-    });
 
-    // stagehandの設定が更新されることを確認
-    await waitFor(() => {
+      // データベース設定
+      expect(window.electron.store.set).toHaveBeenCalledWith('database', {
+        dir: '/new/test/db',
+      });
+
+      // ソース設定
+      expect(window.electron.store.set).toHaveBeenCalledWith('source', {
+        registerDir: './new/test/source',
+      });
+
+      // Redmine設定
+      expect(window.electron.store.set).toHaveBeenCalledWith('redmine', {
+        endpoint: 'https://new.redmine.test.com',
+        apiKey: 'new-test-redmine-key',
+      });
+
+      // GitLab設定
+      expect(window.electron.store.set).toHaveBeenCalledWith('gitlab', {
+        endpoint: 'https://new.gitlab.test.com',
+        apiKey: 'new-test-gitlab-key',
+      });
+
+      // MCP設定
+      expect(window.electron.store.set).toHaveBeenCalledWith('mcp', {
+        serverConfigText: JSON.stringify(validMcpConfig, null, 2),
+      });
+
+      // Stagehand設定
       expect(window.electron.store.set).toHaveBeenCalledWith('stagehand', {
         enabled: false,
         headless: true,
       });
-    });
 
-    // sourceの設定が更新されることを確認
-    await waitFor(() => {
-      expect(window.electron.store.set).toHaveBeenCalledWith('source', {
-        registerDir: './new-source',
+      // システムプロンプト設定
+      expect(window.electron.store.set).toHaveBeenCalledWith('systemPrompt', {
+        content: 'new test system prompt',
       });
     });
 
@@ -280,11 +310,12 @@ describe('SettingsModal Component', () => {
     // コールバック関数が呼ばれることを確認
     expect(defaultProps.onSettingsUpdated).toHaveBeenCalled();
     expect(defaultProps.onClose).toHaveBeenCalled();
-  });
+  }, 20000);
 
   // テスト3: バリデーションエラーが正しく表示されること
   test('バリデーションエラーが正しく表示されること', async () => {
-    const user = userEvent.setup();
+    window.electron.fs.access = jest.fn().mockResolvedValue(false);
+    const user = userEvent.setup({ delay: null });
 
     render(
       <SettingsModal
@@ -299,37 +330,196 @@ describe('SettingsModal Component', () => {
       expect(window.electron.store.get).toHaveBeenCalledTimes(8);
     });
 
-    // APIキーを空にする
-    const apiKeyInput = screen.getAllByLabelText('APIキー')[0];
+    // 必須フィールドを空にする
+    const apiKeyInput = screen.getByLabelText('APIキー');
+    const apiEndpointInput = screen.getByLabelText('APIエンドポイントURL');
+    const apiModelInput = screen.getByLabelText('モデル名');
+    const dbDirInput = screen.getByLabelText('データベースパス');
+
     await waitFor(() => {
       expect(apiKeyInput).toBeEnabled();
     });
-    await user.clear(apiKeyInput);
 
-    // APIエンドポイントを無効なURLにする
-    const apiEndpointInput = screen.getByLabelText('APIエンドポイントURL');
-    await waitFor(() => {
-      expect(apiEndpointInput).toBeEnabled();
-    });
+    // 必須フィールドをクリア
+    await user.clear(apiKeyInput);
+    await user.clear(apiEndpointInput);
+    await user.clear(apiModelInput);
+    await user.clear(dbDirInput);
+
+    // 無効なURL形式を入力
+    const redmineEndpoint = screen.getByLabelText('Redmineエンドポイント');
+    const gitlabEndpoint = screen.getByLabelText('GitLabエンドポイント');
+
     await user.clear(apiEndpointInput);
     await user.type(apiEndpointInput, 'invalid-url');
 
-    // MCPサーバー設定を無効なJSONにする
+    await user.clear(redmineEndpoint);
+    await user.type(redmineEndpoint, 'not-a-url');
+
+    await user.clear(gitlabEndpoint);
+    await user.type(gitlabEndpoint, 'wrong-url');
+
+    // MCPサーバー設定の無効な形式をテスト
     const mcpConfigInput = screen.getByLabelText('MCPサーバー設定（JSON）');
-    await waitFor(() => {
-      expect(mcpConfigInput).toBeEnabled();
-    });
+
+    // 無効なJSON構文
     await user.clear(mcpConfigInput);
-    await user.type(mcpConfigInput, 'invalid-json');
+    await userEvent.type(
+      mcpConfigInput,
+      '{ invalid json'.replace(/[{[]/g, '$&$&'),
+    );
+
+    // バリデーションエラーメッセージが表示されることを確認
+    await waitFor(() => {
+      // 必須フィールドのエラー
+      expect(screen.getByText('APIキーは必須です')).toBeInTheDocument();
+      expect(screen.getByText('モデル名は必須です')).toBeInTheDocument();
+
+      // パスが存在しないエラー（DB,ドキュメント登録ディレクトリ）
+      expect(
+        screen.getAllByText('指定されたパスが存在しません').length,
+      ).toEqual(2);
+
+      // 無効なURL形式のエラー
+      // 同様のエラー文言が3つ表示されることを確認
+      expect(screen.getAllByText('有効なURLを入力してください').length).toEqual(
+        3,
+      );
+
+      // MCPサーバー設定のエラー
+      expect(screen.getByText('JSONの形式が不正です')).toBeInTheDocument();
+    });
 
     // 保存ボタンが無効化されていることを確認
     expect(screen.getByText('保存')).toBeDisabled();
 
-    // バリデーションエラーメッセージが表示されることを確認
+    // バリデーションエラー状態であることを確認
     await waitFor(() => {
       expect(defaultProps.onValidChange).toHaveBeenLastCalledWith(false);
     });
-  });
+  }, 20000);
+
+  // テスト9: MCPスキーマのバリデーションエラーが正しく表示されること
+  test('MCPスキーマのバリデーションエラーが正しく表示されること', async () => {
+    const user = userEvent.setup({ delay: null });
+
+    render(
+      <SettingsModal
+        open={defaultProps.open}
+        onClose={defaultProps.onClose}
+        onSettingsUpdated={defaultProps.onSettingsUpdated}
+        onValidChange={defaultProps.onValidChange}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(window.electron.store.get).toHaveBeenCalledTimes(8);
+    });
+
+    const mcpConfigInput = screen.getByLabelText('MCPサーバー設定（JSON）');
+    await waitFor(() => {
+      expect(mcpConfigInput).toBeEnabled();
+    });
+
+    // 1. 不正なコマンド構造 (必須フィールドの欠如)
+    await user.clear(mcpConfigInput);
+    await userEvent.type(
+      mcpConfigInput,
+      JSON.stringify(
+        {
+          weather: {
+            wrong_field: 'value',
+          },
+        },
+        null,
+        2,
+      ).replace(/[{[]/g, '$&$&'),
+    );
+
+    await waitFor(() => {
+      const element = screen.getByText((content, element) =>
+        content.includes('MCP設定形式が不正です'),
+      );
+      expect(element).toBeInTheDocument();
+      expect(screen.getByText('保存')).toBeDisabled();
+    });
+
+    // 2. 不正な引数フォーマット
+    await user.clear(mcpConfigInput);
+    await userEvent.type(
+      mcpConfigInput,
+      JSON.stringify(
+        {
+          weather: {
+            command: 'npx',
+            args: 'not-an-array',
+          },
+        },
+        null,
+        2,
+      ).replace(/[{[]/g, '$&$&'),
+    );
+
+    await waitFor(() => {
+      const element = screen.getByText((content, element) =>
+        content.includes('MCP設定形式が不正です'),
+      );
+      expect(element).toBeInTheDocument();
+      expect(screen.getByText('保存')).toBeDisabled();
+    });
+
+    // 3. 不正なURL形式
+    await user.clear(mcpConfigInput);
+    await userEvent.type(
+      mcpConfigInput,
+      JSON.stringify(
+        {
+          service: {
+            url: 'invalid-url',
+          },
+        },
+        null,
+        2,
+      ).replace(/[{[]/g, '$&$&'),
+    );
+
+    await waitFor(() => {
+      const element = screen.getByText((content, element) =>
+        content.includes('MCP設定形式が不正です'),
+      );
+      expect(element).toBeInTheDocument();
+      expect(screen.getByText('保存')).toBeDisabled();
+    });
+
+    // 4. 不正な環境変数形式
+    await user.clear(mcpConfigInput);
+    await userEvent.type(
+      mcpConfigInput,
+      JSON.stringify(
+        {
+          weather: {
+            command: 'npx',
+            env: ['not', 'an', 'object'],
+          },
+        },
+        null,
+        2,
+      ).replace(/[{[]/g, '$&$&'),
+    );
+
+    await waitFor(() => {
+      const element = screen.getByText((content, element) =>
+        content.includes('MCP設定形式が不正です'),
+      );
+      expect(element).toBeInTheDocument();
+      expect(screen.getByText('保存')).toBeDisabled();
+    });
+
+    // バリデーション失敗の状態を確認
+    await waitFor(() => {
+      expect(defaultProps.onValidChange).toHaveBeenLastCalledWith(false);
+    });
+  }, 20000);
 
   // テスト4: 保存に失敗した場合のエラー表示を確認
   test('保存に失敗した場合のエラー表示を確認', async () => {
