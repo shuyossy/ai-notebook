@@ -86,16 +86,16 @@ const useSettingsStore = () => {
   });
 
   // 変更前の設定値を保持するstate
-  const [originalSettings, setOriginalSettings] = useState<Settings>({
-    database: { dir: '' },
-    source: { registerDir: './source' },
-    api: { key: '', url: '', model: '' },
-    redmine: { endpoint: '', apiKey: '' },
-    gitlab: { endpoint: '', apiKey: '' },
-    mcp: { serverConfigText: '{}' },
-    stagehand: { enabled: false, headless: false },
-    systemPrompt: { content: '' },
-  });
+  // const [originalSettings, setOriginalSettings] = useState<Settings>({
+  //   database: { dir: '' },
+  //   source: { registerDir: './source' },
+  //   api: { key: '', url: '', model: '' },
+  //   redmine: { endpoint: '', apiKey: '' },
+  //   gitlab: { endpoint: '', apiKey: '' },
+  //   mcp: { serverConfigText: '{}' },
+  //   stagehand: { enabled: false, headless: false },
+  //   systemPrompt: { content: '' },
+  // });
 
   // バリデーションエラーの状態管理
   const [validationErrors, setValidationErrors] = useState<ValidationState>({
@@ -192,7 +192,7 @@ const useSettingsStore = () => {
       };
 
       setSettings(newSettings);
-      setOriginalSettings(newSettings);
+      // setOriginalSettings(newSettings);
 
       // 各セクションのバリデーションを実行
       Object.entries(newSettings).forEach(([section, value]) => {
@@ -251,33 +251,33 @@ const useSettingsStore = () => {
   /**
    * 設定が変更されたかどうかを判定する
    */
-  const hasSettingsChanged = useMemo(() => {
-    return JSON.stringify(settings) !== JSON.stringify(originalSettings);
-  }, [settings, originalSettings]);
+  // const hasSettingsChanged = useMemo(() => {
+  //   return JSON.stringify(settings) !== JSON.stringify(originalSettings);
+  // }, [settings, originalSettings]);
 
   /**
    * Mastra初期化に関わる設定が変更されたかをチェック
    */
-  const requiresReinitialization = useMemo(() => {
-    // 設定が変更されていない場合は初期化不要
-    if (!hasSettingsChanged) {
-      return false;
-    }
+  // const requiresReinitialization = useMemo(() => {
+  //   // 設定が変更されていない場合は初期化不要
+  //   if (!hasSettingsChanged) {
+  //     return false;
+  //   }
 
-    // システムプロンプトとドキュメントディレクトリ以外の変更があるかチェック
-    const hasChanges = Object.entries(settings).some(([key, value]) => {
-      if (key === 'systemPrompt' || key === 'source') {
-        return false;
-      }
-      return (
-        JSON.stringify(value) !==
-        JSON.stringify(originalSettings[key as keyof Settings])
-      );
-    });
+  //   // システムプロンプトとドキュメントディレクトリ以外の変更があるかチェック
+  //   const hasChanges = Object.entries(settings).some(([key, value]) => {
+  //     if (key === 'systemPrompt' || key === 'source') {
+  //       return false;
+  //     }
+  //     return (
+  //       JSON.stringify(value) !==
+  //       JSON.stringify(originalSettings[key as keyof Settings])
+  //     );
+  //   });
 
-    // システムプロンプトまたはドキュメントディレクトリのみの変更の場合はfalse
-    return hasChanges;
-  }, [settings, originalSettings, hasSettingsChanged]);
+  //   // システムプロンプトまたはドキュメントディレクトリのみの変更の場合はfalse
+  //   return hasChanges;
+  // }, [settings, originalSettings, hasSettingsChanged]);
 
   /**
    * 設定の保存処理
@@ -306,13 +306,14 @@ const useSettingsStore = () => {
       ]);
 
       // 必要な場合のみMastraを再初期化
-      if (requiresReinitialization) {
-        await window.electron.agent.reinitialize();
-      }
+      // if (requiresReinitialization) {
+      //   await window.electron.agent.reinitialize();
+      // }
+      await window.electron.agent.reinitialize();
       setUpdatedFlg(true);
 
       // 新しい設定を元の設定として保存
-      setOriginalSettings(settings);
+      // setOriginalSettings(settings);
 
       return true;
     } catch (err) {
