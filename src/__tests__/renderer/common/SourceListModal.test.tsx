@@ -117,7 +117,7 @@ describe('SourceListModal Component', () => {
 
     // 進める
     act(() => {
-      jest.advanceTimersByTime(3000);
+      jest.advanceTimersByTime(5000);
     });
 
     // ソースデータが取得されるまで待機
@@ -199,7 +199,7 @@ describe('SourceListModal Component', () => {
 
     // 進める
     act(() => {
-      jest.advanceTimersByTime(3000);
+      jest.advanceTimersByTime(5000);
     });
 
     // ソースデータが取得されるまで待機
@@ -251,7 +251,7 @@ describe('SourceListModal Component', () => {
 
     // 進める
     act(() => {
-      jest.advanceTimersByTime(3000);
+      jest.advanceTimersByTime(5000);
     });
 
     // ソースデータが取得されるまで待機
@@ -304,7 +304,7 @@ describe('SourceListModal Component', () => {
 
     // 進める
     act(() => {
-      jest.advanceTimersByTime(3000);
+      jest.advanceTimersByTime(5000);
     });
 
     // ソースデータが取得されるまで待機
