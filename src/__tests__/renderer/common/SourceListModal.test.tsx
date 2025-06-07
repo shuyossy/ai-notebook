@@ -144,6 +144,13 @@ describe('SourceListModal Component', () => {
     expect(screen.getByText('完了')).toBeInTheDocument();
     expect(screen.getByText('エラー')).toBeInTheDocument();
     expect(screen.getByText('処理中')).toBeInTheDocument();
+
+    // チェックボックスの初期状態を確認
+    const checkboxes = screen.getAllByRole('checkbox');
+    // 全選択チェックボックスをスキップして、各ソースのチェックボックスを確認
+    expect(checkboxes[1]).toBeChecked(); // source1 (isEnabled: 1)
+    expect(checkboxes[2]).not.toBeChecked(); // source2 (isEnabled: 0)
+    expect(checkboxes[3]).toBeChecked(); // source3 (isEnabled: 1)
   });
 
   // テスト2: ソースのリロードボタンが機能すること
@@ -225,8 +232,8 @@ describe('SourceListModal Component', () => {
     }
   });
 
-  // テスト4: ソースのチェックボックスが1つでも選択された場合、リロードボタンと他のチェックボックスが無効化されること
-  test('ソースのチェックボックスが1つでも選択された場合、リロードボタンと他のチェックボックスが無効化されること', async () => {
+  // テスト4: チェックボックスクリック時の動作検証
+  test('チェックボックスクリック時の動作検証', async () => {
     const props = {
       ...defaultProps,
     };
@@ -266,20 +273,29 @@ describe('SourceListModal Component', () => {
 
     // 1つのチェックボックスを選択
     const checkboxes = screen.getAllByRole('checkbox');
-    fireEvent.click(checkboxes[1]); // 最初のチェックボックス（全選択以外）を選択
+    const sourceCheckbox = checkboxes[1]; // 最初のソースのチェックボックス
 
-    // リロードボタンが無効化されていることを確認
-    const reloadButton = screen.getByText('ソース読み込み');
-    expect(reloadButton).toBeDisabled();
+    // クリック前の状態を確保
+    const wasChecked = (sourceCheckbox as HTMLInputElement).checked;
 
-    // すべてのチェックボックスが無効化されていることを確認
-    for (const checkbox of checkboxes) {
-      expect(checkbox).toBeDisabled();
-    }
+    // クリックしてチェックボックスが無効化されることを確認
+    fireEvent.click(sourceCheckbox);
+    expect(sourceCheckbox).toBeDisabled();
+
+    // window.electron.source.updateSourceEnabledが呼ばれることを確認
+    expect(window.electron.source.updateSourceEnabled).toHaveBeenCalledWith(
+      mockSources[0].id,
+      !wasChecked,
+    );
+
+    // 処理完了後にチェックボックスが再度有効化されることを確認
+    await waitFor(() => {
+      expect(sourceCheckbox).toBeEnabled();
+    });
   });
 
-  // テスト5: 全選択チェックボックスが選択された場合、すべてのソースのチェックボックスが無効化されること
-  test('全選択チェックボックスが選択された場合、すべてのソースのチェックボックスが無効化されること', async () => {
+  // テスト5: 全選択チェックボックスの動作検証
+  test('全選択チェックボックスの動作検証', async () => {
     const props = {
       ...defaultProps,
     };
@@ -319,11 +335,107 @@ describe('SourceListModal Component', () => {
 
     // 全選択チェックボックスを選択
     const checkboxes = screen.getAllByRole('checkbox');
-    fireEvent.click(checkboxes[0]); // 全選択チェックボックス
+    const allCheckbox = checkboxes[0]; // 全選択チェックボックス
 
-    // すべてのチェックボックスが無効化されていることを確認
+    // クリック前の状態を確保（一つでもチェックが外れているか）
+    const someUnchecked = Array.from(checkboxes)
+      .slice(1)
+      .some((cb) => !(cb as HTMLInputElement).checked);
+
+    // クリックしてチェックボックスが無効化されることを確認
+    fireEvent.click(allCheckbox);
+    expect(allCheckbox).toBeDisabled();
+
+    // すべてのチェックボックスが無効化されることを確認
     for (const checkbox of checkboxes) {
       expect(checkbox).toBeDisabled();
     }
+
+    // 各ソースのupdateSourceEnabledが呼ばれることを確認
+    mockSources.forEach((source) => {
+      expect(window.electron.source.updateSourceEnabled).toHaveBeenCalledWith(
+        source.id,
+        someUnchecked, // 一つでもチェックが外れていれば true (全選択)
+      );
+    });
+
+    // 処理完了後にチェックボックスが再度有効化されることを確認
+    await waitFor(() => {
+      expect(allCheckbox).toBeEnabled();
+      checkboxes.slice(1).forEach((checkbox) => {
+        expect(checkbox).toBeEnabled();
+      });
+    });
+  });
+
+  // テスト6: 全てのソースが完了状態の場合のボタン制御
+  test('全てのソースが完了状態の場合のボタン制御', async () => {
+    // 全て完了状態のモックデータを作成
+    const allCompletedSources: Source[] = [
+      {
+        id: 1,
+        path: '/path/to/source1.md',
+        title: 'Source 1',
+        summary: 'Summary of source 1',
+        createdAt: '2025-05-01T12:00:00.000Z',
+        updatedAt: '2025-05-01T12:00:00.000Z',
+        status: 'completed',
+        isEnabled: 1,
+        error: null,
+      },
+      {
+        id: 2,
+        path: '/path/to/source2.md',
+        title: 'Source 2',
+        summary: 'Summary of source 2',
+        createdAt: '2025-05-02T12:00:00.000Z',
+        updatedAt: '2025-05-02T12:00:00.000Z',
+        status: 'completed',
+        isEnabled: 0,
+        error: null,
+      },
+    ];
+
+    // モックデータをセットアップ
+    window.electron.source.getSources = jest.fn().mockResolvedValue({
+      success: true,
+      sources: allCompletedSources,
+    });
+
+    const props = {
+      ...defaultProps,
+    };
+
+    // コンポーネントをレンダリング
+    render(
+      <SourceListModal
+        open={props.open}
+        processing={props.processing}
+        onClose={props.onClose}
+        onReloadSources={props.onReloadSources}
+        onStatusUpdate={props.onStatusUpdate}
+        showSnackbar={props.showSnackbar}
+      />,
+    );
+
+    // 進める
+    act(() => {
+      jest.advanceTimersByTime(5000);
+    });
+
+    // ソースデータが取得されるまで待機
+    await waitFor(() => {
+      expect(window.electron.source.getSources).toHaveBeenCalled();
+    });
+
+    // 完了状態なのでリロードボタンが活性化されていることを確認
+    const reloadButton = screen.getByText('ソース読み込み');
+    expect(reloadButton).toBeEnabled();
+
+    // リロードボタンをクリック
+    fireEvent.click(reloadButton);
+
+    // onReloadSourcesが呼ばれたことを確認
+    expect(props.onReloadSources).toHaveBeenCalled();
   });
 });
