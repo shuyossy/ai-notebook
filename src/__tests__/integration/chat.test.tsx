@@ -275,7 +275,30 @@ describe('ChatArea Component', () => {
 
   // テスト6:エージェント起動関連エラーの表示が正しいこと
   test('エージェント起動関連エラーの表示が正しいこと', async () => {
+    window.electron = createMockElectronWithOptions({
+      chatRooms: mockChatRooms,
+      agentStatus: {
+        state: 'error',
+        messages: [
+          {
+            id: '1',
+            type: 'error',
+            content: 'AIエージェントの起動に失敗しました',
+          },
+        ],
+      },
+    });
 
+    render(<ChatArea selectedRoomId="1" />);
+
+    // エラーメッセージが表示されることを確認
+    await waitFor(() => {
+      const alerts = screen.getAllByRole('alert');
+      const errorAlert = alerts.find(alert =>
+        alert.textContent?.includes('AIエージェントの起動に失敗しました')
+      );
+      expect(errorAlert).toBeInTheDocument();
+    });
   });
 
   // テスト7: メッセージ送信のキーボードショートカットが機能すること
@@ -377,7 +400,41 @@ describe('ChatArea Component', () => {
 
   // テスト10: アラートメッセージの閉じるボタンが機能すること
   test('アラートメッセージの閉じるボタンが機能すること', async () => {
+    const user = userEvent.setup();
+    window.electron = createMockElectronWithOptions({
+      chatRooms: mockChatRooms,
+      agentStatus: {
+        state: 'error',
+        messages: [
+          {
+            id: '1',
+            type: 'error',
+            content: 'AIエージェントの起動に失敗しました',
+          },
+        ],
+      },
+    });
 
+    render(<ChatArea selectedRoomId="1" />);
+
+    // AIエージェントの起動失敗メッセージが表示されることを確認
+    const errorMessage = 'AIエージェントの起動に失敗しました';
+    await waitFor(() => {
+      expect(screen.getByText(errorMessage)).toBeInTheDocument();
+    });
+
+    // 閉じるボタンをクリック
+    const alerts = screen.getAllByRole('alert');
+    const targetAlert = alerts.find(alert => alert.textContent?.includes(errorMessage));
+    expect(targetAlert).toBeInTheDocument();
+
+    const closeButton = within(targetAlert!).getByRole('button');
+    await act(async () => {
+      await user.click(closeButton);
+    });
+
+    // window.electron.agent.removeMessageが呼ばれることを確認
+    expect(window.electron.agent.removeMessage).toHaveBeenCalledWith('1');
   });
 
   // テスト11: エージェント初期化中の表示が正しいこと
