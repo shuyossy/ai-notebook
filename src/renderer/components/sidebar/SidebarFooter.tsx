@@ -34,6 +34,7 @@ function SidebarFooter({
           size={12}
           thickness={4}
           sx={{ color: 'primary.main' }}
+          data-testid="document-loading-indicator"
         />
       );
     }

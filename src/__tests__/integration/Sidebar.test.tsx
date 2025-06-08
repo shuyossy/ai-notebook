@@ -2,13 +2,14 @@
  * @jest-environment jsdom
  */
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import { v4 as uuidv4 } from 'uuid';
 
 import Sidebar from '../../renderer/components/sidebar/Sidebar';
 import type { ChatRoom } from '../../main/types';
+import { StoreSchema as Settings } from '../../main/store';
 
 // uuidv4をモック化
 jest.mock('uuid', () => ({
@@ -33,14 +34,98 @@ const mockChatRooms: ChatRoom[] = [
   },
 ];
 
+// ソースのモックデータ
+const mockSources = [
+  {
+    id: 1,
+    path: '/test/source1.md',
+    title: 'Source 1',
+    status: 'completed',
+    isEnabled: 1,
+    error: null,
+    createdAt: '2025-05-01T12:00:00.000Z',
+    updatedAt: '2025-05-01T12:00:00.000Z',
+    summary: 'Test summary 1',
+  },
+  {
+    id: 2,
+    path: '/test/source2.md',
+    title: 'Source 2',
+    status: 'completed',
+    isEnabled: 1,
+    error: null,
+    createdAt: '2025-05-02T12:00:00.000Z',
+    updatedAt: '2025-05-02T12:00:00.000Z',
+    summary: 'Test summary 2',
+  },
+  {
+    id: 3,
+    path: '/test/source3.md',
+    title: 'Source 3',
+    status: 'failed',
+    isEnabled: 0,
+    error: 'Processing error',
+    createdAt: '2025-05-03T12:00:00.000Z',
+    updatedAt: '2025-05-03T12:00:00.000Z',
+    summary: 'Test summary 3',
+  },
+];
+
+const mockSettings: Settings = {
+  api: {
+    key: 'test-api-key',
+    url: 'https://api.test.com',
+    model: 'test-model',
+  },
+  database: {
+    dir: '/test/db',
+  },
+  source: {
+    registerDir: '/test/source',
+  },
+  redmine: {
+    endpoint: 'https://redmine.test.com',
+    apiKey: 'test-redmine-key',
+  },
+  gitlab: {
+    endpoint: 'https://gitlab.test.com',
+    apiKey: 'test-gitlab-key',
+  },
+  mcp: {
+    serverConfigText: '{"testMcp": {"url": "https://mcp.test.com"} }',
+  },
+  stagehand: {
+    enabled: true,
+    headless: false,
+  },
+  systemPrompt: {
+    content: 'test system prompt',
+  },
+};
+
 describe('Sidebar Component', () => {
   // テスト前のセットアップ
   beforeEach(() => {
-    // chatServiceをモック化
+    // Electronグローバルオブジェクトをモック化
     window.electron = {
       chat: {
         getRooms: jest.fn().mockResolvedValue(mockChatRooms),
         deleteRoom: jest.fn().mockResolvedValue({ success: true }),
+      },
+      source: {
+        getSources: jest.fn().mockResolvedValue({
+          success: true,
+          sources: mockSources,
+        }),
+      },
+      store: {
+        get: jest.fn().mockImplementation((key: keyof Settings) => {
+          return mockSettings[key];
+        }) as jest.Mock,
+        set: jest.fn().mockResolvedValue(undefined),
+      },
+      fs: {
+        access: jest.fn().mockResolvedValue(true),
       },
     } as any;
 
@@ -60,6 +145,7 @@ describe('Sidebar Component', () => {
     onRoomSelect: jest.fn(),
     onReloadSources: jest.fn(),
     showSnackbar: jest.fn(),
+    onSettingsUpdated: jest.fn(),
   };
 
   // テスト1: 正常にサイドバーとチャットルーム一覧が表示されること
@@ -151,7 +237,7 @@ describe('Sidebar Component', () => {
   });
 
   // テスト6: チャットルームの削除
-  test('チャットルームの削除', async () => {
+  test('チャットルームの削除の際に正しく指定したチャットルームが削除されること（チャットルームのソート確認も含む）', async () => {
     const user = userEvent.setup();
     render(<Sidebar {...defaultProps} />);
 
@@ -286,18 +372,241 @@ describe('Sidebar Component', () => {
     consoleSpy.mockRestore();
   });
 
-  // テスト12: 設定エラーバッジの表示
-  test('設定エラーバッジの表示', async () => {
+  // テスト12: 設定エラーバッジの初期表示
+  test('設定エラーバッジの初期表示', async () => {
     render(<Sidebar {...defaultProps} />);
 
-    // 設定エラーを発生させる
-    const settingsButton = screen.getByLabelText('設定');
+    // 設定エラーがない場合、バッジは非表示
+    const settingsButton = screen.getByTestId('settings-button');
     const settingsButtonParent = settingsButton.closest('.MuiBadge-root');
 
-    // 設定エラー時にバッジが表示されることを確認
     await waitFor(() => {
       const errorBadge = settingsButtonParent?.querySelector('.MuiBadge-badge');
-      expect(errorBadge).toBeInTheDocument();
+      expect(errorBadge).toHaveClass('MuiBadge-invisible');
     });
+  });
+
+  // テスト13: 設定保存後のバッジ表示更新
+  test('設定保存後のバッジ表示更新', async () => {
+    const user = userEvent.setup({ delay: null });
+    render(<Sidebar {...defaultProps} />);
+
+    // 設定ボタンをクリックしてモーダルを開く
+    await user.click(screen.getByTestId('settings-button'));
+
+    // 設定が不正な状態を作る
+    const settingsModal = screen.getByRole('dialog');
+    await waitFor(() => {
+      expect(settingsModal).toBeInTheDocument();
+    });
+
+    // バリデーションエラーを発生させる
+    const apiKeyInput = screen.getAllByLabelText('APIキー')[0];
+    await waitFor(() => {
+      expect(apiKeyInput).toBeEnabled();
+    });
+    await user.clear(apiKeyInput);
+
+    // エラーバッジが表示されることを確認
+    const settingsButton = screen.getByTestId('settings-button');
+    const settingsButtonParent = settingsButton.closest('.MuiBadge-root');
+    const errorBadge = settingsButtonParent?.querySelector('.MuiBadge-badge');
+    await waitFor(() => {
+      expect(errorBadge).not.toHaveClass('MuiBadge-invisible');
+    });
+
+    // APIキーを入力して有効な状態にする
+    await user.type(apiKeyInput, 'valid-api-key');
+
+    // エラーバッジが非表示になることを確認
+    await waitFor(() => {
+      expect(errorBadge).toHaveClass('MuiBadge-invisible');
+    });
+  });
+
+  // テスト14: ソースリストの初期表示で有効なソース数が正しく表示される
+  test('ソースリストの初期表示で有効なソース数が正しく表示される', async () => {
+    // タイマーのモック
+    jest.useFakeTimers();
+
+    render(<Sidebar {...defaultProps} />);
+
+    // 進める
+    act(() => {
+      jest.advanceTimersByTime(5000);
+    });
+
+    // ソースデータが取得されるまで待機
+    await waitFor(() => {
+      expect(window.electron.source.getSources).toHaveBeenCalled();
+    });
+
+    // ソース一覧ボタンのバッジを取得
+    const sourceListButton = screen.getByTestId('document-list-button');
+    const sourceListButtonParent = sourceListButton.closest('.MuiBadge-root');
+    const badge = sourceListButtonParent?.querySelector('.MuiBadge-badge');
+
+    // バッジに正しい数が表示されていることを確認
+    await waitFor(() => {
+      expect(badge).toHaveTextContent('2');
+    });
+  });
+
+  // テスト15: ソースの読み込み中は処理中の表示になり、完了後にソース数が表示される
+  test('ソースの読み込み中は処理中の表示になり、完了後にソース数が表示される', async () => {
+    // タイマーのモック
+    jest.useFakeTimers();
+
+    // 処理中のソースデータ
+    const processingMockSources = [
+      {
+        id: 1,
+        path: '/test/processing1.md',
+        title: 'Processing 1',
+        status: 'processing',
+        isEnabled: 1,
+        error: null,
+        createdAt: '2025-05-01T12:00:00.000Z',
+        updatedAt: '2025-05-01T12:00:00.000Z',
+        summary: 'Test summary 1',
+      },
+      {
+        id: 2,
+        path: '/test/processing2.md',
+        title: 'Processing 2',
+        status: 'completed',
+        isEnabled: 1,
+        error: null,
+        createdAt: '2025-05-02T12:00:00.000Z',
+        updatedAt: '2025-05-02T12:00:00.000Z',
+        summary: 'Test summary 2',
+      },
+    ];
+
+    // 完了後のソースデータ
+    const completedMockSources = [
+      {
+        id: 1,
+        path: '/test/processing1.md',
+        title: 'Processing 1',
+        status: 'completed',
+        isEnabled: 1,
+        error: null,
+        createdAt: '2025-05-01T12:00:00.000Z',
+        updatedAt: '2025-05-01T12:00:00.000Z',
+        summary: 'Test summary 1',
+      },
+      {
+        id: 2,
+        path: '/test/processing2.md',
+        title: 'Processing 2',
+        status: 'completed',
+        isEnabled: 1,
+        error: null,
+        createdAt: '2025-05-02T12:00:00.000Z',
+        updatedAt: '2025-05-02T12:00:00.000Z',
+        summary: 'Test summary 2',
+      },
+    ];
+
+    // ソース取得のモックを設定（最初は処理中、その後完了）
+    let isFirstCall = true;
+    window.electron.source.getSources = jest.fn().mockImplementation(() => {
+      if (isFirstCall) {
+        isFirstCall = false;
+        return Promise.resolve({
+          success: true,
+          sources: processingMockSources,
+        });
+      }
+      return Promise.resolve({
+        success: true,
+        sources: completedMockSources,
+      });
+    });
+
+    const user = userEvent.setup();
+    render(<Sidebar {...defaultProps} />);
+
+    // 進める
+    act(() => {
+      jest.advanceTimersByTime(5000);
+    });
+
+    // ソースデータが取得されるまで待機
+    await waitFor(() => {
+      expect(window.electron.source.getSources).toHaveBeenCalled();
+    });
+
+    // 処理中のインジケータが表示されることを確認
+    await waitFor(() => {
+      expect(
+        screen.getByTestId('document-loading-indicator'),
+      ).toBeInTheDocument();
+    });
+
+    // 5秒待機してソースデータが更新されることを確認
+    act(() => {
+      jest.advanceTimersByTime(5000);
+    });
+
+    // バッジに有効なソース数（2）が表示されることを確認
+    await waitFor(() => {
+      const button = screen.getByTestId('document-list-button');
+      const buttonParent = button.closest('.MuiBadge-root');
+      const badge = buttonParent?.querySelector('.MuiBadge-badge');
+      expect(badge).toHaveTextContent('2');
+    });
+
+    // タイマーをクリーンアップ
+    jest.useRealTimers();
+  }, 20000);
+
+  // テスト16: ソース数が100以上の場合は99+と表示される
+  test('ソース数が100以上の場合は99+と表示される', async () => {
+    // タイマーのモック
+    jest.useFakeTimers();
+
+    // 100個以上の有効なソースを含むテストデータを生成
+    const largeMockSources = Array.from({ length: 150 }, (_, i) => ({
+      id: i + 1,
+      path: `/test/source${i + 1}.md`,
+      title: `Source ${i + 1}`,
+      status: 'completed',
+      isEnabled: 1,
+      error: null,
+      createdAt: '2025-05-01T12:00:00.000Z',
+      updatedAt: '2025-05-01T12:00:00.000Z',
+      summary: `Test summary ${i + 1}`,
+    }));
+
+    // ソース取得のモックを設定
+    window.electron.source.getSources = jest.fn().mockResolvedValue({
+      success: true,
+      sources: largeMockSources,
+    });
+
+    render(<Sidebar {...defaultProps} />);
+
+    // タイマーを進める
+    act(() => {
+      jest.advanceTimersByTime(5000);
+    });
+
+    // ソースデータが取得されるまで待機
+    await waitFor(() => {
+      expect(window.electron.source.getSources).toHaveBeenCalled();
+    });
+
+    // バッジに"99+"が表示されることを確認
+    await waitFor(() => {
+      const button = screen.getByTestId('document-list-button');
+      const buttonParent = button.closest('.MuiBadge-root');
+      const badge = buttonParent?.querySelector('.MuiBadge-badge');
+      expect(badge).toHaveTextContent('99+');
+    });
+
+    // タイマーをクリーンアップ
+    jest.useRealTimers();
   });
 });
