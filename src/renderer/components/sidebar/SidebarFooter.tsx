@@ -57,7 +57,10 @@ function SidebarFooter({
               },
             }}
           >
-            <IconButton onClick={onOpenSourceList}>
+            <IconButton
+              data-testid="document-list-button"
+              onClick={onOpenSourceList}
+            >
               <AttachFileIcon />
             </IconButton>
           </Badge>
@@ -75,7 +78,7 @@ function SidebarFooter({
               },
             }}
           >
-            <IconButton onClick={onSettingsClick}>
+            <IconButton data-testid="settings-button" onClick={onSettingsClick}>
               <SettingsIcon />
             </IconButton>
           </Badge>
