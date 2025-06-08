@@ -1,4 +1,7 @@
 import type { ElectronHandler } from '../../main/preload';
+import type { StoreSchema as Settings } from '../../main/store';
+import type { Source } from '../../db/schema';
+import type { ChatRoom } from '../../main/types';
 
 /**
  * Mockメソッドの型を定義
@@ -21,39 +24,112 @@ export type MockHandler<T> = {
 export type ElectronMock = MockHandler<ElectronHandler>;
 
 /**
- * デフォルトのモック実装を作成
+ * デフォルトの設定値を生成
  */
-export const createMockElectron = (): ElectronHandler => ({
-  agent: {
-    getStatus: jest.fn(),
-    reinitialize: jest.fn(),
-    removeMessage: jest.fn(),
-  },
-  fs: {
-    access: jest.fn(),
-  },
-  store: {
-    get: jest.fn(),
-    set: jest.fn(),
-  },
-  chat: {
-    sendMessage: jest.fn(),
-    getRooms: jest.fn(),
-    getMessages: jest.fn(),
-    deleteRoom: jest.fn(),
-    createThread: jest.fn(),
-    onError: jest.fn(),
-    onStream: jest.fn(),
-    onComplete: jest.fn(),
+export const createDefaultMockSettings = (): Settings => ({
+  database: {
+    dir: '/test/db',
   },
   source: {
-    reloadSources: jest.fn(),
-    getSources: jest.fn(),
-    updateSourceEnabled: jest.fn(),
+    registerDir: './test/source',
   },
-  ipcRenderer: {
-    sendMessage: jest.fn(),
-    on: jest.fn(),
-    once: jest.fn(),
+  api: {
+    key: 'test-api-key',
+    url: 'https://api.test.com',
+    model: 'test-model',
   },
-}) as ElectronMock;
+  redmine: {
+    endpoint: 'https://redmine.test.com',
+    apiKey: 'test-redmine-key',
+  },
+  gitlab: {
+    endpoint: 'https://gitlab.test.com',
+    apiKey: 'test-gitlab-key',
+  },
+  mcp: {
+    serverConfigText: '{"testMcp": {"url": "https://mcp.test.com"} }',
+  },
+  stagehand: {
+    enabled: true,
+    headless: false,
+  },
+  systemPrompt: {
+    content: 'test system prompt',
+  },
+});
+
+/**
+ * モックオプションのインターフェース
+ */
+export interface MockOptions {
+  initialSettings?: Partial<Settings>;
+  sources?: Source[];
+  chatRooms?: ChatRoom[];
+  sourceEnabled?: boolean;
+  fsAccess?: boolean;
+}
+
+/**
+ * オプション付きでモックを生成する関数
+ */
+export const createMockElectronWithOptions = (
+  options: MockOptions = {},
+): ElectronHandler => {
+  const settings = options.initialSettings
+    ? { ...createDefaultMockSettings(), ...options.initialSettings }
+    : createDefaultMockSettings();
+
+  const mockHandlers = {
+    agent: {
+      getStatus: jest.fn(),
+      reinitialize: jest.fn().mockResolvedValue(undefined),
+      removeMessage: jest.fn(),
+    },
+    fs: {
+      access: jest.fn().mockResolvedValue(options.fsAccess ?? true),
+    },
+    store: {
+      get: jest.fn().mockImplementation((key: string) => {
+        if (key === 'all') return settings;
+        return settings[key as keyof Settings];
+      }),
+      set: jest.fn().mockResolvedValue(undefined),
+    },
+    chat: {
+      sendMessage: jest.fn(),
+      getRooms: jest.fn().mockResolvedValue(options.chatRooms ?? []),
+      getMessages: jest.fn().mockResolvedValue([]),
+      deleteRoom: jest.fn().mockResolvedValue({ success: true }),
+      createThread: jest.fn(),
+      onError: jest.fn(),
+      onStream: jest.fn(),
+      onComplete: jest.fn(),
+    },
+    source: {
+      reloadSources: jest.fn().mockResolvedValue({
+        success: true,
+        message: 'Source reloaded successfully',
+      }),
+      getSources: jest.fn().mockResolvedValue({
+        success: true,
+        sources: options.sources ?? [],
+      }),
+      updateSourceEnabled: jest.fn().mockResolvedValue({
+        success: true,
+      }),
+    },
+    ipcRenderer: {
+      sendMessage: jest.fn(),
+      on: jest.fn(),
+      once: jest.fn(),
+    },
+  };
+
+  return mockHandlers as ElectronMock;
+};
+
+/**
+ * 後方互換性のために残す
+ * @deprecated Use createMockElectronWithOptions instead
+ */
+export const createMockElectron = createMockElectronWithOptions;

@@ -10,10 +10,11 @@ import {
   act,
 } from '@testing-library/react';
 import '@testing-library/jest-dom';
-// import userEvent from '@testing-library/user-event';
 
 import SourceListModal from '../../renderer/components/common/SourceListModal';
-import { Source } from '../../db/schema';
+import type { Source } from '../../db/schema';
+import { ProcessStatus } from '../../main/types';
+import { createMockElectronWithOptions } from '../../__tests__/test-utils/mockElectronHandler';
 
 // テスト用のモックデータ
 const mockSources: Source[] = [
@@ -24,7 +25,7 @@ const mockSources: Source[] = [
     summary: 'Summary of source 1',
     createdAt: '2025-05-01T12:00:00.000Z',
     updatedAt: '2025-05-01T12:00:00.000Z',
-    status: 'completed',
+    status: 'completed' as ProcessStatus,
     isEnabled: 1,
     error: null,
   },
@@ -35,7 +36,7 @@ const mockSources: Source[] = [
     summary: 'Summary of source 2',
     createdAt: '2025-05-02T12:00:00.000Z',
     updatedAt: '2025-05-02T12:00:00.000Z',
-    status: 'failed',
+    status: 'failed' as ProcessStatus,
     isEnabled: 0,
     error: 'Error processing file',
   },
@@ -46,7 +47,7 @@ const mockSources: Source[] = [
     summary: 'Summary of source 3',
     createdAt: '2025-05-03T12:00:00.000Z',
     updatedAt: '2025-05-03T12:00:00.000Z',
-    status: 'processing',
+    status: 'processing' as ProcessStatus,
     isEnabled: 1,
     error: null,
   },
@@ -55,22 +56,9 @@ const mockSources: Source[] = [
 describe('SourceListModal Component', () => {
   // テスト前のセットアップ
   beforeEach(() => {
-    // window.electron をモック
-    window.electron = {
-      source: {
-        getSources: jest.fn().mockResolvedValue({
-          success: true,
-          sources: [],
-        }),
-        updateSourceEnabled: jest.fn().mockResolvedValue({
-          success: true,
-        }),
-        reloadSources: jest.fn().mockResolvedValue({
-          success: true,
-          message: 'Source reloaded successfully',
-        }),
-      },
-    } as any;
+    window.electron = createMockElectronWithOptions({
+      sources: mockSources,
+    });
 
     // タイマーのモック
     jest.useFakeTimers();
@@ -94,25 +82,14 @@ describe('SourceListModal Component', () => {
 
   // テスト1: 正常にソース一覧を表示できること
   test('正常にソース一覧を表示できること', async () => {
-    // モックデータをセットアップ
-    window.electron.source.getSources = jest.fn().mockResolvedValue({
-      success: true,
-      sources: mockSources,
-    });
-
-    const props = {
-      ...defaultProps,
-    };
-
-    // コンポーネントをレンダリング
     render(
       <SourceListModal
-        open={props.open}
-        processing={props.processing}
-        onClose={props.onClose}
-        onReloadSources={props.onReloadSources}
-        onStatusUpdate={props.onStatusUpdate}
-        showSnackbar={props.showSnackbar}
+        open={defaultProps.open}
+        processing={defaultProps.processing}
+        onClose={defaultProps.onClose}
+        onReloadSources={defaultProps.onReloadSources}
+        onStatusUpdate={defaultProps.onStatusUpdate}
+        showSnackbar={defaultProps.showSnackbar}
       />,
     );
 
@@ -156,19 +133,14 @@ describe('SourceListModal Component', () => {
 
   // テスト2: ソースのリロードボタンが機能すること
   test('ソースのリロードボタンが機能すること', async () => {
-    const props = {
-      ...defaultProps,
-    };
-
-    // コンポーネントをレンダリング
     render(
       <SourceListModal
-        open={props.open}
-        processing={props.processing}
-        onClose={props.onClose}
-        onReloadSources={props.onReloadSources}
-        onStatusUpdate={props.onStatusUpdate}
-        showSnackbar={props.showSnackbar}
+        open={defaultProps.open}
+        processing={defaultProps.processing}
+        onClose={defaultProps.onClose}
+        onReloadSources={defaultProps.onReloadSources}
+        onStatusUpdate={defaultProps.onStatusUpdate}
+        showSnackbar={defaultProps.showSnackbar}
       />,
     );
 
@@ -177,31 +149,19 @@ describe('SourceListModal Component', () => {
     fireEvent.click(reloadButton);
 
     // onReloadSourcesが呼ばれたことを確認
-    expect(props.onReloadSources).toHaveBeenCalled();
+    expect(defaultProps.onReloadSources).toHaveBeenCalled();
   });
 
   // テスト3: 処理中はUI要素が無効化されること
   test('処理中はUI要素が無効化されること', async () => {
-    // モックデータをセットアップ
-    window.electron.source.getSources = jest.fn().mockResolvedValue({
-      success: true,
-      sources: mockSources,
-    });
-
-    const props = {
-      ...defaultProps,
-      processing: true,
-    };
-
-    // 処理中状態でコンポーネントをレンダリング
     render(
       <SourceListModal
-        open={props.open}
-        processing={props.processing}
-        onClose={props.onClose}
-        onReloadSources={props.onReloadSources}
-        onStatusUpdate={props.onStatusUpdate}
-        showSnackbar={props.showSnackbar}
+        open={defaultProps.open}
+        processing={true}
+        onClose={defaultProps.onClose}
+        onReloadSources={defaultProps.onReloadSources}
+        onStatusUpdate={defaultProps.onStatusUpdate}
+        showSnackbar={defaultProps.showSnackbar}
       />,
     );
 
@@ -238,12 +198,6 @@ describe('SourceListModal Component', () => {
     const props = {
       ...defaultProps,
     };
-
-    // モックデータをセットアップ
-    window.electron.source.getSources = jest.fn().mockResolvedValue({
-      success: true,
-      sources: mockSources,
-    });
 
     // コンポーネントをレンダリング
     render(
@@ -306,12 +260,6 @@ describe('SourceListModal Component', () => {
     const consoleSpy = jest
       .spyOn(console, 'error')
       .mockImplementation(() => {});
-
-    // モックデータをセットアップ
-    window.electron.source.getSources = jest.fn().mockResolvedValue({
-      success: true,
-      sources: mockSources,
-    });
 
     // コンポーネントをレンダリング
     render(
@@ -434,12 +382,6 @@ describe('SourceListModal Component', () => {
       ...defaultProps,
     };
 
-    // モックデータをセットアップ
-    window.electron.source.getSources = jest.fn().mockResolvedValue({
-      success: true,
-      sources: mockSources,
-    });
-
     // コンポーネントをレンダリング
     render(
       <SourceListModal
@@ -514,12 +456,6 @@ describe('SourceListModal Component', () => {
       error: 'Update failed',
     });
 
-    // モックデータをセットアップ
-    window.electron.source.getSources = jest.fn().mockResolvedValue({
-      success: true,
-      sources: mockSources,
-    });
-
     // コンポーネントをレンダリング
     render(
       <SourceListModal
@@ -575,12 +511,6 @@ describe('SourceListModal Component', () => {
     window.electron.source.updateSourceEnabled = jest.fn().mockResolvedValue({
       success: false,
       error: 'Update failed',
-    });
-
-    // モックデータをセットアップ
-    window.electron.source.getSources = jest.fn().mockResolvedValue({
-      success: true,
-      sources: mockSources,
     });
 
     // コンポーネントをレンダリング
@@ -648,7 +578,7 @@ describe('SourceListModal Component', () => {
         summary: 'Summary of source 1',
         createdAt: '2025-05-01T12:00:00.000Z',
         updatedAt: '2025-05-01T12:00:00.000Z',
-        status: 'completed',
+        status: 'completed' as ProcessStatus,
         isEnabled: 1,
         error: null,
       },
@@ -659,7 +589,7 @@ describe('SourceListModal Component', () => {
         summary: 'Summary of source 2',
         createdAt: '2025-05-02T12:00:00.000Z',
         updatedAt: '2025-05-02T12:00:00.000Z',
-        status: 'failed',
+        status: 'failed' as ProcessStatus,
         isEnabled: 0,
         error: 'Error message',
       },
@@ -670,7 +600,7 @@ describe('SourceListModal Component', () => {
         summary: 'Summary of source 3',
         createdAt: '2025-05-03T12:00:00.000Z',
         updatedAt: '2025-05-03T12:00:00.000Z',
-        status: 'processing',
+        status: 'processing' as ProcessStatus,
         isEnabled: 1,
         error: null,
       },
@@ -743,12 +673,15 @@ describe('SourceListModal Component', () => {
     expect(screen.getByText('不明')).toBeInTheDocument();
 
     // エラーツールチップのテスト
-    // const errorIcon = screen.getByText('エラー');
-    // await userEvent.hover(errorIcon);
-    // await waitFor(() => {
-    //   const errorTooltip = screen.getByText('Error message');
-    //   expect(errorTooltip).toBeInTheDocument();
-    // });
+    // 「エラー」ラベルの Chip（Tooltip のトリガー）を取得
+    const trigger = screen.getByTestId('sourcelistmodal-error-tooltip');
+
+    // ホバーをシミュレートして Tooltip をオープン
+    fireEvent.mouseEnter(trigger);
+
+    // await で中身を取得して検証
+    const tooltip = await screen.findByText('Error message');
+    expect(tooltip).toBeInTheDocument();
   });
 
   // テスト10: 定期更新処理のエラーハンドリング

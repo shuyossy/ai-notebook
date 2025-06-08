@@ -8,8 +8,10 @@ import '@testing-library/jest-dom';
 import { v4 as uuidv4 } from 'uuid';
 
 import Sidebar from '../../renderer/components/sidebar/Sidebar';
-import type { ChatRoom } from '../../main/types';
+import type { ChatRoom, ProcessStatus } from '../../main/types';
+import type { Source } from '../../db/schema';
 import { StoreSchema as Settings } from '../../main/store';
+import { createMockElectronWithOptions } from '../../__tests__/test-utils/mockElectronHandler';
 
 // uuidv4をモック化
 jest.mock('uuid', () => ({
@@ -35,12 +37,12 @@ const mockChatRooms: ChatRoom[] = [
 ];
 
 // ソースのモックデータ
-const mockSources = [
+const mockSources: Source[] = [
   {
     id: 1,
     path: '/test/source1.md',
     title: 'Source 1',
-    status: 'completed',
+    status: 'completed' as ProcessStatus,
     isEnabled: 1,
     error: null,
     createdAt: '2025-05-01T12:00:00.000Z',
@@ -51,7 +53,7 @@ const mockSources = [
     id: 2,
     path: '/test/source2.md',
     title: 'Source 2',
-    status: 'completed',
+    status: 'completed' as ProcessStatus,
     isEnabled: 1,
     error: null,
     createdAt: '2025-05-02T12:00:00.000Z',
@@ -62,7 +64,7 @@ const mockSources = [
     id: 3,
     path: '/test/source3.md',
     title: 'Source 3',
-    status: 'failed',
+    status: 'failed' as ProcessStatus,
     isEnabled: 0,
     error: 'Processing error',
     createdAt: '2025-05-03T12:00:00.000Z',
@@ -71,63 +73,14 @@ const mockSources = [
   },
 ];
 
-const mockSettings: Settings = {
-  api: {
-    key: 'test-api-key',
-    url: 'https://api.test.com',
-    model: 'test-model',
-  },
-  database: {
-    dir: '/test/db',
-  },
-  source: {
-    registerDir: '/test/source',
-  },
-  redmine: {
-    endpoint: 'https://redmine.test.com',
-    apiKey: 'test-redmine-key',
-  },
-  gitlab: {
-    endpoint: 'https://gitlab.test.com',
-    apiKey: 'test-gitlab-key',
-  },
-  mcp: {
-    serverConfigText: '{"testMcp": {"url": "https://mcp.test.com"} }',
-  },
-  stagehand: {
-    enabled: true,
-    headless: false,
-  },
-  systemPrompt: {
-    content: 'test system prompt',
-  },
-};
-
 describe('Sidebar Component', () => {
   // テスト前のセットアップ
   beforeEach(() => {
     // Electronグローバルオブジェクトをモック化
-    window.electron = {
-      chat: {
-        getRooms: jest.fn().mockResolvedValue(mockChatRooms),
-        deleteRoom: jest.fn().mockResolvedValue({ success: true }),
-      },
-      source: {
-        getSources: jest.fn().mockResolvedValue({
-          success: true,
-          sources: mockSources,
-        }),
-      },
-      store: {
-        get: jest.fn().mockImplementation((key: keyof Settings) => {
-          return mockSettings[key];
-        }) as jest.Mock,
-        set: jest.fn().mockResolvedValue(undefined),
-      },
-      fs: {
-        access: jest.fn().mockResolvedValue(true),
-      },
-    } as any;
+    window.electron = createMockElectronWithOptions({
+      chatRooms: mockChatRooms,
+      sources: mockSources,
+    });
 
     // uuidv4のモックをリセット
     (uuidv4 as jest.Mock).mockReset();
@@ -458,12 +411,12 @@ describe('Sidebar Component', () => {
     jest.useFakeTimers();
 
     // 処理中のソースデータ
-    const processingMockSources = [
+    const processingMockSources: Source[] = [
       {
         id: 1,
         path: '/test/processing1.md',
         title: 'Processing 1',
-        status: 'processing',
+        status: 'processing' as ProcessStatus,
         isEnabled: 1,
         error: null,
         createdAt: '2025-05-01T12:00:00.000Z',
@@ -474,7 +427,7 @@ describe('Sidebar Component', () => {
         id: 2,
         path: '/test/processing2.md',
         title: 'Processing 2',
-        status: 'completed',
+        status: 'completed' as ProcessStatus,
         isEnabled: 1,
         error: null,
         createdAt: '2025-05-02T12:00:00.000Z',
@@ -484,12 +437,12 @@ describe('Sidebar Component', () => {
     ];
 
     // 完了後のソースデータ
-    const completedMockSources = [
+    const completedMockSources: Source[] = [
       {
         id: 1,
         path: '/test/processing1.md',
         title: 'Processing 1',
-        status: 'completed',
+        status: 'completed' as ProcessStatus,
         isEnabled: 1,
         error: null,
         createdAt: '2025-05-01T12:00:00.000Z',
@@ -500,7 +453,7 @@ describe('Sidebar Component', () => {
         id: 2,
         path: '/test/processing2.md',
         title: 'Processing 2',
-        status: 'completed',
+        status: 'completed' as ProcessStatus,
         isEnabled: 1,
         error: null,
         createdAt: '2025-05-02T12:00:00.000Z',
@@ -568,11 +521,11 @@ describe('Sidebar Component', () => {
     jest.useFakeTimers();
 
     // 100個以上の有効なソースを含むテストデータを生成
-    const largeMockSources = Array.from({ length: 150 }, (_, i) => ({
+    const largeMockSources: Source[] = Array.from({ length: 150 }, (_, i) => ({
       id: i + 1,
       path: `/test/source${i + 1}.md`,
       title: `Source ${i + 1}`,
-      status: 'completed',
+      status: 'completed' as ProcessStatus,
       isEnabled: 1,
       error: null,
       createdAt: '2025-05-01T12:00:00.000Z',

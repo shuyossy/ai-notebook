@@ -211,7 +211,10 @@ function SourceListModal({
         );
       case 'failed':
         return (
-          <Tooltip title={error ?? '不明なエラー'}>
+          <Tooltip
+            data-testid="sourcelistmodal-error-tooltip"
+            title={error ?? '不明なエラー'}
+          >
             <Chip
               icon={<ErrorIcon />}
               label="エラー"
