@@ -86,7 +86,11 @@ const MessageInput: React.FC<MessageInputProps> = ({
                 <InputAdornment position="end">
                   {/* 送信ボタンまたは送信中インジケーター */}
                   {isStreaming ? (
-                    <IconButton color="primary" onClick={onStop}>
+                    <IconButton
+                      color="primary"
+                      onClick={onStop}
+                      data-testid="chat-stop-button"
+                    >
                       <StopCircleOutlinedIcon />
                     </IconButton>
                   ) : (
@@ -94,6 +98,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
                       color="primary"
                       onClick={handleSubmit}
                       disabled={disabled || !message.trim()}
+                      data-testid="chat-send-button"
                     >
                       <SendIcon />
                     </IconButton>

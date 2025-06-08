@@ -1,7 +1,7 @@
 import type { ElectronHandler } from '../../main/preload';
 import type { StoreSchema as Settings } from '../../main/store';
 import type { Source } from '../../db/schema';
-import type { ChatRoom } from '../../main/types';
+import type { ChatRoom, AgentBootStatus } from '../../main/types';
 
 /**
  * Mockメソッドの型を定義
@@ -67,6 +67,7 @@ export interface MockOptions {
   chatRooms?: ChatRoom[];
   sourceEnabled?: boolean;
   fsAccess?: boolean;
+  agentStatus?: Partial<AgentBootStatus>;
 }
 
 /**
@@ -81,7 +82,16 @@ export const createMockElectronWithOptions = (
 
   const mockHandlers = {
     agent: {
-      getStatus: jest.fn(),
+      getStatus: jest.fn().mockReturnValue(options.agentStatus || {
+        state: 'ready',
+        messages: [],
+        tools: {
+          redmine: false,
+          gitlab: false,
+          mcp: false,
+          stagehand: false,
+        },
+      }),
       reinitialize: jest.fn().mockResolvedValue(undefined),
       removeMessage: jest.fn(),
     },
@@ -100,10 +110,13 @@ export const createMockElectronWithOptions = (
       getRooms: jest.fn().mockResolvedValue(options.chatRooms ?? []),
       getMessages: jest.fn().mockResolvedValue([]),
       deleteRoom: jest.fn().mockResolvedValue({ success: true }),
-      createThread: jest.fn(),
+      createThread: jest.fn().mockResolvedValue({
+        success: true
+      }),
       onError: jest.fn(),
       onStream: jest.fn(),
       onComplete: jest.fn(),
+      editHistory: jest.fn(),
     },
     source: {
       reloadSources: jest.fn().mockResolvedValue({

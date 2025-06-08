@@ -433,6 +433,7 @@ const MessageItem = forwardRef<HTMLDivElement, MessageProps>(
                     transition: 'opacity 0.2s',
                     bgcolor: 'background.paper',
                   }}
+                  data-testid={`edit-message-button-${message.id}`}
                 >
                   <EditIcon fontSize="small" />
                 </IconButton>
@@ -450,6 +451,7 @@ const MessageItem = forwardRef<HTMLDivElement, MessageProps>(
                     value={editContent}
                     onChange={(e) => onEditContentChange(e.target.value)}
                     sx={{ mb: 2 }}
+                    data-testid={`edit-message-input-${message.id}`}
                   />
                   <Box
                     sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}
@@ -462,6 +464,7 @@ const MessageItem = forwardRef<HTMLDivElement, MessageProps>(
                         backgroundColor: 'white',
                         color: 'black',
                       }}
+                      data-testid={`edit-message-cancel-button-${message.id}`}
                     >
                       キャンセル
                     </Button>
@@ -474,6 +477,7 @@ const MessageItem = forwardRef<HTMLDivElement, MessageProps>(
                         backgroundColor: 'black',
                         color: 'white',
                       }}
+                      data-testid={`edit-message-send-button-${message.id}`}
                     >
                       送信
                     </Button>
