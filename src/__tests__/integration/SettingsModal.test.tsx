@@ -231,6 +231,7 @@ describe('SettingsModal Component', () => {
     // コールバック関数が呼ばれることを確認
     expect(defaultProps.onSettingsUpdated).toHaveBeenCalled();
     expect(defaultProps.onClose).toHaveBeenCalled();
+    expect(defaultProps.onValidChange).toHaveBeenCalledWith(true);
   }, 20000);
 
   // テスト3: バリデーションエラーが正しく表示されること
