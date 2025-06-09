@@ -1,1637 +1,4278 @@
-diff --git a/changes.patch b/changes.patch
-index c11ceb897..a70044f28 100644
---- a/changes.patch
-+++ b/changes.patch
-@@ -1,176 +1,211 @@
--diff --git a/src/mastra/agents/prompts.ts b/src/mastra/agents/prompts.ts
--index 3efc30690..b29c41651 100644
----- a/src/mastra/agents/prompts.ts
--+++ b/src/mastra/agents/prompts.ts
--@@ -183,6 +183,7 @@ ${
--   getGitLabBlameFile: Get file blame information.
--   getGitLabRepositoryTree: List repository tree.
--   getMergeRequestDetail: Fetch merge request details.
--+  getMergeRequestDiff: Get merge request diff.
--   addMergeRequestComment: Add a comment to an MR.
--   addMergeRequestDiffComment: Comment on specific diffs.
--   _Note:_
--diff --git a/src/mastra/tools/gitlab/mergeRequestTools.ts b/src/mastra/tools/gitlab/mergeRequestTools.ts
--index 0f88d76aa..16e725aa5 100644
----- a/src/mastra/tools/gitlab/mergeRequestTools.ts
--+++ b/src/mastra/tools/gitlab/mergeRequestTools.ts
--@@ -24,7 +24,9 @@ export const createGetMergeRequestDetailTool = (client: GitLabClient) => {
--         .describe('Project ID or non-encoded project path (required)'),
--       merge_request_iid: z
--         .number()
---        .describe('Internal ID of the merge request within the project (required)'),
--+        .describe(
--+          'Internal ID of the merge request within the project (required)',
--+        ),
--     }),
--     outputSchema: createBaseToolResponseSchema(
--       z.object({
--@@ -62,6 +64,60 @@ export const createGetMergeRequestDetailTool = (client: GitLabClient) => {
--   });
-- };
-+diff --git a/src/main/main.ts b/src/main/main.ts
-+index 3cba49e42..4ba4e0ad7 100644
-+--- a/src/main/main.ts
-++++ b/src/main/main.ts
-+@@ -31,7 +31,7 @@ import getDb from '../db';
-+ import SourceRegistrationManager from '../mastra/workflows/sourceRegistrationManager';
-+ import { getOrchestrator } from '../mastra/agents/orchestrator';
-+ import MenuBuilder from './menu';
-+-import { resolveHtmlPath, toAbsoluteFileURL } from './utils/util';
-++import { resolveHtmlPath } from './utils/util';
-+ import { initStore, getStore } from './store';
-+ import { RedmineBaseInfo } from '../mastra/tools/redmine';
-  
--+/**
--+ * 特定のマージリクエスト差分を取得するツール
--+ * @param client GitLabClient - GitLab APIクライアント
--+ * @returns マージリクエスト差分取得ツール
--+ */
--+export const createGetMergeRequestDiffTool = (client: GitLabClient) => {
--+  return createTool({
--+    id: 'gitlab-get-merge-request-diff',
--+    description:
--+      'Retrieves the diff of a specific merge request in a GitLab project.',
--+    inputSchema: z.object({
--+      project_id: z
--+        .union([z.string(), z.number()])
--+        .describe('Project ID or non-encoded project path (required)'),
--+      merge_request_iid: z
--+        .number()
--+        .describe(
--+          'Internal ID of the merge request within the project (required)',
--+        ),
--+    }),
--+    outputSchema: createBaseToolResponseSchema(
--+      z.object({
--+        diff: z.any(),
--+      }),
--+    ),
--+    execute: async ({ context }) => {
--+      let status: RunToolStatus = 'failed';
--+      try {
--+        const { mergeRequests } = client.getApiResources();
-+@@ -273,7 +273,8 @@ const setupChatHandlers = () => {
-+       _,
-+       {
-+         threadId,
-+-        messageId,
-++        oldContent,
-++        oldCreatedAt,
-+       }: IpcRequestPayloadMap[typeof IpcChannels.CHAT_EDIT_HISTORY],
-+     ): Promise<IpcResponsePayloadMap[typeof IpcChannels.CHAT_EDIT_HISTORY]> => {
-+       try {
-+@@ -289,12 +290,32 @@ const setupChatHandlers = () => {
-+         const messages = await memory.storage.getMessages({
-+           threadId,
-+         });
- +
--+        // マージリクエスト差分を取得
--+        const diff = await mergeRequests.allDiffs(
--+          context.project_id,
--+          context.merge_request_iid,
-++        // oldContentと一致するメッセージのリストを取得
-++        const targetMessages = messages.filter(
-++          (msg) => msg.content === oldContent,
- +        );
- +
--+        status = 'success';
--+        return {
--+          status,
--+          result: {
--+            diff,
--+          },
--+        };
--+      } catch (error) {
--+        status = 'failed';
--+        return {
--+          status,
--+          error: `Failed to retrieve merge request diff: ${error}`,
--+        };
--+      }
--+    },
--+  });
--+};
-++        if (targetMessages.length === 0) {
-++          throw new Error('指定されたメッセージが見つかりません');
-++        }
-++
-++        // 取得したメッセージリストからoldCreatedAtと最も近いメッセージを検索
-++        const targetMessage = targetMessages.reduce((closest, current) => {
-++          const currentDate = new Date(current.createdAt);
-++          const closestDate = new Date(closest.createdAt);
-++          return Math.abs(currentDate.getTime() - oldCreatedAt.getTime()) <
-++            Math.abs(closestDate.getTime() - oldCreatedAt.getTime())
-++            ? current
-++            : closest;
-++        });
- +
-- /**
--  * マージリクエストにコメントを追加するツール
--  * @param client GitLabClient - GitLab APIクライアント
--@@ -70,15 +126,16 @@ export const createGetMergeRequestDetailTool = (client: GitLabClient) => {
-- export const createAddMergeRequestCommentTool = (client: GitLabClient) => {
--   return createTool({
--     id: 'gitlab-add-merge-request-comment',
---    description:
---      'Adds a comment to a merge request in a GitLab project.',
--+    description: 'Adds a comment to a merge request in a GitLab project.',
--     inputSchema: z.object({
--       project_id: z
--         .union([z.string(), z.number()])
--         .describe('Project ID or non-encoded project path (required)'),
--       merge_request_iid: z
--         .number()
---        .describe('Internal ID of the merge request within the project (required)'),
--+        .describe(
--+          'Internal ID of the merge request within the project (required)',
--+        ),
--       body: z.string().describe('Comment content (required)'),
--     }),
--     outputSchema: createBaseToolResponseSchema(
--@@ -124,15 +181,16 @@ export const createAddMergeRequestCommentTool = (client: GitLabClient) => {
-- export const createAddMergeRequestDiffCommentTool = (client: GitLabClient) => {
--   return createTool({
--     id: 'gitlab-add-merge-request-diff-comment',
---    description:
---      'Adds a comment to specific lines in a merge request diff.',
--+    description: 'Adds a comment to specific lines in a merge request diff.',
--     inputSchema: z.object({
--       project_id: z
--         .union([z.string(), z.number()])
--         .describe('Project ID or non-encoded project path (required)'),
--       merge_request_iid: z
--         .number()
---        .describe('Internal ID of the merge request within the project (required)'),
--+        .describe(
--+          'Internal ID of the merge request within the project (required)',
--+        ),
--       body: z.string().describe('Comment content (required)'),
--       position: z
--         .object({
--@@ -145,15 +203,16 @@ export const createAddMergeRequestDiffCommentTool = (client: GitLabClient) => {
--           headSha: z.string().describe('Head commit SHA (required)'),
--           oldPath: z.string().describe('Previous file path (required)'),
--           newPath: z.string().describe('New file path (required)'),
---          oldLine: z.string().optional().describe('Previous line number (optional)'),
--+          oldLine: z
--+            .string()
--+            .optional()
--+            .describe('Previous line number (optional)'),
--           newLine: z.string().optional().describe('New line number (optional)'),
--           lineRange: z
--             .object({
--               start: z
--                 .object({
---                  lineCode: z
---                    .string()
---                    .describe('Start line code (required)'),
--+                  lineCode: z.string().describe('Start line code (required)'),
--                   type: z
--                     .enum(['new', 'old'])
--                     .describe(
--@@ -162,14 +221,14 @@ export const createAddMergeRequestDiffCommentTool = (client: GitLabClient) => {
--                   hash: z
--                     .string()
--                     .optional()
---                    .describe('Start line hash for multi-line notes (optional)'),
--+                    .describe(
--+                      'Start line hash for multi-line notes (optional)',
--+                    ),
--                 })
--                 .describe('Multi-line note start line information'),
--               end: z
--                 .object({
---                  lineCode: z
---                    .string()
---                    .describe('End line code (required)'),
--+                  lineCode: z.string().describe('End line code (required)'),
--                   type: z
--                     .enum(['new', 'old'])
--                     .describe(
--@@ -233,6 +292,7 @@ export const createAddMergeRequestDiffCommentTool = (client: GitLabClient) => {
-- export const createMergeRequestTools = (client: GitLabClient) => {
--   return {
--     getMergeRequestDetail: createGetMergeRequestDetailTool(client),
--+    getMergeRequestDiff: createGetMergeRequestDiffTool(client),
--     addMergeRequestComment: createAddMergeRequestCommentTool(client),
--     addMergeRequestDiffComment: createAddMergeRequestDiffCommentTool(client),
-+         // messageIdに対応するメッセージを検索
-+         const targetMessageIndex = messages.findIndex(
-+-          (msg) => msg.id === messageId,
-++          (msg) => msg.id === targetMessage.id,
-+         );
-+         if (targetMessageIndex === -1) {
-+-          throw new Error(`メッセージID ${messageId} が見つかりません`);
-++          throw new Error(`メッセージID ${targetMessage.id} が見つかりません`);
-+         }
-+         // 最初のメッセージからmessageIdに対応するメッセージまでの履歴を取得
-+         const history = messages.slice(0, targetMessageIndex);
-+@@ -303,11 +324,11 @@ const setupChatHandlers = () => {
-+         await memory.storage.deleteThread({ threadId });
-+ 
-+         // スレッドを再作成
-+-        await memory.createThread({
-+-          resourceId: 'user',
-+-          title: '',
-+-          threadId,
-+-        });
-++        // await memory.createThread({
-++        //   resourceId: 'user',
-++        //   title: '',
-++        //   threadId,
-++        // });
-+ 
-+         // 取得した履歴をメモリに保存
-+         await memory.saveMessages({
-+diff --git a/src/main/preload.ts b/src/main/preload.ts
-+index 7368ff289..536963ac2 100644
-+--- a/src/main/preload.ts
-++++ b/src/main/preload.ts
-+@@ -1,7 +1,12 @@
-+ // Disable no-unused-vars, broken for spread args
-+ /* eslint no-unused-vars: off */
-+ import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
-+-import { IpcChannels, IpcResponsePayload, IpcEventPayload } from './types/ipc';
-++import {
-++  IpcChannels,
-++  IpcResponsePayload,
-++  IpcEventPayload,
-++  IpcRequestPayload,
-++} from './types/ipc';
-+ 
-+ export type Channels = (typeof IpcChannels)[keyof typeof IpcChannels];
-+ 
-+@@ -87,10 +92,9 @@ const electronHandler = {
-+       return ipcRenderer.invoke(IpcChannels.CHAT_ABORT_REQUEST, threadId);
-+     },
-+     // メッセージ編集時に該当indexまでの履歴を削除する
-+-    editHistory: async (params: {
-+-      threadId: string;
-+-      messageId: string;
-+-    }): Promise<IpcResponsePayload<typeof IpcChannels.CHAT_EDIT_HISTORY>> => {
-++    editHistory: async (
-++      params: IpcRequestPayload<typeof IpcChannels.CHAT_EDIT_HISTORY>,
-++    ): Promise<IpcResponsePayload<typeof IpcChannels.CHAT_EDIT_HISTORY>> => {
-+       return ipcRenderer.invoke(IpcChannels.CHAT_EDIT_HISTORY, params);
-+     },
-+     // AIの応答を取得する（ストリーミング）
-+diff --git a/src/main/types/ipc.ts b/src/main/types/ipc.ts
-+index f957d618d..137105d47 100644
-+--- a/src/main/types/ipc.ts
-++++ b/src/main/types/ipc.ts
-+@@ -70,7 +70,11 @@ export type IpcRequestPayloadMap = {
-+     title: string;
-+   };
-+   [IpcChannels.CHAT_ABORT_REQUEST]: { threadId: string };
-+-  [IpcChannels.CHAT_EDIT_HISTORY]: { threadId: string; messageId: string };
-++  [IpcChannels.CHAT_EDIT_HISTORY]: {
-++    threadId: string;
-++    oldContent: string;
-++    oldCreatedAt: Date;
-++  };
-+ };
-+ 
-+ export type IpcResponsePayloadMap = {
-+diff --git a/src/renderer/components/chat/ChatArea.tsx b/src/renderer/components/chat/ChatArea.tsx
-+index 532f757f3..ce4fc8fd3 100644
-+--- a/src/renderer/components/chat/ChatArea.tsx
-++++ b/src/renderer/components/chat/ChatArea.tsx
-+@@ -1,4 +1,4 @@
-+-import React, { useState, useEffect, memo, useRef } from 'react';
-++import React, { useState, useEffect, memo } from 'react';
-+ import { useChat } from '@ai-sdk/react';
-+ import { Box, Divider, Typography, Alert } from '@mui/material';
-+ import { v4 as uuid } from 'uuid';
-+@@ -174,7 +174,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
-+   const [editMessageId, setEditMessageId] = useState<string>('');
-+   const [editMessageContent, setEditMessageContent] = useState<string>('');
-+   const { status: agentStatus } = useAgentStatus();
-+-  const isEditSubmitRef = useRef(false);
-++  const [isEditHistory, setIsEditHistory] = useState(false);
-+ 
-+   const isAgentInitializing = agentStatus.state === 'initializing';
-+ 
-+@@ -229,17 +229,6 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
-+         chatService.createThread(selectedRoomId, '');
-+       }
-+ 
-+-      // 編集メッセージ送信時は、編集メッセージ以降の履歴を削除
-+-      if (isEditSubmitRef.current) {
-+-        window.electron.chat.editHistory({
-+-          threadId: selectedRoomId!,
-+-          messageId: editMessageId,
-+-        });
-+-        setEditMessageId('');
-+-        setEditMessageContent('');
-+-        isEditSubmitRef.current = false; // リセット
-+-      }
-+-
-+       // Return the structured body for your API route
-+       return {
-+         message: lastMessage?.content, // Send only the most recent message content/role
-+@@ -278,9 +267,11 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
-+     setEditMessageContent(content);
-    };
-+ 
-+-  const handleEditSubmit = () => {
-++  const handleEditSubmit = async () => {
-+     const messageIndex = messages.findIndex((m) => m.id === editMessageId);
-+     if (messageIndex === -1) return;
-++    const oldCreatedAt = messages[messageIndex].createdAt!;
-++    const oldContent = messages[messageIndex].content;
-+ 
-+     const updatedMessages = messages.slice(0, messageIndex + 1);
-+     updatedMessages[messageIndex] = {
-+@@ -294,7 +285,15 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
-+       ],
-+     };
-+     setMessages(updatedMessages);
-+-    isEditSubmitRef.current = true;
-++    setIsEditHistory(true);
-++    await window.electron.chat.editHistory({
-++      threadId: selectedRoomId!,
-++      oldContent,
-++      oldCreatedAt,
-++    });
-++    setEditMessageId('');
-++    setEditMessageContent('');
-++    setIsEditHistory(false);
-+     reload();
-+   };
-+ 
-+@@ -331,7 +330,8 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
-+             disabled={
-+               status === 'submitted' ||
-+               status === 'streaming' ||
-+-              isAgentInitializing
-++              isAgentInitializing ||
-++              isEditHistory
-+             }
-+             editingMessageId={editMessageId}
-+             onEditStart={handleEditStart}
-+@@ -350,7 +350,8 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
-+             disabled={
-+               status === 'submitted' ||
-+               status === 'streaming' ||
-+-              isAgentInitializing
-++              isAgentInitializing ||
-++              isEditHistory
-+             }
-+             placeholder={getPlaceholderText(status, isAgentInitializing)}
-+             isStreaming={status === 'streaming'}
-diff --git a/src/main/main.ts b/src/main/main.ts
-index cf7771d7a..7783b1541 100644
---- a/src/main/main.ts
-+++ b/src/main/main.ts
-@@ -17,9 +17,18 @@ import { Mastra } from '@mastra/core';
- import { createLogger } from '@mastra/core/logger';
- import { createDataStream } from 'ai';
- import { eq } from 'drizzle-orm';
-+import {
-+  ReadableStream,
-+  WritableStream,
-+  TransformStream,
-+} from 'node:stream/web';
- import { sourceRegistrationWorkflow } from '../mastra/workflows/sourceRegistration';
- import { type Source } from '../db/schema';
--import { IpcChannels, IpcResponsePayloadMap } from './types/ipc';
-+import {
-+  IpcChannels,
-+  IpcResponsePayloadMap,
-+  IpcRequestPayloadMap,
-+} from './types/ipc';
- import { AgentBootStatus, AgentBootMessage, AgentToolStatus } from './types';
- import { getOrchestratorSystemPrompt } from '../mastra/agents/prompts';
- import { sources } from '../db/schema';
-@@ -39,6 +48,12 @@ class AppUpdater {
-   }
+diff --git a/.clinerules b/.clinerules
+index f8f818e95..0ed9eb19f 100644
+--- a/.clinerules
++++ b/.clinerules
+@@ -13,4 +13,25 @@
+     - 特にUIについてはMUIを第一優先に使い、カスタマイズしたい場合はshadcn/uiを利用すること
+     - ライブラリを追加する際は安定稼働バージョンを採用すること
+ - eslintについては単純なフォーマットエラーの場合は対応する必要はない
+-- 不明点があれば適当に実装するのではなく、質問すること
+\ No newline at end of file
++- 不明点があれば適当に実装するのではなく、質問すること
++
++# テスト作成時の注意
++- 外部ライブラリとの結合をテストする場合はできるだけ実際のライブラリを使用すること
++  - 実際のライブラリの利用が難しい場合はモックを利用すること
++  - Electron IPCはモックを利用すること
++    - モックの実装はsrc/__tests__/test-utils/mockElectronHandler.tsに集約させること
++- 下記の観点からテストを作成すること
++  - ビジネス的な観点
++    - 正常系
++    - 異常系
++  - 技術的な観点
++    - 正常系
++    - 異常系
++- テストに関連するプロダクトコードのカバレッジを100%にすること
++- テスト関連コードはsrc/__test__に配置すること
++- テストは古典派的なスタイルで記述すること
++  - つまり、単体テストはクラス単位ではなく、一つの振る舞い単位で記述すること
++- テストの説明は日本語で記述すること
++  - テストの説明は、何をテストしているのか、どのような条件でテストが行われるのかを明確に記述すること
++- テストの書き方で不明点があれば次のディレクトリ配下のテストコードを参考にすること
++  - src/__tests__/integration
+diff --git a/.eslintignore b/.eslintignore
+index 7cad53588..beb56c30d 100644
+--- a/.eslintignore
++++ b/.eslintignore
+@@ -31,3 +31,6 @@ npm-debug.log.*
+ # eslint ignores hidden directories by default:
+ # https://github.com/eslint/eslint/issues/8429
+ !.erb
++
++# test
++src/__tests__/
+diff --git a/.vscode/settings.json b/.vscode/settings.json
+index 4a58cba04..a96c6ef9a 100644
+--- a/.vscode/settings.json
++++ b/.vscode/settings.json
+@@ -4,7 +4,7 @@
+     ".prettierrc": "jsonc",
+     ".eslintignore": "ignore"
+   },
+-  
++
+   "eslint.validate": [
+     "javascript",
+     "javascriptreact",
+@@ -26,5 +26,10 @@
+     "test/**/__snapshots__": true,
+     "package-lock.json": true,
+     "*.{css,sass,scss}.d.ts": true
+-  }
++  },
++
++  "jest.runMode": {
++    "type": "on-demand",
++    "coverage": true
++  },
  }
- 
-+// MCPのSSE通信時に、パッケージング後に正常にストリームを作成できない問題の対策
-+// パッケージング後はstream型のライブラリはweb-streams-polyfillが適用されてしまうため、開発環境と同じくnode:stream/webを使用するように設定
-+(globalThis as any).ReadableStream = ReadableStream;
-+(globalThis as any).WritableStream = WritableStream;
-+(globalThis as any).TransformStream = TransformStream;
-+
- // Mastraのインスタンスと状態を保持する変数
- let mastraInstance: Mastra | null = null;
- // スレッドごとのAbortControllerを管理するMap
-@@ -262,6 +277,84 @@ const setupChatHandlers = () => {
+diff --git a/package-lock.json b/package-lock.json
+index 2a4e17443..b8e4ac0c9 100644
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -16,7 +16,6 @@
+         "@emotion/react": "^11.14.0",
+         "@emotion/styled": "^11.14.0",
+         "@gitbeaker/rest": "^42.5.0",
+-        "@libsql/client": "^0.15.4",
+         "@mastra/core": "^0.8.3",
+         "@mastra/mcp": "^0.4.0",
+         "@mastra/memory": "^0.2.10",
+@@ -39,6 +38,7 @@
+         "electron-log": "^5.3.2",
+         "electron-store": "^10.0.1",
+         "electron-updater": "^6.3.9",
++        "js-tiktoken": "^1.0.20",
+         "lucide-react": "^0.503.0",
+         "mastra": "^0.4.9",
+         "mermaid": "^11.6.0",
+@@ -53,17 +53,20 @@
+         "tailwind-merge": "^3.2.0",
+         "tailwindcss": "^4.1.4",
+         "tailwindcss-animate": "^1.0.7",
++        "uninstall": "^0.0.0",
+         "uuid": "^11.1.0",
+         "zod": "^3.24.3",
+         "zustand": "^5.0.4"
+       },
+       "devDependencies": {
+-        "@electron/rebuild": "^3.7.1",
++        "@electron/rebuild": "^3.6.1",
+         "@pmmmwh/react-refresh-webpack-plugin": "^0.5.15",
+         "@svgr/webpack": "^8.1.0",
+         "@teamsupercell/typings-for-css-modules-loader": "^2.5.2",
++        "@testing-library/dom": "^10.4.0",
+         "@testing-library/jest-dom": "^6.6.3",
+-        "@testing-library/react": "^16.2.0",
++        "@testing-library/react": "^16.3.0",
++        "@testing-library/user-event": "^14.6.1",
+         "@types/jest": "^29.5.14",
+         "@types/node": "22.14.1",
+         "@types/react": "^19.0.11",
+@@ -105,6 +108,7 @@
+         "jest": "^29.7.0",
+         "jest-environment-jsdom": "^29.7.0",
+         "mini-css-extract-plugin": "^2.9.2",
++        "node-fetch": "^3.3.2",
+         "node-loader": "^2.1.0",
+         "path-browserify": "^1.0.1",
+         "prettier": "^3.5.3",
+@@ -125,6 +129,7 @@
+         "tsx": "^4.19.3",
+         "typescript": "^5.8.3",
+         "url-loader": "^4.1.1",
++        "web-streams-polyfill": "^4.1.0",
+         "webpack": "^5.98.0",
+         "webpack-bundle-analyzer": "^4.10.2",
+         "webpack-cli": "^6.0.1",
+@@ -6315,6 +6320,8 @@
+       "resolved": "https://registry.npmjs.org/@libsql/client/-/client-0.15.4.tgz",
+       "integrity": "sha512-m8a7giWlhLdfKVIZFd3UlBptWTS+H0toSOL09BxbqzBeFHwuVC+5ewyi4LMBxoy2TLNQGE4lO8cwpsTWmu695w==",
+       "license": "MIT",
++      "optional": true,
++      "peer": true,
+       "dependencies": {
+         "@libsql/core": "^0.15.4",
+         "@libsql/hrana-client": "^0.7.0",
+@@ -6328,6 +6335,8 @@
+       "resolved": "https://registry.npmjs.org/@libsql/core/-/core-0.15.4.tgz",
+       "integrity": "sha512-NMvh6xnn3vrcd7DNehj0HiJcRWB2a8hHhJUTkOBej3Pf3KB21HOmdOUjXxJ5pGbjWXh4ezQBmHtF5ozFhocXaA==",
+       "license": "MIT",
++      "optional": true,
++      "peer": true,
+       "dependencies": {
+         "js-base64": "^3.7.5"
+       }
+@@ -6343,7 +6352,8 @@
+       "optional": true,
+       "os": [
+         "darwin"
+-      ]
++      ],
++      "peer": true
      },
-   );
- 
-+  // チャットメッセージ編集履歴ハンドラ
-+  ipcMain.handle(
-+    IpcChannels.CHAT_EDIT_HISTORY,
-+    async (
-+      _,
-+      {
-+        threadId,
-+        oldContent,
-+        oldCreatedAt,
-+      }: IpcRequestPayloadMap[typeof IpcChannels.CHAT_EDIT_HISTORY],
-+    ): Promise<IpcResponsePayloadMap[typeof IpcChannels.CHAT_EDIT_HISTORY]> => {
-+      try {
-+        const mastra = getMastra();
-+        const orchestratorAgent = mastra.getAgent('orchestratorAgent');
-+        const memory = orchestratorAgent.getMemory();
-+
-+        if (!memory) {
-+          throw new Error('メモリインスタンスが初期化されていません');
-+        }
-+
-+        // メッセージ履歴を取得
-+        const messages = await memory.storage.getMessages({
-+          threadId,
-+        });
-+
-+        // oldContentと一致するメッセージのリストを取得
-+        const targetMessages = messages.filter(
-+          (msg) => msg.content === oldContent,
-+        );
-+
-+        if (targetMessages.length === 0) {
-+          throw new Error('指定されたメッセージが見つかりません');
-+        }
-+
-+        // 取得したメッセージリストからoldCreatedAtと最も近いメッセージを検索
-+        const targetMessage = targetMessages.reduce((closest, current) => {
-+          const currentDate = new Date(current.createdAt);
-+          const closestDate = new Date(closest.createdAt);
-+          return Math.abs(currentDate.getTime() - oldCreatedAt.getTime()) <
-+            Math.abs(closestDate.getTime() - oldCreatedAt.getTime())
-+            ? current
-+            : closest;
-+        });
-+
-+        // messageIdに対応するメッセージを検索
-+        const targetMessageIndex = messages.findIndex(
-+          (msg) => msg.id === targetMessage.id,
-+        );
-+        if (targetMessageIndex === -1) {
-+          throw new Error(`メッセージID ${targetMessage.id} が見つかりません`);
-+        }
-+        // 最初のメッセージからmessageIdに対応するメッセージまでの履歴を取得
-+        const history = messages.slice(0, targetMessageIndex);
-+
-+        // スレッドを削除
-+        await memory.storage.deleteThread({ threadId });
-+
-+        // スレッドを再作成
-+        // await memory.createThread({
-+        //   resourceId: 'user',
-+        //   title: '',
-+        //   threadId,
-+        // });
-+
-+        // 取得した履歴をメモリに保存
-+        await memory.saveMessages({
-+          messages: history,
-+          memoryConfig: undefined,
-+        });
-+
-+        return { success: true };
-+      } catch (error) {
-+        console.error('メッセージ履歴削除中にエラーが発生:', error);
-+        return { success: false, error: (error as Error).message };
+     "node_modules/@libsql/darwin-x64": {
+       "version": "0.5.7",
+@@ -6356,7 +6366,8 @@
+       "optional": true,
+       "os": [
+         "darwin"
+-      ]
++      ],
++      "peer": true
+     },
+     "node_modules/@libsql/hrana-client": {
+       "version": "0.7.0",
+@@ -6400,7 +6411,8 @@
+       "optional": true,
+       "os": [
+         "linux"
+-      ]
++      ],
++      "peer": true
+     },
+     "node_modules/@libsql/linux-arm64-musl": {
+       "version": "0.5.7",
+@@ -6413,7 +6425,8 @@
+       "optional": true,
+       "os": [
+         "linux"
+-      ]
++      ],
++      "peer": true
+     },
+     "node_modules/@libsql/linux-x64-gnu": {
+       "version": "0.5.7",
+@@ -6426,7 +6439,8 @@
+       "optional": true,
+       "os": [
+         "linux"
+-      ]
++      ],
++      "peer": true
+     },
+     "node_modules/@libsql/linux-x64-musl": {
+       "version": "0.5.7",
+@@ -6439,7 +6453,8 @@
+       "optional": true,
+       "os": [
+         "linux"
+-      ]
++      ],
++      "peer": true
+     },
+     "node_modules/@libsql/win32-x64-msvc": {
+       "version": "0.5.7",
+@@ -6452,7 +6467,8 @@
+       "optional": true,
+       "os": [
+         "win32"
+-      ]
++      ],
++      "peer": true
+     },
+     "node_modules/@lukeed/csprng": {
+       "version": "1.1.0",
+@@ -6530,207 +6546,6 @@
+         "node": ">=10"
+       }
+     },
+-    "node_modules/@mapbox/node-pre-gyp": {
+-      "version": "1.0.11",
+-      "resolved": "https://registry.npmjs.org/@mapbox/node-pre-gyp/-/node-pre-gyp-1.0.11.tgz",
+-      "integrity": "sha512-Yhlar6v9WQgUp/He7BdgzOz8lqMQ8sU+jkCq7Wx8Myc5YFJLbEe7lgui/V7G1qB1DJykHSGwreceSaD60Y0PUQ==",
+-      "dev": true,
+-      "license": "BSD-3-Clause",
+-      "optional": true,
+-      "peer": true,
+-      "dependencies": {
+-        "detect-libc": "^2.0.0",
+-        "https-proxy-agent": "^5.0.0",
+-        "make-dir": "^3.1.0",
+-        "node-fetch": "^2.6.7",
+-        "nopt": "^5.0.0",
+-        "npmlog": "^5.0.1",
+-        "rimraf": "^3.0.2",
+-        "semver": "^7.3.5",
+-        "tar": "^6.1.11"
+-      },
+-      "bin": {
+-        "node-pre-gyp": "bin/node-pre-gyp"
+-      }
+-    },
+-    "node_modules/@mapbox/node-pre-gyp/node_modules/are-we-there-yet": {
+-      "version": "2.0.0",
+-      "resolved": "https://registry.npmjs.org/are-we-there-yet/-/are-we-there-yet-2.0.0.tgz",
+-      "integrity": "sha512-Ci/qENmwHnsYo9xKIcUJN5LeDKdJ6R1Z1j9V/J5wyq8nh/mYPEpIKJbBZXtZjG04HiK7zV/p6Vs9952MrMeUIw==",
+-      "deprecated": "This package is no longer supported.",
+-      "dev": true,
+-      "license": "ISC",
+-      "optional": true,
+-      "peer": true,
+-      "dependencies": {
+-        "delegates": "^1.0.0",
+-        "readable-stream": "^3.6.0"
+-      },
+-      "engines": {
+-        "node": ">=10"
+-      }
+-    },
+-    "node_modules/@mapbox/node-pre-gyp/node_modules/gauge": {
+-      "version": "3.0.2",
+-      "resolved": "https://registry.npmjs.org/gauge/-/gauge-3.0.2.tgz",
+-      "integrity": "sha512-+5J6MS/5XksCuXq++uFRsnUd7Ovu1XenbeuIuNRJxYWjgQbPuFhT14lAvsWfqfAmnwluf1OwMjz39HjfLPci0Q==",
+-      "deprecated": "This package is no longer supported.",
+-      "dev": true,
+-      "license": "ISC",
+-      "optional": true,
+-      "peer": true,
+-      "dependencies": {
+-        "aproba": "^1.0.3 || ^2.0.0",
+-        "color-support": "^1.1.2",
+-        "console-control-strings": "^1.0.0",
+-        "has-unicode": "^2.0.1",
+-        "object-assign": "^4.1.1",
+-        "signal-exit": "^3.0.0",
+-        "string-width": "^4.2.3",
+-        "strip-ansi": "^6.0.1",
+-        "wide-align": "^1.1.2"
+-      },
+-      "engines": {
+-        "node": ">=10"
+-      }
+-    },
+-    "node_modules/@mapbox/node-pre-gyp/node_modules/make-dir": {
+-      "version": "3.1.0",
+-      "resolved": "https://registry.npmjs.org/make-dir/-/make-dir-3.1.0.tgz",
+-      "integrity": "sha512-g3FeP20LNwhALb/6Cz6Dd4F2ngze0jz7tbzrD2wAV+o9FeNHe4rL+yK2md0J/fiSf1sa1ADhXqi5+oVwOM/eGw==",
+-      "dev": true,
+-      "license": "MIT",
+-      "optional": true,
+-      "peer": true,
+-      "dependencies": {
+-        "semver": "^6.0.0"
+-      },
+-      "engines": {
+-        "node": ">=8"
+-      },
+-      "funding": {
+-        "url": "https://github.com/sponsors/sindresorhus"
+-      }
+-    },
+-    "node_modules/@mapbox/node-pre-gyp/node_modules/make-dir/node_modules/semver": {
+-      "version": "6.3.1",
+-      "resolved": "https://registry.npmjs.org/semver/-/semver-6.3.1.tgz",
+-      "integrity": "sha512-BR7VvDCVHO+q2xBEWskxS6DJE1qRnb7DxzUrogb71CWoSficBxYsiAGd+Kl0mmq/MprG9yArRkyrQxTO6XjMzA==",
+-      "dev": true,
+-      "license": "ISC",
+-      "optional": true,
+-      "peer": true,
+-      "bin": {
+-        "semver": "bin/semver.js"
+-      }
+-    },
+-    "node_modules/@mapbox/node-pre-gyp/node_modules/node-fetch": {
+-      "version": "2.7.0",
+-      "resolved": "https://registry.npmjs.org/node-fetch/-/node-fetch-2.7.0.tgz",
+-      "integrity": "sha512-c4FRfUm/dbcWZ7U+1Wq0AwCyFL+3nt2bEw05wfxSz+DWpWsitgmSgYmy2dQdWyKC1694ELPqMs/YzUSNozLt8A==",
+-      "dev": true,
+-      "license": "MIT",
+-      "optional": true,
+-      "peer": true,
+-      "dependencies": {
+-        "whatwg-url": "^5.0.0"
+-      },
+-      "engines": {
+-        "node": "4.x || >=6.0.0"
+-      },
+-      "peerDependencies": {
+-        "encoding": "^0.1.0"
+-      },
+-      "peerDependenciesMeta": {
+-        "encoding": {
+-          "optional": true
+-        }
+-      }
+-    },
+-    "node_modules/@mapbox/node-pre-gyp/node_modules/nopt": {
+-      "version": "5.0.0",
+-      "resolved": "https://registry.npmjs.org/nopt/-/nopt-5.0.0.tgz",
+-      "integrity": "sha512-Tbj67rffqceeLpcRXrT7vKAN8CwfPeIBgM7E6iBkmKLV7bEMwpGgYLGv0jACUsECaa/vuxP0IjEont6umdMgtQ==",
+-      "dev": true,
+-      "license": "ISC",
+-      "optional": true,
+-      "peer": true,
+-      "dependencies": {
+-        "abbrev": "1"
+-      },
+-      "bin": {
+-        "nopt": "bin/nopt.js"
+-      },
+-      "engines": {
+-        "node": ">=6"
+-      }
+-    },
+-    "node_modules/@mapbox/node-pre-gyp/node_modules/npmlog": {
+-      "version": "5.0.1",
+-      "resolved": "https://registry.npmjs.org/npmlog/-/npmlog-5.0.1.tgz",
+-      "integrity": "sha512-AqZtDUWOMKs1G/8lwylVjrdYgqA4d9nu8hc+0gzRxlDb1I10+FHBGMXs6aiQHFdCUUlqH99MUMuLfzWDNDtfxw==",
+-      "deprecated": "This package is no longer supported.",
+-      "dev": true,
+-      "license": "ISC",
+-      "optional": true,
+-      "peer": true,
+-      "dependencies": {
+-        "are-we-there-yet": "^2.0.0",
+-        "console-control-strings": "^1.1.0",
+-        "gauge": "^3.0.0",
+-        "set-blocking": "^2.0.0"
+-      }
+-    },
+-    "node_modules/@mapbox/node-pre-gyp/node_modules/rimraf": {
+-      "version": "3.0.2",
+-      "resolved": "https://registry.npmjs.org/rimraf/-/rimraf-3.0.2.tgz",
+-      "integrity": "sha512-JZkJMZkAGFFPP2YqXZXPbMlMBgsxzE8ILs4lMIX/2o0L9UBw9O/Y3o6wFw/i9YLapcUJWwqbi3kdxIPdC62TIA==",
+-      "deprecated": "Rimraf versions prior to v4 are no longer supported",
+-      "dev": true,
+-      "license": "ISC",
+-      "optional": true,
+-      "peer": true,
+-      "dependencies": {
+-        "glob": "^7.1.3"
+-      },
+-      "bin": {
+-        "rimraf": "bin.js"
+-      },
+-      "funding": {
+-        "url": "https://github.com/sponsors/isaacs"
+-      }
+-    },
+-    "node_modules/@mapbox/node-pre-gyp/node_modules/tr46": {
+-      "version": "0.0.3",
+-      "resolved": "https://registry.npmjs.org/tr46/-/tr46-0.0.3.tgz",
+-      "integrity": "sha512-N3WMsuqV66lT30CrXNbEjx4GEwlow3v6rr4mCcv6prnfwhS01rkgyFdjPNBYd9br7LpXV1+Emh01fHnq2Gdgrw==",
+-      "dev": true,
+-      "license": "MIT",
+-      "optional": true,
+-      "peer": true
+-    },
+-    "node_modules/@mapbox/node-pre-gyp/node_modules/webidl-conversions": {
+-      "version": "3.0.1",
+-      "resolved": "https://registry.npmjs.org/webidl-conversions/-/webidl-conversions-3.0.1.tgz",
+-      "integrity": "sha512-2JAn3z8AR6rjK8Sm8orRC0h/bcl/DqL7tRPdGZ4I1CjdF+EaMLmYxBHyXuKL849eucPFhvBoxMsflfOb8kxaeQ==",
+-      "dev": true,
+-      "license": "BSD-2-Clause",
+-      "optional": true,
+-      "peer": true
+-    },
+-    "node_modules/@mapbox/node-pre-gyp/node_modules/whatwg-url": {
+-      "version": "5.0.0",
+-      "resolved": "https://registry.npmjs.org/whatwg-url/-/whatwg-url-5.0.0.tgz",
+-      "integrity": "sha512-saE57nupxk6v3HY35+jzBwYa0rKSy0XR8JSxZPwgLr7ys0IBzhGviA1/TUGJLmSVqs8pb9AnvICXEuOHLprYTw==",
+-      "dev": true,
+-      "license": "MIT",
+-      "optional": true,
+-      "peer": true,
+-      "dependencies": {
+-        "tr46": "~0.0.3",
+-        "webidl-conversions": "^3.0.0"
+-      }
+-    },
+     "node_modules/@mastra/core": {
+       "version": "0.8.3",
+       "resolved": "https://registry.npmjs.org/@mastra/core/-/core-0.8.3.tgz",
+@@ -12127,7 +11942,6 @@
+       "integrity": "sha512-pemlzrSESWbdAloYml3bAJMEfNh1Z7EduzqPKprCH5S341frlpYnUEW0H72dLxa6IsYr+mPno20GiSm+h9dEdQ==",
+       "dev": true,
+       "license": "MIT",
+-      "peer": true,
+       "dependencies": {
+         "@babel/code-frame": "^7.10.4",
+         "@babel/runtime": "^7.12.5",
+@@ -12147,8 +11961,7 @@
+       "resolved": "https://registry.npmjs.org/dom-accessibility-api/-/dom-accessibility-api-0.5.16.tgz",
+       "integrity": "sha512-X7BJ2yElsnOJ30pZF4uIIDfBEVgF4XEBxL9Bxhy6dnrm5hkzqmsWHGTiHqRiITNhMyFLyAiWndIJP7Z1NTteDg==",
+       "dev": true,
+-      "license": "MIT",
+-      "peer": true
++      "license": "MIT"
+     },
+     "node_modules/@testing-library/jest-dom": {
+       "version": "6.6.3",
+@@ -12186,9 +11999,9 @@
+       }
+     },
+     "node_modules/@testing-library/react": {
+-      "version": "16.2.0",
+-      "resolved": "https://registry.npmjs.org/@testing-library/react/-/react-16.2.0.tgz",
+-      "integrity": "sha512-2cSskAvA1QNtKc8Y9VJQRv0tm3hLVgxRGDB+KYhIaPQJ1I+RHbhIXcM+zClKXzMes/wshsMVzf4B9vS4IZpqDQ==",
++      "version": "16.3.0",
++      "resolved": "https://registry.npmjs.org/@testing-library/react/-/react-16.3.0.tgz",
++      "integrity": "sha512-kFSyxiEDwv1WLl2fgsq6pPBbw5aWKrsY2/noi1Id0TK0UParSF62oFQFGHXIyaG4pp2tEub/Zlel+fjjZILDsw==",
+       "dev": true,
+       "license": "MIT",
+       "dependencies": {
+@@ -12213,6 +12026,20 @@
+         }
+       }
+     },
++    "node_modules/@testing-library/user-event": {
++      "version": "14.6.1",
++      "resolved": "https://registry.npmjs.org/@testing-library/user-event/-/user-event-14.6.1.tgz",
++      "integrity": "sha512-vq7fv0rnt+QTXgPxr5Hjc210p6YKq2kmdziLgnsZGgLJ9e6VAShx1pACLuRjd/AS/sr7phAR58OIIpf0LlmQNw==",
++      "dev": true,
++      "license": "MIT",
++      "engines": {
++        "node": ">=12",
++        "npm": ">=6"
++      },
++      "peerDependencies": {
++        "@testing-library/dom": ">=7.21.4"
 +      }
 +    },
-+  );
-+
-   // メッセージ送信ハンドラ
-   ipcMain.handle(
-     IpcChannels.CHAT_SEND_MESSAGE,
-@@ -697,7 +790,7 @@ const createWindow = async () => {
- 
-   // Remove this if your app does not use auto updates
-   // eslint-disable-next-line
--  new AppUpdater();
-+  // new AppUpdater();
- };
- 
- /**
-diff --git a/src/main/preload.ts b/src/main/preload.ts
-index 0f226aa8c..536963ac2 100644
---- a/src/main/preload.ts
-+++ b/src/main/preload.ts
-@@ -1,7 +1,12 @@
- // Disable no-unused-vars, broken for spread args
- /* eslint no-unused-vars: off */
- import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
--import { IpcChannels, IpcResponsePayload, IpcEventPayload } from './types/ipc';
-+import {
-+  IpcChannels,
-+  IpcResponsePayload,
-+  IpcEventPayload,
-+  IpcRequestPayload,
-+} from './types/ipc';
- 
- export type Channels = (typeof IpcChannels)[keyof typeof IpcChannels];
- 
-@@ -86,6 +91,12 @@ const electronHandler = {
-     ): Promise<IpcResponsePayload<typeof IpcChannels.CHAT_ABORT_REQUEST>> => {
-       return ipcRenderer.invoke(IpcChannels.CHAT_ABORT_REQUEST, threadId);
+     "node_modules/@tootallnate/once": {
+       "version": "2.0.0",
+       "resolved": "https://registry.npmjs.org/@tootallnate/once/-/once-2.0.0.tgz",
+@@ -12266,8 +12093,7 @@
+       "resolved": "https://registry.npmjs.org/@types/aria-query/-/aria-query-5.0.4.tgz",
+       "integrity": "sha512-rfT93uj5s0PRL7EzccGMs3brplhcrghnDoV26NqKhCAS1hVo+WdNsPvE/yb6ilfr5hi2MEk6d5EWJTKdxg8jVw==",
+       "dev": true,
+-      "license": "MIT",
+-      "peer": true
++      "license": "MIT"
      },
-+    // メッセージ編集時に該当indexまでの履歴を削除する
-+    editHistory: async (
-+      params: IpcRequestPayload<typeof IpcChannels.CHAT_EDIT_HISTORY>,
-+    ): Promise<IpcResponsePayload<typeof IpcChannels.CHAT_EDIT_HISTORY>> => {
-+      return ipcRenderer.invoke(IpcChannels.CHAT_EDIT_HISTORY, params);
+     "node_modules/@types/aws-lambda": {
+       "version": "8.10.147",
+@@ -12383,12 +12209,6 @@
+         "@types/node": "*"
+       }
+     },
+-    "node_modules/@types/cookie": {
+-      "version": "0.6.0",
+-      "resolved": "https://registry.npmjs.org/@types/cookie/-/cookie-0.6.0.tgz",
+-      "integrity": "sha512-4Kh9a6B2bQciAhf7FSuMRRkUWecJgJu9nPnx3yzpsfXX/c50REIqpHY4C82bXP90qrLtXtkDxTZosYO3UpOwlA==",
+-      "license": "MIT"
+-    },
+     "node_modules/@types/d3": {
+       "version": "7.4.3",
+       "resolved": "https://registry.npmjs.org/@types/d3/-/d3-7.4.3.tgz",
+@@ -15738,24 +15558,6 @@
+       ],
+       "license": "CC-BY-4.0"
+     },
+-    "node_modules/canvas": {
+-      "version": "2.11.2",
+-      "resolved": "https://registry.npmjs.org/canvas/-/canvas-2.11.2.tgz",
+-      "integrity": "sha512-ItanGBMrmRV7Py2Z+Xhs7cT+FNt5K0vPL4p9EZ/UX/Mu7hFbkxSjKF2KVtPwX7UYWp7dRKnrTvReflgrItJbdw==",
+-      "dev": true,
+-      "hasInstallScript": true,
+-      "license": "MIT",
+-      "optional": true,
+-      "peer": true,
+-      "dependencies": {
+-        "@mapbox/node-pre-gyp": "^1.0.0",
+-        "nan": "^2.17.0",
+-        "simple-get": "^3.0.3"
+-      },
+-      "engines": {
+-        "node": ">=6"
+-      }
+-    },
+     "node_modules/ccount": {
+       "version": "2.0.1",
+       "resolved": "https://registry.npmjs.org/ccount/-/ccount-2.0.1.tgz",
+@@ -18636,9 +18438,9 @@
+       }
+     },
+     "node_modules/drizzle-kit": {
+-      "version": "0.31.0",
+-      "resolved": "https://registry.npmjs.org/drizzle-kit/-/drizzle-kit-0.31.0.tgz",
+-      "integrity": "sha512-pcKVT+GbfPA+bUovPIilgVOoq+onNBo/YQBG86sf3/GFHkN6lRJPm1l7dKN0IMAk57RQoIm4GUllRrasLlcaSg==",
++      "version": "0.31.1",
++      "resolved": "https://registry.npmjs.org/drizzle-kit/-/drizzle-kit-0.31.1.tgz",
++      "integrity": "sha512-PUjYKWtzOzPtdtQlTHQG3qfv4Y0XT8+Eas6UbxCmxTj7qgMf+39dDujf1BP1I+qqZtw9uzwTh8jYtkMuCq+B0Q==",
+       "license": "MIT",
+       "dependencies": {
+         "@drizzle-team/brocli": "^0.10.2",
+@@ -21468,6 +21270,15 @@
+         "node": "^12.20 || >= 14.13"
+       }
+     },
++    "node_modules/fetch-blob/node_modules/web-streams-polyfill": {
++      "version": "3.3.3",
++      "resolved": "https://registry.npmjs.org/web-streams-polyfill/-/web-streams-polyfill-3.3.3.tgz",
++      "integrity": "sha512-d2JWLCivmZYTSIoge9MsgFCZrt571BikcWGYkjC1khllbTeDlGqZ2D8vD8E/lJa8WGWbb7Plm8/XJYV7IJHZZw==",
++      "license": "MIT",
++      "engines": {
++        "node": ">= 8"
++      }
 +    },
-     // AIの応答を取得する（ストリーミング）
-     onStream: (
-       callback: (
-diff --git a/src/main/types/ipc.ts b/src/main/types/ipc.ts
-index 0f2e5160d..137105d47 100644
---- a/src/main/types/ipc.ts
-+++ b/src/main/types/ipc.ts
-@@ -31,6 +31,7 @@ export const IpcChannels = {
-   CHAT_STEP: 'chat-step',
-   CHAT_ERROR: 'chat-error',
-   CHAT_ABORT_REQUEST: 'chat-abort-request',
-+  CHAT_EDIT_HISTORY: 'chat-edit-history',
- 
-   // ファイルシステム関連
-   FS_CHECK_PATH_EXISTS: 'fs-check-path-exists',
-@@ -69,6 +70,11 @@ export type IpcRequestPayloadMap = {
-     title: string;
-   };
-   [IpcChannels.CHAT_ABORT_REQUEST]: { threadId: string };
-+  [IpcChannels.CHAT_EDIT_HISTORY]: {
-+    threadId: string;
-+    oldContent: string;
-+    oldCreatedAt: Date;
+     "node_modules/figures": {
+       "version": "6.1.0",
+       "resolved": "https://registry.npmjs.org/figures/-/figures-6.1.0.tgz",
+@@ -23092,9 +22903,9 @@
+       }
+     },
+     "node_modules/http-proxy-middleware": {
+-      "version": "2.0.7",
+-      "resolved": "https://registry.npmjs.org/http-proxy-middleware/-/http-proxy-middleware-2.0.7.tgz",
+-      "integrity": "sha512-fgVY8AV7qU7z/MmXJ/rxwbrtQH4jBQ9m7kp3llF0liB7glmFeVZFBepQb32T3y8n8k2+AEYuMPCpinYW+/CuRA==",
++      "version": "2.0.9",
++      "resolved": "https://registry.npmjs.org/http-proxy-middleware/-/http-proxy-middleware-2.0.9.tgz",
++      "integrity": "sha512-c1IyJYLYppU574+YI7R4QyX2ystMtVXZwIdzazUIPIJsHuWNd+mho2j+bKoHftndicGj9yh+xjd+l0yj7VeT1Q==",
+       "dev": true,
+       "license": "MIT",
+       "dependencies": {
+@@ -25300,9 +25111,9 @@
+       "license": "BSD-3-Clause"
+     },
+     "node_modules/js-tiktoken": {
+-      "version": "1.0.19",
+-      "resolved": "https://registry.npmjs.org/js-tiktoken/-/js-tiktoken-1.0.19.tgz",
+-      "integrity": "sha512-XC63YQeEcS47Y53gg950xiZ4IWmkfMe4p2V9OSaBt26q+p47WHn18izuXzSclCI73B7yGqtfRsT6jcZQI0y08g==",
++      "version": "1.0.20",
++      "resolved": "https://registry.npmjs.org/js-tiktoken/-/js-tiktoken-1.0.20.tgz",
++      "integrity": "sha512-Xlaqhhs8VfCd6Sh7a1cFkZHQbYTLCwVJJWiHVxBYzLPxW0XsoxBy1hitmjkdIjD3Aon5BXLHFwU5O8WUx6HH+A==",
+       "license": "MIT",
+       "dependencies": {
+         "base64-js": "^1.5.1"
+@@ -25848,11 +25659,13 @@
+         "wasm32"
+       ],
+       "license": "MIT",
++      "optional": true,
+       "os": [
+         "darwin",
+         "linux",
+         "win32"
+       ],
++      "peer": true,
+       "dependencies": {
+         "@neon-rs/load": "^0.0.4",
+         "detect-libc": "2.0.2"
+@@ -25872,6 +25685,8 @@
+       "resolved": "https://registry.npmjs.org/detect-libc/-/detect-libc-2.0.2.tgz",
+       "integrity": "sha512-UX6sGumvvqSaXgdKGUsgZWqcUyIXZ/vZTrlRT/iobiKhGL0zL4d3osHj3uqllWJK+i+sixDS/3COVEOFbupFyw==",
+       "license": "Apache-2.0",
++      "optional": true,
++      "peer": true,
+       "engines": {
+         "node": ">=8"
+       }
+@@ -26168,7 +25983,6 @@
+       "integrity": "sha512-h5bgJWpxJNswbU7qCrV0tIKQCaS3blPDrqKWx+QxzuzL1zGUzij9XCWLrSLsJPu5t+eWA/ycetzYAO5IOMcWAQ==",
+       "dev": true,
+       "license": "MIT",
+-      "peer": true,
+       "bin": {
+         "lz-string": "bin/bin.js"
+       }
+@@ -27822,15 +27636,6 @@
+         "url": "https://github.com/sponsors/raouldeheer"
+       }
+     },
+-    "node_modules/nan": {
+-      "version": "2.22.2",
+-      "resolved": "https://registry.npmjs.org/nan/-/nan-2.22.2.tgz",
+-      "integrity": "sha512-DANghxFkS1plDdRsX0X9pm0Z6SJNN6gBdtXfanwoZ8hooC5gosGFSBGRYHUVPz1asKA/kMRqDRdHrluZ61SpBQ==",
+-      "dev": true,
+-      "license": "MIT",
+-      "optional": true,
+-      "peer": true
+-    },
+     "node_modules/nanoid": {
+       "version": "3.3.11",
+       "resolved": "https://registry.npmjs.org/nanoid/-/nanoid-3.3.11.tgz",
+@@ -30134,7 +29939,6 @@
+       "integrity": "sha512-Qb1gy5OrP5+zDf2Bvnzdl3jsTf1qXVMazbvCoKhtKqVs4/YK4ozX4gKQJJVyNe+cajNPn0KoC0MC3FUmaHWEmQ==",
+       "dev": true,
+       "license": "MIT",
+-      "peer": true,
+       "dependencies": {
+         "ansi-regex": "^5.0.1",
+         "ansi-styles": "^5.0.0",
+@@ -30150,7 +29954,6 @@
+       "integrity": "sha512-Cxwpt2SfTzTtXcfOlzGEee8O+c+MmUgGrNiBcXnuWxuFJHe6a5Hz7qwhwe5OgaSYI0IJvkLqWX1ASG+cJOkEiA==",
+       "dev": true,
+       "license": "MIT",
+-      "peer": true,
+       "engines": {
+         "node": ">=10"
+       },
+@@ -30674,8 +30477,7 @@
+       "resolved": "https://registry.npmjs.org/react-is/-/react-is-17.0.2.tgz",
+       "integrity": "sha512-w2GsyukL62IJnlaff/nRegPQR94C/XXamvMWmSHRJ4y7Ts/4ocGRmTHvOs8PSE6pB3dWOrD/nueuU5sduBsQ4w==",
+       "dev": true,
+-      "license": "MIT",
+-      "peer": true
++      "license": "MIT"
+     },
+     "node_modules/react-markdown": {
+       "version": "10.1.0",
+@@ -30762,15 +30564,13 @@
+       }
+     },
+     "node_modules/react-router": {
+-      "version": "7.3.0",
+-      "resolved": "https://registry.npmjs.org/react-router/-/react-router-7.3.0.tgz",
+-      "integrity": "sha512-466f2W7HIWaNXTKM5nHTqNxLrHTyXybm7R0eBlVSt0k/u55tTCDO194OIx/NrYD4TS5SXKTNekXfT37kMKUjgw==",
++      "version": "7.6.2",
++      "resolved": "https://registry.npmjs.org/react-router/-/react-router-7.6.2.tgz",
++      "integrity": "sha512-U7Nv3y+bMimgWjhlT5CRdzHPu2/KVmqPwKUCChW8en5P3znxUqwlYFlbmyj8Rgp1SF6zs5X4+77kBVknkg6a0w==",
+       "license": "MIT",
+       "dependencies": {
+-        "@types/cookie": "^0.6.0",
+         "cookie": "^1.0.1",
+-        "set-cookie-parser": "^2.6.0",
+-        "turbo-stream": "2.4.0"
++        "set-cookie-parser": "^2.6.0"
+       },
+       "engines": {
+         "node": ">=20.0.0"
+@@ -30786,12 +30586,12 @@
+       }
+     },
+     "node_modules/react-router-dom": {
+-      "version": "7.3.0",
+-      "resolved": "https://registry.npmjs.org/react-router-dom/-/react-router-dom-7.3.0.tgz",
+-      "integrity": "sha512-z7Q5FTiHGgQfEurX/FBinkOXhWREJIAB2RiU24lvcBa82PxUpwqvs/PAXb9lJyPjTs2jrl6UkLvCZVGJPeNuuQ==",
++      "version": "7.6.2",
++      "resolved": "https://registry.npmjs.org/react-router-dom/-/react-router-dom-7.6.2.tgz",
++      "integrity": "sha512-Q8zb6VlTbdYKK5JJBLQEN06oTUa/RAbG/oQS1auK1I0TbJOXktqm+QENEVJU6QvWynlXPRBXI3fiOQcSEA78rA==",
+       "license": "MIT",
+       "dependencies": {
+-        "react-router": "7.3.0"
++        "react-router": "7.6.2"
+       },
+       "engines": {
+         "node": ">=20.0.0"
+@@ -32656,73 +32456,6 @@
+       "dev": true,
+       "license": "ISC"
+     },
+-    "node_modules/simple-concat": {
+-      "version": "1.0.1",
+-      "resolved": "https://registry.npmjs.org/simple-concat/-/simple-concat-1.0.1.tgz",
+-      "integrity": "sha512-cSFtAPtRhljv69IK0hTVZQ+OfE9nePi/rtJmw5UjHeVyVroEqJXP1sFztKUy1qU+xvz3u/sfYJLa947b7nAN2Q==",
+-      "dev": true,
+-      "funding": [
+-        {
+-          "type": "github",
+-          "url": "https://github.com/sponsors/feross"
+-        },
+-        {
+-          "type": "patreon",
+-          "url": "https://www.patreon.com/feross"
+-        },
+-        {
+-          "type": "consulting",
+-          "url": "https://feross.org/support"
+-        }
+-      ],
+-      "license": "MIT",
+-      "optional": true,
+-      "peer": true
+-    },
+-    "node_modules/simple-get": {
+-      "version": "3.1.1",
+-      "resolved": "https://registry.npmjs.org/simple-get/-/simple-get-3.1.1.tgz",
+-      "integrity": "sha512-CQ5LTKGfCpvE1K0n2us+kuMPbk/q0EKl82s4aheV9oXjFEz6W/Y7oQFVJuU6QG77hRT4Ghb5RURteF5vnWjupA==",
+-      "dev": true,
+-      "license": "MIT",
+-      "optional": true,
+-      "peer": true,
+-      "dependencies": {
+-        "decompress-response": "^4.2.0",
+-        "once": "^1.3.1",
+-        "simple-concat": "^1.0.0"
+-      }
+-    },
+-    "node_modules/simple-get/node_modules/decompress-response": {
+-      "version": "4.2.1",
+-      "resolved": "https://registry.npmjs.org/decompress-response/-/decompress-response-4.2.1.tgz",
+-      "integrity": "sha512-jOSne2qbyE+/r8G1VU+G/82LBs2Fs4LAsTiLSHOCOMZQl2OKZ6i8i4IyHemTe+/yIXOtTcRQMzPcgyhoFlqPkw==",
+-      "dev": true,
+-      "license": "MIT",
+-      "optional": true,
+-      "peer": true,
+-      "dependencies": {
+-        "mimic-response": "^2.0.0"
+-      },
+-      "engines": {
+-        "node": ">=8"
+-      }
+-    },
+-    "node_modules/simple-get/node_modules/mimic-response": {
+-      "version": "2.1.0",
+-      "resolved": "https://registry.npmjs.org/mimic-response/-/mimic-response-2.1.0.tgz",
+-      "integrity": "sha512-wXqjST+SLt7R009ySCglWBCFpjUygmCIfD790/kVbiGmUgfYGuB14PiTd5DwVxSV4NcYHjzMkoj5LjQZwTQLEA==",
+-      "dev": true,
+-      "license": "MIT",
+-      "optional": true,
+-      "peer": true,
+-      "engines": {
+-        "node": ">=8"
+-      },
+-      "funding": {
+-        "url": "https://github.com/sponsors/sindresorhus"
+-      }
+-    },
+     "node_modules/simple-update-notifier": {
+       "version": "2.0.0",
+       "resolved": "https://registry.npmjs.org/simple-update-notifier/-/simple-update-notifier-2.0.0.tgz",
+@@ -34393,12 +34126,6 @@
+         "fsevents": "~2.3.3"
+       }
+     },
+-    "node_modules/turbo-stream": {
+-      "version": "2.4.0",
+-      "resolved": "https://registry.npmjs.org/turbo-stream/-/turbo-stream-2.4.0.tgz",
+-      "integrity": "sha512-FHncC10WpBd2eOmGwpmQsWLDoK4cqsA/UT/GqNoaKOQnT8uzhtCbg3EoUDMvqpOSAI0S26mr0rkjzbOO6S3v1g==",
+-      "license": "ISC"
+-    },
+     "node_modules/type-check": {
+       "version": "0.4.0",
+       "resolved": "https://registry.npmjs.org/type-check/-/type-check-0.4.0.tgz",
+@@ -34678,6 +34405,12 @@
+         "url": "https://github.com/sponsors/sindresorhus"
+       }
+     },
++    "node_modules/uninstall": {
++      "version": "0.0.0",
++      "resolved": "https://registry.npmjs.org/uninstall/-/uninstall-0.0.0.tgz",
++      "integrity": "sha512-pjP/0+A4gsbDVa8XH/S2GZdT9NPJW8NFMy3GI7HnsWG+NAmFSSj3QidNosXBI9cPtxxNExEDdhKFO6sli8K3mA==",
++      "license": "MIT"
++    },
+     "node_modules/unique-filename": {
+       "version": "2.0.1",
+       "resolved": "https://registry.npmjs.org/unique-filename/-/unique-filename-2.0.1.tgz",
+@@ -35265,9 +34998,10 @@
+       }
+     },
+     "node_modules/web-streams-polyfill": {
+-      "version": "3.3.3",
+-      "resolved": "https://registry.npmjs.org/web-streams-polyfill/-/web-streams-polyfill-3.3.3.tgz",
+-      "integrity": "sha512-d2JWLCivmZYTSIoge9MsgFCZrt571BikcWGYkjC1khllbTeDlGqZ2D8vD8E/lJa8WGWbb7Plm8/XJYV7IJHZZw==",
++      "version": "4.1.0",
++      "resolved": "https://registry.npmjs.org/web-streams-polyfill/-/web-streams-polyfill-4.1.0.tgz",
++      "integrity": "sha512-A7Jxrg7+eV+eZR/CIdESDnRGFb6/bcKukGvJBB5snI6cw3is1c2qamkYstC1bY1p08TyMRlN9eTMkxmnKJBPBw==",
++      "dev": true,
+       "license": "MIT",
+       "engines": {
+         "node": ">= 8"
+@@ -35492,15 +35226,16 @@
+       }
+     },
+     "node_modules/webpack-dev-server": {
+-      "version": "5.2.0",
+-      "resolved": "https://registry.npmjs.org/webpack-dev-server/-/webpack-dev-server-5.2.0.tgz",
+-      "integrity": "sha512-90SqqYXA2SK36KcT6o1bvwvZfJFcmoamqeJY7+boioffX9g9C0wjjJRGUrQIuh43pb0ttX7+ssavmj/WN2RHtA==",
++      "version": "5.2.2",
++      "resolved": "https://registry.npmjs.org/webpack-dev-server/-/webpack-dev-server-5.2.2.tgz",
++      "integrity": "sha512-QcQ72gh8a+7JO63TAx/6XZf/CWhgMzu5m0QirvPfGvptOusAxG12w2+aua1Jkjr7hzaWDnJ2n6JFeexMHI+Zjg==",
+       "dev": true,
+       "license": "MIT",
+       "dependencies": {
+         "@types/bonjour": "^3.5.13",
+         "@types/connect-history-api-fallback": "^1.5.4",
+         "@types/express": "^4.17.21",
++        "@types/express-serve-static-core": "^4.17.21",
+         "@types/serve-index": "^1.9.4",
+         "@types/serve-static": "^1.15.5",
+         "@types/sockjs": "^0.3.36",
+@@ -35513,7 +35248,7 @@
+         "connect-history-api-fallback": "^2.0.0",
+         "express": "^4.21.2",
+         "graceful-fs": "^4.2.6",
+-        "http-proxy-middleware": "^2.0.7",
++        "http-proxy-middleware": "^2.0.9",
+         "ipaddr.js": "^2.1.0",
+         "launch-editor": "^2.6.1",
+         "open": "^10.0.3",
+diff --git a/package.json b/package.json
+index 25532b2ec..f783dfa22 100644
+--- a/package.json
++++ b/package.json
+@@ -76,11 +76,15 @@
+     },
+     "testPathIgnorePatterns": [
+       "release/app/dist",
+-      ".erb/dll"
++      ".erb/dll",
++      "src/__tests__/test-utils/**"
+     ],
+     "transform": {
+       "\\.(ts|tsx|js|jsx)$": "ts-jest"
+-    }
++    },
++    "transformIgnorePatterns": [
++      "/node_modules/(?!(react-syntax-highlighter)/)"
++    ]
+   },
+   "dependencies": {
+     "@ai-sdk/openai-compatible": "^0.2.11",
+@@ -111,6 +115,7 @@
+     "electron-log": "^5.3.2",
+     "electron-store": "^10.0.1",
+     "electron-updater": "^6.3.9",
++    "js-tiktoken": "^1.0.20",
+     "lucide-react": "^0.503.0",
+     "mastra": "^0.4.9",
+     "mermaid": "^11.6.0",
+@@ -134,8 +139,10 @@
+     "@pmmmwh/react-refresh-webpack-plugin": "^0.5.15",
+     "@svgr/webpack": "^8.1.0",
+     "@teamsupercell/typings-for-css-modules-loader": "^2.5.2",
++    "@testing-library/dom": "^10.4.0",
+     "@testing-library/jest-dom": "^6.6.3",
+-    "@testing-library/react": "^16.2.0",
++    "@testing-library/react": "^16.3.0",
++    "@testing-library/user-event": "^14.6.1",
+     "@types/jest": "^29.5.14",
+     "@types/node": "22.14.1",
+     "@types/react": "^19.0.11",
+@@ -177,6 +184,7 @@
+     "jest": "^29.7.0",
+     "jest-environment-jsdom": "^29.7.0",
+     "mini-css-extract-plugin": "^2.9.2",
++    "node-fetch": "^3.3.2",
+     "node-loader": "^2.1.0",
+     "path-browserify": "^1.0.1",
+     "prettier": "^3.5.3",
+@@ -197,6 +205,7 @@
+     "tsx": "^4.19.3",
+     "typescript": "^5.8.3",
+     "url-loader": "^4.1.1",
++    "web-streams-polyfill": "^4.1.0",
+     "webpack": "^5.98.0",
+     "webpack-bundle-analyzer": "^4.10.2",
+     "webpack-cli": "^6.0.1",
+diff --git a/src/__tests__/integration/SettingsModal.test.tsx b/src/__tests__/integration/SettingsModal.test.tsx
+new file mode 100644
+index 000000000..c4edbb069
+--- /dev/null
++++ b/src/__tests__/integration/SettingsModal.test.tsx
+@@ -0,0 +1,679 @@
++/**
++ * @jest-environment jsdom
++ */
++import React from 'react';
++import { render, screen, waitFor } from '@testing-library/react';
++import userEvent from '@testing-library/user-event';
++import '@testing-library/jest-dom';
++
++import SettingsModal from '../../renderer/components/common/SettingsModal';
++import { createMockElectronWithOptions } from '../../__tests__/test-utils/mockElectronHandler';
++
++describe('SettingsModal Component', () => {
++  // 共通のプロップス
++  const defaultProps = {
++    open: true,
++    onClose: jest.fn(),
++    onSettingsUpdated: jest.fn(),
++    onValidChange: jest.fn(),
 +  };
- };
- 
- export type IpcResponsePayloadMap = {
-@@ -100,6 +106,7 @@ export type IpcResponsePayloadMap = {
-   [IpcChannels.CHAT_DELETE_ROOM]: { success: boolean; error?: string };
-   [IpcChannels.CHAT_CREATE_THREAD]: { success: boolean; error?: string };
-   [IpcChannels.CHAT_ABORT_REQUEST]: { success: boolean; error?: string };
-+  [IpcChannels.CHAT_EDIT_HISTORY]: { success: boolean; error?: string };
- };
- 
- export type IpcEventPayloadMap = {
-diff --git a/src/main/types/schema.ts b/src/main/types/schema.ts
-index 1b36ee3f1..4616f8c96 100644
---- a/src/main/types/schema.ts
-+++ b/src/main/types/schema.ts
-@@ -3,12 +3,20 @@ import { z } from 'zod';
- // StdioServerParameters(Mastraで設定されているMCPサーバ設定)のZodスキーマ定義
- // eslint-disable-next-line
- export const McpSchema = z.record(
--  z.object({
--    command: z.string(),
--    args: z.array(z.string()).optional(),
--    env: z.record(z.string()).optional(),
--    cwd: z.string().optional(),
--  }),
-+  z.union([
-+    z.object({
-+      command: z.string(),
-+      args: z.array(z.string()).optional(),
-+      env: z.record(z.string()).optional(),
-+      cwd: z.string().optional(),
-+    }),
-+    z.object({
-+      url: z
-+        .string()
-+        .url()
-+        .transform((s) => new URL(s)),
-+    }),
-+  ]),
- );
- 
- export type McpSchemaType = z.infer<typeof McpSchema>;
++
++  // テスト前のセットアップ
++  beforeEach(() => {
++    window.electron = createMockElectronWithOptions();
++  });
++
++  // テスト後のクリーンアップ
++  afterEach(() => {
++    jest.clearAllMocks();
++  });
++
++  // テスト1: 正常に設定モーダルが表示され、初期値が設定されること
++  test('正常に設定モーダルが表示され、初期値が設定されること', async () => {
++    render(
++      <SettingsModal
++        open={defaultProps.open}
++        onClose={defaultProps.onClose}
++        onSettingsUpdated={defaultProps.onSettingsUpdated}
++        onValidChange={defaultProps.onValidChange}
++      />,
++    );
++
++    // 設定値が取得されるまで待機
++    await waitFor(() => {
++      expect(window.electron.store.get).toHaveBeenCalledTimes(8);
++    });
++
++    // データベース設定
++    await waitFor(() => {
++      const dbPath = screen.getByRole('textbox', { name: 'データベースパス' });
++      expect(dbPath).toHaveValue('/test/db');
++    });
++
++    // ソース設定
++    expect(screen.getByLabelText('ソース登録ディレクトリ')).toHaveValue(
++      './test/source',
++    );
++
++    // API設定
++    const apiKeyInput = screen.getAllByLabelText('APIキー')[0];
++    expect(apiKeyInput).toHaveValue('test-api-key');
++    expect(screen.getByLabelText('APIエンドポイントURL')).toHaveValue('https://api.test.com');
++    expect(screen.getByLabelText('モデル名')).toHaveValue('test-model');
++
++    // Redmine設定
++    const redmineEndpoint = screen.getByLabelText('Redmineエンドポイント');
++    const redmineApiKey = screen.getByLabelText('RedmineAPIキー');
++    expect(redmineEndpoint).toHaveValue('https://redmine.test.com');
++    expect(redmineApiKey).toHaveValue('test-redmine-key');
++
++    // GitLab設定
++    const gitlabEndpoint = screen.getByLabelText('GitLabエンドポイント');
++    const gitlabApiKey = screen.getByLabelText('GitLabAPIキー');
++    expect(gitlabEndpoint).toHaveValue('https://gitlab.test.com');
++    expect(gitlabApiKey).toHaveValue('test-gitlab-key');
++
++    // ブラウザ操作設定
++    const enabledSwitch = screen.getByLabelText('ブラウザ操作を有効化');
++    const headlessSwitch = screen.getByLabelText('ヘッドレスモードを有効化');
++    expect(enabledSwitch).toBeChecked();
++    expect(headlessSwitch).not.toBeChecked();
++
++    // MCPサーバー設定
++    expect(screen.getByLabelText('MCPサーバー設定（JSON）')).toHaveValue('{"testMcp": {"url": "https://mcp.test.com"} }');
++
++    // システムプロンプト設定
++    expect(screen.getByLabelText('システムプロンプトのカスタマイズが可能です')).toHaveValue('test system prompt');
++  });
++
++  // テスト2: 設定値を更新して保存できること
++  test('設定値を更新して保存できること', async () => {
++    const user = userEvent.setup({ delay: null });
++
++    render(
++      <SettingsModal
++        open={defaultProps.open}
++        onClose={defaultProps.onClose}
++        onSettingsUpdated={defaultProps.onSettingsUpdated}
++        onValidChange={defaultProps.onValidChange}
++      />,
++    );
++
++    await waitFor(() => {
++      expect(window.electron.store.get).toHaveBeenCalledTimes(8);
++    });
++
++    // 全ての入力フィールドが有効になるまで待機
++    await waitFor(() => {
++      const apiKeyInput = screen.getAllByLabelText('APIキー')[0];
++      expect(apiKeyInput).toBeEnabled();
++    });
++
++    // API設定の更新
++    const apiKeyInput = screen.getAllByLabelText('APIキー')[0];
++    const apiEndpointInput = screen.getByLabelText('APIエンドポイントURL');
++    const apiModelInput = screen.getByLabelText('モデル名');
++
++    await user.clear(apiKeyInput);
++    await user.type(apiKeyInput, 'new-test-api-key');
++    await user.clear(apiEndpointInput);
++    await user.type(apiEndpointInput, 'https://new.api.test.com');
++    await user.clear(apiModelInput);
++    await user.type(apiModelInput, 'new-test-model');
++
++    // データベース設定の更新
++    const dbDirInput = screen.getByLabelText('データベースパス');
++    await user.clear(dbDirInput);
++    await user.type(dbDirInput, '/new/test/db');
++
++    // ソース設定の更新
++    const sourceInput = screen.getByLabelText('ソース登録ディレクトリ');
++    await user.clear(sourceInput);
++    await user.type(sourceInput, './new/test/source');
++
++    // Redmine設定の更新
++    const redmineEndpoint = screen.getByLabelText('Redmineエンドポイント');
++    const redmineApiKey = screen.getByLabelText('RedmineAPIキー');
++
++    await user.clear(redmineEndpoint);
++    await user.type(redmineEndpoint, 'https://new.redmine.test.com');
++    await user.clear(redmineApiKey);
++    await user.type(redmineApiKey, 'new-test-redmine-key');
++
++    // GitLab設定の更新
++    const gitlabEndpoint = screen.getByLabelText('GitLabエンドポイント');
++    const gitlabApiKey = screen.getByLabelText('GitLabAPIキー');
++
++    await user.clear(gitlabEndpoint);
++    await user.type(gitlabEndpoint, 'https://new.gitlab.test.com');
++    await user.clear(gitlabApiKey);
++    await user.type(gitlabApiKey, 'new-test-gitlab-key');
++
++    // MCPサーバー設定の更新
++    const mcpConfigInput = screen.getByLabelText('MCPサーバー設定（JSON）');
++    const validMcpConfig = {
++      weather: {
++        command: 'npx',
++        args: ['tsx', 'weather.ts'],
++        env: { API_KEY: 'test-key' },
++        cwd: '/test/weather',
++      },
++    };
++    await user.clear(mcpConfigInput);
++    await userEvent.type(mcpConfigInput, JSON.stringify(validMcpConfig, null, 2).replace(/[{[]/g, '$&$&'));
++
++    // ブラウザ操作設定の更新
++    await user.click(screen.getByLabelText('ブラウザ操作を有効化'));
++    await user.click(screen.getByLabelText('ヘッドレスモードを有効化'));
++
++    // システムプロンプト設定の更新
++    const systemPromptInput = screen.getByLabelText('システムプロンプトのカスタマイズが可能です');
++    await user.clear(systemPromptInput);
++    await user.type(systemPromptInput, 'new test system prompt');
++
++    // 保存ボタンをクリック
++    await waitFor(() => {
++      expect(screen.getByText('保存')).toBeEnabled();
++    });
++    await user.click(screen.getByText('保存'));
++
++    // 各設定の更新が正しく呼ばれることを確認
++    await waitFor(() => {
++      // API設定
++      expect(window.electron.store.set).toHaveBeenCalledWith('api', {
++        key: 'new-test-api-key',
++        url: 'https://new.api.test.com',
++        model: 'new-test-model',
++      });
++
++      // データベース設定
++      expect(window.electron.store.set).toHaveBeenCalledWith('database', {
++        dir: '/new/test/db',
++      });
++
++      // ソース設定
++      expect(window.electron.store.set).toHaveBeenCalledWith('source', {
++        registerDir: './new/test/source',
++      });
++
++      // Redmine設定
++      expect(window.electron.store.set).toHaveBeenCalledWith('redmine', {
++        endpoint: 'https://new.redmine.test.com',
++        apiKey: 'new-test-redmine-key',
++      });
++
++      // GitLab設定
++      expect(window.electron.store.set).toHaveBeenCalledWith('gitlab', {
++        endpoint: 'https://new.gitlab.test.com',
++        apiKey: 'new-test-gitlab-key',
++      });
++
++      // MCP設定
++      expect(window.electron.store.set).toHaveBeenCalledWith('mcp', {
++        serverConfigText: JSON.stringify(validMcpConfig, null, 2),
++      });
++
++      // Stagehand設定
++      expect(window.electron.store.set).toHaveBeenCalledWith('stagehand', {
++        enabled: false,
++        headless: true,
++      });
++
++      // システムプロンプト設定
++      expect(window.electron.store.set).toHaveBeenCalledWith('systemPrompt', {
++        content: 'new test system prompt',
++      });
++    });
++
++    // エージェントの再初期化が呼ばれることを確認
++    expect(window.electron.agent.reinitialize).toHaveBeenCalled();
++
++    // コールバック関数が呼ばれることを確認
++    expect(defaultProps.onSettingsUpdated).toHaveBeenCalled();
++    expect(defaultProps.onClose).toHaveBeenCalled();
++    expect(defaultProps.onValidChange).toHaveBeenCalledWith(true);
++  }, 20000);
++
++  // テスト3: バリデーションエラーが正しく表示されること
++  test('バリデーションエラーが正しく表示されること', async () => {
++    window.electron = createMockElectronWithOptions({
++      fsAccess: false,
++    });
++
++    const user = userEvent.setup({ delay: null });
++
++    render(
++      <SettingsModal
++        open={defaultProps.open}
++        onClose={defaultProps.onClose}
++        onSettingsUpdated={defaultProps.onSettingsUpdated}
++        onValidChange={defaultProps.onValidChange}
++      />,
++    );
++
++    await waitFor(() => {
++      expect(window.electron.store.get).toHaveBeenCalledTimes(8);
++    });
++
++    // 必須フィールドを空にする
++    const apiKeyInput = screen.getByLabelText('APIキー');
++    const apiEndpointInput = screen.getByLabelText('APIエンドポイントURL');
++    const apiModelInput = screen.getByLabelText('モデル名');
++    const dbDirInput = screen.getByLabelText('データベースパス');
++
++    await waitFor(() => {
++      expect(apiKeyInput).toBeEnabled();
++    });
++
++    // 必須フィールドをクリア
++    await user.clear(apiKeyInput);
++    await user.clear(apiEndpointInput);
++    await user.clear(apiModelInput);
++    await user.clear(dbDirInput);
++
++    // 無効なURL形式を入力
++    const redmineEndpoint = screen.getByLabelText('Redmineエンドポイント');
++    const gitlabEndpoint = screen.getByLabelText('GitLabエンドポイント');
++
++    await user.clear(apiEndpointInput);
++    await user.type(apiEndpointInput, 'invalid-url');
++    await user.clear(redmineEndpoint);
++    await user.type(redmineEndpoint, 'not-a-url');
++    await user.clear(gitlabEndpoint);
++    await user.type(gitlabEndpoint, 'wrong-url');
++
++    // MCPサーバー設定の無効な形式をテスト
++    const mcpConfigInput = screen.getByLabelText('MCPサーバー設定（JSON）');
++
++    // 無効なJSON構文
++    await user.clear(mcpConfigInput);
++    await userEvent.type(mcpConfigInput, '{ invalid json'.replace(/[{[]/g, '$&$&'));
++
++    // バリデーションエラーメッセージが表示されることを確認
++    await waitFor(() => {
++      // 必須フィールドのエラー
++      expect(screen.getByText('APIキーは必須です')).toBeInTheDocument();
++      expect(screen.getByText('モデル名は必須です')).toBeInTheDocument();
++
++      // パスが存在しないエラー（DB,ドキュメント登録ディレクトリ）
++      expect(screen.getAllByText('指定されたパスが存在しません').length).toEqual(2);
++
++      // 無効なURL形式のエラー
++      expect(screen.getAllByText('有効なURLを入力してください').length).toEqual(3);
++
++      // MCPサーバー設定のエラー
++      expect(screen.getByText('JSONの形式が不正です')).toBeInTheDocument();
++    });
++
++    // 保存ボタンが無効化されていることを確認
++    expect(screen.getByText('保存')).toBeDisabled();
++
++    // バリデーションエラー状態であることを確認
++    await waitFor(() => {
++      expect(defaultProps.onValidChange).toHaveBeenLastCalledWith(false);
++    });
++  }, 20000);
++
++  // テスト4: MCPスキーマのバリデーションエラーが正しく表示されること
++  test('MCPスキーマのバリデーションエラーが正しく表示されること', async () => {
++    const user = userEvent.setup({ delay: null });
++
++    render(
++      <SettingsModal
++        open={defaultProps.open}
++        onClose={defaultProps.onClose}
++        onSettingsUpdated={defaultProps.onSettingsUpdated}
++        onValidChange={defaultProps.onValidChange}
++      />,
++    );
++
++    await waitFor(() => {
++      expect(window.electron.store.get).toHaveBeenCalledTimes(8);
++    });
++
++    const mcpConfigInput = screen.getByLabelText('MCPサーバー設定（JSON）');
++    await waitFor(() => {
++      expect(mcpConfigInput).toBeEnabled();
++    });
++
++    // 1. 不正なコマンド構造 (必須フィールドの欠如)
++    await user.clear(mcpConfigInput);
++    await userEvent.type(
++      mcpConfigInput,
++      JSON.stringify(
++        {
++          weather: {
++            wrong_field: 'value',
++          },
++        },
++        null,
++        2,
++      ).replace(/[{[]/g, '$&$&'),
++    );
++
++    await waitFor(() => {
++      const element = screen.getByText((content, element) =>
++        content.includes('MCP設定形式が不正です'),
++      );
++      expect(element).toBeInTheDocument();
++      expect(screen.getByText('保存')).toBeDisabled();
++    });
++
++    // 2. 不正な引数フォーマット
++    await user.clear(mcpConfigInput);
++    await userEvent.type(
++      mcpConfigInput,
++      JSON.stringify(
++        {
++          weather: {
++            command: 'npx',
++            args: 'not-an-array',
++          },
++        },
++        null,
++        2,
++      ).replace(/[{[]/g, '$&$&'),
++    );
++
++    await waitFor(() => {
++      const element = screen.getByText((content, element) =>
++        content.includes('MCP設定形式が不正です'),
++      );
++      expect(element).toBeInTheDocument();
++      expect(screen.getByText('保存')).toBeDisabled();
++    });
++
++    // 3. 不正なURL形式
++    await user.clear(mcpConfigInput);
++    await userEvent.type(
++      mcpConfigInput,
++      JSON.stringify(
++        {
++          service: {
++            url: 'invalid-url',
++          },
++        },
++        null,
++        2,
++      ).replace(/[{[]/g, '$&$&'),
++    );
++
++    await waitFor(() => {
++      const element = screen.getByText((content, element) =>
++        content.includes('MCP設定形式が不正です'),
++      );
++      expect(element).toBeInTheDocument();
++      expect(screen.getByText('保存')).toBeDisabled();
++    });
++
++    // 4. 不正な環境変数形式
++    await user.clear(mcpConfigInput);
++    await userEvent.type(
++      mcpConfigInput,
++      JSON.stringify(
++        {
++          weather: {
++            command: 'npx',
++            env: ['not', 'an', 'object'],
++          },
++        },
++        null,
++        2,
++      ).replace(/[{[]/g, '$&$&'),
++    );
++
++    await waitFor(() => {
++      const element = screen.getByText((content, element) =>
++        content.includes('MCP設定形式が不正です'),
++      );
++      expect(element).toBeInTheDocument();
++      expect(screen.getByText('保存')).toBeDisabled();
++    });
++
++    // バリデーション失敗の状態を確認
++    await waitFor(() => {
++      expect(defaultProps.onValidChange).toHaveBeenLastCalledWith(false);
++    });
++  }, 20000);
++
++  // テスト5: 保存に失敗した場合のエラー表示を確認
++  test('保存に失敗した場合のエラー表示を確認', async () => {
++    const user = userEvent.setup({ delay: null });
++
++    // ストアの更新に失敗するようにモックを設定
++    window.electron.store.set = jest
++      .fn()
++      .mockRejectedValue(new Error('Failed to save settings'));
++
++    render(
++      <SettingsModal
++        open={defaultProps.open}
++        onClose={defaultProps.onClose}
++        onSettingsUpdated={defaultProps.onSettingsUpdated}
++        onValidChange={defaultProps.onValidChange}
++      />,
++    );
++
++    await waitFor(() => {
++      expect(window.electron.store.get).toHaveBeenCalledTimes(8);
++    });
++
++    // APIキーを更新してバリデーション完了を待機
++    const apiKeyInput = screen.getAllByLabelText('APIキー')[0];
++    await waitFor(() => {
++      expect(apiKeyInput).toBeEnabled();
++    });
++
++    await user.type(apiKeyInput, 'new-api-key');
++
++    // バリデーションの完了を待機
++    await waitFor(() => {
++      expect(defaultProps.onValidChange).toHaveBeenCalledWith(true);
++    });
++
++    // 保存ボタンが有効になることを確認
++    await waitFor(() => {
++      expect(screen.getByText('保存')).toBeEnabled();
++    });
++
++    // 保存ボタンをクリック
++    await user.click(screen.getByText('保存'));
++
++    // エラーメッセージが表示されることを確認
++    await waitFor(() => {
++      expect(screen.getByText('Failed to save settings')).toBeInTheDocument();
++    });
++
++    // モーダルが閉じられないことを確認
++    expect(defaultProps.onClose).not.toHaveBeenCalled();
++  });
++
++  // テスト6: キャンセルボタンの動作を確認
++  test('キャンセルボタンの動作を確認', async () => {
++    const user = userEvent.setup({ delay: null });
++
++    render(
++      <SettingsModal
++        open={defaultProps.open}
++        onClose={defaultProps.onClose}
++        onSettingsUpdated={defaultProps.onSettingsUpdated}
++        onValidChange={defaultProps.onValidChange}
++      />,
++    );
++
++    await waitFor(() => {
++      expect(window.electron.store.get).toHaveBeenCalledTimes(8);
++    });
++
++    // APIキーを更新
++    const apiKeyInput = screen.getAllByLabelText('APIキー')[0];
++    await waitFor(() => {
++      expect(apiKeyInput).toBeEnabled();
++    });
++    await user.clear(apiKeyInput);
++    await user.type(apiKeyInput, 'new-api-key');
++
++    // キャンセルボタンをクリック
++    await user.click(screen.getByText('キャンセル'));
++
++    // storeのset関数が呼ばれないことを確認
++    expect(window.electron.store.set).not.toHaveBeenCalled();
++
++    // モーダルが閉じられることを確認
++    expect(defaultProps.onClose).toHaveBeenCalled();
++  });
++
++  // テスト7: ローディング状態の表示を確認
++  test('ローディング状態の表示を確認', async () => {
++    // ストアの取得を遅延させる
++    window.electron.store.get = jest.fn().mockImplementation((key: string) => {
++      return new Promise((resolve) => {
++        setTimeout(() => {
++          if (key === 'api') {
++            resolve({
++              key: 'test-api-key',
++              url: 'https://api.test.com',
++              model: 'test-model',
++            });
++          } else {
++            resolve(undefined);
++          }
++        }, 100);
++      });
++    });
++
++    render(
++      <SettingsModal
++        open={defaultProps.open}
++        onClose={defaultProps.onClose}
++        onSettingsUpdated={defaultProps.onSettingsUpdated}
++        onValidChange={defaultProps.onValidChange}
++      />,
++    );
++
++    // 全ての入力フィールドが無効化されていることを確認
++    const inputs = screen.getAllByRole('textbox');
++    inputs.forEach((input) => {
++      expect(input).toBeDisabled();
++    });
++
++    // スイッチが無効化されていることを確認
++    const switches = screen.getAllByRole('checkbox');
++    switches.forEach((switchEl) => {
++      expect(switchEl).toBeDisabled();
++    });
++
++    // データがロードされるまで待機
++    await waitFor(
++      () => {
++        const textInputs = screen.getAllByRole('textbox');
++        expect(textInputs[0]).toBeEnabled();
++      },
++      { timeout: 1000 },
++    );
++  });
++
++  // テスト8: 保存中の状態表示を確認
++  test('保存中の状態表示を確認', async () => {
++    const user = userEvent.setup({ delay: null });
++
++    // ストアの更新を遅延させる
++    window.electron.store.set = jest.fn().mockImplementation(
++      () =>
++        new Promise((resolve) => {
++          setTimeout(() => {
++            resolve(undefined);
++          }, 100);
++        }),
++    );
++
++    render(
++      <SettingsModal
++        open={defaultProps.open}
++        onClose={defaultProps.onClose}
++        onSettingsUpdated={defaultProps.onSettingsUpdated}
++        onValidChange={defaultProps.onValidChange}
++      />,
++    );
++
++    await waitFor(() => {
++      expect(window.electron.store.get).toHaveBeenCalledTimes(8);
++    });
++
++    // APIキーを更新
++    const apiKeyInput = screen.getAllByLabelText('APIキー')[0];
++    await waitFor(() => {
++      expect(apiKeyInput).toBeEnabled();
++    });
++    await user.clear(apiKeyInput);
++    await user.type(apiKeyInput, 'new-api-key');
++    await new Promise((resolve) => {
++      setTimeout(resolve, 500);
++    });
++
++    // バリデーション状態の確認
++    await waitFor(
++      () => {
++        const { mock } = defaultProps.onValidChange as jest.Mock;
++        expect(mock.calls[mock.calls.length - 1][0]).toBe(true);
++      },
++      { timeout: 5000 },
++    );
++
++    // 保存ボタンの状態を確認
++    await waitFor(
++      () => {
++        const saveButton = screen.getByText('保存');
++        expect(saveButton).toBeEnabled();
++      },
++      { timeout: 2000 },
++    );
++
++    // 保存ボタンをクリック
++    await user.click(screen.getByText('保存'));
++
++    // ボタンが無効化され、ローディングアイコンが表示されることを確認
++    expect(screen.getByText('保存')).toBeDisabled();
++    expect(screen.getByRole('progressbar')).toBeInTheDocument();
++
++    // 保存が完了するまで待機
++    await waitFor(
++      () => {
++        expect(defaultProps.onClose).toHaveBeenCalled();
++      },
++      { timeout: 1000 },
++    );
++  });
++
++  // テスト9: 設定の取得に失敗した場合のエラー表示を確認
++  test('設定の取得に失敗した場合のエラー表示を確認', async () => {
++    // コンソールエラーをスパイ
++    const consoleSpy = jest
++      .spyOn(console, 'error')
++      .mockImplementation(() => {});
++
++    // ストアの取得に失敗するようにモックを設定
++    window.electron.store.get = jest
++      .fn()
++      .mockRejectedValue(new Error('Failed to get settings'));
++
++    render(
++      <SettingsModal
++        open={defaultProps.open}
++        onClose={defaultProps.onClose}
++        onSettingsUpdated={defaultProps.onSettingsUpdated}
++        onValidChange={defaultProps.onValidChange}
++      />,
++    );
++
++    // エラーログが出力されることを確認
++    await waitFor(() => {
++      expect(consoleSpy).toHaveBeenCalledWith(
++        'Failed to get value for key "database":',
++        expect.any(Error),
++      );
++    });
++
++    consoleSpy.mockRestore();
++  });
++});
+diff --git a/src/__tests__/integration/Sidebar.test.tsx b/src/__tests__/integration/Sidebar.test.tsx
+new file mode 100644
+index 000000000..a23e7b6c3
+--- /dev/null
++++ b/src/__tests__/integration/Sidebar.test.tsx
+@@ -0,0 +1,565 @@
++/**
++ * @jest-environment jsdom
++ */
++import React from 'react';
++import { render, screen, waitFor, act } from '@testing-library/react';
++import userEvent from '@testing-library/user-event';
++import '@testing-library/jest-dom';
++import { v4 as uuidv4 } from 'uuid';
++
++import Sidebar from '../../renderer/components/sidebar/Sidebar';
++import type { ChatRoom, ProcessStatus } from '../../main/types';
++import type { Source } from '../../db/schema';
++import { StoreSchema as Settings } from '../../main/store';
++import { createMockElectronWithOptions } from '../../__tests__/test-utils/mockElectronHandler';
++
++// uuidv4をモック化
++jest.mock('uuid', () => ({
++  v4: jest.fn(),
++}));
++
++// テスト用のモックデータ
++const mockChatRooms: ChatRoom[] = [
++  {
++    id: '1',
++    resourceId: 'resource-1',
++    title: 'Chat Room 1',
++    createdAt: new Date('2025-05-01T12:00:00.000Z'),
++    updatedAt: new Date('2025-05-01T12:00:00.000Z'),
++  },
++  {
++    id: '2',
++    resourceId: 'resource-2',
++    title: 'Chat Room 2',
++    createdAt: new Date('2025-05-02T12:00:00.000Z'),
++    updatedAt: new Date('2025-05-02T12:00:00.000Z'),
++  },
++];
++
++// ソースのモックデータ
++const mockSources: Source[] = [
++  {
++    id: 1,
++    path: '/test/source1.md',
++    title: 'Source 1',
++    status: 'completed' as ProcessStatus,
++    isEnabled: 1,
++    error: null,
++    createdAt: '2025-05-01T12:00:00.000Z',
++    updatedAt: '2025-05-01T12:00:00.000Z',
++    summary: 'Test summary 1',
++  },
++  {
++    id: 2,
++    path: '/test/source2.md',
++    title: 'Source 2',
++    status: 'completed' as ProcessStatus,
++    isEnabled: 1,
++    error: null,
++    createdAt: '2025-05-02T12:00:00.000Z',
++    updatedAt: '2025-05-02T12:00:00.000Z',
++    summary: 'Test summary 2',
++  },
++  {
++    id: 3,
++    path: '/test/source3.md',
++    title: 'Source 3',
++    status: 'failed' as ProcessStatus,
++    isEnabled: 0,
++    error: 'Processing error',
++    createdAt: '2025-05-03T12:00:00.000Z',
++    updatedAt: '2025-05-03T12:00:00.000Z',
++    summary: 'Test summary 3',
++  },
++];
++
++describe('Sidebar Component', () => {
++  // テスト前のセットアップ
++  beforeEach(() => {
++    // Electronグローバルオブジェクトをモック化
++    window.electron = createMockElectronWithOptions({
++      chatRooms: mockChatRooms,
++      sources: mockSources,
++    });
++
++    // uuidv4のモックをリセット
++    (uuidv4 as jest.Mock).mockReset();
++    (uuidv4 as jest.Mock).mockReturnValue('new-room-id');
++  });
++
++  // テスト後のクリーンアップ
++  afterEach(() => {
++    jest.clearAllMocks();
++  });
++
++  // 共通のプロップス
++  const defaultProps = {
++    selectedRoomId: null,
++    onRoomSelect: jest.fn(),
++    onReloadSources: jest.fn(),
++    showSnackbar: jest.fn(),
++    onSettingsUpdated: jest.fn(),
++  };
++
++  // テスト1: 正常にサイドバーとチャットルーム一覧が表示されること
++  test('正常にサイドバーとチャットルーム一覧が表示されること', async () => {
++    render(<Sidebar {...defaultProps} />);
++
++    // New Chatボタンが表示されることを確認
++    expect(screen.getByText('New Chat')).toBeInTheDocument();
++
++    // チャットルーム一覧が表示されるまで待機
++    await waitFor(() => {
++      expect(screen.getByText('Chat Room 1')).toBeInTheDocument();
++      expect(screen.getByText('Chat Room 2')).toBeInTheDocument();
++    });
++
++    // フッターのボタンが表示されることを確認
++    expect(screen.getByLabelText('ソース一覧を表示')).toBeInTheDocument();
++    expect(screen.getByLabelText('設定')).toBeInTheDocument();
++  });
++
++  // テスト2: ローディング状態の表示が正しく機能すること
++  test('ローディング状態の表示が正しく機能すること', async () => {
++    // チャットルーム取得を遅延させる
++    window.electron.chat.getRooms = jest.fn().mockImplementation(
++      () =>
++        new Promise((resolve) => {
++          setTimeout(() => resolve(mockChatRooms), 100);
++        }),
++    );
++
++    render(<Sidebar {...defaultProps} />);
++
++    // ローディング表示を確認
++    expect(screen.getByText('チャット履歴取得中')).toBeInTheDocument();
++
++    // チャットルーム一覧が表示されるまで待機
++    await waitFor(() => {
++      expect(screen.getByText('Chat Room 1')).toBeInTheDocument();
++      expect(screen.getByText('Chat Room 2')).toBeInTheDocument();
++    });
++
++    // ローディング表示が消えていることを確認
++    expect(screen.queryByText('チャット履歴取得中')).not.toBeInTheDocument();
++  });
++
++  // テスト3: チャットルームが空の場合の表示が正しいこと
++  test('チャットルームが空の場合の表示が正しいこと', async () => {
++    // 空の配列を返すようにモックを設定
++    window.electron.chat.getRooms = jest.fn().mockResolvedValue([]);
++
++    render(<Sidebar {...defaultProps} />);
++
++    // 空の状態のメッセージが表示されることを確認
++    await waitFor(() => {
++      expect(screen.getByText('チャット履歴がありません')).toBeInTheDocument();
++    });
++  });
++
++  // テスト4: 新規チャットルームの作成
++  test('新規チャットルームの作成', async () => {
++    const user = userEvent.setup();
++    render(<Sidebar {...defaultProps} />);
++
++    // New Chatボタンをクリック
++    await user.click(screen.getByText('New Chat'));
++
++    // uuidv4が呼ばれることを確認
++    expect(uuidv4).toHaveBeenCalled();
++
++    // onRoomSelectが新しいIDで呼ばれることを確認
++    expect(defaultProps.onRoomSelect).toHaveBeenCalledWith('new-room-id');
++  });
++
++  // テスト5: チャットルームの選択
++  test('チャットルームの選択', async () => {
++    const user = userEvent.setup();
++    render(<Sidebar {...defaultProps} />);
++
++    // チャットルーム一覧が表示されるまで待機
++    await waitFor(() => {
++      expect(screen.getByText('Chat Room 1')).toBeInTheDocument();
++    });
++
++    // チャットルームをクリック
++    await user.click(screen.getByText('Chat Room 1'));
++
++    // onRoomSelectが正しいIDで呼ばれることを確認
++    expect(defaultProps.onRoomSelect).toHaveBeenCalledWith('1');
++  });
++
++  // テスト6: チャットルームの削除
++  test('チャットルームの削除の際に正しく指定したチャットルームが削除されること（チャットルームのソート確認も含む）', async () => {
++    const user = userEvent.setup();
++    render(<Sidebar {...defaultProps} />);
++
++    // チャットルーム一覧が表示されるまで待機
++    await waitFor(() => {
++      expect(screen.getByText('Chat Room 1')).toBeInTheDocument();
++    });
++
++    // メニューボタンをクリック
++    const menuButtons = screen.getAllByLabelText('more');
++    console.log('Menu buttons:', menuButtons);
++    await user.click(menuButtons[0]);
++
++    // 削除メニューが表示されることを確認
++    expect(screen.getByText('削除')).toBeInTheDocument();
++
++    // 削除メニューをクリック
++    await user.click(screen.getByText('削除'));
++
++    // deleteRoomが呼ばれることを確認(id:2のルームがソートされて一番上にくるはず)
++    expect(window.electron.chat.deleteRoom).toHaveBeenCalledWith('2');
++
++    // 一覧が再取得されることを確認
++    await waitFor(() => {
++      expect(window.electron.chat.getRooms).toHaveBeenCalledTimes(2);
++    });
++  });
++
++  // テスト7: チャットルーム削除時のエラーハンドリング
++  test('チャットルーム削除時のエラーハンドリング', async () => {
++    // コンソールエラーをスパイ
++    const consoleSpy = jest
++      .spyOn(console, 'error')
++      .mockImplementation(() => {});
++
++    // 削除に失敗するようにモックを設定
++    window.electron.chat.deleteRoom = jest
++      .fn()
++      .mockRejectedValue(new Error('Failed to delete chat room'));
++
++    const user = userEvent.setup();
++    render(<Sidebar {...defaultProps} />);
++
++    // チャットルーム一覧が表示されるまで待機
++    await waitFor(() => {
++      expect(screen.getByText('Chat Room 1')).toBeInTheDocument();
++    });
++
++    // メニューボタンをクリック
++    const menuButtons = screen.getAllByLabelText('more');
++    await user.click(menuButtons[0]);
++
++    // 削除メニューをクリック
++    await user.click(screen.getByText('削除'));
++
++    // エラーログが出力されることを確認
++    await waitFor(() => {
++      expect(consoleSpy).toHaveBeenCalledWith(expect.any(Error));
++    });
++
++    consoleSpy.mockRestore();
++  });
++
++  // テスト8: フッターのソース一覧モーダル表示
++  test('フッターのソース一覧モーダル表示', async () => {
++    const user = userEvent.setup();
++    render(<Sidebar {...defaultProps} />);
++
++    // ソース一覧ボタンをクリック
++    await user.click(screen.getByTestId('document-list-button'));
++
++    // SourceListModalが表示されることを確認
++    expect(screen.getByText('ソース一覧')).toBeInTheDocument();
++  });
++
++  // テスト9: フッターの設定モーダル表示
++  test('フッターの設定モーダル表示', async () => {
++    const user = userEvent.setup();
++    render(<Sidebar {...defaultProps} />);
++
++    // 設定ボタンをクリック
++    await user.click(screen.getByTestId('settings-button'));
++
++    // SettingsModalが表示されることを確認
++    expect(screen.getByRole('dialog')).toBeInTheDocument();
++  });
++
++  // テスト10: チャットルーム一覧の自動更新
++  test('チャットルーム一覧の自動更新', async () => {
++    // jestのタイマーを使用
++    jest.useFakeTimers();
++
++    render(<Sidebar {...defaultProps} />);
++
++    // 初回の取得を確認
++    await waitFor(() => {
++      expect(window.electron.chat.getRooms).toHaveBeenCalledTimes(1);
++    });
++
++    // 5秒進める
++    jest.advanceTimersByTime(5000);
++
++    // 更新が呼ばれることを確認
++    expect(window.electron.chat.getRooms).toHaveBeenCalledTimes(2);
++
++    // タイマーをクリーンアップ
++    jest.useRealTimers();
++  });
++
++  // テスト11: チャットルーム取得時のエラーハンドリング
++  test('チャットルーム取得時のエラーハンドリング', async () => {
++    // コンソールエラーをスパイ
++    const consoleSpy = jest
++      .spyOn(console, 'error')
++      .mockImplementation(() => {});
++
++    // 取得に失敗するようにモックを設定
++    window.electron.chat.getRooms = jest
++      .fn()
++      .mockRejectedValue(new Error('Failed to fetch chat rooms'));
++
++    render(<Sidebar {...defaultProps} />);
++
++    // エラーログが出力されることを確認
++    await waitFor(() => {
++      expect(consoleSpy).toHaveBeenCalledWith(expect.any(Error));
++    });
++
++    // ローディング状態が維持されることを確認
++    expect(screen.getByText('チャット履歴取得中')).toBeInTheDocument();
++
++    consoleSpy.mockRestore();
++  });
++
++  // テスト12: 設定エラーバッジの初期表示
++  test('設定エラーバッジの初期表示', async () => {
++    render(<Sidebar {...defaultProps} />);
++
++    // 設定エラーがない場合、バッジは非表示
++    const settingsButton = screen.getByTestId('settings-button');
++    const settingsButtonParent = settingsButton.closest('.MuiBadge-root');
++
++    await waitFor(() => {
++      const errorBadge = settingsButtonParent?.querySelector('.MuiBadge-badge');
++      expect(errorBadge).toHaveClass('MuiBadge-invisible');
++    });
++  });
++
++  // テスト13: 設定保存後のバッジ表示更新
++  test('設定保存後のバッジ表示更新', async () => {
++    const user = userEvent.setup({ delay: null });
++    render(<Sidebar {...defaultProps} />);
++
++    // 設定ボタンをクリックしてモーダルを開く
++    await user.click(screen.getByTestId('settings-button'));
++
++    // 設定が不正な状態を作る
++    const settingsModal = screen.getByRole('dialog');
++    await waitFor(() => {
++      expect(settingsModal).toBeInTheDocument();
++    });
++
++    // バリデーションエラーを発生させる
++    const apiKeyInput = screen.getAllByLabelText('APIキー')[0];
++    await waitFor(() => {
++      expect(apiKeyInput).toBeEnabled();
++    });
++    await user.clear(apiKeyInput);
++
++    // エラーバッジが表示されることを確認
++    const settingsButton = screen.getByTestId('settings-button');
++    const settingsButtonParent = settingsButton.closest('.MuiBadge-root');
++    const errorBadge = settingsButtonParent?.querySelector('.MuiBadge-badge');
++    await waitFor(() => {
++      expect(errorBadge).not.toHaveClass('MuiBadge-invisible');
++    });
++
++    // APIキーを入力して有効な状態にする
++    await user.type(apiKeyInput, 'valid-api-key');
++
++    // エラーバッジが非表示になることを確認
++    await waitFor(() => {
++      expect(errorBadge).toHaveClass('MuiBadge-invisible');
++    });
++  });
++
++  // テスト14: ソースリストの初期表示で有効なソース数が正しく表示される
++  test('ソースリストの初期表示で有効なソース数が正しく表示される', async () => {
++    // タイマーのモック
++    jest.useFakeTimers();
++
++    render(<Sidebar {...defaultProps} />);
++
++    // 進める
++    act(() => {
++      jest.advanceTimersByTime(5000);
++    });
++
++    // ソースデータが取得されるまで待機
++    await waitFor(() => {
++      expect(window.electron.source.getSources).toHaveBeenCalled();
++    });
++
++    // ソース一覧ボタンのバッジを取得
++    const sourceListButton = screen.getByTestId('document-list-button');
++    const sourceListButtonParent = sourceListButton.closest('.MuiBadge-root');
++    const badge = sourceListButtonParent?.querySelector('.MuiBadge-badge');
++
++    // バッジに正しい数が表示されていることを確認
++    await waitFor(() => {
++      expect(badge).toHaveTextContent('2');
++    });
++  });
++
++  // テスト15: ソースの読み込み中は処理中の表示になり、完了後にソース数が表示される
++  test('ソースの読み込み中は処理中の表示になり、完了後にソース数が表示される', async () => {
++    // タイマーのモック
++    jest.useFakeTimers();
++
++    // 処理中のソースデータ
++    const processingMockSources: Source[] = [
++      {
++        id: 1,
++        path: '/test/processing1.md',
++        title: 'Processing 1',
++        status: 'processing' as ProcessStatus,
++        isEnabled: 1,
++        error: null,
++        createdAt: '2025-05-01T12:00:00.000Z',
++        updatedAt: '2025-05-01T12:00:00.000Z',
++        summary: 'Test summary 1',
++      },
++      {
++        id: 2,
++        path: '/test/processing2.md',
++        title: 'Processing 2',
++        status: 'completed' as ProcessStatus,
++        isEnabled: 1,
++        error: null,
++        createdAt: '2025-05-02T12:00:00.000Z',
++        updatedAt: '2025-05-02T12:00:00.000Z',
++        summary: 'Test summary 2',
++      },
++    ];
++
++    // 完了後のソースデータ
++    const completedMockSources: Source[] = [
++      {
++        id: 1,
++        path: '/test/processing1.md',
++        title: 'Processing 1',
++        status: 'completed' as ProcessStatus,
++        isEnabled: 1,
++        error: null,
++        createdAt: '2025-05-01T12:00:00.000Z',
++        updatedAt: '2025-05-01T12:00:00.000Z',
++        summary: 'Test summary 1',
++      },
++      {
++        id: 2,
++        path: '/test/processing2.md',
++        title: 'Processing 2',
++        status: 'completed' as ProcessStatus,
++        isEnabled: 1,
++        error: null,
++        createdAt: '2025-05-02T12:00:00.000Z',
++        updatedAt: '2025-05-02T12:00:00.000Z',
++        summary: 'Test summary 2',
++      },
++    ];
++
++    // ソース取得のモックを設定（最初は処理中、その後完了）
++    let isFirstCall = true;
++    window.electron.source.getSources = jest.fn().mockImplementation(() => {
++      if (isFirstCall) {
++        isFirstCall = false;
++        return Promise.resolve({
++          success: true,
++          sources: processingMockSources,
++        });
++      }
++      return Promise.resolve({
++        success: true,
++        sources: completedMockSources,
++      });
++    });
++
++    const user = userEvent.setup();
++    render(<Sidebar {...defaultProps} />);
++
++    // 進める
++    act(() => {
++      jest.advanceTimersByTime(5000);
++    });
++
++    // ソースデータが取得されるまで待機
++    await waitFor(() => {
++      expect(window.electron.source.getSources).toHaveBeenCalled();
++    });
++
++    // 処理中のインジケータが表示されることを確認
++    await waitFor(() => {
++      expect(
++        screen.getByTestId('document-loading-indicator'),
++      ).toBeInTheDocument();
++    });
++
++    // 5秒待機してソースデータが更新されることを確認
++    act(() => {
++      jest.advanceTimersByTime(5000);
++    });
++
++    // バッジに有効なソース数（2）が表示されることを確認
++    await waitFor(() => {
++      const button = screen.getByTestId('document-list-button');
++      const buttonParent = button.closest('.MuiBadge-root');
++      const badge = buttonParent?.querySelector('.MuiBadge-badge');
++      expect(badge).toHaveTextContent('2');
++    });
++
++    // タイマーをクリーンアップ
++    jest.useRealTimers();
++  }, 20000);
++
++  // テスト16: ソース数が100以上の場合は99+と表示される
++  test('ソース数が100以上の場合は99+と表示される', async () => {
++    // タイマーのモック
++    jest.useFakeTimers();
++
++    // 100個以上の有効なソースを含むテストデータを生成
++    const largeMockSources: Source[] = Array.from({ length: 150 }, (_, i) => ({
++      id: i + 1,
++      path: `/test/source${i + 1}.md`,
++      title: `Source ${i + 1}`,
++      status: 'completed' as ProcessStatus,
++      isEnabled: 1,
++      error: null,
++      createdAt: '2025-05-01T12:00:00.000Z',
++      updatedAt: '2025-05-01T12:00:00.000Z',
++      summary: `Test summary ${i + 1}`,
++    }));
++
++    // ソース取得のモックを設定
++    window.electron.source.getSources = jest.fn().mockResolvedValue({
++      success: true,
++      sources: largeMockSources,
++    });
++
++    render(<Sidebar {...defaultProps} />);
++
++    // タイマーを進める
++    act(() => {
++      jest.advanceTimersByTime(5000);
++    });
++
++    // ソースデータが取得されるまで待機
++    await waitFor(() => {
++      expect(window.electron.source.getSources).toHaveBeenCalled();
++    });
++
++    // バッジに"99+"が表示されることを確認
++    await waitFor(() => {
++      const button = screen.getByTestId('document-list-button');
++      const buttonParent = button.closest('.MuiBadge-root');
++      const badge = buttonParent?.querySelector('.MuiBadge-badge');
++      expect(badge).toHaveTextContent('99+');
++    });
++
++    // タイマーをクリーンアップ
++    jest.useRealTimers();
++  });
++});
+diff --git a/src/__tests__/integration/SourceListModal.test.tsx b/src/__tests__/integration/SourceListModal.test.tsx
+new file mode 100644
+index 000000000..17736f111
+--- /dev/null
++++ b/src/__tests__/integration/SourceListModal.test.tsx
+@@ -0,0 +1,827 @@
++/**
++ * @jest-environment jsdom
++ */
++import React from 'react';
++import {
++  render,
++  screen,
++  fireEvent,
++  waitFor,
++  act,
++} from '@testing-library/react';
++import '@testing-library/jest-dom';
++
++import SourceListModal from '../../renderer/components/common/SourceListModal';
++import type { Source } from '../../db/schema';
++import { ProcessStatus } from '../../main/types';
++import { createMockElectronWithOptions } from '../../__tests__/test-utils/mockElectronHandler';
++
++// テスト用のモックデータ
++const mockSources: Source[] = [
++  {
++    id: 1,
++    path: '/path/to/source1.md',
++    title: 'Source 1',
++    summary: 'Summary of source 1',
++    createdAt: '2025-05-01T12:00:00.000Z',
++    updatedAt: '2025-05-01T12:00:00.000Z',
++    status: 'completed' as ProcessStatus,
++    isEnabled: 1,
++    error: null,
++  },
++  {
++    id: 2,
++    path: '/path/to/source2.md',
++    title: 'Source 2',
++    summary: 'Summary of source 2',
++    createdAt: '2025-05-02T12:00:00.000Z',
++    updatedAt: '2025-05-02T12:00:00.000Z',
++    status: 'failed' as ProcessStatus,
++    isEnabled: 0,
++    error: 'Error processing file',
++  },
++  {
++    id: 3,
++    path: '/path/to/source3.md',
++    title: 'Source 3',
++    summary: 'Summary of source 3',
++    createdAt: '2025-05-03T12:00:00.000Z',
++    updatedAt: '2025-05-03T12:00:00.000Z',
++    status: 'processing' as ProcessStatus,
++    isEnabled: 1,
++    error: null,
++  },
++];
++
++describe('SourceListModal Component', () => {
++  // テスト前のセットアップ
++  beforeEach(() => {
++    window.electron = createMockElectronWithOptions({
++      sources: mockSources,
++    });
++
++    // タイマーのモック
++    jest.useFakeTimers();
++  });
++
++  // テスト後のクリーンアップ
++  afterEach(() => {
++    jest.clearAllMocks();
++    jest.useRealTimers();
++  });
++
++  // 共通のプロップス
++  const defaultProps = {
++    open: true,
++    processing: false,
++    onClose: jest.fn(),
++    onReloadSources: jest.fn(),
++    onStatusUpdate: jest.fn(),
++    showSnackbar: jest.fn(),
++  };
++
++  // テスト1: 正常にソース一覧を表示できること
++  test('正常にソース一覧を表示できること', async () => {
++    render(
++      <SourceListModal
++        open={defaultProps.open}
++        processing={defaultProps.processing}
++        onClose={defaultProps.onClose}
++        onReloadSources={defaultProps.onReloadSources}
++        onStatusUpdate={defaultProps.onStatusUpdate}
++        showSnackbar={defaultProps.showSnackbar}
++      />,
++    );
++
++    // 進める
++    act(() => {
++      jest.advanceTimersByTime(5000);
++    });
++
++    // ソースデータが取得されるまで待機
++    await waitFor(() => {
++      expect(window.electron.source.getSources).toHaveBeenCalled();
++    });
++
++    // テーブルの内容がレンダリングされるまで待機
++    await waitFor(() => {
++      expect(screen.queryAllByRole('checkbox').length).toBeGreaterThan(1);
++    });
++
++    // 各ソースが表示されていることを確認
++    await waitFor(() => {
++      expect(screen.getByText('/path/to/source1.md')).toBeInTheDocument();
++      expect(screen.getByText('/path/to/source2.md')).toBeInTheDocument();
++      expect(screen.getByText('/path/to/source3.md')).toBeInTheDocument();
++      expect(screen.getByText('Source 1')).toBeInTheDocument();
++      expect(screen.getByText('Source 2')).toBeInTheDocument();
++      expect(screen.getByText('Source 3')).toBeInTheDocument();
++    });
++
++    // ステータスアイコンが表示されていることを確認
++    expect(screen.getByText('完了')).toBeInTheDocument();
++    expect(screen.getByText('エラー')).toBeInTheDocument();
++    expect(screen.getByText('処理中')).toBeInTheDocument();
++
++    // チェックボックスの初期状態を確認
++    const checkboxes = screen.getAllByRole('checkbox');
++    // 全選択チェックボックスをスキップして、各ソースのチェックボックスを確認
++    expect(checkboxes[1]).toBeChecked(); // source1 (isEnabled: 1)
++    expect(checkboxes[2]).not.toBeChecked(); // source2 (isEnabled: 0)
++    expect(checkboxes[3]).toBeChecked(); // source3 (isEnabled: 1)
++  });
++
++  // テスト2: ソースのリロードボタンが機能すること
++  test('ソースのリロードボタンが機能すること', async () => {
++    render(
++      <SourceListModal
++        open={defaultProps.open}
++        processing={defaultProps.processing}
++        onClose={defaultProps.onClose}
++        onReloadSources={defaultProps.onReloadSources}
++        onStatusUpdate={defaultProps.onStatusUpdate}
++        showSnackbar={defaultProps.showSnackbar}
++      />,
++    );
++
++    // リロードボタンをクリック
++    const reloadButton = screen.getByText('ソース読み込み');
++    fireEvent.click(reloadButton);
++
++    // onReloadSourcesが呼ばれたことを確認
++    expect(defaultProps.onReloadSources).toHaveBeenCalled();
++  });
++
++  // テスト3: 処理中はUI要素が無効化されること
++  test('処理中はUI要素が無効化されること', async () => {
++    render(
++      <SourceListModal
++        open={defaultProps.open}
++        processing={true}
++        onClose={defaultProps.onClose}
++        onReloadSources={defaultProps.onReloadSources}
++        onStatusUpdate={defaultProps.onStatusUpdate}
++        showSnackbar={defaultProps.showSnackbar}
++      />,
++    );
++
++    // 進める
++    act(() => {
++      jest.advanceTimersByTime(5000);
++    });
++
++    // ソースデータが取得されるまで待機
++    await waitFor(() => {
++      expect(window.electron.source.getSources).toHaveBeenCalled();
++    });
++
++    // テーブルの内容がレンダリングされるまで待機
++    await waitFor(() => {
++      expect(screen.queryAllByRole('checkbox').length).toBeGreaterThan(1);
++    });
++
++    // リロードボタンが無効化されていることを確認
++    const reloadButton = screen.getByText('処理中...');
++    expect(reloadButton).toBeDisabled();
++
++    // チェックボックスが無効化されていることを確認
++    const allCheckboxes = screen.getAllByRole('checkbox');
++    expect(allCheckboxes.length).toBeGreaterThan(0);
++
++    for (const checkbox of allCheckboxes) {
++      expect(checkbox).toBeDisabled();
++    }
++  });
++
++  // テスト4: チェックボックスクリック時の動作検証
++  test('チェックボックスクリック時の動作検証', async () => {
++    const props = {
++      ...defaultProps,
++    };
++
++    // コンポーネントをレンダリング
++    render(
++      <SourceListModal
++        open={props.open}
++        processing={props.processing}
++        onClose={props.onClose}
++        onReloadSources={props.onReloadSources}
++        onStatusUpdate={props.onStatusUpdate}
++        showSnackbar={props.showSnackbar}
++      />,
++    );
++
++    // 進める
++    act(() => {
++      jest.advanceTimersByTime(5000);
++    });
++
++    // ソースデータが取得されるまで待機
++    await waitFor(() => {
++      expect(window.electron.source.getSources).toHaveBeenCalled();
++    });
++
++    // テーブルの内容がレンダリングされるまで待機
++    await waitFor(() => {
++      expect(screen.queryAllByRole('checkbox').length).toBeGreaterThan(1);
++    });
++
++    // 1つのチェックボックスを選択
++    const checkboxes = screen.getAllByRole('checkbox');
++    const sourceCheckbox = checkboxes[1]; // 最初のソースのチェックボックス
++
++    // クリック前の状態を確保
++    const wasChecked = (sourceCheckbox as HTMLInputElement).checked;
++
++    // クリックしてチェックボックスが無効化されることを確認
++    fireEvent.click(sourceCheckbox);
++    expect(sourceCheckbox).toBeDisabled();
++
++    // window.electron.source.updateSourceEnabledが呼ばれることを確認
++    expect(window.electron.source.updateSourceEnabled).toHaveBeenCalledWith(
++      mockSources[0].id,
++      !wasChecked,
++    );
++
++    // 処理完了後にチェックボックスが再度有効化されることを確認
++    await waitFor(() => {
++      expect(sourceCheckbox).toBeEnabled();
++    });
++  });
++
++  // テスト13: チェックボックス更新時にupdateSourceEnabledが例外をスローする場合
++  test('チェックボックス更新時にupdateSourceEnabledが例外をスローする場合', async () => {
++    // エラーをスローするように設定
++    window.electron.source.updateSourceEnabled = jest
++      .fn()
++      .mockRejectedValue(new Error('API error occurred'));
++
++    // コンソールエラーをスパイ
++    const consoleSpy = jest
++      .spyOn(console, 'error')
++      .mockImplementation(() => {});
++
++    // コンポーネントをレンダリング
++    render(
++      <SourceListModal
++        open={defaultProps.open}
++        processing={defaultProps.processing}
++        onClose={defaultProps.onClose}
++        onReloadSources={defaultProps.onReloadSources}
++        onStatusUpdate={defaultProps.onStatusUpdate}
++        showSnackbar={defaultProps.showSnackbar}
++      />,
++    );
++
++    // 進める
++    act(() => {
++      jest.advanceTimersByTime(5000);
++    });
++
++    // ソースデータが取得されるまで待機
++    await waitFor(() => {
++      expect(window.electron.source.getSources).toHaveBeenCalled();
++    });
++
++    // テーブルの内容がレンダリングされるまで待機
++    await waitFor(() => {
++      expect(screen.queryAllByRole('checkbox').length).toBeGreaterThan(1);
++    });
++
++    // チェックボックスをクリック
++    const sourceCheckboxes = screen.getAllByRole('checkbox');
++    fireEvent.click(sourceCheckboxes[1]);
++
++    // エラーログが出力されることを確認
++    await waitFor(() => {
++      expect(consoleSpy).toHaveBeenCalledWith(
++        'ソース状態の更新に失敗しました:',
++        expect.any(Error),
++      );
++    });
++
++    // チェックボックスが再度有効化されることを確認
++    await waitFor(() => {
++      expect(sourceCheckboxes[1]).toBeEnabled();
++    });
++
++    consoleSpy.mockRestore();
++  });
++
++  // テスト14: 全選択チェックボックス更新時にupdateSourceEnabledが例外をスローする場合
++  test('全選択チェックボックス更新時にupdateSourceEnabledが例外をスローする場合', async () => {
++    // エラーをスローするように設定
++    window.electron.source.updateSourceEnabled = jest
++      .fn()
++      .mockRejectedValue(new Error('API error occurred'));
++
++    // コンソールエラーをスパイ
++    const consoleSpy = jest
++      .spyOn(console, 'error')
++      .mockImplementation(() => {});
++
++    // モックデータをセットアップ
++    window.electron.source.getSources = jest.fn().mockResolvedValue({
++      success: true,
++      sources: mockSources,
++    });
++
++    // コンポーネントをレンダリング
++    render(
++      <SourceListModal
++        open={defaultProps.open}
++        processing={defaultProps.processing}
++        onClose={defaultProps.onClose}
++        onReloadSources={defaultProps.onReloadSources}
++        onStatusUpdate={defaultProps.onStatusUpdate}
++        showSnackbar={defaultProps.showSnackbar}
++      />,
++    );
++
++    // 進める
++    act(() => {
++      jest.advanceTimersByTime(5000);
++    });
++
++    // ソースデータが取得されるまで待機
++    await waitFor(() => {
++      expect(window.electron.source.getSources).toHaveBeenCalled();
++    });
++
++    // テーブルの内容がレンダリングされるまで待機
++    await waitFor(() => {
++      expect(screen.queryAllByRole('checkbox').length).toBeGreaterThan(1);
++    });
++
++    // 全選択チェックボックスをクリック
++    const sourceCheckboxes = screen.getAllByRole('checkbox');
++    fireEvent.click(sourceCheckboxes[0]);
++
++    // エラーログが出力されることを確認（各ソースごとにエラーが発生）
++    await waitFor(() => {
++      expect(consoleSpy).toHaveBeenCalledWith(
++        'ソース状態の更新に失敗しました:',
++        expect.any(Error),
++      );
++      expect(consoleSpy).toHaveBeenCalledTimes(mockSources.length);
++    });
++
++    // チェックボックスが再度有効化されることを確認
++    await waitFor(() => {
++      for (const checkbox of sourceCheckboxes) {
++        expect(checkbox).toBeEnabled();
++      }
++    });
++
++    consoleSpy.mockRestore();
++  });
++
++  // テスト5: 全選択チェックボックスの動作検証
++  test('全選択チェックボックスの動作検証', async () => {
++    const props = {
++      ...defaultProps,
++    };
++
++    // コンポーネントをレンダリング
++    render(
++      <SourceListModal
++        open={props.open}
++        processing={props.processing}
++        onClose={props.onClose}
++        onReloadSources={props.onReloadSources}
++        onStatusUpdate={props.onStatusUpdate}
++        showSnackbar={props.showSnackbar}
++      />,
++    );
++
++    // 進める
++    act(() => {
++      jest.advanceTimersByTime(5000);
++    });
++
++    // ソースデータが取得されるまで待機
++    await waitFor(() => {
++      expect(window.electron.source.getSources).toHaveBeenCalled();
++    });
++
++    // テーブルの内容がレンダリングされるまで待機
++    await waitFor(() => {
++      expect(screen.queryAllByRole('checkbox').length).toBeGreaterThan(1);
++    });
++
++    // 全選択チェックボックスを選択
++    const checkboxes = screen.getAllByRole('checkbox');
++    const allCheckbox = checkboxes[0]; // 全選択チェックボックス
++
++    // クリック前の状態を確保（一つでもチェックが外れているか）
++    const someUnchecked = Array.from(checkboxes)
++      .slice(1)
++      .some((cb) => !(cb as HTMLInputElement).checked);
++
++    // クリックしてチェックボックスが無効化されることを確認
++    fireEvent.click(allCheckbox);
++    expect(allCheckbox).toBeDisabled();
++
++    // すべてのチェックボックスが無効化されることを確認
++    for (const checkbox of checkboxes) {
++      expect(checkbox).toBeDisabled();
++    }
++
++    // 各ソースのupdateSourceEnabledが呼ばれることを確認
++    mockSources.forEach((source) => {
++      expect(window.electron.source.updateSourceEnabled).toHaveBeenCalledWith(
++        source.id,
++        someUnchecked, // 一つでもチェックが外れていれば true (全選択)
++      );
++    });
++
++    // 処理完了後にチェックボックスが再度有効化されることを確認
++    await waitFor(() => {
++      expect(allCheckbox).toBeEnabled();
++      checkboxes.slice(1).forEach((checkbox) => {
++        expect(checkbox).toBeEnabled();
++      });
++    });
++  });
++
++  // テスト7: チェックボックス更新失敗時のエラー表示
++  test('チェックボックス更新失敗時のエラー表示', async () => {
++    const props = {
++      ...defaultProps,
++    };
++
++    // 更新失敗のモックを設定
++    window.electron.source.updateSourceEnabled = jest.fn().mockResolvedValue({
++      success: false,
++      error: 'Update failed',
++    });
++
++    // コンポーネントをレンダリング
++    render(
++      <SourceListModal
++        open={props.open}
++        processing={props.processing}
++        onClose={props.onClose}
++        onReloadSources={props.onReloadSources}
++        onStatusUpdate={props.onStatusUpdate}
++        showSnackbar={props.showSnackbar}
++      />,
++    );
++
++    // 進める
++    act(() => {
++      jest.advanceTimersByTime(5000);
++    });
++
++    // ソースデータが取得されるまで待機
++    await waitFor(() => {
++      expect(window.electron.source.getSources).toHaveBeenCalled();
++    });
++
++    // テーブルの内容がレンダリングされるまで待機
++    await waitFor(() => {
++      expect(screen.queryAllByRole('checkbox').length).toBeGreaterThan(1);
++    });
++
++    // チェックボックスをクリック
++    const checkboxes = screen.getAllByRole('checkbox');
++    fireEvent.click(checkboxes[1]);
++
++    // エラーメッセージが表示されることを確認
++    await waitFor(() => {
++      expect(props.showSnackbar).toHaveBeenCalledWith(
++        `${mockSources[0].path}の有効化/無効化に失敗しました: Update failed`,
++        'error',
++      );
++    });
++
++    // チェックボックスの状態が元に戻ることを確認
++    await waitFor(() => {
++      expect(checkboxes[1]).toBeChecked();
++    });
++  });
++
++  // テスト8: 全選択チェックボックス更新失敗時のエラー表示
++  test('全選択チェックボックス更新失敗時のエラー表示', async () => {
++    const props = {
++      ...defaultProps,
++    };
++
++    // 更新失敗のモックを設定
++    window.electron.source.updateSourceEnabled = jest.fn().mockResolvedValue({
++      success: false,
++      error: 'Update failed',
++    });
++
++    // コンポーネントをレンダリング
++    render(
++      <SourceListModal
++        open={props.open}
++        processing={props.processing}
++        onClose={props.onClose}
++        onReloadSources={props.onReloadSources}
++        onStatusUpdate={props.onStatusUpdate}
++        showSnackbar={props.showSnackbar}
++      />,
++    );
++
++    // 進める
++    act(() => {
++      jest.advanceTimersByTime(5000);
++    });
++
++    // ソースデータが取得されるまで待機
++    await waitFor(() => {
++      expect(window.electron.source.getSources).toHaveBeenCalled();
++    });
++
++    // テーブルの内容がレンダリングされるまで待機
++    await waitFor(() => {
++      expect(screen.queryAllByRole('checkbox').length).toBeGreaterThan(1);
++    });
++
++    // 全選択チェックボックスをクリック
++    const checkboxes = screen.getAllByRole('checkbox');
++    fireEvent.click(checkboxes[0]);
++
++    // エラーメッセージが表示されることを確認
++    await waitFor(() => {
++      expect(props.showSnackbar).toHaveBeenCalledWith(
++        `${mockSources[0].path}の有効化/無効化に失敗しました: Update failed`,
++        'error',
++      );
++      expect(props.showSnackbar).toHaveBeenCalledWith(
++        `${mockSources[1].path}の有効化/無効化に失敗しました: Update failed`,
++        'error',
++      );
++      expect(props.showSnackbar).toHaveBeenCalledWith(
++        `${mockSources[2].path}の有効化/無効化に失敗しました: Update failed`,
++        'error',
++      );
++    });
++
++    // チェックボックスの状態が元に戻ることを確認
++    await waitFor(() => {
++      expect(checkboxes[1]).not.toBeChecked();
++      expect(checkboxes[2]).not.toBeChecked();
++      expect(checkboxes[3]).not.toBeChecked();
++    });
++  });
++
++  // テスト9: 各ステータスアイコンの表示確認
++  test('各ステータスアイコンの表示確認', async () => {
++    const allStatusSources: Source[] = [
++      {
++        id: 1,
++        path: '/path/to/source1.md',
++        title: 'Source 1',
++        summary: 'Summary of source 1',
++        createdAt: '2025-05-01T12:00:00.000Z',
++        updatedAt: '2025-05-01T12:00:00.000Z',
++        status: 'completed' as ProcessStatus,
++        isEnabled: 1,
++        error: null,
++      },
++      {
++        id: 2,
++        path: '/path/to/source2.md',
++        title: 'Source 2',
++        summary: 'Summary of source 2',
++        createdAt: '2025-05-02T12:00:00.000Z',
++        updatedAt: '2025-05-02T12:00:00.000Z',
++        status: 'failed' as ProcessStatus,
++        isEnabled: 0,
++        error: 'Error message',
++      },
++      {
++        id: 3,
++        path: '/path/to/source3.md',
++        title: 'Source 3',
++        summary: 'Summary of source 3',
++        createdAt: '2025-05-03T12:00:00.000Z',
++        updatedAt: '2025-05-03T12:00:00.000Z',
++        status: 'processing' as ProcessStatus,
++        isEnabled: 1,
++        error: null,
++      },
++      {
++        id: 4,
++        path: '/path/to/source4.md',
++        title: 'Source 4',
++        summary: 'Summary of source 4',
++        createdAt: '2025-05-04T12:00:00.000Z',
++        updatedAt: '2025-05-04T12:00:00.000Z',
++        status: 'idle',
++        isEnabled: 1,
++        error: null,
++      },
++      {
++        id: 5,
++        path: '/path/to/source5.md',
++        title: 'Source 5',
++        summary: 'Summary of source 5',
++        createdAt: '2025-05-05T12:00:00.000Z',
++        updatedAt: '2025-05-05T12:00:00.000Z',
++        status: 'unknown' as any,
++        isEnabled: 1,
++        error: null,
++      },
++    ];
++
++    // モックデータをセットアップ
++    window.electron.source.getSources = jest.fn().mockResolvedValue({
++      success: true,
++      sources: allStatusSources,
++    });
++
++    const props = {
++      ...defaultProps,
++    };
++
++    // コンポーネントをレンダリング
++    render(
++      <SourceListModal
++        open={props.open}
++        processing={props.processing}
++        onClose={props.onClose}
++        onReloadSources={props.onReloadSources}
++        onStatusUpdate={props.onStatusUpdate}
++        showSnackbar={props.showSnackbar}
++      />,
++    );
++
++    // 進める
++    act(() => {
++      jest.advanceTimersByTime(5000);
++    });
++
++    // ソースデータが取得されるまで待機
++    await waitFor(() => {
++      expect(window.electron.source.getSources).toHaveBeenCalled();
++    });
++
++    // データが表示されるまで待機
++    await waitFor(() => {
++      expect(screen.getByText('/path/to/source1.md')).toBeInTheDocument();
++    });
++
++    // 各ステータスのアイコンとラベルが表示されていることを確認
++    expect(screen.getByText('完了')).toBeInTheDocument();
++    expect(screen.getByText('エラー')).toBeInTheDocument();
++    expect(screen.getByText('処理中')).toBeInTheDocument();
++    expect(screen.getByText('待機中')).toBeInTheDocument();
++    expect(screen.getByText('不明')).toBeInTheDocument();
++
++    // エラーツールチップのテスト
++    // 「エラー」ラベルの Chip（Tooltip のトリガー）を取得
++    const trigger = screen.getByTestId('sourcelistmodal-error-tooltip');
++
++    // ホバーをシミュレートして Tooltip をオープン
++    fireEvent.mouseEnter(trigger);
++
++    // await で中身を取得して検証
++    const tooltip = await screen.findByText('Error message');
++    expect(tooltip).toBeInTheDocument();
++  });
++
++  // テスト10: 定期更新処理のエラーハンドリング
++  test('定期更新処理のエラーハンドリング', async () => {
++    const props = {
++      ...defaultProps,
++    };
++
++    // コンソールエラーをスパイ
++    const consoleSpy = jest
++      .spyOn(console, 'error')
++      .mockImplementation(() => {});
++
++    // 最初は成功、その後エラーを返すモック
++    window.electron.source.getSources = jest
++      .fn()
++      .mockRejectedValueOnce(new Error('Failed to fetch sources'));
++
++    // コンポーネントをレンダリング
++    render(
++      <SourceListModal
++        open={props.open}
++        processing={props.processing}
++        onClose={props.onClose}
++        onReloadSources={props.onReloadSources}
++        onStatusUpdate={props.onStatusUpdate}
++        showSnackbar={props.showSnackbar}
++      />,
++    );
++
++    // 5秒進める（次の更新でエラー）
++    act(() => {
++      jest.advanceTimersByTime(5000);
++    });
++
++    // エラーログが出力されることを確認
++    await waitFor(() => {
++      expect(consoleSpy).toHaveBeenCalledWith(
++        'ソースデータの取得に失敗しました:',
++        expect.any(Error),
++      );
++    });
++
++    consoleSpy.mockRestore();
++  });
++
++  // テスト12: モーダルを閉じる機能の確認
++  test('モーダルを閉じる機能の確認', async () => {
++    const props = {
++      ...defaultProps,
++    };
++
++    // コンポーネントをレンダリング
++    render(
++      <SourceListModal
++        open={props.open}
++        processing={props.processing}
++        onClose={props.onClose}
++        onReloadSources={props.onReloadSources}
++        onStatusUpdate={props.onStatusUpdate}
++        showSnackbar={props.showSnackbar}
++      />,
++    );
++
++    // バックドロップをクリック
++    const backdrop = screen.getByRole('presentation').firstChild;
++    fireEvent.click(backdrop as Element);
++
++    // onCloseが呼ばれることを確認
++    expect(props.onClose).toHaveBeenCalled();
++  });
++
++  // テスト6: 全てのソースが完了状態の場合のボタン制御
++  test('全てのソースが完了状態の場合のボタン制御', async () => {
++    // 全て完了状態のモックデータを作成
++    const allCompletedSources: Source[] = [
++      {
++        id: 1,
++        path: '/path/to/source1.md',
++        title: 'Source 1',
++        summary: 'Summary of source 1',
++        createdAt: '2025-05-01T12:00:00.000Z',
++        updatedAt: '2025-05-01T12:00:00.000Z',
++        status: 'completed',
++        isEnabled: 1,
++        error: null,
++      },
++      {
++        id: 2,
++        path: '/path/to/source2.md',
++        title: 'Source 2',
++        summary: 'Summary of source 2',
++        createdAt: '2025-05-02T12:00:00.000Z',
++        updatedAt: '2025-05-02T12:00:00.000Z',
++        status: 'completed',
++        isEnabled: 0,
++        error: null,
++      },
++    ];
++
++    // モックデータをセットアップ
++    window.electron.source.getSources = jest.fn().mockResolvedValue({
++      success: true,
++      sources: allCompletedSources,
++    });
++
++    const props = {
++      ...defaultProps,
++    };
++
++    // コンポーネントをレンダリング
++    render(
++      <SourceListModal
++        open={props.open}
++        processing={props.processing}
++        onClose={props.onClose}
++        onReloadSources={props.onReloadSources}
++        onStatusUpdate={props.onStatusUpdate}
++        showSnackbar={props.showSnackbar}
++      />,
++    );
++
++    // 進める
++    act(() => {
++      jest.advanceTimersByTime(5000);
++    });
++
++    // ソースデータが取得されるまで待機
++    await waitFor(() => {
++      expect(window.electron.source.getSources).toHaveBeenCalled();
++    });
++
++    // 完了状態なのでリロードボタンが活性化されていることを確認
++    const reloadButton = screen.getByText('ソース読み込み');
++    expect(reloadButton).toBeEnabled();
++
++    // リロードボタンをクリック
++    fireEvent.click(reloadButton);
++
++    // onReloadSourcesが呼ばれたことを確認
++    expect(props.onReloadSources).toHaveBeenCalled();
++  });
++});
+diff --git a/src/__tests__/integration/chat.test.tsx b/src/__tests__/integration/chat.test.tsx
+new file mode 100644
+index 000000000..09dd1a3ef
+--- /dev/null
++++ b/src/__tests__/integration/chat.test.tsx
+@@ -0,0 +1,637 @@
++/**
++ * @jest-environment jsdom
++ */
++// ブラウザ環境のReadableStreamを再現できず、useChatが正常に動作しない
++// そのため本テストについてはメッセージ送信・編集実施後の画面表示やエラー表示などの確認は行わない
++import React from 'react';
++import {
++  render,
++  screen,
++  waitFor,
++  act,
++  fireEvent,
++  within,
++  cleanup,
++} from '@testing-library/react';
++import userEvent from '@testing-library/user-event';
++import '@testing-library/jest-dom';
++import { ChatRoom, ChatMessage } from '../../main/types';
++import ChatArea from '../../renderer/components/chat/ChatArea';
++import { createMockElectronWithOptions } from '../test-utils/mockElectronHandler';
++
++// JSDOMではReadableStreamがサポートされていないため、polyfillを使用
++const { ReadableStream } = require('web-streams-polyfill/ponyfill');
++global.ReadableStream = ReadableStream;
++
++// TextEncoderも同様にモック
++const { TextEncoder } = require('util');
++global.TextEncoder = TextEncoder;
++
++// ライブラリのモック
++jest.mock('react-markdown', () => ({
++  __esModule: true,
++  default: ({ children }: { children: string }) => <div>{children}</div>,
++}));
++
++jest.mock('remark-gfm', () => ({
++  __esModule: true,
++  default: () => ({}),
++}));
++
++jest.mock('react-syntax-highlighter', () => ({
++  __esModule: true,
++  Prism: ({ children }: { children: string }) => <pre>{children}</pre>,
++}));
++
++// mermaidのモック
++jest.mock('mermaid', () => ({
++  __esModule: true,
++  default: {
++    initialize: jest.fn(),
++    render: jest.fn().mockResolvedValue({ svg: '<svg>test</svg>' }),
++  },
++}));
++
++// テスト用のモックデータ
++const mockChatRooms: ChatRoom[] = [
++  {
++    id: '1',
++    resourceId: 'user',
++    title: 'Chat Room 1',
++    createdAt: new Date('2025-05-01T12:00:00.000Z'),
++    updatedAt: new Date('2025-05-01T12:00:00.000Z'),
++  },
++  {
++    id: '2',
++    resourceId: 'user',
++    title: 'Chat Room 2',
++    createdAt: new Date('2025-05-02T12:00:00.000Z'),
++    updatedAt: new Date('2025-05-02T12:00:00.000Z'),
++  },
++];
++
++const mockChatMessages: ChatMessage[] = [
++  {
++    id: '1',
++    role: 'user',
++    content: 'こんにちは',
++    createdAt: new Date('2025-05-01T12:00:00.000Z'),
++  },
++  {
++    id: '2',
++    role: 'assistant',
++    content: 'はい、こんにちは！',
++    createdAt: new Date('2025-05-01T12:01:00.000Z'),
++    parts: [
++      {
++        type: 'text',
++        text: 'はい、こんにちは！',
++      },
++    ],
++  },
++];
++
++const mockToolMessages: ChatMessage[] = [
++  {
++    id: '3',
++    role: 'user',
++    content: 'ファイルを検索して',
++    createdAt: new Date('2025-05-01T12:02:00.000Z'),
++  },
++  {
++    id: '4',
++    role: 'assistant',
++    content: '検索を実行します',
++    createdAt: new Date('2025-05-01T12:03:00.000Z'),
++    parts: [
++      {
++        type: 'text',
++        text: '検索を実行します',
++      },
++      {
++        type: 'tool-invocation',
++        toolInvocation: {
++          toolName: 'documentQueryTool',
++          toolCallId: 'search-1',
++          args: {
++            documentQueries: [
++              {
++                path: '/test/file.txt',
++                query: 'test',
++              },
++            ],
++          },
++          state: 'result',
++          result: {
++            matches: ['テスト結果です'],
++          },
++        },
++      },
++      {
++        type: 'text',
++        text: '検索が完了しました',
++      },
++    ],
++  },
++  {
++    id: '5',
++    role: 'user',
++    content: '別のツールも使って',
++    createdAt: new Date('2025-05-01T12:04:00.000Z'),
++  },
++  {
++    id: '6',
++    role: 'assistant',
++    content: '複数のツールを使用します',
++    createdAt: new Date('2025-05-01T12:05:00.000Z'),
++    parts: [
++      {
++        type: 'text',
++        text: '複数のツールを使用します',
++      },
++      {
++        type: 'tool-invocation',
++        toolInvocation: {
++          toolName: 'documentQueryTool',
++          toolCallId: 'search-2',
++          args: {
++            documentQueries: [
++              {
++                path: '/test/file2.txt',
++                query: 'test2',
++              },
++            ],
++          },
++          state: 'result',
++          result: {
++            matches: ['テスト結果2です'],
++          },
++        },
++      },
++      {
++        type: 'tool-invocation',
++        toolInvocation: {
++          toolName: 'updateWorkingMemory',
++          toolCallId: 'memory-1',
++          args: {
++            content: 'メモリを更新',
++          },
++          state: 'result',
++          result: true,
++        },
++      },
++    ],
++  },
++];
++
++describe('ChatArea Component', () => {
++  // テスト前のセットアップ
++  beforeEach(() => {
++    window.electron = createMockElectronWithOptions({
++      chatRooms: mockChatRooms,
++    });
++
++    // チャットメッセージの取得をモック
++    window.electron.chat.getMessages = jest
++      .fn()
++      .mockResolvedValue(mockChatMessages);
++
++    // JSDOM上で scrollIntoView をダミー実装
++    (window as any).HTMLElement.prototype.scrollIntoView = function () {};
++  });
++
++  // テスト後のクリーンアップ
++  afterEach(() => {
++    jest.clearAllMocks();
++    cleanup();
++  });
++
++  // テスト13: AIツール使用時のメッセージ表示が正しく機能すること
++  test('AIツール使用時のメッセージ表示が正しく機能すること', async () => {
++    window.electron.chat.getMessages = jest
++      .fn()
++      .mockResolvedValue(mockToolMessages);
++
++    const user = userEvent.setup();
++    render(<ChatArea selectedRoomId="1" />);
++
++    // メッセージ取得が呼ばれることを確認
++    expect(window.electron.chat.getMessages).toHaveBeenCalledWith('1');
++
++    // メッセージとツール使用の表示を確認
++    await waitFor(() => {
++      expect(screen.getByText('ファイルを検索して')).toBeInTheDocument();
++      expect(screen.getByText('検索を実行します')).toBeInTheDocument();
++      expect(screen.getByText('検索が完了しました')).toBeInTheDocument();
++    });
++
++    // ツール使用のアコーディオンが表示されることを確認
++    const accordions = screen.getAllByRole('button', {
++      name: /ドキュメント検索/,
++    });
++    expect(accordions.length).toEqual(2);
++
++    // 1つ目のドキュメント検索の結果が表示されることを確認
++    await waitFor(() => {
++      expect(screen.getByText(/テスト結果です/)).toBeInTheDocument();
++    });
++
++    // 複数ツールの使用時の表示を確認
++    expect(screen.getByText('別のツールも使って')).toBeInTheDocument();
++    expect(screen.getByText('複数のツールを使用します')).toBeInTheDocument();
++
++    const memoryUpdateText = screen.getByText('メモリ更新中');
++    expect(memoryUpdateText).toBeInTheDocument();
++
++    // 2つ目のドキュメント検索の結果が表示されることを確認
++    await waitFor(() => {
++      expect(screen.getByText(/テスト結果2です/)).toBeInTheDocument();
++    });
++  }, 20000);
++
++  // テスト1: チャットエリアの初期表示が正しいこと
++  test('チャットエリアの初期表示が正しいこと', async () => {
++    render(<ChatArea selectedRoomId="1" />);
++
++    // メッセージ取得が呼ばれることを確認
++    expect(window.electron.chat.getMessages).toHaveBeenCalledWith('1');
++
++    // メッセージが表示されるまで待機
++    await waitFor(() => {
++      expect(screen.getByText('こんにちは')).toBeInTheDocument();
++      expect(screen.getByText('はい、こんにちは！')).toBeInTheDocument();
++    });
++
++    // メッセージ入力フィールドが表示されることを確認
++    expect(
++      screen.getByPlaceholderText('メッセージを入力してください'),
++    ).toBeInTheDocument();
++  });
++
++  // テスト2: チャットルーム未選択時の表示が正しいこと
++  test('チャットルーム未選択時の表示が正しいこと', async () => {
++    render(<ChatArea selectedRoomId={null} />);
++
++    // メッセージ取得が呼ばれないことを確認
++    expect(window.electron.chat.getMessages).not.toHaveBeenCalled();
++
++    // ガイダンステキストが表示されることを確認
++    expect(
++      screen.getByText('チャットルームを選択してください'),
++    ).toBeInTheDocument();
++  });
++
++  // テスト3: メッセージ送信が正しく機能すること
++  test('メッセージ送信が正しく機能すること', async () => {
++    const user = userEvent.setup();
++    render(<ChatArea selectedRoomId="1" />);
++
++    // メッセージ入力
++    // 入力フィールドが表示されるまで待機
++    await waitFor(() => {
++      expect(
++        screen.getByPlaceholderText('メッセージを入力してください'),
++      ).toBeInTheDocument();
++    });
++    const input = screen.getByPlaceholderText('メッセージを入力してください');
++    await user.type(input, 'テストメッセージ');
++    expect(input).toHaveValue('テストメッセージ');
++
++    // 送信ボタンをクリック
++    const sendButton = screen.getByTestId('chat-send-button');
++    await user.click(sendButton);
++
++    // 送信処理が呼ばれることを確認
++    await waitFor(() => {
++      expect(window.electron.chat.sendMessage).toHaveBeenCalledWith(
++        '1',
++        'テストメッセージ',
++      );
++    });
++  });
++
++  // テスト4: メッセージ編集機能が正しく動作すること
++  test('メッセージ編集機能が正しく動作すること', async () => {
++    const user = userEvent.setup();
++    render(<ChatArea selectedRoomId="1" />);
++
++    await waitFor(() => {
++      expect(screen.getByText('こんにちは')).toBeInTheDocument();
++    });
++
++    // 編集アイコンをホバーして表示
++    const userMessage = screen.getByText('こんにちは');
++    await user.hover(userMessage);
++
++    // 編集アイコンをクリック
++    const editButton = screen.getByTestId('edit-message-button-1');
++    await user.click(editButton);
++
++    // 編集フィールドが表示されることを確認
++    // テキストフィールドのコンテナを取得
++    const wrapper = screen.getByTestId('edit-message-input-1');
++    // その中の実際の textarea を探す
++    const textarea = within(wrapper).getByRole('textbox');
++    expect(textarea).toHaveValue('こんにちは');
++
++    // メッセージを編集
++    await user.clear(textarea);
++    await user.type(textarea, '編集後のメッセージ');
++
++    // 送信ボタンをクリック
++    const saveButton = screen.getByTestId('edit-message-send-button-1');
++    await user.click(saveButton);
++
++    // 編集リクエストが送信されることを確認
++    expect(window.electron.chat.editHistory).toHaveBeenCalledWith({
++      threadId: '1',
++      oldContent: 'こんにちは',
++      oldCreatedAt: mockChatMessages[0].createdAt,
++    });
++  });
++
++  // テスト5: ストリーミングレスポンスの処理が正しく機能すること
++  // このテストは、ストリーミングレスポンスの処理を確認するためのものですが、
++  // JSDOM環境でReadableStreamがサポートされていないため、実行不可
++  // whatwg-fetchを使用してReadableStreamをモック化してもuseChatのストリーミング処理が正しく動作しないため、コメントアウト
++  // test('ストリーミングレスポンスの処理が正しく機能すること', async () => {
++  //   let streamCallback: (data: any) => void = () => {};
++  //   let completeCallback: () => void = () => {};
++
++  //   // ストリームイベントのモック
++  //   window.electron.chat.onStream = jest.fn((callback) => {
++  //     streamCallback = callback;
++  //     return () => {};
++  //   });
++
++  //   window.electron.chat.onComplete = jest.fn((callback) => {
++  //     completeCallback = callback;
++  //     return () => {};
++  //   });
++
++  //   render(<ChatArea selectedRoomId="1" />);
++
++  //   // メッセージを送信
++  //   const user = userEvent.setup();
++  //   // 入力フィールドが表示されるまで待機
++  //   await waitFor(() => {
++  //     expect(
++  //       screen.getByPlaceholderText('メッセージを入力してください'),
++  //     ).toBeInTheDocument();
++  //   });
++  //   const input = screen.getByPlaceholderText('メッセージを入力してください');
++  //   await user.type(input, 'テストメッセージ');
++  //   // 送信ボタンをクリック
++  //   const sendButton = screen.getByTestId('chat-send-button');
++  //   await user.click(sendButton);
++
++  //   // ストリーミングデータをシミュレート
++  //   const initialMessage = [{type:"status",value:"processing"}];
++  //   const message = 'ストリーミング'
++  //   act(() => {
++  //     streamCallback(`8:${JSON.stringify(initialMessage)}\n`);
++  //     streamCallback(`0:${JSON.stringify(message)}\n`);
++  //   });
++
++  //   // ストリーミングメッセージが表示されることを確認
++  //   await waitFor(() => {
++  //     expect(screen.getByText(message)).toBeInTheDocument();
++  //   }, {timeout: 20000});
++
++  //   // 完了イベントをシミュレート
++  //   act(() => {
++  //     completeCallback();
++  //   });
++
++  //   // 「AIKATA作業中...」の表示が消えることを確認
++  //   await waitFor(() => {
++  //     expect(screen.queryByText('AIKATA作業中…')).not.toBeInTheDocument();
++  //   });
++  // }, 20000);
++
++  // テスト6:エージェント起動関連エラーの表示が正しいこと
++  test('エージェント起動関連エラーの表示が正しいこと', async () => {
++    window.electron = createMockElectronWithOptions({
++      chatRooms: mockChatRooms,
++      agentStatus: {
++        state: 'error',
++        messages: [
++          {
++            id: '1',
++            type: 'error',
++            content: 'AIエージェントの起動に失敗しました',
++          },
++        ],
++      },
++    });
++
++    render(<ChatArea selectedRoomId="1" />);
++
++    // エラーメッセージが表示されることを確認
++    await waitFor(() => {
++      const alerts = screen.getAllByRole('alert');
++      const errorAlert = alerts.find((alert) =>
++        alert.textContent?.includes('AIエージェントの起動に失敗しました'),
++      );
++      expect(errorAlert).toBeInTheDocument();
++    });
++  });
++
++  // テスト7: メッセージ送信のキーボードショートカットが機能すること
++  test('メッセージ送信のキーボードショートカットが機能すること', async () => {
++    const user = userEvent.setup();
++    render(<ChatArea selectedRoomId="1" />);
++
++    // メッセージを入力
++    // 入力フィールドが表示されるまで待機
++    await waitFor(() => {
++      expect(
++        screen.getByPlaceholderText('メッセージを入力してください'),
++      ).toBeInTheDocument();
++    });
++    const input = screen.getByPlaceholderText('メッセージを入力してください');
++    await user.type(input, 'テストメッセージ');
++
++    // Enterキーを押す
++    await user.keyboard('{Enter}');
++
++    // 送信処理が呼ばれることを確認
++    expect(window.electron.chat.sendMessage).toHaveBeenCalledWith(
++      '1',
++      'テストメッセージ',
++    );
++
++    // Shift+Enterで改行されることを確認
++    await user.clear(input);
++    await user.type(input, 'テスト');
++    await user.keyboard('{Shift>}{Enter}{/Shift}');
++    expect(input).toHaveValue('テスト\n');
++  });
++
++  // テスト8: ストリーミング中に停止ボタンが機能すること
++  // ストリーミング処理が実施されないため停止ボタンも表示されない
++  // test('ストリーミング中に停止ボタンが機能すること', async () => {
++  //   const user = userEvent.setup();
++  //   render(<ChatArea selectedRoomId="1" />);
++
++  //   // メッセージを送信してストリーミングを開始
++  //   // 入力フィールドが表示されるまで待機
++  //   await waitFor(() => {
++  //     expect(
++  //       screen.getByPlaceholderText('メッセージを入力してください'),
++  //     ).toBeInTheDocument();
++  //   });
++  //   const input = screen.getByPlaceholderText('メッセージを入力してください');
++  //   await user.type(input, 'テストメッセージ');
++  //   const sendButton = screen.getByTestId('chat-send-button');
++  //   await user.click(sendButton);
++
++  //   // 停止ボタンが表示されることを確認
++  //   const stopButton = screen.getByTestId('chat-stop-button');
++  //   expect(stopButton).toBeInTheDocument();
++
++  //   // 停止ボタンをクリック
++  //   await user.click(stopButton);
++
++  //   // 中断リクエストが送信されることを確認
++  //   expect(window.electron.chat.requestAbort).toHaveBeenCalledWith('1');
++  // });
++
++  // テスト9: IME変換中のEnterキーが正しく処理されること
++  test('IME変換中のEnterキーが正しく処理されること', async () => {
++    const user = userEvent.setup();
++    render(<ChatArea selectedRoomId="1" />);
++
++    await waitFor(() => {
++      expect(
++        screen.getByPlaceholderText('メッセージを入力してください'),
++      ).toBeInTheDocument();
++    });
++    const input = screen.getByPlaceholderText('メッセージを入力してください');
++    await user.type(input, 'テストメッセージ');
++
++    // IME変換開始イベントをシミュレート
++    fireEvent.compositionStart(input);
++
++    // IME変換中のEnterキーを押す
++    await user.keyboard('{Enter}');
++
++    // メッセージが送信されないことを確認
++    expect(window.electron.chat.sendMessage).not.toHaveBeenCalled();
++
++    // fireEventでIME変換をシミュレートした場合、Enterキーを押してもIME変換が確定しないため、後続はコメントアウト
++
++    // // IME変換確定イベントをシミュレート
++    // fireEvent.compositionEnd(input);
++
++    // // 変換確定後のEnterキーを押す
++    // await user.keyboard('{Enter}');
++
++    // // メッセージが送信されることを確認
++    // expect(window.electron.chat.sendMessage).toHaveBeenCalledWith(
++    //   '1',
++    //   'テストメッセージ',
++    // );
++  });
++
++  // テスト10: アラートメッセージの閉じるボタンが機能すること
++  test('アラートメッセージの閉じるボタンが機能すること', async () => {
++    const user = userEvent.setup();
++    window.electron = createMockElectronWithOptions({
++      chatRooms: mockChatRooms,
++      agentStatus: {
++        state: 'error',
++        messages: [
++          {
++            id: '1',
++            type: 'error',
++            content: 'AIエージェントの起動に失敗しました',
++          },
++        ],
++      },
++    });
++
++    render(<ChatArea selectedRoomId="1" />);
++
++    // AIエージェントの起動失敗メッセージが表示されることを確認
++    const errorMessage = 'AIエージェントの起動に失敗しました';
++    await waitFor(() => {
++      expect(screen.getByText(errorMessage)).toBeInTheDocument();
++    });
++
++    // 閉じるボタンをクリック
++    const alerts = screen.getAllByRole('alert');
++    const targetAlert = alerts.find((alert) =>
++      alert.textContent?.includes(errorMessage),
++    );
++    expect(targetAlert).toBeInTheDocument();
++
++    const closeButton = within(targetAlert!).getByRole('button');
++    await act(async () => {
++      await user.click(closeButton);
++    });
++
++    // window.electron.agent.removeMessageが呼ばれることを確認
++    expect(window.electron.agent.removeMessage).toHaveBeenCalledWith('1');
++  });
++
++  // テスト11: エージェント初期化中の表示が正しいこと
++  test('エージェント初期化中の表示が正しいこと', async () => {
++    window.electron = createMockElectronWithOptions({
++      chatRooms: mockChatRooms,
++      agentStatus: {
++        state: 'initializing',
++      },
++    });
++
++    render(<ChatArea selectedRoomId="1" />);
++
++    // 入力欄のプレースホルダーが初期化中の表示になることを確認
++    await waitFor(() => {
++      expect(
++        screen.getByPlaceholderText('AIエージェント起動中'),
++      ).toBeInTheDocument();
++    });
++    const input = screen.getByPlaceholderText('AIエージェント起動中');
++    expect(input).toBeDisabled();
++  });
++
++  // テスト12: メッセージ編集のキャンセルが正しく機能すること
++  test('メッセージ編集のキャンセルが正しく機能すること', async () => {
++    const user = userEvent.setup();
++    render(<ChatArea selectedRoomId="2" />);
++
++    await waitFor(() => {
++      expect(screen.getByText('こんにちは')).toBeInTheDocument();
++    });
++
++    // 編集アイコンをホバーして表示
++    const userMessage = screen.getByText('こんにちは');
++    await user.hover(userMessage);
++
++    // 編集アイコンをクリック
++    const editButton = screen.getByTestId('edit-message-button-1');
++    await user.click(editButton);
++
++    // 編集フィールドが表示されることを確認
++    // テキストフィールドのコンテナを取得
++    const wrapper = screen.getByTestId('edit-message-input-1');
++    // その中の実際の textarea を探す
++    const textarea = within(wrapper).getByRole('textbox');
++    expect(textarea).toHaveValue('こんにちは');
++
++    // メッセージを編集
++    await user.clear(textarea);
++    await user.type(textarea, '編集後のメッセージ');
++
++    // キャンセルボタンをクリック
++    const cancelButton = screen.getByTestId('edit-message-cancel-button-1');
++    await user.click(cancelButton);
++
++    // 編集モードが終了し、元のメッセージが表示されることを確認
++    await waitFor(() => {
++      expect(screen.getByText('こんにちは')).toBeInTheDocument();
++      expect(screen.queryByText('編集後のメッセージ')).not.toBeInTheDocument();
++    });
++  });
++});
+diff --git a/src/__tests__/test-utils/mockElectronHandler.ts b/src/__tests__/test-utils/mockElectronHandler.ts
+new file mode 100644
+index 000000000..871c81104
+--- /dev/null
++++ b/src/__tests__/test-utils/mockElectronHandler.ts
+@@ -0,0 +1,148 @@
++import type { ElectronHandler } from '../../main/preload';
++import type { StoreSchema as Settings } from '../../main/store';
++import type { Source } from '../../db/schema';
++import type { ChatRoom, AgentBootStatus } from '../../main/types';
++
++/**
++ * Mockメソッドの型を定義
++ */
++type MockFunction<T> = T extends (...args: any[]) => any
++  ? jest.Mock<ReturnType<T>, Parameters<T>>
++  : never;
++
++/**
++ * ElectronHandlerの各メソッドをMock化
++ */
++export type MockHandler<T> = {
++  [K in keyof T]: T[K] extends (...args: any[]) => any
++    ? MockFunction<T[K]>
++    : T[K] extends object
++    ? MockHandler<T[K]>
++    : T[K];
++};
++
++export type ElectronMock = MockHandler<ElectronHandler>;
++
++/**
++ * デフォルトの設定値を生成
++ */
++export const createDefaultMockSettings = (): Settings => ({
++  database: {
++    dir: '/test/db',
++  },
++  source: {
++    registerDir: './test/source',
++  },
++  api: {
++    key: 'test-api-key',
++    url: 'https://api.test.com',
++    model: 'test-model',
++  },
++  redmine: {
++    endpoint: 'https://redmine.test.com',
++    apiKey: 'test-redmine-key',
++  },
++  gitlab: {
++    endpoint: 'https://gitlab.test.com',
++    apiKey: 'test-gitlab-key',
++  },
++  mcp: {
++    serverConfigText: '{"testMcp": {"url": "https://mcp.test.com"} }',
++  },
++  stagehand: {
++    enabled: true,
++    headless: false,
++  },
++  systemPrompt: {
++    content: 'test system prompt',
++  },
++});
++
++/**
++ * モックオプションのインターフェース
++ */
++export interface MockOptions {
++  initialSettings?: Partial<Settings>;
++  sources?: Source[];
++  chatRooms?: ChatRoom[];
++  sourceEnabled?: boolean;
++  fsAccess?: boolean;
++  agentStatus?: Partial<AgentBootStatus>;
++}
++
++/**
++ * オプション付きでモックを生成する関数
++ */
++export const createMockElectronWithOptions = (
++  options: MockOptions = {},
++): ElectronHandler => {
++  const settings = options.initialSettings
++    ? { ...createDefaultMockSettings(), ...options.initialSettings }
++    : createDefaultMockSettings();
++
++  const mockHandlers = {
++    agent: {
++      getStatus: jest.fn().mockReturnValue(options.agentStatus || {
++        state: 'ready',
++        messages: [],
++        tools: {
++          redmine: false,
++          gitlab: false,
++          mcp: false,
++          stagehand: false,
++        },
++      }),
++      reinitialize: jest.fn().mockResolvedValue(undefined),
++      removeMessage: jest.fn(),
++    },
++    fs: {
++      access: jest.fn().mockResolvedValue(options.fsAccess ?? true),
++    },
++    store: {
++      get: jest.fn().mockImplementation((key: string) => {
++        if (key === 'all') return settings;
++        return settings[key as keyof Settings];
++      }),
++      set: jest.fn().mockResolvedValue(undefined),
++    },
++    chat: {
++      sendMessage: jest.fn(),
++      getRooms: jest.fn().mockResolvedValue(options.chatRooms ?? []),
++      getMessages: jest.fn().mockResolvedValue([]),
++      deleteRoom: jest.fn().mockResolvedValue({ success: true }),
++      createThread: jest.fn().mockResolvedValue({
++        success: true
++      }),
++      onError: jest.fn(),
++      onStream: jest.fn(),
++      onComplete: jest.fn(),
++      editHistory: jest.fn(),
++    },
++    source: {
++      reloadSources: jest.fn().mockResolvedValue({
++        success: true,
++        message: 'Source reloaded successfully',
++      }),
++      getSources: jest.fn().mockResolvedValue({
++        success: true,
++        sources: options.sources ?? [],
++      }),
++      updateSourceEnabled: jest.fn().mockResolvedValue({
++        success: true,
++      }),
++    },
++    ipcRenderer: {
++      sendMessage: jest.fn(),
++      on: jest.fn(),
++      once: jest.fn(),
++    },
++  };
++
++  return mockHandlers as ElectronMock;
++};
++
++/**
++ * 後方互換性のために残す
++ * @deprecated Use createMockElectronWithOptions instead
++ */
++export const createMockElectron = createMockElectronWithOptions;
 diff --git a/src/mastra/agents/config/memory.ts b/src/mastra/agents/config/memory.ts
-index 9fb20f9bd..3d8e42004 100644
+index 3d8e42004..dfc9ec098 100644
 --- a/src/mastra/agents/config/memory.ts
 +++ b/src/mastra/agents/config/memory.ts
-@@ -1,10 +1,9 @@
+@@ -1,9 +1,10 @@
  import { Memory } from '@mastra/memory';
- import { TokenLimiter, ToolCallFilter } from '@mastra/memory/processors';
+-import { TokenLimiter, ToolCallFilter } from '@mastra/memory/processors';
++import { ToolCallFilter } from '@mastra/memory/processors';
  import type { MemoryProcessor } from '@mastra/core';
--import { openai } from '@mastra/openai'
--import { LibSQLStore } from '@mastra/core/storage/libsql';
  import { toAbsoluteFileURL } from '@/main/utils/util';
  import { getStore } from '../../../main/store';
-+import { CustomLibSQLStore } from '../../store/libsql/customLibSQLStore';
+ import { CustomLibSQLStore } from '../../store/libsql/customLibSQLStore';
++import { TokenLimiter0_10_2 } from '../../memory/filter/tokenLimiter_0.10.2';
  
  // メモリオプションの型定義
  export interface MemoryConfig {
-@@ -61,14 +60,17 @@ export const getMemory = (config: MemoryConfig = {}): Memory => {
-     );
+@@ -52,7 +53,7 @@ export const getMemory = (config: MemoryConfig = {}): Memory => {
+ 
+   const memoryProcessors: MemoryProcessor[] | undefined = [];
+   if (config.tokenLimit) {
+-    memoryProcessors.push(new TokenLimiter(config.tokenLimit));
++    memoryProcessors.push(new TokenLimiter0_10_2(config.tokenLimit));
    }
- 
-+  const customLibSQLStore = new CustomLibSQLStore();
-+  customLibSQLStore.customConstruct({
-+    config: {
-+      url: toAbsoluteFileURL(dbSetting.dir, 'memory.db'),
-+    },
-+  });
+   if (config.excduldeTools) {
+     memoryProcessors.push(
+diff --git a/src/mastra/agents/prompts.ts b/src/mastra/agents/prompts.ts
+index b29c41651..b6666041e 100644
+--- a/src/mastra/agents/prompts.ts
++++ b/src/mastra/agents/prompts.ts
+@@ -113,6 +113,7 @@ You are an AI agent empowered with a rich set of tools. Whenever a user request
+    Outline the steps needed to fulfill the request.
+ 2. **Act**
+    Perform each step using the appropriate tool(s).
++   (Before using any tool, explain why it is the right choice for the task. Describe your reasoning.)
+ 3. **Review**
+    Check that every aspect of the request has been covered; if you find gaps, refine your plan and repeat.
+ 4. **Report**
+diff --git a/src/mastra/memory/filter/customToolCallFilter.ts b/src/mastra/memory/filter/customToolCallFilter.ts
+index c40931a3b..761b538e9 100644
+--- a/src/mastra/memory/filter/customToolCallFilter.ts
++++ b/src/mastra/memory/filter/customToolCallFilter.ts
+@@ -1,3 +1,7 @@
++// Mastra提供のtool-call-filterのカスタム実装
++// toolの呼び出し履歴は除外せず、toolの呼び出し結果については特定の文言に置き換える
++// https://github.com/mastra-ai/mastra/blob/%40mastra/core%400.8.3/packages/memory/src/processors/tool-call-filter.ts
 +
-   memoryInstance = new Memory({
-     options,
-     processors: memoryProcessors.length > 0 ? memoryProcessors : undefined,
--    storage: new LibSQLStore({
--      config: {
--        url: toAbsoluteFileURL(dbSetting.dir, 'memory.db'),
--      },
--    }),
-+    storage: customLibSQLStore,
-   });
+ import type { CoreMessage } from '@mastra/core';
+ import { MemoryProcessor } from '@mastra/core';
  
-   return memoryInstance;
-diff --git a/src/mastra/store/libsql/customLibSQLStore.ts b/src/mastra/store/libsql/customLibSQLStore.ts
+@@ -15,7 +19,7 @@ export class customToolCallFilter extends MemoryProcessor {
+    * @param options.exclude List of specific tool names to exclude. If not provided, all tool calls are excluded.
+    */
+   constructor(options: { exclude?: string[] } = {}) {
+-    super({ name: 'ToolCallFilter' });
++    super({ name: 'customToolCallFilter' });
+     // If no options or exclude is provided, exclude all tools
+     if (!options || !options.exclude) {
+       this.exclude = 'all'; // Exclude all tools
+diff --git a/src/mastra/memory/filter/tokenLimiter_0.10.2.ts b/src/mastra/memory/filter/tokenLimiter_0.10.2.ts
 new file mode 100644
-index 000000000..702616bf1
+index 000000000..14f55bbfa
 --- /dev/null
-+++ b/src/mastra/store/libsql/customLibSQLStore.ts
-@@ -0,0 +1,678 @@
-+// Memory用のLibSQLストアをカスタム
-+// deleteThread関数にて対応するmessageが削除されない問題に対応
-+// オリジナルだと、messageはthread削除に伴いcascade削除されるとコメントにあるが、実際には外部キーが付与されていないため、明示的に削除する必要がある
-+// オリジナルのコード： https://github.com/mastra-ai/mastra/blob/%40mastra/core%400.8.3/packages/core/src/storage/libsql/index.ts
-+// 実装方針：ほぼ、オリジナルのコードをコピーし、deleteThread関数のみを修正。libsqlについては動的importをする必要があるため、カスタム初期化関数（customConstruct）を作成して対応。そのほかライブラリのインポートは相対パスから絶対パスに変換
++++ b/src/mastra/memory/filter/tokenLimiter_0.10.2.ts
+@@ -0,0 +1,163 @@
++// 本プロジェクトで利用している@mastra/memory@0.2.10のtokenLimiterは処理結果に新規メッセージも含めてしまう
++// 最終的には[...tokenLimiterの処理結果, 新規メッセージ]としてメッセージが送信されるため、新規メッセージが二重に計上されてしまう
++// @mastra/memory@0.10.2ではこの問題が修正されているため、0.10.2のtokenLimiterをコピーしてきて利用する
++// パッケージ自体のバージョンをあげると@mastra/coreのバージョンもあげる必要があり、影響範囲が大きくなるため、実施しない
++// https://github.com/mastra-ai/mastra/blob/%40mastra/memory%400.2.10/packages/memory/src/processors/token-limiter.ts
++// https://github.com/mastra-ai/mastra/blob/%40mastra/core%400.8.3/packages/core/src/agent/index.ts#L298
 +
-+import { join, resolve, isAbsolute } from 'node:path';
-+import type { Client, InValue } from '@libsql/client' with { "resolution-mode": "require" };
-+import type { MetricResult, TestInfo } from '@mastra/core/eval';
-+import type { MessageType, StorageThreadType } from '@mastra/core/memory';
-+import type { WorkflowRunState } from '@mastra/core/workflows';
-+import { MastraStorage } from '@mastra/core/storage';
-+import { TABLE_EVALS, TABLE_MESSAGES, TABLE_THREADS, TABLE_TRACES, TABLE_WORKFLOW_SNAPSHOT } from '@mastra/core/storage';
-+import type { TABLE_NAMES } from '@mastra/core/storage';
-+import type { StorageColumn, StorageGetMessagesArg, EvalRow } from '@mastra/core/storage';
++import type { CoreMessage, MemoryProcessorOpts } from '@mastra/core';
++import { MemoryProcessor } from '@mastra/core/memory';
++// @ts-ignore
++import { Tiktoken } from 'js-tiktoken/lite';
++// @ts-ignore
++import type { TiktokenBPE } from 'js-tiktoken/lite';
++// @ts-ignore
++import o200k_base from 'js-tiktoken/ranks/o200k_base';
 +
-+
-+function safelyParseJSON(jsonString: string): any {
-+  try {
-+    return JSON.parse(jsonString);
-+  } catch {
-+    return {};
-+  }
++/**
++ * Configuration options for TokenLimiter
++ */
++interface TokenLimiterOptions {
++  /** Maximum number of tokens to allow */
++  limit: number;
++  /** Optional encoding to use (defaults to o200k_base which is used by gpt-4o) */
++  encoding?: TiktokenBPE;
 +}
 +
-+export interface LibSQLConfig {
-+  url: string;
-+  authToken?: string;
-+}
++/**
++ * Limits the total number of tokens in the messages.
++ * Uses js-tiktoken with o200k_base encoding by default for accurate token counting with modern models.
++ */
++export class TokenLimiter0_10_2 extends MemoryProcessor {
++  private encoder: Tiktoken;
++  private maxTokens: number;
 +
-+export class CustomLibSQLStore extends MastraStorage {
-+  private client: Client;
++  // Token overheads per OpenAI's documentation
++  // See: https://cookbook.openai.com/examples/how_to_count_tokens_with_tiktoken#6-counting-tokens-for-chat-completions-api-calls
++  // Every message follows <|start|>{role/name}\n{content}<|end|>
++  public TOKENS_PER_MESSAGE = 3.8; // tokens added for each message (start & end tokens)
++  public TOKENS_PER_TOOL = 2.2; // empirical adjustment for tool calls
++  public TOKENS_PER_CONVERSATION = 25; // fixed overhead for the conversation
 +
-+  constructor() {
-+    super({ name: `LibSQLStore` });
-+    // customConstructを使用するため、初期化時にクライアントをnullに設定
-+    this.client = null as any;
++  /**
++   * Create a token limiter for messages.
++   * @param options Either a number (token limit) or a configuration object
++   */
++  constructor(options: number | TokenLimiterOptions) {
++    super({
++      name: 'TokenLimiter',
++    });
++
++    if (typeof options === 'number') {
++      // Simple number format - just the token limit with default encoding
++      this.maxTokens = options;
++      this.encoder = new Tiktoken(o200k_base);
++    } else {
++      // Object format with limit and optional encoding
++      this.maxTokens = options.limit;
++      this.encoder = new Tiktoken(options.encoding || o200k_base);
++    }
 +  }
 +
-+  // libsql/clientの動的インポートが必要なため、カスタム初期化関数を定義
-+  async customConstruct({ config }: { config: LibSQLConfig }): Promise<void> {
-+    const { createClient } = await import('@libsql/client');
++  process(
++    messages: CoreMessage[],
++    { systemMessage, memorySystemMessage, newMessages }: MemoryProcessorOpts = {},
++  ): CoreMessage[] {
++    // Messages are already chronologically ordered - take most recent ones up to the token limit
++    let totalTokens = 0;
 +
-+    // need to re-init every time for in memory dbs or the tables might not exist
-+    if (config.url === ':memory:' || config.url.startsWith('file::memory:')) {
-+      this.shouldCacheInit = false;
++    // Start with the conversation overhead
++    totalTokens += this.TOKENS_PER_CONVERSATION;
++
++    if (systemMessage) {
++      totalTokens += this.countTokens(systemMessage);
++      totalTokens += this.TOKENS_PER_MESSAGE; // Add message overhead for system message
 +    }
 +
-+    this.client = createClient({
-+      url: this.rewriteDbUrl(config.url),
-+      authToken: config.authToken,
-+    });
-+  }
++    if (memorySystemMessage) {
++      totalTokens += this.countTokens(memorySystemMessage);
++      totalTokens += this.TOKENS_PER_MESSAGE; // Add message overhead for memory system message
++    }
 +
-+  // If we're in the .mastra/output directory, use the dir outside .mastra dir
-+  // reason we need to do this is libsql relative file paths are based on cwd, not current file path
-+  // since mastra dev sets cwd to .mastra/output this means running an agent directly vs running with mastra dev
-+  // will put db files in different locations, leading to an inconsistent experience between the two.
-+  // Ex: with `file:ex.db`
-+  // 1. `mastra dev`: ${cwd}/.mastra/output/ex.db
-+  // 2. `tsx src/index.ts`: ${cwd}/ex.db
-+  // so if we're in .mastra/output we need to rewrite the file url to be relative to the project root dir
-+  // or the experience will be inconsistent
-+  // this means `file:` urls are always relative to project root
-+  // TODO: can we make this easier via bundling? https://github.com/mastra-ai/mastra/pull/2783#pullrequestreview-2662444241
-+  protected rewriteDbUrl(url: string): string {
-+    if (url.startsWith('file:') && url !== 'file::memory:') {
-+      const pathPart = url.slice('file:'.length);
++    const allMessages = [...messages, ...(newMessages || [])];
 +
-+      if (isAbsolute(pathPart)) {
-+        return url;
-+      }
++    const result: CoreMessage[] = [];
 +
-+      const cwd = process.cwd();
++    // Process messages in reverse (newest first) so that we stop estimating tokens on old messages. Once we get to our limit of tokens there's no reason to keep processing older messages
++    for (let i = allMessages.length - 1; i >= 0; i--) {
++      const message = allMessages[i];
 +
-+      if (cwd.includes('.mastra') && (cwd.endsWith(`output`) || cwd.endsWith(`output/`) || cwd.endsWith(`output\\`))) {
-+        const baseDir = join(cwd, `..`, `..`); // <- .mastra/output/../../
++      // Skip undefined messages (shouldn't happen, but TypeScript is concerned)
++      if (!message) continue;
 +
-+        const fullPath = resolve(baseDir, pathPart);
++      const messageTokens = this.countTokens(message);
 +
-+        this.logger.debug(
-+          `Initializing LibSQL db with url ${url} with relative file path from inside .mastra/output directory. Rewriting relative file url to "file:${fullPath}". This ensures it's outside the .mastra/output directory.`,
++      if (totalTokens + messageTokens <= this.maxTokens) {
++        // Insert at the beginning to maintain chronological order, but only if it's not a new message
++        if (i < messages.length) {
++          // less than messages.length because we're iterating in reverse. If the index is greater than messages.length it's a new message
++          result.unshift(message);
++        }
++        totalTokens += messageTokens;
++      } else {
++        this.logger.info(
++          `filtering ${allMessages.length - result.length}/${allMessages.length} messages, token limit of ${this.maxTokens} exceeded`,
 +        );
-+
-+        return `file:${fullPath}`;
++        // If we can't fit the message, we stop
++        break;
 +      }
 +    }
 +
-+    return url;
++    return result;
 +  }
 +
-+  private getCreateTableSQL(tableName: TABLE_NAMES, schema: Record<string, StorageColumn>): string {
-+    const columns = Object.entries(schema).map(([name, col]) => {
-+      let type = col.type.toUpperCase();
-+      if (type === 'TEXT') type = 'TEXT';
-+      if (type === 'TIMESTAMP') type = 'TEXT'; // Store timestamps as ISO strings
-+      // if (type === 'BIGINT') type = 'INTEGER';
-+
-+      const nullable = col.nullable ? '' : 'NOT NULL';
-+      const primaryKey = col.primaryKey ? 'PRIMARY KEY' : '';
-+
-+      return `${name} ${type} ${nullable} ${primaryKey}`.trim();
-+    });
-+
-+    // For workflow_snapshot table, create a composite primary key
-+    if (tableName === TABLE_WORKFLOW_SNAPSHOT) {
-+      const stmnt = `CREATE TABLE IF NOT EXISTS ${tableName} (
-+                ${columns.join(',\n')},
-+                PRIMARY KEY (workflow_name, run_id)
-+            )`;
-+      return stmnt;
++  public countTokens(message: string | CoreMessage): number {
++    if (typeof message === `string`) {
++      return this.encoder.encode(message).length;
 +    }
 +
-+    return `CREATE TABLE IF NOT EXISTS ${tableName} (${columns.join(', ')})`;
-+  }
++    let tokenString = message.role;
 +
-+  async createTable({
-+    tableName,
-+    schema,
-+  }: {
-+    tableName: TABLE_NAMES;
-+    schema: Record<string, StorageColumn>;
-+  }): Promise<void> {
-+    try {
-+      this.logger.debug(`Creating database table`, { tableName, operation: 'schema init' });
-+      const sql = this.getCreateTableSQL(tableName, schema);
-+      await this.client.execute(sql);
-+    } catch (error) {
-+      this.logger.error(`Error creating table ${tableName}: ${error}`);
-+      throw error;
-+    }
-+  }
-+
-+  async clearTable({ tableName }: { tableName: TABLE_NAMES }): Promise<void> {
-+    try {
-+      await this.client.execute(`DELETE FROM ${tableName}`);
-+    } catch (e) {
-+      if (e instanceof Error) {
-+        this.logger.error(e.message);
-+      }
-+    }
-+  }
-+
-+  private prepareStatement({ tableName, record }: { tableName: TABLE_NAMES; record: Record<string, any> }): {
-+    sql: string;
-+    args: InValue[];
-+  } {
-+    const columns = Object.keys(record);
-+    const values = Object.values(record).map(v => {
-+      if (typeof v === `undefined`) {
-+        // returning an undefined value will cause libsql to throw
-+        return null;
-+      }
-+      if (v instanceof Date) {
-+        return v.toISOString();
-+      }
-+      return typeof v === 'object' ? JSON.stringify(v) : v;
-+    });
-+    const placeholders = values.map(() => '?').join(', ');
-+
-+    return {
-+      sql: `INSERT OR REPLACE INTO ${tableName} (${columns.join(', ')}) VALUES (${placeholders})`,
-+      args: values,
-+    };
-+  }
-+
-+  async insert({ tableName, record }: { tableName: TABLE_NAMES; record: Record<string, any> }): Promise<void> {
-+    try {
-+      await this.client.execute(
-+        this.prepareStatement({
-+          tableName,
-+          record,
-+        }),
-+      );
-+    } catch (error) {
-+      this.logger.error(`Error upserting into table ${tableName}: ${error}`);
-+      throw error;
-+    }
-+  }
-+
-+  async batchInsert({ tableName, records }: { tableName: TABLE_NAMES; records: Record<string, any>[] }): Promise<void> {
-+    if (records.length === 0) return;
-+
-+    try {
-+      const batchStatements = records.map(r => this.prepareStatement({ tableName, record: r }));
-+      await this.client.batch(batchStatements, 'write');
-+    } catch (error) {
-+      this.logger.error(`Error upserting into table ${tableName}: ${error}`);
-+      throw error;
-+    }
-+  }
-+
-+  async load<R>({ tableName, keys }: { tableName: TABLE_NAMES; keys: Record<string, string> }): Promise<R | null> {
-+    const conditions = Object.entries(keys)
-+      .map(([key]) => `${key} = ?`)
-+      .join(' AND ');
-+    const values = Object.values(keys);
-+
-+    const result = await this.client.execute({
-+      sql: `SELECT * FROM ${tableName} WHERE ${conditions} ORDER BY createdAt DESC LIMIT 1`,
-+      args: values,
-+    });
-+
-+    if (!result.rows || result.rows.length === 0) {
-+      return null;
-+    }
-+
-+    const row = result.rows[0];
-+    // Checks whether the string looks like a JSON object ({}) or array ([])
-+    // If the string starts with { or [, it assumes it's JSON and parses it
-+    // Otherwise, it just returns, preventing unintended number conversions
-+    const parsed = Object.fromEntries(
-+      Object.entries(row || {}).map(([k, v]) => {
-+        try {
-+          return [k, typeof v === 'string' ? (v.startsWith('{') || v.startsWith('[') ? JSON.parse(v) : v) : v];
-+        } catch {
-+          return [k, v];
-+        }
-+      }),
-+    );
-+
-+    return parsed as R;
-+  }
-+
-+  async getThreadById({ threadId }: { threadId: string }): Promise<StorageThreadType | null> {
-+    const result = await this.load<StorageThreadType>({
-+      tableName: TABLE_THREADS,
-+      keys: { id: threadId },
-+    });
-+
-+    if (!result) {
-+      return null;
-+    }
-+
-+    return {
-+      ...result,
-+      metadata: typeof result.metadata === 'string' ? JSON.parse(result.metadata) : result.metadata,
-+    };
-+  }
-+
-+  async getThreadsByResourceId({ resourceId }: { resourceId: string }): Promise<StorageThreadType[]> {
-+    const result = await this.client.execute({
-+      sql: `SELECT * FROM ${TABLE_THREADS} WHERE resourceId = ?`,
-+      args: [resourceId],
-+    });
-+
-+    if (!result.rows) {
-+      return [];
-+    }
-+
-+    return result.rows.map(thread => ({
-+      id: thread.id,
-+      resourceId: thread.resourceId,
-+      title: thread.title,
-+      createdAt: thread.createdAt,
-+      updatedAt: thread.updatedAt,
-+      metadata: typeof thread.metadata === 'string' ? JSON.parse(thread.metadata) : thread.metadata,
-+    })) as any as StorageThreadType[];
-+  }
-+
-+  async saveThread({ thread }: { thread: StorageThreadType }): Promise<StorageThreadType> {
-+    await this.insert({
-+      tableName: TABLE_THREADS,
-+      record: {
-+        ...thread,
-+        metadata: JSON.stringify(thread.metadata),
-+      },
-+    });
-+
-+    return thread;
-+  }
-+
-+  async updateThread({
-+    id,
-+    title,
-+    metadata,
-+  }: {
-+    id: string;
-+    title: string;
-+    metadata: Record<string, unknown>;
-+  }): Promise<StorageThreadType> {
-+    const thread = await this.getThreadById({ threadId: id });
-+    if (!thread) {
-+      throw new Error(`Thread ${id} not found`);
-+    }
-+
-+    const updatedThread = {
-+      ...thread,
-+      title,
-+      metadata: {
-+        ...thread.metadata,
-+        ...metadata,
-+      },
-+    };
-+
-+    await this.client.execute({
-+      sql: `UPDATE ${TABLE_THREADS} SET title = ?, metadata = ? WHERE id = ?`,
-+      args: [title, JSON.stringify(updatedThread.metadata), id],
-+    });
-+
-+    return updatedThread;
-+  }
-+
-+  // ここだけ修正
-+  async deleteThread({ threadId }: { threadId: string }): Promise<void> {
-+    await this.client.execute({
-+      sql: `DELETE FROM ${TABLE_THREADS} WHERE id = ?`,
-+      args: [threadId],
-+    });
-+    // threadに紐づくメッセージも明示的に削除する
-+    await this.client.execute({
-+      sql: `DELETE FROM ${TABLE_MESSAGES} WHERE thread_id = ?`,
-+      args: [threadId],
-+    });
-+  }
-+
-+  private parseRow(row: any): MessageType {
-+    let content = row.content;
-+    try {
-+      content = JSON.parse(row.content);
-+    } catch {
-+      // use content as is if it's not JSON
-+    }
-+    return {
-+      id: row.id,
-+      content,
-+      role: row.role,
-+      type: row.type,
-+      createdAt: new Date(row.createdAt as string),
-+      threadId: row.thread_id,
-+    } as MessageType;
-+  }
-+
-+  async getMessages<T extends MessageType[]>({ threadId, selectBy }: StorageGetMessagesArg): Promise<T> {
-+    try {
-+      const messages: MessageType[] = [];
-+      const limit = typeof selectBy?.last === `number` ? selectBy.last : 40;
-+
-+      // If we have specific messages to select
-+      if (selectBy?.include?.length) {
-+        const includeIds = selectBy.include.map(i => i.id);
-+        const maxPrev = Math.max(...selectBy.include.map(i => i.withPreviousMessages || 0));
-+        const maxNext = Math.max(...selectBy.include.map(i => i.withNextMessages || 0));
-+
-+        // Get messages around all specified IDs in one query using row numbers
-+        const includeResult = await this.client.execute({
-+          sql: `
-+            WITH numbered_messages AS (
-+              SELECT
-+                id,
-+                content,
-+                role,
-+                type,
-+                "createdAt",
-+                thread_id,
-+                ROW_NUMBER() OVER (ORDER BY "createdAt" ASC) as row_num
-+              FROM "${TABLE_MESSAGES}"
-+              WHERE thread_id = ?
-+            ),
-+            target_positions AS (
-+              SELECT row_num as target_pos
-+              FROM numbered_messages
-+              WHERE id IN (${includeIds.map(() => '?').join(', ')})
-+            )
-+            SELECT DISTINCT m.*
-+            FROM numbered_messages m
-+            CROSS JOIN target_positions t
-+            WHERE m.row_num BETWEEN (t.target_pos - ?) AND (t.target_pos + ?)
-+            ORDER BY m."createdAt" ASC
-+          `,
-+          args: [threadId, ...includeIds, maxPrev, maxNext],
-+        });
-+
-+        if (includeResult.rows) {
-+          messages.push(...includeResult.rows.map((row: any) => this.parseRow(row)));
++    if (typeof message.content === 'string') {
++      tokenString += message.content;
++    } else if (Array.isArray(message.content)) {
++      // Calculate tokens for each content part
++      for (const part of message.content) {
++        tokenString += part.type;
++        if (part.type === 'text') {
++          tokenString += part.text;
++        } else if (part.type === 'tool-call') {
++          tokenString += part.toolName as any;
++          if (part.args) {
++            tokenString += typeof part.args === 'string' ? part.args : JSON.stringify(part.args);
++          }
++        } else if (part.type === 'tool-result') {
++          // Token cost for result if present
++          if (part.result !== undefined) {
++            tokenString += typeof part.result === 'string' ? part.result : JSON.stringify(part.result);
++          }
++        } else {
++          tokenString += JSON.stringify(part);
 +        }
 +      }
-+
-+      // Get remaining messages, excluding already fetched IDs
-+      const excludeIds = messages.map(m => m.id);
-+      const remainingSql = `
-+        SELECT
-+          id,
-+          content,
-+          role,
-+          type,
-+          "createdAt",
-+          thread_id
-+        FROM "${TABLE_MESSAGES}"
-+        WHERE thread_id = ?
-+        ${excludeIds.length ? `AND id NOT IN (${excludeIds.map(() => '?').join(', ')})` : ''}
-+        ORDER BY "createdAt" DESC
-+        LIMIT ?
-+      `;
-+      const remainingArgs = [threadId, ...(excludeIds.length ? excludeIds : []), limit];
-+
-+      const remainingResult = await this.client.execute({
-+        sql: remainingSql,
-+        args: remainingArgs,
-+      });
-+
-+      if (remainingResult.rows) {
-+        messages.push(...remainingResult.rows.map((row: any) => this.parseRow(row)));
-+      }
-+
-+      // Sort all messages by creation date
-+      messages.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
-+
-+      return messages as T;
-+    } catch (error) {
-+      this.logger.error('Error getting messages:', error as Error);
-+      throw error;
-+    }
-+  }
-+
-+  async saveMessages({ messages }: { messages: MessageType[] }): Promise<MessageType[]> {
-+    if (messages.length === 0) return messages;
-+
-+    try {
-+      const threadId = messages[0]?.threadId;
-+      if (!threadId) {
-+        throw new Error('Thread ID is required');
-+      }
-+
-+      // Prepare batch statements for all messages
-+      const batchStatements = messages.map(message => {
-+        const time = message.createdAt || new Date();
-+        return {
-+          sql: `INSERT INTO ${TABLE_MESSAGES} (id, thread_id, content, role, type, createdAt)
-+                VALUES (?, ?, ?, ?, ?, ?)`,
-+          args: [
-+            message.id,
-+            threadId,
-+            typeof message.content === 'object' ? JSON.stringify(message.content) : message.content,
-+            message.role,
-+            message.type,
-+            time instanceof Date ? time.toISOString() : time,
-+          ],
-+        };
-+      });
-+
-+      // Execute all inserts in a single batch
-+      await this.client.batch(batchStatements, 'write');
-+
-+      return messages;
-+    } catch (error) {
-+      this.logger.error('Failed to save messages in database: ' + (error as { message: string })?.message);
-+      throw error;
-+    }
-+  }
-+
-+  private transformEvalRow(row: Record<string, any>): EvalRow {
-+    const resultValue = JSON.parse(row.result as string);
-+    const testInfoValue = row.test_info ? JSON.parse(row.test_info as string) : undefined;
-+
-+    if (!resultValue || typeof resultValue !== 'object' || !('score' in resultValue)) {
-+      throw new Error(`Invalid MetricResult format: ${JSON.stringify(resultValue)}`);
 +    }
 +
-+    return {
-+      input: row.input as string,
-+      output: row.output as string,
-+      result: resultValue as MetricResult,
-+      agentName: row.agent_name as string,
-+      metricName: row.metric_name as string,
-+      instructions: row.instructions as string,
-+      testInfo: testInfoValue as TestInfo,
-+      globalRunId: row.global_run_id as string,
-+      runId: row.run_id as string,
-+      createdAt: row.created_at as string,
-+    };
-+  }
++    // Ensure we account for message formatting tokens
++    // See: https://cookbook.openai.com/examples/how_to_count_tokens_with_tiktoken#6-counting-tokens-for-chat-completions-api-calls
++    const messageOverhead = this.TOKENS_PER_MESSAGE;
 +
-+  async getEvalsByAgentName(agentName: string, type?: 'test' | 'live'): Promise<EvalRow[]> {
-+    try {
-+      const baseQuery = `SELECT * FROM ${TABLE_EVALS} WHERE agent_name = ?`;
-+      const typeCondition =
-+        type === 'test'
-+          ? " AND test_info IS NOT NULL AND test_info->>'testPath' IS NOT NULL"
-+          : type === 'live'
-+            ? " AND (test_info IS NULL OR test_info->>'testPath' IS NULL)"
-+            : '';
-+
-+      const result = await this.client.execute({
-+        sql: `${baseQuery}${typeCondition} ORDER BY created_at DESC`,
-+        args: [agentName],
-+      });
-+
-+      return result.rows?.map(row => this.transformEvalRow(row)) ?? [];
-+    } catch (error) {
-+      // Handle case where table doesn't exist yet
-+      if (error instanceof Error && error.message.includes('no such table')) {
-+        return [];
-+      }
-+      this.logger.error('Failed to get evals for the specified agent: ' + (error as any)?.message);
-+      throw error;
-+    }
-+  }
-+
-+  // TODO: add types
-+  async getTraces(
-+    {
-+      name,
-+      scope,
-+      page,
-+      perPage,
-+      attributes,
-+      filters,
-+    }: {
-+      name?: string;
-+      scope?: string;
-+      page: number;
-+      perPage: number;
-+      attributes?: Record<string, string>;
-+      filters?: Record<string, any>;
-+    } = {
-+      page: 0,
-+      perPage: 100,
-+    },
-+  ): Promise<any[]> {
-+    const limit = perPage;
-+    const offset = page * perPage;
-+
-+    const args: (string | number)[] = [];
-+
-+    const conditions: string[] = [];
-+    if (name) {
-+      conditions.push("name LIKE CONCAT(?, '%')");
-+    }
-+    if (scope) {
-+      conditions.push('scope = ?');
-+    }
-+    if (attributes) {
-+      Object.keys(attributes).forEach(key => {
-+        conditions.push(`attributes->>'$.${key}' = ?`);
-+      });
-+    }
-+
-+    if (filters) {
-+      Object.entries(filters).forEach(([key, _value]) => {
-+        conditions.push(`${key} = ?`);
-+      });
-+    }
-+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-+
-+    if (name) {
-+      args.push(name);
-+    }
-+
-+    if (scope) {
-+      args.push(scope);
-+    }
-+
-+    if (attributes) {
-+      for (const [, value] of Object.entries(attributes)) {
-+        args.push(value);
-+      }
-+    }
-+
-+    if (filters) {
-+      for (const [, value] of Object.entries(filters)) {
-+        args.push(value);
-+      }
-+    }
-+
-+    args.push(limit, offset);
-+
-+    const result = await this.client.execute({
-+      sql: `SELECT * FROM ${TABLE_TRACES} ${whereClause} ORDER BY "startTime" DESC LIMIT ? OFFSET ?`,
-+      args,
-+    });
-+
-+    if (!result.rows) {
-+      return [];
-+    }
-+
-+    return result.rows.map(row => ({
-+      id: row.id,
-+      parentSpanId: row.parentSpanId,
-+      traceId: row.traceId,
-+      name: row.name,
-+      scope: row.scope,
-+      kind: row.kind,
-+      status: safelyParseJSON(row.status as string),
-+      events: safelyParseJSON(row.events as string),
-+      links: safelyParseJSON(row.links as string),
-+      attributes: safelyParseJSON(row.attributes as string),
-+      startTime: row.startTime,
-+      endTime: row.endTime,
-+      other: safelyParseJSON(row.other as string),
-+      createdAt: row.createdAt,
-+    })) as any;
-+  }
-+
-+  async getWorkflowRuns({
-+    workflowName,
-+    fromDate,
-+    toDate,
-+    limit,
-+    offset,
-+  }: {
-+    workflowName?: string;
-+    fromDate?: Date;
-+    toDate?: Date;
-+    limit?: number;
-+    offset?: number;
-+  } = {}): Promise<{
-+    runs: Array<{
-+      workflowName: string;
-+      runId: string;
-+      snapshot: WorkflowRunState | string;
-+      createdAt: Date;
-+      updatedAt: Date;
-+    }>;
-+    total: number;
-+  }> {
-+    const conditions: string[] = [];
-+    const args: InValue[] = [];
-+
-+    if (workflowName) {
-+      conditions.push('workflow_name = ?');
-+      args.push(workflowName);
-+    }
-+
-+    if (fromDate) {
-+      conditions.push('createdAt >= ?');
-+      args.push(fromDate.toISOString());
-+    }
-+
-+    if (toDate) {
-+      conditions.push('createdAt <= ?');
-+      args.push(toDate.toISOString());
-+    }
-+
-+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-+
-+    let total = 0;
-+    // Only get total count when using pagination
-+    if (limit !== undefined && offset !== undefined) {
-+      const countResult = await this.client.execute({
-+        sql: `SELECT COUNT(*) as count FROM ${TABLE_WORKFLOW_SNAPSHOT} ${whereClause}`,
-+        args,
-+      });
-+      total = Number(countResult.rows?.[0]?.count ?? 0);
-+    }
-+
-+    // Get results
-+    const result = await this.client.execute({
-+      sql: `SELECT * FROM ${TABLE_WORKFLOW_SNAPSHOT} ${whereClause} ORDER BY createdAt DESC${limit !== undefined && offset !== undefined ? ` LIMIT ? OFFSET ?` : ''}`,
-+      args: limit !== undefined && offset !== undefined ? [...args, limit, offset] : args,
-+    });
-+
-+    const runs = (result.rows || []).map(row => {
-+      let parsedSnapshot: WorkflowRunState | string = row.snapshot as string;
-+      if (typeof parsedSnapshot === 'string') {
-+        try {
-+          parsedSnapshot = JSON.parse(row.snapshot as string) as WorkflowRunState;
-+        } catch (e) {
-+          // If parsing fails, return the raw snapshot string
-+          console.warn(`Failed to parse snapshot for workflow ${row.workflow_name}: ${e}`);
++    // Count tool calls for additional overhead
++    let toolOverhead = 0;
++    if (Array.isArray(message.content)) {
++      for (const part of message.content) {
++        if (part.type === 'tool-call' || part.type === 'tool-result') {
++          toolOverhead += this.TOKENS_PER_TOOL;
 +        }
 +      }
++    }
 +
-+      return {
-+        workflowName: row.workflow_name as string,
-+        runId: row.run_id as string,
-+        snapshot: parsedSnapshot,
-+        createdAt: new Date(row.createdAt as string),
-+        updatedAt: new Date(row.updatedAt as string),
-+      };
-+    });
++    const totalMessageOverhead = messageOverhead + toolOverhead;
 +
-+    // Use runs.length as total when not paginating
-+    return { runs, total: total || runs.length };
++    return this.encoder.encode(tokenString).length + totalMessageOverhead;
 +  }
 +}
-+
-+export { LibSQLStore as DefaultStorage };
-diff --git a/src/renderer/components/chat/ChatArea.tsx b/src/renderer/components/chat/ChatArea.tsx
-index e08a3bb1e..ce4fc8fd3 100644
---- a/src/renderer/components/chat/ChatArea.tsx
-+++ b/src/renderer/components/chat/ChatArea.tsx
-@@ -171,7 +171,10 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
-   const [initialMessages, setInitialMessages] = useState<ChatMessage[]>([]);
-   // useChatからのエラーを表示するための状態
-   const [additionalAlerts, setAdditionalAlerts] = useState<AlertMessage[]>([]);
-+  const [editMessageId, setEditMessageId] = useState<string>('');
-+  const [editMessageContent, setEditMessageContent] = useState<string>('');
-   const { status: agentStatus } = useAgentStatus();
-+  const [isEditHistory, setIsEditHistory] = useState(false);
- 
-   const isAgentInitializing = agentStatus.state === 'initializing';
- 
-@@ -199,6 +202,8 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
- 
-   const {
-     messages,
-+    setMessages,
-+    reload,
-     input,
-     status,
-     error,
-@@ -254,6 +259,48 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
-     setAdditionalAlerts((prev) => prev.filter((alert) => alert.id !== id));
-   };
- 
-+  const handleEditStart = (messageId: string) => {
-+    setEditMessageId(messageId);
-+  };
-+
-+  const handleEditContentChange = (content: string) => {
-+    setEditMessageContent(content);
-+  };
-+
-+  const handleEditSubmit = async () => {
-+    const messageIndex = messages.findIndex((m) => m.id === editMessageId);
-+    if (messageIndex === -1) return;
-+    const oldCreatedAt = messages[messageIndex].createdAt!;
-+    const oldContent = messages[messageIndex].content;
-+
-+    const updatedMessages = messages.slice(0, messageIndex + 1);
-+    updatedMessages[messageIndex] = {
-+      ...updatedMessages[messageIndex],
-+      content: editMessageContent,
-+      parts: [
-+        {
-+          type: 'text',
-+          text: editMessageContent,
-+        },
-+      ],
-+    };
-+    setMessages(updatedMessages);
-+    setIsEditHistory(true);
-+    await window.electron.chat.editHistory({
-+      threadId: selectedRoomId!,
-+      oldContent,
-+      oldCreatedAt,
-+    });
-+    setEditMessageId('');
-+    setEditMessageContent('');
-+    setIsEditHistory(false);
-+    reload();
-+  };
-+
-+  const handleEditCancel = () => {
-+    setEditMessageId('');
-+  };
-+
-   return (
-     <Box
-       sx={{
-@@ -275,7 +322,23 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
-       {selectedRoomId ? (
-         <>
-           {/* メッセージリスト */}
--          <MessageList messages={messages} loading={loading} status={status} />
-+          <MessageList
-+            messages={messages}
-+            loading={loading}
-+            status={status}
-+            editContent={editMessageContent}
-+            disabled={
-+              status === 'submitted' ||
-+              status === 'streaming' ||
-+              isAgentInitializing ||
-+              isEditHistory
-+            }
-+            editingMessageId={editMessageId}
-+            onEditStart={handleEditStart}
-+            onEditContentChange={handleEditContentChange}
-+            onEditSubmit={handleEditSubmit}
-+            onEditCancel={handleEditCancel}
-+          />
- 
-           <Divider />
- 
-@@ -287,7 +350,8 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
-             disabled={
-               status === 'submitted' ||
-               status === 'streaming' ||
--              isAgentInitializing
-+              isAgentInitializing ||
-+              isEditHistory
-             }
-             placeholder={getPlaceholderText(status, isAgentInitializing)}
-             isStreaming={status === 'streaming'}
+diff --git a/src/renderer/components/chat/MessageInput.tsx b/src/renderer/components/chat/MessageInput.tsx
+index 7d89b001c..721362e5d 100644
+--- a/src/renderer/components/chat/MessageInput.tsx
++++ b/src/renderer/components/chat/MessageInput.tsx
+@@ -86,7 +86,11 @@ const MessageInput: React.FC<MessageInputProps> = ({
+                 <InputAdornment position="end">
+                   {/* 送信ボタンまたは送信中インジケーター */}
+                   {isStreaming ? (
+-                    <IconButton color="primary" onClick={onStop}>
++                    <IconButton
++                      color="primary"
++                      onClick={onStop}
++                      data-testid="chat-stop-button"
++                    >
+                       <StopCircleOutlinedIcon />
+                     </IconButton>
+                   ) : (
+@@ -94,6 +98,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
+                       color="primary"
+                       onClick={handleSubmit}
+                       disabled={disabled || !message.trim()}
++                      data-testid="chat-send-button"
+                     >
+                       <SendIcon />
+                     </IconButton>
 diff --git a/src/renderer/components/chat/MessageItem.tsx b/src/renderer/components/chat/MessageItem.tsx
-index b38b92d60..01ac557fd 100644
+index 01ac557fd..a60f28626 100644
 --- a/src/renderer/components/chat/MessageItem.tsx
 +++ b/src/renderer/components/chat/MessageItem.tsx
-@@ -1,6 +1,7 @@
- import React, { memo, forwardRef, useState, useEffect, useRef } from 'react';
- // @ts-ignore
- import ReactMarkdown from 'react-markdown';
-+import EditIcon from '@mui/icons-material/Edit';
- // @ts-ignore
- import remarkGfm from 'remark-gfm';
- import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-@@ -25,6 +26,8 @@ import {
-   TableCell,
-   Tooltip,
-   Fade,
-+  TextField,
-+  Button,
- } from '@mui/material';
- import { ContentCopy as CopyIcon } from '@mui/icons-material';
- // @ts-ignore
-@@ -361,10 +364,29 @@ const renderPart = (part: NonNullable<ChatMessage['parts']>[number]) => {
- 
- interface MessageProps {
-   message: ChatMessage;
-+  editContent: string;
-+  disabled: boolean;
-+  onEditSubmit: () => void;
-+  isEditing: boolean;
-+  onEditStart: (messageId: string) => void;
-+  onEditContentChange: (content: string) => void;
-+  onEditCancel: () => void;
- }
- 
- const MessageItem = forwardRef<HTMLDivElement, MessageProps>(
--  ({ message }, ref) => {
-+  (
-+    {
-+      message,
-+      editContent,
-+      disabled,
-+      onEditSubmit,
-+      isEditing,
-+      onEditStart,
-+      onEditCancel,
-+      onEditContentChange,
-+    },
-+    ref,
-+  ) => {
-     const isUser = message.role === 'user';
- 
-     return (
-@@ -379,9 +401,10 @@ const MessageItem = forwardRef<HTMLDivElement, MessageProps>(
-         >
-           <Box
-             sx={{
--              maxWidth: isUser ? '70%' : '100%',
--              width: isUser ? undefined : '100%',
-+              maxWidth: isUser && !isEditing ? '70%' : '100%',
-+              width: isUser && !isEditing ? undefined : '100%',
-               textAlign: 'left',
-+              '&:hover .editBtn': { opacity: 1 },
+@@ -433,6 +433,7 @@ const MessageItem = forwardRef<HTMLDivElement, MessageProps>(
+                     transition: 'opacity 0.2s',
+                     bgcolor: 'background.paper',
+                   }}
++                  data-testid={`edit-message-button-${message.id}`}
+                 >
+                   <EditIcon fontSize="small" />
+                 </IconButton>
+@@ -450,6 +451,7 @@ const MessageItem = forwardRef<HTMLDivElement, MessageProps>(
+                     value={editContent}
+                     onChange={(e) => onEditContentChange(e.target.value)}
+                     sx={{ mb: 2 }}
++                    data-testid={`edit-message-input-${message.id}`}
+                   />
+                   <Box
+                     sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}
+@@ -462,6 +464,7 @@ const MessageItem = forwardRef<HTMLDivElement, MessageProps>(
+                         backgroundColor: 'white',
+                         color: 'black',
+                       }}
++                      data-testid={`edit-message-cancel-button-${message.id}`}
+                     >
+                       キャンセル
+                     </Button>
+@@ -474,6 +477,7 @@ const MessageItem = forwardRef<HTMLDivElement, MessageProps>(
+                         backgroundColor: 'black',
+                         color: 'white',
+                       }}
++                      data-testid={`edit-message-send-button-${message.id}`}
+                     >
+                       送信
+                     </Button>
+diff --git a/src/renderer/components/common/SettingsModal.tsx b/src/renderer/components/common/SettingsModal.tsx
+index 1df49dc51..779aa6d89 100644
+--- a/src/renderer/components/common/SettingsModal.tsx
++++ b/src/renderer/components/common/SettingsModal.tsx
+@@ -156,7 +156,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
+             </Typography>
+             <TextField
+               fullWidth
+-              label="エンドポイント"
++              label="Redmineエンドポイント"
+               value={settings.redmine.endpoint}
+               disabled={loading || saving}
+               onChange={(e) =>
+@@ -169,7 +169,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
+             />
+             <TextField
+               fullWidth
+-              label="APIキー"
++              label="RedmineAPIキー"
+               value={settings.redmine.apiKey}
+               disabled={loading || saving}
+               onChange={(e) =>
+@@ -188,7 +188,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
+             </Typography>
+             <TextField
+               fullWidth
+-              label="エンドポイント"
++              label="GitLabエンドポイント"
+               value={settings.gitlab.endpoint}
+               disabled={loading || saving}
+               onChange={(e) =>
+@@ -201,7 +201,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
+             />
+             <TextField
+               fullWidth
+-              label="APIキー"
++              label="GitLabAPIキー"
+               value={settings.gitlab.apiKey}
+               disabled={loading || saving}
+               onChange={(e) => handleChange('gitlab', 'apiKey', e.target.value)}
+diff --git a/src/renderer/components/common/SourceListModal.tsx b/src/renderer/components/common/SourceListModal.tsx
+index 4f561547c..4b6dad504 100644
+--- a/src/renderer/components/common/SourceListModal.tsx
++++ b/src/renderer/components/common/SourceListModal.tsx
+@@ -211,7 +211,10 @@ function SourceListModal({
+         );
+       case 'failed':
+         return (
+-          <Tooltip title={error ?? '不明なエラー'}>
++          <Tooltip
++            data-testid="sourcelistmodal-error-tooltip"
++            title={error ?? '不明なエラー'}
++          >
+             <Chip
+               icon={<ErrorIcon />}
+               label="エラー"
+diff --git a/src/renderer/components/sidebar/SidebarFooter.tsx b/src/renderer/components/sidebar/SidebarFooter.tsx
+index 981136f42..32047bcce 100644
+--- a/src/renderer/components/sidebar/SidebarFooter.tsx
++++ b/src/renderer/components/sidebar/SidebarFooter.tsx
+@@ -34,6 +34,7 @@ function SidebarFooter({
+           size={12}
+           thickness={4}
+           sx={{ color: 'primary.main' }}
++          data-testid="document-loading-indicator"
+         />
+       );
+     }
+@@ -57,7 +58,10 @@ function SidebarFooter({
+               },
              }}
            >
-             <Paper
-@@ -390,11 +413,77 @@ const MessageItem = forwardRef<HTMLDivElement, MessageProps>(
-                 px: 2,
-                 bgcolor: isUser ? 'grey.100' : 'background.paper',
-                 borderRadius: 2,
-+                position: 'relative',
-               }}
-             >
--              {message.parts?.length
--                ? message.parts.map(renderPart)
--                : renderPart({ type: 'text', text: message.content ?? '' })}
-+              {isUser && !isEditing && (
-+                <IconButton
-+                  className="editBtn"
-+                  size="small"
-+                  onClick={() => {
-+                    onEditStart?.(message.id);
-+                    onEditContentChange(message.content ?? '');
-+                  }}
-+                  sx={{
-+                    position: 'absolute',
-+                    right: -36,
-+                    top: '50%',
-+                    transform: 'translateY(-50%)',
-+                    opacity: 0,
-+                    transition: 'opacity 0.2s',
-+                    bgcolor: 'background.paper',
-+                  }}
-+                >
-+                  <EditIcon fontSize="small" />
-+                </IconButton>
-+              )}
-+              {/* eslint-disable-next-line */}
-+              {isEditing && isUser ? (
-+                <Box sx={{ p: 1, width: '100%' }}>
-+                  <TextField
-+                    fullWidth
-+                    multiline
-+                    variant="standard" // アンダーラインのみのスタイルに
-+                    InputProps={{
-+                      disableUnderline: true, // アンダーラインも消す
-+                    }}
-+                    value={editContent}
-+                    onChange={(e) => onEditContentChange(e.target.value)}
-+                    sx={{ mb: 2 }}
-+                  />
-+                  <Box
-+                    sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}
-+                  >
-+                    <Button
-+                      size="small"
-+                      onClick={onEditCancel}
-+                      variant="contained"
-+                      sx={{
-+                        backgroundColor: 'white',
-+                        color: 'black',
-+                      }}
-+                    >
-+                      キャンセル
-+                    </Button>
-+                    <Button
-+                      size="small"
-+                      onClick={onEditSubmit}
-+                      variant="contained"
-+                      disabled={disabled || !editContent?.trim()}
-+                      sx={{
-+                        backgroundColor: 'black',
-+                        color: 'white',
-+                      }}
-+                    >
-+                      送信
-+                    </Button>
-+                  </Box>
-+                </Box>
-+              ) : message.parts?.length ? (
-+                message.parts.map(renderPart)
-+              ) : (
-+                renderPart({ type: 'text', text: message.content ?? '' })
-+              )}
-             </Paper>
-           </Box>
-         </Box>
-diff --git a/src/renderer/components/chat/MessageList.tsx b/src/renderer/components/chat/MessageList.tsx
-index a6d2acc06..351009614 100644
---- a/src/renderer/components/chat/MessageList.tsx
-+++ b/src/renderer/components/chat/MessageList.tsx
-@@ -7,12 +7,26 @@ interface MessageListProps {
-   messages: ChatMessage[];
-   loading: boolean;
-   status: 'error' | 'ready' | 'submitted' | 'streaming';
-+  editContent: string;
-+  disabled: boolean;
-+  onEditStart: (messageId: string) => void;
-+  editingMessageId: string;
-+  onEditSubmit: () => void;
-+  onEditContentChange: (ontent: string) => void;
-+  onEditCancel: () => void;
- }
+-            <IconButton onClick={onOpenSourceList}>
++            <IconButton
++              data-testid="document-list-button"
++              onClick={onOpenSourceList}
++            >
+               <AttachFileIcon />
+             </IconButton>
+           </Badge>
+@@ -75,7 +79,7 @@ function SidebarFooter({
+               },
+             }}
+           >
+-            <IconButton onClick={onSettingsClick}>
++            <IconButton data-testid="settings-button" onClick={onSettingsClick}>
+               <SettingsIcon />
+             </IconButton>
+           </Badge>
+diff --git a/src/renderer/hooks/useSettingsStore.ts b/src/renderer/hooks/useSettingsStore.ts
+index b5a7a4532..526c9f2c2 100644
+--- a/src/renderer/hooks/useSettingsStore.ts
++++ b/src/renderer/hooks/useSettingsStore.ts
+@@ -86,16 +86,16 @@ const useSettingsStore = () => {
+   });
  
- const MessageList: React.FC<MessageListProps> = ({
-   messages,
-   loading,
-   status,
-+  editContent,
-+  disabled,
-+  onEditStart,
-+  editingMessageId,
-+  onEditSubmit,
-+  onEditContentChange,
-+  onEditCancel,
- }) => {
-   const bottomRef = useRef<HTMLDivElement>(null);
+   // 変更前の設定値を保持するstate
+-  const [originalSettings, setOriginalSettings] = useState<Settings>({
+-    database: { dir: '' },
+-    source: { registerDir: './source' },
+-    api: { key: '', url: '', model: '' },
+-    redmine: { endpoint: '', apiKey: '' },
+-    gitlab: { endpoint: '', apiKey: '' },
+-    mcp: { serverConfigText: '{}' },
+-    stagehand: { enabled: false, headless: false },
+-    systemPrompt: { content: '' },
+-  });
++  // const [originalSettings, setOriginalSettings] = useState<Settings>({
++  //   database: { dir: '' },
++  //   source: { registerDir: './source' },
++  //   api: { key: '', url: '', model: '' },
++  //   redmine: { endpoint: '', apiKey: '' },
++  //   gitlab: { endpoint: '', apiKey: '' },
++  //   mcp: { serverConfigText: '{}' },
++  //   stagehand: { enabled: false, headless: false },
++  //   systemPrompt: { content: '' },
++  // });
  
-@@ -41,7 +55,16 @@ const MessageList: React.FC<MessageListProps> = ({
-       {messages.map((m) => {
-         return (
-           <Box key={m.id} mb={2}>
--            <MessageItem message={m} />
-+            <MessageItem
-+              message={m}
-+              editContent={editContent}
-+              disabled={disabled}
-+              isEditing={editingMessageId === m.id}
-+              onEditStart={onEditStart}
-+              onEditSubmit={onEditSubmit}
-+              onEditContentChange={onEditContentChange}
-+              onEditCancel={onEditCancel}
-+            />
-           </Box>
-         );
-       })}
+   // バリデーションエラーの状態管理
+   const [validationErrors, setValidationErrors] = useState<ValidationState>({
+@@ -192,7 +192,7 @@ const useSettingsStore = () => {
+       };
+ 
+       setSettings(newSettings);
+-      setOriginalSettings(newSettings);
++      // setOriginalSettings(newSettings);
+ 
+       // 各セクションのバリデーションを実行
+       Object.entries(newSettings).forEach(([section, value]) => {
+@@ -251,33 +251,33 @@ const useSettingsStore = () => {
+   /**
+    * 設定が変更されたかどうかを判定する
+    */
+-  const hasSettingsChanged = useMemo(() => {
+-    return JSON.stringify(settings) !== JSON.stringify(originalSettings);
+-  }, [settings, originalSettings]);
++  // const hasSettingsChanged = useMemo(() => {
++  //   return JSON.stringify(settings) !== JSON.stringify(originalSettings);
++  // }, [settings, originalSettings]);
+ 
+   /**
+    * Mastra初期化に関わる設定が変更されたかをチェック
+    */
+-  const requiresReinitialization = useMemo(() => {
+-    // 設定が変更されていない場合は初期化不要
+-    if (!hasSettingsChanged) {
+-      return false;
+-    }
+-
+-    // システムプロンプトとドキュメントディレクトリ以外の変更があるかチェック
+-    const hasChanges = Object.entries(settings).some(([key, value]) => {
+-      if (key === 'systemPrompt' || key === 'source') {
+-        return false;
+-      }
+-      return (
+-        JSON.stringify(value) !==
+-        JSON.stringify(originalSettings[key as keyof Settings])
+-      );
+-    });
+-
+-    // システムプロンプトまたはドキュメントディレクトリのみの変更の場合はfalse
+-    return hasChanges;
+-  }, [settings, originalSettings, hasSettingsChanged]);
++  // const requiresReinitialization = useMemo(() => {
++  //   // 設定が変更されていない場合は初期化不要
++  //   if (!hasSettingsChanged) {
++  //     return false;
++  //   }
++
++  //   // システムプロンプトとドキュメントディレクトリ以外の変更があるかチェック
++  //   const hasChanges = Object.entries(settings).some(([key, value]) => {
++  //     if (key === 'systemPrompt' || key === 'source') {
++  //       return false;
++  //     }
++  //     return (
++  //       JSON.stringify(value) !==
++  //       JSON.stringify(originalSettings[key as keyof Settings])
++  //     );
++  //   });
++
++  //   // システムプロンプトまたはドキュメントディレクトリのみの変更の場合はfalse
++  //   return hasChanges;
++  // }, [settings, originalSettings, hasSettingsChanged]);
+ 
+   /**
+    * 設定の保存処理
+@@ -306,13 +306,14 @@ const useSettingsStore = () => {
+       ]);
+ 
+       // 必要な場合のみMastraを再初期化
+-      if (requiresReinitialization) {
+-        await window.electron.agent.reinitialize();
+-      }
++      // if (requiresReinitialization) {
++      //   await window.electron.agent.reinitialize();
++      // }
++      await window.electron.agent.reinitialize();
+       setUpdatedFlg(true);
+ 
+       // 新しい設定を元の設定として保存
+-      setOriginalSettings(settings);
++      // setOriginalSettings(settings);
+ 
+       return true;
+     } catch (err) {
+diff --git a/src/setupTests.ts b/src/setupTests.ts
+new file mode 100644
+index 000000000..9c746e350
+--- /dev/null
++++ b/src/setupTests.ts
+@@ -0,0 +1,4 @@
++import '@testing-library/jest-dom';
++
++// グローバルなwindowオブジェクトをモック
++global.window = Object.create(window);
