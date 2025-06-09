@@ -91,6 +91,99 @@ const mockChatMessages: ChatMessage[] = [
   },
 ];
 
+const mockToolMessages: ChatMessage[] = [
+  {
+    id: '3',
+    role: 'user',
+    content: 'ファイルを検索して',
+    createdAt: new Date('2025-05-01T12:02:00.000Z'),
+  },
+  {
+    id: '4',
+    role: 'assistant',
+    content: '検索を実行します',
+    createdAt: new Date('2025-05-01T12:03:00.000Z'),
+    parts: [
+      {
+        type: 'text',
+        text: '検索を実行します',
+      },
+      {
+        type: 'tool-invocation',
+        toolInvocation: {
+          toolName: 'documentQueryTool',
+          toolCallId: 'search-1',
+          args: {
+            documentQueries: [
+              {
+                path: '/test/file.txt',
+                query: 'test',
+              },
+            ],
+          },
+          state: 'result',
+          result: {
+            matches: ['テスト結果です'],
+          },
+        },
+      },
+      {
+        type: 'text',
+        text: '検索が完了しました',
+      },
+    ],
+  },
+  {
+    id: '5',
+    role: 'user',
+    content: '別のツールも使って',
+    createdAt: new Date('2025-05-01T12:04:00.000Z'),
+  },
+  {
+    id: '6',
+    role: 'assistant',
+    content: '複数のツールを使用します',
+    createdAt: new Date('2025-05-01T12:05:00.000Z'),
+    parts: [
+      {
+        type: 'text',
+        text: '複数のツールを使用します',
+      },
+      {
+        type: 'tool-invocation',
+        toolInvocation: {
+          toolName: 'documentQueryTool',
+          toolCallId: 'search-2',
+          args: {
+            documentQueries: [
+              {
+                path: '/test/file2.txt',
+                query: 'test2',
+              },
+            ],
+          },
+          state: 'result',
+          result: {
+            matches: ['テスト結果2です'],
+          },
+        },
+      },
+      {
+        type: 'tool-invocation',
+        toolInvocation: {
+          toolName: 'updateWorkingMemory',
+          toolCallId: 'memory-1',
+          args: {
+            content: 'メモリを更新',
+          },
+          state: 'result',
+          result: true,
+        },
+      },
+    ],
+  },
+];
+
 describe('ChatArea Component', () => {
   // テスト前のセットアップ
   beforeEach(() => {
@@ -112,6 +205,49 @@ describe('ChatArea Component', () => {
     jest.clearAllMocks();
     cleanup();
   });
+
+  // テスト13: AIツール使用時のメッセージ表示が正しく機能すること
+  test('AIツール使用時のメッセージ表示が正しく機能すること', async () => {
+    window.electron.chat.getMessages = jest
+      .fn()
+      .mockResolvedValue(mockToolMessages);
+
+    const user = userEvent.setup();
+    render(<ChatArea selectedRoomId="1" />);
+
+    // メッセージ取得が呼ばれることを確認
+    expect(window.electron.chat.getMessages).toHaveBeenCalledWith('1');
+
+    // メッセージとツール使用の表示を確認
+    await waitFor(() => {
+      expect(screen.getByText('ファイルを検索して')).toBeInTheDocument();
+      expect(screen.getByText('検索を実行します')).toBeInTheDocument();
+      expect(screen.getByText('検索が完了しました')).toBeInTheDocument();
+    });
+
+    // ツール使用のアコーディオンが表示されることを確認
+    const accordions = screen.getAllByRole('button', {
+      name: /ドキュメント検索/,
+    });
+    expect(accordions.length).toEqual(2);
+
+    // 1つ目のドキュメント検索の結果が表示されることを確認
+    await waitFor(() => {
+      expect(screen.getByText(/テスト結果です/)).toBeInTheDocument();
+    });
+
+    // 複数ツールの使用時の表示を確認
+    expect(screen.getByText('別のツールも使って')).toBeInTheDocument();
+    expect(screen.getByText('複数のツールを使用します')).toBeInTheDocument();
+
+    const memoryUpdateText = screen.getByText('メモリ更新中');
+    expect(memoryUpdateText).toBeInTheDocument();
+
+    // 2つ目のドキュメント検索の結果が表示されることを確認
+    await waitFor(() => {
+      expect(screen.getByText(/テスト結果2です/)).toBeInTheDocument();
+    });
+  }, 20000);
 
   // テスト1: チャットエリアの初期表示が正しいこと
   test('チャットエリアの初期表示が正しいこと', async () => {
@@ -294,8 +430,8 @@ describe('ChatArea Component', () => {
     // エラーメッセージが表示されることを確認
     await waitFor(() => {
       const alerts = screen.getAllByRole('alert');
-      const errorAlert = alerts.find(alert =>
-        alert.textContent?.includes('AIエージェントの起動に失敗しました')
+      const errorAlert = alerts.find((alert) =>
+        alert.textContent?.includes('AIエージェントの起動に失敗しました'),
       );
       expect(errorAlert).toBeInTheDocument();
     });
@@ -425,7 +561,9 @@ describe('ChatArea Component', () => {
 
     // 閉じるボタンをクリック
     const alerts = screen.getAllByRole('alert');
-    const targetAlert = alerts.find(alert => alert.textContent?.includes(errorMessage));
+    const targetAlert = alerts.find((alert) =>
+      alert.textContent?.includes(errorMessage),
+    );
     expect(targetAlert).toBeInTheDocument();
 
     const closeButton = within(targetAlert!).getByRole('button');
