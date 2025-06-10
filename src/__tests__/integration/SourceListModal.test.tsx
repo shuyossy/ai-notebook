@@ -132,7 +132,7 @@ describe('SourceListModal Component', () => {
   });
 
   // テスト2: ソースのリロードボタンが機能すること
-  test('ソースのリロードボタンが機能すること', async () => {
+  test('処理中のソースがある場合は、ステータスが処理中と更新されること', async () => {
     render(
       <SourceListModal
         open={defaultProps.open}
@@ -144,12 +144,21 @@ describe('SourceListModal Component', () => {
       />,
     );
 
-    // リロードボタンをクリック
-    const reloadButton = screen.getByText('ソース読み込み');
-    fireEvent.click(reloadButton);
+    // 進める
+    act(() => {
+      jest.advanceTimersByTime(5000);
+    });
 
-    // onReloadSourcesが呼ばれたことを確認
-    expect(defaultProps.onReloadSources).toHaveBeenCalled();
+    // ソースデータが取得されるまで待機
+    await waitFor(() => {
+      expect(window.electron.source.getSources).toHaveBeenCalled();
+    });
+
+    // onStatusUpdateが引数{processing: true, enableCount:1}で呼ばれることを確認
+    expect(defaultProps.onStatusUpdate).toHaveBeenCalledWith({
+      processing: true,
+      enabledCount: 1,
+    });
   });
 
   // テスト3: 処理中はUI要素が無効化されること
@@ -755,7 +764,7 @@ describe('SourceListModal Component', () => {
   });
 
   // テスト6: 全てのソースが完了状態の場合のボタン制御
-  test('全てのソースが完了状態の場合のボタン制御', async () => {
+  test('全てのソースが完了状態の場合にソース読み込みボタンを押下できること', async () => {
     // 全て完了状態のモックデータを作成
     const allCompletedSources: Source[] = [
       {

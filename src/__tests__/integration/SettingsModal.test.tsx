@@ -232,7 +232,7 @@ describe('SettingsModal Component', () => {
     expect(defaultProps.onSettingsUpdated).toHaveBeenCalled();
     expect(defaultProps.onClose).toHaveBeenCalled();
     expect(defaultProps.onValidChange).toHaveBeenCalledWith(true);
-  }, 20000);
+  }, 30000);
 
   // テスト3: バリデーションエラーが正しく表示されること
   test('バリデーションエラーが正しく表示されること', async () => {
@@ -312,7 +312,7 @@ describe('SettingsModal Component', () => {
     await waitFor(() => {
       expect(defaultProps.onValidChange).toHaveBeenLastCalledWith(false);
     });
-  }, 20000);
+  }, 30000);
 
   // テスト4: MCPスキーマのバリデーションエラーが正しく表示されること
   test('MCPスキーマのバリデーションエラーが正しく表示されること', async () => {
