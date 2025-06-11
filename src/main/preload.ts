@@ -167,6 +167,55 @@ const electronHandler = {
       });
     },
   },
+  review: {
+    // レビュー履歴一覧を取得する
+    getHistories: async (): Promise<
+      IpcResponsePayload<typeof IpcChannels.REVIEW_GET_HISTORIES>
+    > => {
+      return ipcRenderer.invoke(IpcChannels.REVIEW_GET_HISTORIES);
+    },
+    // レビュー履歴詳細を取得する
+    getHistoryDetail: async (
+      historyId: number,
+    ): Promise<
+      IpcResponsePayload<typeof IpcChannels.REVIEW_GET_HISTORY_CHECKLIST>
+    > => {
+      return ipcRenderer.invoke(
+        IpcChannels.REVIEW_GET_HISTORY_CHECKLIST,
+        historyId,
+      );
+    },
+    // レビュー履歴を削除する
+    deleteHistory: async (
+      historyId: number,
+    ): Promise<
+      IpcResponsePayload<typeof IpcChannels.REVIEW_DELETE_HISTORY>
+    > => {
+      return ipcRenderer.invoke(IpcChannels.REVIEW_DELETE_HISTORY, historyId);
+    },
+    // チェックリストを抽出する
+    extractChecklist: async (
+      params: IpcRequestPayload<typeof IpcChannels.REVIEW_EXTRACT_CHECKLIST>,
+    ): Promise<
+      IpcResponsePayload<typeof IpcChannels.REVIEW_EXTRACT_CHECKLIST>
+    > => {
+      return ipcRenderer.invoke(IpcChannels.REVIEW_EXTRACT_CHECKLIST, params);
+    },
+    // チェックリストを更新する
+    updateChecklist: async (
+      params: IpcRequestPayload<typeof IpcChannels.REVIEW_UPDATE_CHECKLIST>,
+    ): Promise<
+      IpcResponsePayload<typeof IpcChannels.REVIEW_UPDATE_CHECKLIST>
+    > => {
+      return ipcRenderer.invoke(IpcChannels.REVIEW_UPDATE_CHECKLIST, params);
+    },
+    // ドキュメントレビューを実行する
+    execute: async (
+      params: IpcRequestPayload<typeof IpcChannels.REVIEW_EXECUTE>,
+    ): Promise<IpcResponsePayload<typeof IpcChannels.REVIEW_EXECUTE>> => {
+      return ipcRenderer.invoke(IpcChannels.REVIEW_EXECUTE, params);
+    },
+  },
   ipcRenderer: {
     sendMessage(channel: Channels, ...args: unknown[]) {
       ipcRenderer.send(channel, ...args);

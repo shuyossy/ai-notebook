@@ -3,26 +3,20 @@ import { Step, Workflow } from '@mastra/core/workflows';
 import { z } from 'zod';
 import { Agent } from '@mastra/core/agent';
 import { eq } from 'drizzle-orm';
-import getDb from '../../db';
-import { sources, topics as dbTopics } from '../../db/schema';
+import getDb from '../../../db';
+import { sources, topics as dbTopics } from '../../../db/schema';
 import {
   SOURCE_ANALYSIS_SYSTEM_PROMPT,
   EXTRACT_TOPIC_AND_SUMMARY_SYSTEM_PROMPT,
-} from '../agents/prompts';
-import openAICompatibleModel from '../agents/model/openAICompatible';
+} from '../../agents/prompts';
+import openAICompatibleModel from '../../agents/model/openAICompatible';
+import { stepStatus } from '../types';
+import { baseStepOutputSchema } from '../schema';
 
 // ファイルパスを入力とするスキーマ
 const triggerSchema = z.object({
   filePath: z.string().describe('登録するソースのファイルパス'),
   content: z.string().describe('登録するソースの内容'),
-});
-
-type stepStatus = 'success' | 'failed';
-
-// 各ステップの共通出力スキーマ部分
-const baseStepOutputSchema = z.object({
-  status: z.enum(['success', 'failed']),
-  errorMessage: z.string().optional(),
 });
 
 // ソース分析と登録のステップ

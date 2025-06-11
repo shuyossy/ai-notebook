@@ -50,3 +50,22 @@ export type AgentBootStatus = {
 
 // レビュー評価の型定義
 export type ReviewEvaluation = 'A' | 'B' | 'C';
+
+// 最終的に画面に表示するチェックリストの型
+export type ReviewChecklistResult = {
+  id: number; // チェックリストのID
+  content: string;
+  sourceEvaluations?: {
+    sourceId: number;
+    sourceFileName: string;
+    evaluation?: ReviewEvaluation;
+    comment?: string;
+  }[];
+};
+
+// チェックリストの編集内容を表す型
+export type ReviewChecklistEdit = {
+  id?: number; // 新規作成時は未指定
+  content?: string; // 削除の場合は指定不要
+  delete?: boolean; // trueの場合は削除対象
+};

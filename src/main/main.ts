@@ -22,7 +22,7 @@ import {
   WritableStream,
   TransformStream,
 } from 'node:stream/web';
-import { sourceRegistrationWorkflow } from '../mastra/workflows/sourceRegistration';
+import { sourceRegistrationWorkflow } from '../mastra/workflows/sourceRegistration/sourceRegistration';
 import { type Source } from '../db/schema';
 import {
   IpcChannels,
@@ -33,7 +33,7 @@ import { AgentBootStatus, AgentBootMessage, AgentToolStatus } from './types';
 import { getOrchestratorSystemPrompt } from '../mastra/agents/prompts';
 import { sources } from '../db/schema';
 import getDb from '../db';
-import SourceRegistrationManager from '../mastra/workflows/sourceRegistrationManager';
+import SourceRegistrationManager from '../mastra/workflows/sourceRegistration/sourceRegistrationManager';
 import { getOrchestrator } from '../mastra/agents/orchestrator';
 import MenuBuilder from './menu';
 import { resolveHtmlPath } from './utils/util';
