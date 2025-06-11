@@ -7,6 +7,7 @@ import {
   IpcEventPayload,
   IpcRequestPayload,
 } from './types/ipc';
+import { on } from 'node:events';
 
 export type Channels = (typeof IpcChannels)[keyof typeof IpcChannels];
 
@@ -215,6 +216,52 @@ const electronHandler = {
     ): Promise<IpcResponsePayload<typeof IpcChannels.REVIEW_EXECUTE>> => {
       return ipcRenderer.invoke(IpcChannels.REVIEW_EXECUTE, params);
     },
+    // チェックリスト抽出完了イベントを購読する
+    onExtractPartFinished: (
+      callback: (
+        payload: IpcEventPayload<typeof IpcChannels.REVIEW_EXTRACT_CHECKLIST_PART_FINISHED>,
+      ) => void,
+    ) => {
+      const subscription = (
+        _event: IpcRendererEvent,
+        payload: IpcEventPayload<typeof IpcChannels.REVIEW_EXTRACT_CHECKLIST_PART_FINISHED>,
+      ) => {
+        callback(payload);
+      };
+      ipcRenderer.on(
+        IpcChannels.REVIEW_EXTRACT_CHECKLIST_PART_FINISHED,
+        subscription,
+      );
+      return () => {
+        ipcRenderer.removeListener(
+          IpcChannels.REVIEW_EXTRACT_CHECKLIST_PART_FINISHED,
+          subscription,
+        );
+      };
+    },
+    // ドキュメントレビュー実行完了イベントを購読する
+    onExecutePartFinished: (
+      callback: (
+        payload: IpcEventPayload<typeof IpcChannels.REVIEW_EXECUTE_PART_FINISHED>,
+      ) => void,
+    ) => {
+      const subscription = (
+        _event: IpcRendererEvent,
+        payload: IpcEventPayload<typeof IpcChannels.REVIEW_EXECUTE_PART_FINISHED>,
+      ) => {
+        callback(payload);
+      }
+      ipcRenderer.on(
+        IpcChannels.REVIEW_EXECUTE_PART_FINISHED,
+        subscription,
+      );
+      return () => {
+        ipcRenderer.removeListener(
+          IpcChannels.REVIEW_EXECUTE_PART_FINISHED,
+          subscription,
+        );
+      }
+    }
   },
   ipcRenderer: {
     sendMessage(channel: Channels, ...args: unknown[]) {
