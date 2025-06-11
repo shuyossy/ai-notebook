@@ -46,11 +46,11 @@ export const IpcChannels = {
   REVIEW_GET_HISTORIES: 'review-get-histories', // ドキュメント履歴切り替え時やチェックリスト抽出・ドキュメントレビュー時のポーリング処理にて呼び出される
   REVIEW_GET_HISTORY_CHECKLIST: 'review-get-history-detail',
   REVIEW_DELETE_HISTORY: 'review-delete-history',
-  REVIEW_EXTRACT_CHECKLIST: 'review-extract-checklist',
-  REVIEW_EXTRACT_CHECKLIST_PART_FINISHED: 'review-extract-checklist-part-finished', // チェックリスト抽出の一部が完了した際に発火され、最終的に画面上の一部のチェックリストが更新される
+  REVIEW_EXTRACT_CHECKLIST_CALL: 'review-extract-checklist-call', // チェックリスト抽出処理を開始する
+  REVIEW_EXTRACT_CHECKLIST_FINISHED: 'review-extract-checklist-finished', // チェックリスト抽出が完了した際に発火され、画面上のチェックリスト取得のポーリング処理を終了する
   REVIEW_UPDATE_CHECKLIST: 'review-update-checklist',
-  REVIEW_EXECUTE: 'review-execute',
-  REVIEW_EXECUTE_PART_FINISHED: 'review-execute-part-finished', // レビュー実行の一部が完了した際に発火され、最終的に画面上の一部のレビュー結果が更新される
+  REVIEW_EXECUTE_CALL: 'review-execute', // ドキュメントレビューを開始する
+  REVIEW_EXECUTE_FINISHED: 'review-execute-finished', // レビュー実行が完了した際に発火され、画面上のレビュー結果取得のポーリング処理を終了する
 } as const;
 
 export type IpcChannel = (typeof IpcChannels)[keyof typeof IpcChannels];
@@ -96,7 +96,7 @@ export type IpcRequestPayloadMap = {
   [IpcChannels.REVIEW_GET_HISTORIES]: undefined;
   [IpcChannels.REVIEW_GET_HISTORY_CHECKLIST]: number; // review history id
   [IpcChannels.REVIEW_DELETE_HISTORY]: number; // review history id
-  [IpcChannels.REVIEW_EXTRACT_CHECKLIST]: {
+  [IpcChannels.REVIEW_EXTRACT_CHECKLIST_CALL]: {
     reviewHistoryId?: number; // 指定がない場合は新規作成
     sourceIds: number[];
   };
@@ -104,7 +104,7 @@ export type IpcRequestPayloadMap = {
     reviewHistoryId: number;
     checklists: ReviewChecklistEdit[];
   };
-  [IpcChannels.REVIEW_EXECUTE]: {
+  [IpcChannels.REVIEW_EXECUTE_CALL]: {
     reviewHistoryId: number;
     sourceIds: number[];
   };
@@ -153,12 +153,12 @@ export type IpcResponsePayloadMap = {
     error?: string;
   };
   [IpcChannels.REVIEW_DELETE_HISTORY]: { success: boolean; error?: string };
-  [IpcChannels.REVIEW_EXTRACT_CHECKLIST]: { success: boolean; error?: string };
+  [IpcChannels.REVIEW_EXTRACT_CHECKLIST_CALL]: { success: boolean; error?: string };
   [IpcChannels.REVIEW_UPDATE_CHECKLIST]: {
     success: boolean;
     error?: string;
   };
-  [IpcChannels.REVIEW_EXECUTE]: {
+  [IpcChannels.REVIEW_EXECUTE_CALL]: {
     success: boolean;
     error?: string;
   };
@@ -168,15 +168,13 @@ export type IpcEventPayloadMap = {
   [IpcChannels.CHAT_STREAM]: any; // AI SDKが定義するDataStreamが入る想定(型がexportされていないためany型)
   [IpcChannels.CHAT_COMPLETE]: unknown;
   [IpcChannels.CHAT_ERROR]: { message: string };
-  [IpcChannels.REVIEW_EXTRACT_CHECKLIST_PART_FINISHED]: {
-    reviewHistoryId: number;
-    checklists?: ReviewChecklist[];
-    allFinished: boolean; // 全てのチェックリストが抽出されたかどうか
+  [IpcChannels.REVIEW_EXTRACT_CHECKLIST_FINISHED]: {
+    success: boolean;
+    error?: string;
   }
-  [IpcChannels.REVIEW_EXECUTE_PART_FINISHED]: {
-    reviewHistoryId: number;
-    checklistResults?: ReviewChecklistResult[];
-    allFinished: boolean; // 全てのチェックリストがレビューされたかどうか
+  [IpcChannels.REVIEW_EXECUTE_FINISHED]: {
+    success: boolean;
+    error?: string;
   };
 };
 
