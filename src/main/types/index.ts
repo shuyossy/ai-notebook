@@ -47,3 +47,6 @@ export type AgentBootStatus = {
   messages?: AgentBootMessage[];
   tools?: AgentToolStatus;
 };
+
+// レビュー評価の型定義
+export type ReviewEvaluation = 'A' | 'B' | 'C';

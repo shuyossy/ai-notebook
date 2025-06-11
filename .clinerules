@@ -8,6 +8,7 @@
 - Mastraについては実装する際はまずMCPでドキュメントや実装例を参考にしてから正確な情報やベストプラクティスに基づいてコーディングすること
 - プロジェクト全体を把握して、全ての実装が必要箇所を正しく洗い出してから実装すること
 - 既存資源（型情報やコンポーネントなど）を積極的に活用して効率的に実装すること
+  - 既存のコードの修正は真に必要な場合に限ること
 - UIは実際に市場に投入できるくらいレベルの高いUIにすること
 - TypeScriptやzodを用いた型安全なコードを意識すること
 - electronについてはelectron-react-boilerplateのテンプレートを適用済み
@@ -20,7 +21,26 @@
     - ライブラリを追加する際は安定稼働バージョンを採用すること
 - eslintについては単純なフォーマットエラーの場合は対応する必要はない
 
+# 代表的なフォルダ説明（いくつかファイルもピックアップして説明）
+- `src/db`：データベース関連のコード
+  - `schema.ts`：データベースのスキーマ定義
+- `src/main/types`：アプリで利用する型・zodスキーマの定義
+  - `index.ts`：アプリ全体で利用する型定義
+  - `ipc.ts`：Electron IPC通信で利用する型定義
+- `src/main`: Electronのメインプロセス関連のコード
+  - `src/main.ts`: Electronのメインプロセスのエントリポイント、IPC通信のハンドラの具体的な処理の定義やアプリケーションの初期化処理などを含む
+  - `src/main/preload`: ElectronのPreloadスクリプト、レンダラープロセスに公開するハンドラを定義
+  - `src/main/store.ts`: electron-storeを利用してアプリケーションの設定や状態の保存・取得を行う、ここではstoreの初期化や設定の定義を行う
+  - `src/main/utils`: メインプロセスで利用するユーティリティ関数
+    - `src/main/utils/fileExtractor.ts`: 登録されたソースのテキスト情報を抽出する関数
+- `src/renderer/components`：Reactコンポーネント
+- `src/mastra`: Mastraを利用したAI関連のコード
+  - `src/mastra/agents/prompt.ts`: Mastraのエージェントのプロンプト定義を一箇所に集約（エージェントやワークフロー内で利用するプロンプトを定義）
+  - `src/mastra/agents/orchestrator.ts`: 汎用チャット機能で利用するAIエージェントの定義（`src/mastra/config`や`src/mastra/model`を呼び出してエージェントを作成する）
+  - `src/mastra/workflows`: Mastraのワークフロー定義
+
 # テスト作成時の注意
+- 明確な指示がある場合以外はテストコードを作成しないこと
 - 外部ライブラリとの結合をテストする場合はできるだけ実際のライブラリを使用すること
   - 実際のライブラリの利用が難しい場合はモックを利用すること
   - Electron IPCはモックを利用すること
