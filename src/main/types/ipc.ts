@@ -43,7 +43,7 @@ export const IpcChannels = {
   FS_CHECK_PATH_EXISTS: 'fs-check-path-exists',
 
   // ドキュメントレビュー関連
-  REVIEW_GET_HISTORIES: 'review-get-histories',
+  REVIEW_GET_HISTORIES: 'review-get-histories', // ドキュメント履歴切り替え時やチェックリスト抽出・ドキュメントレビュー時のポーリング処理にて呼び出される
   REVIEW_GET_HISTORY_CHECKLIST: 'review-get-history-detail',
   REVIEW_DELETE_HISTORY: 'review-delete-history',
   REVIEW_EXTRACT_CHECKLIST: 'review-extract-checklist',
@@ -155,12 +155,10 @@ export type IpcResponsePayloadMap = {
   [IpcChannels.REVIEW_UPDATE_CHECKLIST]: {
     success: boolean;
     error?: string;
-    checklistResults?: ReviewChecklistResult[];
   };
   [IpcChannels.REVIEW_EXECUTE]: {
     success: boolean;
     error?: string;
-    checklistResults?: ReviewChecklistResult[];
   };
 };
 
