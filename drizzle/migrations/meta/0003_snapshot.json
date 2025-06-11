@@ -1,9 +1,98 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "d037530f-f164-498f-b89d-eead439dbc1d",
+  "id": "b6fbfd6c-9d69-40a7-81e1-08fb2ae0b551",
   "prevId": "e95a2e10-172d-46b3-9273-9b703dbab422",
   "tables": {
+    "review_checklist_sources": {
+      "name": "review_checklist_sources",
+      "columns": {
+        "review_checklist_id": {
+          "name": "review_checklist_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "source_id": {
+          "name": "source_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "evaluation": {
+          "name": "evaluation",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "comment": {
+          "name": "comment",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(current_timestamp)"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(current_timestamp)"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "review_checklist_sources_review_checklist_id_review_checklists_id_fk": {
+          "name": "review_checklist_sources_review_checklist_id_review_checklists_id_fk",
+          "tableFrom": "review_checklist_sources",
+          "tableTo": "review_checklists",
+          "columnsFrom": [
+            "review_checklist_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "review_checklist_sources_source_id_sources_id_fk": {
+          "name": "review_checklist_sources_source_id_sources_id_fk",
+          "tableFrom": "review_checklist_sources",
+          "tableTo": "sources",
+          "columnsFrom": [
+            "source_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "review_checklist_sources_review_checklist_id_source_id_pk": {
+          "columns": [
+            "review_checklist_id",
+            "source_id"
+          ],
+          "name": "review_checklist_sources_review_checklist_id_source_id_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
     "review_checklists": {
       "name": "review_checklists",
       "columns": {
@@ -26,20 +115,6 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false
-        },
-        "evaluation": {
-          "name": "evaluation",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "comment": {
-          "name": "comment",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
           "autoincrement": false
         },
         "created_at": {
@@ -116,73 +191,6 @@
       "indexes": {},
       "foreignKeys": {},
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "review_history_sources": {
-      "name": "review_history_sources",
-      "columns": {
-        "review_history_id": {
-          "name": "review_history_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "source_id": {
-          "name": "source_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "(current_timestamp)"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "review_history_sources_review_history_id_review_histories_id_fk": {
-          "name": "review_history_sources_review_history_id_review_histories_id_fk",
-          "tableFrom": "review_history_sources",
-          "tableTo": "review_histories",
-          "columnsFrom": [
-            "review_history_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "review_history_sources_source_id_sources_id_fk": {
-          "name": "review_history_sources_source_id_sources_id_fk",
-          "tableFrom": "review_history_sources",
-          "tableTo": "sources",
-          "columnsFrom": [
-            "source_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "review_history_sources_review_history_id_source_id_pk": {
-          "columns": [
-            "review_history_id",
-            "source_id"
-          ],
-          "name": "review_history_sources_review_history_id_source_id_pk"
-        }
-      },
       "uniqueConstraints": {},
       "checkConstraints": {}
     },

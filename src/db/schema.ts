@@ -72,8 +72,6 @@ export const reviewChecklists = sqliteTable('review_checklists', {
     .notNull()
     .references(() => reviewHistories.id, { onDelete: 'cascade' }),
   content: text('content').notNull(), // チェックリスト項目
-  evaluation: text('evaluation'), // A, B, C評価
-  comment: text('comment'), // レビューコメント
   createdAt: text('created_at')
     .notNull()
     .default(sql`(current_timestamp)`),
@@ -83,21 +81,27 @@ export const reviewChecklists = sqliteTable('review_checklists', {
     .$onUpdate(() => sql`(current_timestamp)`),
 });
 
-// レビュー履歴とソースの中間テーブル
-export const reviewHistorySources = sqliteTable(
-  'review_history_sources',
+// レビューチェックリストとソースの中間テーブル
+export const reviewChecklistSources = sqliteTable(
+  'review_checklist_sources',
   {
-    reviewHistoryId: integer('review_history_id')
+    reviewChecklistId: integer('review_checklist_id')
       .notNull()
-      .references(() => reviewHistories.id, { onDelete: 'cascade' }),
+      .references(() => reviewChecklists.id, { onDelete: 'cascade' }),
     sourceId: integer('source_id')
       .notNull()
       .references(() => sources.id, { onDelete: 'cascade' }),
+    evaluation: text('evaluation'), // A, B, C評価
+    comment: text('comment'), // レビューコメント
     createdAt: text('created_at')
       .notNull()
       .default(sql`(current_timestamp)`),
+    updatedAt: text('updated_at')
+      .notNull()
+      .default(sql`(current_timestamp)`)
+      .$onUpdate(() => sql`(current_timestamp)`),
   },
-  (t) => [primaryKey({ columns: [t.reviewHistoryId, t.sourceId] })],
+  (t) => [primaryKey({ columns: [t.reviewChecklistId, t.sourceId] })],
 );
 
 // 型定義
@@ -109,6 +113,6 @@ export type ReviewHistory = typeof reviewHistories.$inferSelect;
 export type InsertReviewHistory = typeof reviewHistories.$inferInsert;
 export type ReviewChecklist = typeof reviewChecklists.$inferSelect;
 export type InsertReviewChecklist = typeof reviewChecklists.$inferInsert;
-export type ReviewHistorySource = typeof reviewHistorySources.$inferSelect;
-export type InsertReviewHistorySource =
-  typeof reviewHistorySources.$inferInsert;
+export type ReviewChecklistSource = typeof reviewChecklistSources.$inferSelect;
+export type InsertReviewChecklistSource =
+  typeof reviewChecklistSources.$inferInsert;
