@@ -23,13 +23,19 @@ import {
   TransformStream,
 } from 'node:stream/web';
 import { sourceRegistrationWorkflow } from '../mastra/workflows/sourceRegistration/sourceRegistration';
-import { type Source } from '../db/schema';
+import { ReviewHistory, type Source } from '../db/schema';
 import {
   IpcChannels,
   IpcResponsePayloadMap,
   IpcRequestPayloadMap,
+  IpcEventPayloadMap,
 } from './types/ipc';
-import { AgentBootStatus, AgentBootMessage, AgentToolStatus } from './types';
+import {
+  AgentBootStatus,
+  AgentBootMessage,
+  AgentToolStatus,
+  ReviewChecklistResult,
+} from './types';
 import { getOrchestratorSystemPrompt } from '../mastra/agents/prompts';
 import { sources } from '../db/schema';
 import getDb from '../db';
@@ -39,6 +45,7 @@ import MenuBuilder from './menu';
 import { resolveHtmlPath } from './utils/util';
 import { initStore, getStore } from './store';
 import { RedmineBaseInfo } from '../mastra/tools/redmine';
+import { mock } from 'node:test';
 
 class AppUpdater {
   constructor() {
@@ -689,6 +696,296 @@ const setupSourceHandlers = () => {
     },
   );
 };
+
+// ドキュメントレビュー用モックデータ
+const mockReviewHistories = [
+  {
+    id: '1',
+    title: 'レビュー履歴1',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: '2',
+    title: 'レビュー履歴2',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+] as ReviewHistory[];
+
+let mockReviewChecklist = [
+  {
+    id: 1,
+    content: 'チェックリスト項目1(レビュー済み)',
+    sourceEvaluations: [
+      {
+        sourceId: 1,
+        sourceFileName: 'source1.md',
+        evaluation: 'A',
+        comment: '良い',
+      },
+      {
+        sourceId: 2,
+        sourceFileName: 'source2.md',
+        evaluation: 'B',
+        comment: '改善点あり',
+      },
+    ],
+  },
+  {
+    id: 2,
+    content: 'チェックリスト項目2(レビュー済み)',
+    sourceEvaluations: [
+      {
+        sourceId: 1,
+        sourceFileName: 'source1.md',
+        evaluation: 'C',
+        comment: '要改善',
+      },
+      {
+        sourceId: 3,
+        sourceFileName: 'source3.md',
+        evaluation: 'A',
+        comment: '素晴らしい',
+      },
+    ],
+  },
+  {
+    id: 3,
+    content: 'チェックリスト項目3(レビュー未完了)',
+  },
+  {
+    id: 4,
+    content: 'チェックリスト項目4(レビュー未完了)',
+  },
+] as ReviewChecklistResult[];
+
+/**
+ * ドキュメントレビューに関するIPCハンドラ
+ * モック実装版
+ */
+// レビュー履歴の取得ハンドラ
+ipcMain.handle(
+  IpcChannels.REVIEW_GET_HISTORIES,
+  async (): Promise<
+    IpcResponsePayloadMap[typeof IpcChannels.REVIEW_GET_HISTORIES]
+  > => {
+    try {
+      // モックデータを返す
+      return {
+        success: true,
+        histories: mockReviewHistories,
+      };
+    } catch (error) {
+      console.error('レビュー履歴の取得中にエラーが発生:', error);
+      return {
+        success: false,
+        error: (error as Error).message,
+      };
+    }
+  },
+);
+
+// チェックリストの取得ハンドラ
+ipcMain.handle(
+  IpcChannels.REVIEW_GET_HISTORY_CHECKLIST,
+  async (
+    _,
+    historyId: string,
+  ): Promise<
+    IpcResponsePayloadMap[typeof IpcChannels.REVIEW_GET_HISTORY_CHECKLIST]
+  > => {
+    try {
+      // モックデータを返す
+      const checklist = mockReviewChecklist;
+      if (checklist.length === 0) {
+        return {
+          success: false,
+          error: `レビュー履歴ID ${historyId} に対応するチェックリストが見つかりません`,
+        };
+      }
+      return {
+        success: true,
+        checklistResults: checklist,
+      };
+    } catch (error) {
+      console.error('チェックリストの取得中にエラーが発生:', error);
+      return {
+        success: false,
+        error: (error as Error).message,
+      };
+    }
+  },
+);
+
+// レビュー履歴の削除ハンドラ
+ipcMain.handle(
+  IpcChannels.REVIEW_DELETE_HISTORY,
+  async (
+    _,
+    historyId: string,
+  ): Promise<
+    IpcResponsePayloadMap[typeof IpcChannels.REVIEW_DELETE_HISTORY]
+  > => {
+    try {
+      // モックデータから指定されたIDの履歴を削除
+      const index = mockReviewHistories.findIndex(
+        (history) => history.id === historyId,
+      );
+      if (index === -1) {
+        return {
+          success: false,
+          error: `レビュー履歴ID ${historyId} が見つかりません`,
+        };
+      }
+      mockReviewHistories.splice(index, 1);
+      return { success: true };
+    } catch (error) {
+      console.error('レビュー履歴の削除中にエラーが発生:', error);
+      return {
+        success: false,
+        error: (error as Error).message,
+      };
+    }
+  },
+);
+
+// チェックリスト抽出ハンドラ
+ipcMain.handle(
+  IpcChannels.REVIEW_EXTRACT_CHECKLIST_CALL,
+  async (
+    event,
+    {
+      reviewHistoryId,
+      sourceIds,
+    }: IpcRequestPayloadMap[typeof IpcChannels.REVIEW_EXTRACT_CHECKLIST_CALL],
+  ): Promise<
+    IpcResponsePayloadMap[typeof IpcChannels.REVIEW_EXTRACT_CHECKLIST_CALL]
+  > => {
+    // 2秒後に完了イベントを通知
+    setTimeout(() => {
+      event.sender.send(IpcChannels.REVIEW_EXTRACT_CHECKLIST_FINISHED, {
+        success: true,
+      } as IpcEventPayloadMap[typeof IpcChannels.REVIEW_EXTRACT_CHECKLIST_FINISHED]);
+    }, 2000);
+    // チェックリスト抽出処理のモック実装
+    const newChecklist = mockReviewChecklist.map((item) => ({
+      ...item,
+      content: `チェックリスト更新後-${item.id}`,
+      sourceEvaluations: undefined,
+    }));
+    mockReviewChecklist = newChecklist;
+
+    // レビュー履歴作成のモック実装
+    mockReviewHistories.push({
+      id: (mockReviewHistories.length + 1).toString(),
+      title: `レビュー履歴${mockReviewHistories.length + 1}`,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+
+    return new Promise((resolve) => {
+      // モック実装では、即座にチェックリストを返す
+      setTimeout(() => {
+        resolve({
+          success: true,
+        });
+      }, 1000); // 1秒後に成功を返す
+    });
+  },
+);
+
+// チェックリストの更新ハンドラ
+ipcMain.handle(
+  IpcChannels.REVIEW_UPDATE_CHECKLIST,
+  async (
+    _,
+    {
+      reviewHistoryId,
+      checklistEdits,
+    }: IpcRequestPayloadMap[typeof IpcChannels.REVIEW_UPDATE_CHECKLIST],
+  ): Promise<
+    IpcResponsePayloadMap[typeof IpcChannels.REVIEW_UPDATE_CHECKLIST]
+  > => {
+    try {
+      // モックデータのチェックリストを更新
+      const checklist = mockReviewChecklist;
+      checklistEdits.forEach((edit) => {
+        // 新規作成の場合
+        if (edit.id === null) {
+          const newId = checklist.length + 1; // モックでは単純にIDを増やす
+          checklist.push({
+            id: newId,
+            content: edit.content || '',
+          });
+          // 削除の場合
+        } else if (edit.delete) {
+          const index = checklist.findIndex((item) => item.id === edit.id);
+          if (index !== -1) {
+            checklist.splice(index, 1);
+          }
+          // 編集の場合
+        } else {
+          const index = checklist.findIndex((item) => item.id === edit.id);
+          if (index !== -1) {
+            checklist[index].content = edit.content || checklist[index].content;
+            checklist[index].sourceEvaluations =
+              checklist[index].sourceEvaluations?.map((s) => {
+                return { ...s, evaluation: undefined };
+              }) || undefined;
+          }
+        }
+      });
+      return { success: true };
+    } catch (error) {
+      console.error('チェックリストの更新中にエラーが発生:', error);
+      return {
+        success: false,
+        error: (error as Error).message,
+      };
+    }
+  },
+);
+
+// レビュー実施ハンドラ
+ipcMain.handle(
+  IpcChannels.REVIEW_EXECUTE_CALL,
+  async (
+    event,
+    {
+      reviewHistoryId,
+      sourceIds,
+    }: IpcRequestPayloadMap[typeof IpcChannels.REVIEW_EXECUTE_CALL],
+  ): Promise<IpcResponsePayloadMap[typeof IpcChannels.REVIEW_EXECUTE_CALL]> => {
+    // 2秒後に完了イベントを通知
+    setTimeout(() => {
+      event.sender.send(IpcChannels.REVIEW_EXECUTE_FINISHED, {
+        success: true,
+      } as IpcEventPayloadMap[typeof IpcChannels.REVIEW_EXECUTE_FINISHED]);
+    }, 2000);
+    // モック実装では、モックチェック結果に指定されたソースを追加する（ファイル名は適当）
+    try {
+      const newSourceEvaluations = sourceIds.map((sourceId, index) => ({
+        sourceId,
+        sourceFileName: `source${mockReviewChecklist[0].sourceEvaluations!.length + 1}.md`, // 適当なファイル名を設定
+        evaluation: 'A', // 仮の評価
+        comment: 'レビュー済み', // 仮のコメント
+      })) as ReviewChecklistResult['sourceEvaluations'];
+
+      mockReviewChecklist.forEach((item) => {
+        item.sourceEvaluations?.push(...newSourceEvaluations!);
+      });
+
+      return { success: true };
+    } catch (error) {
+      console.error('レビュー実施中にエラーが発生:', error);
+      return {
+        success: false,
+        error: (error as Error).message,
+      };
+    }
+  },
+);
 
 // ソース登録処理の実行
 const initializeSourceRegistration = async () => {

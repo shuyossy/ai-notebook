@@ -49,7 +49,8 @@ function SourceListModal({
       newCheckedSources[source.id] = checkedSources[source.id] || false;
     });
     setCheckedSources(newCheckedSources);
-  }, [checkedSources, sources]);
+    // eslint-disable-next-line
+  }, [sources]);
 
   // modalMode, selectedReviewHistoryIdが変わったときにチェック状態を初期化する
   // checkedSourceを全てfalseにする
@@ -230,7 +231,11 @@ function SourceListModal({
             <Button
               variant="contained"
               onClick={handleClick}
-              disabled={processing || disabled}
+              disabled={
+                processing ||
+                disabled ||
+                Object.keys(checkedSources).length === 0
+              }
               startIcon={<SyncIcon />}
             >
               {processing ? 'ドキュメント初期化処理中...' : getButtonText()}

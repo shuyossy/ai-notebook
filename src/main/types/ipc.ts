@@ -102,7 +102,7 @@ export type IpcRequestPayloadMap = {
   };
   [IpcChannels.REVIEW_UPDATE_CHECKLIST]: {
     reviewHistoryId: string;
-    checklists: ReviewChecklistEdit[];
+    checklistEdits: ReviewChecklistEdit[];
   };
   [IpcChannels.REVIEW_EXECUTE_CALL]: {
     reviewHistoryId: string;

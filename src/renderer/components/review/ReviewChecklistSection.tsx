@@ -11,9 +11,7 @@ import {
   Button,
   TextField,
   Stack,
-  Box,
   Chip,
-  CircularProgress,
   Typography,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
@@ -220,19 +218,6 @@ const ReviewChecklistSection: React.FC<ReviewChecklistSectionProps> = ({
       </TableCell>
     </TableRow>
   );
-
-  if (isLoading) {
-    return (
-      <Box
-        display="flex"
-        justifyContent="center"
-        alignItems="center"
-        minHeight={200}
-      >
-        <CircularProgress />
-      </Box>
-    );
-  }
 
   return (
     <>

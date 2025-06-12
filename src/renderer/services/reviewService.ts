@@ -1,4 +1,5 @@
 import { ReviewHistory } from '../../db/schema';
+import { IpcChannels, IpcEventPayload } from '../../main/types/ipc';
 
 // IPC通信を使用してメインプロセスとやり取りするレビュー機能用のサービス
 export const reviewService = {
@@ -84,7 +85,7 @@ export const reviewService = {
   },
 
   subscribeChecklistExtractionFinished: (
-    callback: (payload: { success: boolean; error?: string }) => void,
+    callback: (payload: IpcEventPayload<typeof IpcChannels.REVIEW_EXTRACT_CHECKLIST_FINISHED>) => void,
   ) => {
     return window.electron.review.onExtractChecklistFinished((payload) => {
       callback(payload);
@@ -92,7 +93,7 @@ export const reviewService = {
   },
 
   subscribeReviewExecutionFinished: (
-    callback: (payload: { success: boolean; error?: string }) => void,
+    callback: (payload: IpcEventPayload<typeof IpcChannels.REVIEW_EXECUTE_FINISHED>) => void,
   ) => {
     return window.electron.review.onExecuteReviewFinished((payload) => {
       callback(payload);

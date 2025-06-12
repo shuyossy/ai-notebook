@@ -38,11 +38,6 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
     setAdditionalAlerts((prev) => prev.filter((alert) => alert.id !== id));
   };
 
-  // ポーリング用のタイマー
-  const [pollTimer, setPollTimer] = useState<ReturnType<
-    typeof setInterval
-  > | null>(null);
-
   // チェックリスト取得
   const fetchChecklistResults = useCallback(async () => {
     if (!selectedReviewHistoryId) return;
@@ -73,24 +68,12 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
 
     // ポーリングの開始
     const timer = setInterval(fetchChecklistResults, 5000);
-    setPollTimer(timer);
 
     // eslint-disable-next-line
     return () => {
-      if (pollTimer) {
-        clearInterval(pollTimer);
-      }
+      clearInterval(timer);
     };
-  }, [selectedReviewHistoryId, fetchChecklistResults, pollTimer]);
-
-  // アンマウント時にポーリングを停止
-  useEffect(() => {
-    return () => {
-      if (pollTimer) {
-        clearInterval(pollTimer);
-      }
-    };
-  }, [pollTimer]);
+  }, [selectedReviewHistoryId, fetchChecklistResults]);
 
   // チェックリストの抽出処理
   const handleExtractChecklist = useCallback(
@@ -229,7 +212,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
       setIsSaving(true);
       const result = await window.electron.review.updateChecklist({
         reviewHistoryId: selectedReviewHistoryId,
-        checklists,
+        checklistEdits: checklists,
       });
 
       if (result.success) {
