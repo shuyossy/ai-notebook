@@ -5,7 +5,7 @@ import type {
   ReviewChecklistResult,
   ReviewChecklistEdit,
 } from '.';
-import type { Source, ReviewHistory, ReviewChecklist } from '../../db/schema';
+import type { Source, ReviewHistory } from '../../db/schema';
 
 /**
  * IPC通信で使用するチャネル名の定義
@@ -47,10 +47,10 @@ export const IpcChannels = {
   REVIEW_GET_HISTORY_CHECKLIST: 'review-get-history-detail',
   REVIEW_DELETE_HISTORY: 'review-delete-history',
   REVIEW_EXTRACT_CHECKLIST_CALL: 'review-extract-checklist-call', // チェックリスト抽出処理を開始する
-  REVIEW_EXTRACT_CHECKLIST_FINISHED: 'review-extract-checklist-finished', // チェックリスト抽出が完了した際に発火され、画面上のチェックリスト取得のポーリング処理を終了する
+  REVIEW_EXTRACT_CHECKLIST_FINISHED: 'review-extract-checklist-finished', // チェックリスト抽出が完了した際の通知
   REVIEW_UPDATE_CHECKLIST: 'review-update-checklist',
   REVIEW_EXECUTE_CALL: 'review-execute', // ドキュメントレビューを開始する
-  REVIEW_EXECUTE_FINISHED: 'review-execute-finished', // レビュー実行が完了した際に発火され、画面上のレビュー結果取得のポーリング処理を終了する
+  REVIEW_EXECUTE_FINISHED: 'review-execute-finished', // レビュー実行が完了した際の通知
 } as const;
 
 export type IpcChannel = (typeof IpcChannels)[keyof typeof IpcChannels];
@@ -94,18 +94,18 @@ export type IpcRequestPayloadMap = {
 
   // ドキュメントレビュー関連
   [IpcChannels.REVIEW_GET_HISTORIES]: undefined;
-  [IpcChannels.REVIEW_GET_HISTORY_CHECKLIST]: number; // review history id
-  [IpcChannels.REVIEW_DELETE_HISTORY]: number; // review history id
+  [IpcChannels.REVIEW_GET_HISTORY_CHECKLIST]: string; // review history id
+  [IpcChannels.REVIEW_DELETE_HISTORY]: string; // review history id
   [IpcChannels.REVIEW_EXTRACT_CHECKLIST_CALL]: {
-    reviewHistoryId?: number; // 指定がない場合は新規作成
+    reviewHistoryId?: string; // 指定がない場合は新規作成
     sourceIds: number[];
   };
   [IpcChannels.REVIEW_UPDATE_CHECKLIST]: {
-    reviewHistoryId: number;
+    reviewHistoryId: string;
     checklists: ReviewChecklistEdit[];
   };
   [IpcChannels.REVIEW_EXECUTE_CALL]: {
-    reviewHistoryId: number;
+    reviewHistoryId: string;
     sourceIds: number[];
   };
 };
@@ -153,7 +153,10 @@ export type IpcResponsePayloadMap = {
     error?: string;
   };
   [IpcChannels.REVIEW_DELETE_HISTORY]: { success: boolean; error?: string };
-  [IpcChannels.REVIEW_EXTRACT_CHECKLIST_CALL]: { success: boolean; error?: string };
+  [IpcChannels.REVIEW_EXTRACT_CHECKLIST_CALL]: {
+    success: boolean;
+    error?: string;
+  };
   [IpcChannels.REVIEW_UPDATE_CHECKLIST]: {
     success: boolean;
     error?: string;
@@ -171,7 +174,7 @@ export type IpcEventPayloadMap = {
   [IpcChannels.REVIEW_EXTRACT_CHECKLIST_FINISHED]: {
     success: boolean;
     error?: string;
-  }
+  };
   [IpcChannels.REVIEW_EXECUTE_FINISHED]: {
     success: boolean;
     error?: string;

@@ -17,34 +17,34 @@ import {
 import { MoreVert as MoreIcon } from '@mui/icons-material';
 import AddCircleOutlineOutlinedIcon from '@mui/icons-material/AddCircleOutlineOutlined';
 import { v4 as uuidv4 } from 'uuid';
-import type { ChatRoom } from '../../../main/types';
-import { chatService } from '../../services/chatService';
+import type { ReviewHistory } from '../../../db/schema';
+import { reviewService } from '../../services/reviewService';
 
-interface ChatRoomListProps {
-  selectedRoomId?: string | null;
-  onRoomSelect: (roomId: string) => void;
+interface ReviewHistoryListProps {
+  selectedReviewHistoryId?: string | null;
+  onReviewHistorySelect: (roomId: string | null) => void;
 }
 
-function ChatRoomList({
-  selectedRoomId = null,
-  onRoomSelect,
-}: ChatRoomListProps) {
-  const [chatRooms, setChatRooms] = useState<ChatRoom[]>([]);
+function ReviewHistoryList({
+  selectedReviewHistoryId = null,
+  onReviewHistorySelect,
+}: ReviewHistoryListProps) {
+  const [reviewHistories, setReviewHistories] = useState<ReviewHistory[]>([]);
   const [loading, setLoading] = useState(true);
   const [menuAnchorEl, setMenuAnchorEl] = useState<null | HTMLElement>(null);
-  // メニュー選択中のチャットルームID
-  const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
+  // メニュー選択中のレビュー履歴ID
+  const [activeReviewId, setActiveHistoryId] = useState<string | null>(null);
 
-  // チャットルーム一覧を取得
-  const fetchChatRooms = useCallback(async () => {
+  // レビュー履歴一覧を取得
+  const fetchReviewHistories = useCallback(async () => {
     try {
-      const rooms = await chatService.getChatRooms();
+      const histories = await reviewService.getHistories();
       // updatedAtで降順ソート
-      const sortedRooms = [...rooms].sort(
+      const sortedHistories = [...histories].sort(
         (a, b) =>
           new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
       );
-      setChatRooms(sortedRooms);
+      setReviewHistories(sortedHistories);
       setLoading(false);
     } catch (error) {
       console.error(error);
@@ -54,8 +54,8 @@ function ChatRoomList({
 
   // 初期データ読み込み
   useEffect(() => {
-    fetchChatRooms();
-  }, [fetchChatRooms]);
+    fetchReviewHistories();
+  }, [fetchReviewHistories]);
 
   // メニュー操作
   const handleMenuOpen = (
@@ -64,27 +64,27 @@ function ChatRoomList({
   ) => {
     event.stopPropagation();
     setMenuAnchorEl(event.currentTarget);
-    setActiveRoomId(roomId);
+    setActiveHistoryId(roomId);
   };
 
   const handleMenuClose = () => {
     setMenuAnchorEl(null);
-    setActiveRoomId(null);
+    setActiveHistoryId(null);
   };
 
-  // チャットルーム削除
+  // レビュー履歴削除
   const handleDeleteRoom = async () => {
-    if (!activeRoomId) return;
+    if (!activeReviewId) return;
 
     try {
-      await chatService.deleteChatRoom(activeRoomId);
-      // 削除したルームが選択中だった場合は選択を解除
-      if (selectedRoomId === activeRoomId) {
-        onRoomSelect('');
+      await reviewService.deleteHistory(activeReviewId);
+      // 削除した履歴が選択中だった場合は選択を解除
+      if (selectedReviewHistoryId === activeReviewId) {
+        onReviewHistorySelect(null);
       }
 
       // 一覧を再取得して最新状態を反映
-      fetchChatRooms();
+      fetchReviewHistories();
     } catch (error) {
       console.error(error);
     } finally {
@@ -92,45 +92,45 @@ function ChatRoomList({
     }
   };
 
-  // チャットルーム一覧の更新をトリガーする関数
-  const refreshChatRooms = useCallback(() => {
-    fetchChatRooms();
-  }, [fetchChatRooms]);
+  // レビュー履歴の更新をトリガーする関数
+  const refreshReviewHistories = useCallback(() => {
+    fetchReviewHistories();
+  }, [fetchReviewHistories]);
 
-  // チャットルーム一覧の定期更新
+  // レビュー履歴の定期更新
   useEffect(() => {
-    const interval = setInterval(refreshChatRooms, 5000);
+    const interval = setInterval(refreshReviewHistories, 5000);
     return () => clearInterval(interval);
-  }, [refreshChatRooms]);
+  }, [refreshReviewHistories]);
 
-  // 新しいチャットを開始
-  const handleCreateRoom = () => {
+  // 新しいレビューを開始
+  const handleCreateReview = () => {
     // 新しいUUIDを生成してルームIDとして使用
-    const newRoomId = uuidv4();
+    const newReviewId = uuidv4();
     // 選択状態を更新
-    onRoomSelect(newRoomId);
-    // モーダルは表示せず、すぐにチャット画面に遷移
+    onReviewHistorySelect(newReviewId);
+    // モーダルは表示せず、すぐにレビュー画面に遷移
   };
 
   const renderContent = () => {
-    // ローディング中は「チャット履歴取得中」とスピナーを表示
+    // ローディング中は「レビュー履歴取得中」とスピナーを表示
     if (loading) {
       return (
         <Box sx={{ p: 3, textAlign: 'center' }}>
           <CircularProgress size={24} sx={{ mb: 1 }} />
           <Typography variant="body2" color="text.secondary">
-            チャット履歴取得中
+            ドキュメントレビュー履歴取得中
           </Typography>
         </Box>
       );
     }
 
-    // チャットルームがない場合は「チャットルームがありません」と表示
-    if (chatRooms.length === 0) {
+    // レビュー履歴がない場合は「レビュー履歴がありません」と表示
+    if (reviewHistories.length === 0) {
       return (
         <Box sx={{ p: 3, textAlign: 'center' }}>
           <Typography variant="body2" color="text.secondary">
-            チャット履歴がありません
+            ドキュメントレビュー履歴がありません
           </Typography>
         </Box>
       );
@@ -139,28 +139,28 @@ function ChatRoomList({
     return (
       <>
         <List disablePadding>
-          {chatRooms.map((room) => (
+          {reviewHistories.map((reviewHistory) => (
             <ListItem
-              key={room.id}
+              key={reviewHistory.id}
               disablePadding
               secondaryAction={
                 <IconButton
                   edge="end"
                   aria-label="more"
-                  onClick={(e) => handleMenuOpen(e, room.id)}
+                  onClick={(e) => handleMenuOpen(e, reviewHistory.id)}
                 >
                   <MoreIcon />
                 </IconButton>
               }
             >
               <ListItemButton
-                selected={selectedRoomId === room.id}
-                onClick={() => onRoomSelect(room.id)}
+                selected={selectedReviewHistoryId === reviewHistory.id}
+                onClick={() => onReviewHistorySelect(reviewHistory.id)}
                 sx={{ pr: 6 }}
               >
-                <Tooltip title={room.title} placement="right">
+                <Tooltip title={reviewHistory.title} placement="right">
                   <ListItemText
-                    primary={room.title}
+                    primary={reviewHistory.title}
                     primaryTypographyProps={{
                       noWrap: true,
                       sx: {
@@ -193,12 +193,12 @@ function ChatRoomList({
       >
         <Button
           startIcon={<AddCircleOutlineOutlinedIcon />}
-          onClick={handleCreateRoom}
+          onClick={handleCreateReview}
           sx={{ fontSize: '1rem' }}
           disabled={loading}
           // fullWidth
         >
-          新規チャット
+          新規レビュー
         </Button>
       </Box>
       <Divider />
@@ -207,4 +207,4 @@ function ChatRoomList({
   );
 }
 
-export default React.memo(ChatRoomList);
+export default React.memo(ReviewHistoryList);

@@ -6,6 +6,7 @@ import {
   primaryKey,
 } from 'drizzle-orm/sqlite-core';
 import { sql } from 'drizzle-orm';
+import { v4 as uuidv4 } from 'uuid';
 import type { ProcessStatus } from '../main/types';
 
 /**
@@ -54,7 +55,9 @@ export const topics = sqliteTable('topics', {
 
 // レビュー履歴を格納するテーブル
 export const reviewHistories = sqliteTable('review_histories', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
+  id: text('id')
+    .primaryKey()
+    .$default(() => uuidv4()), // 汎用チャット機能のコードを活用できるように、MastraのThreadと同じく主キーは文字列とする
   title: text('title').notNull(), // ソースのtitleを/区切りで結合
   createdAt: text('created_at')
     .notNull()

@@ -177,7 +177,7 @@ const electronHandler = {
     },
     // レビュー履歴詳細を取得する
     getHistoryDetail: async (
-      historyId: number,
+      historyId: string,
     ): Promise<
       IpcResponsePayload<typeof IpcChannels.REVIEW_GET_HISTORY_CHECKLIST>
     > => {
@@ -188,7 +188,7 @@ const electronHandler = {
     },
     // レビュー履歴を削除する
     deleteHistory: async (
-      historyId: number,
+      historyId: string,
     ): Promise<
       IpcResponsePayload<typeof IpcChannels.REVIEW_DELETE_HISTORY>
     > => {
@@ -196,11 +196,16 @@ const electronHandler = {
     },
     // チェックリストを抽出する
     extractChecklist: async (
-      params: IpcRequestPayload<typeof IpcChannels.REVIEW_EXTRACT_CHECKLIST_CALL>,
+      params: IpcRequestPayload<
+        typeof IpcChannels.REVIEW_EXTRACT_CHECKLIST_CALL
+      >,
     ): Promise<
       IpcResponsePayload<typeof IpcChannels.REVIEW_EXTRACT_CHECKLIST_CALL>
     > => {
-      return ipcRenderer.invoke(IpcChannels.REVIEW_EXTRACT_CHECKLIST_CALL, params);
+      return ipcRenderer.invoke(
+        IpcChannels.REVIEW_EXTRACT_CHECKLIST_CALL,
+        params,
+      );
     },
     // チェックリストを更新する
     updateChecklist: async (
@@ -217,14 +222,18 @@ const electronHandler = {
       return ipcRenderer.invoke(IpcChannels.REVIEW_EXECUTE_CALL, params);
     },
     // チェックリスト抽出完了イベントを購読する
-    onExtractPartFinished: (
+    onExtractChecklistFinished: (
       callback: (
-        payload: IpcEventPayload<typeof IpcChannels.REVIEW_EXTRACT_CHECKLIST_FINISHED>,
+        payload: IpcEventPayload<
+          typeof IpcChannels.REVIEW_EXTRACT_CHECKLIST_FINISHED
+        >,
       ) => void,
     ) => {
       const subscription = (
         _event: IpcRendererEvent,
-        payload: IpcEventPayload<typeof IpcChannels.REVIEW_EXTRACT_CHECKLIST_FINISHED>,
+        payload: IpcEventPayload<
+          typeof IpcChannels.REVIEW_EXTRACT_CHECKLIST_FINISHED
+        >,
       ) => {
         callback(payload);
       };
@@ -240,7 +249,7 @@ const electronHandler = {
       };
     },
     // ドキュメントレビュー実行完了イベントを購読する
-    onExecutePartFinished: (
+    onExecuteReviewFinished: (
       callback: (
         payload: IpcEventPayload<typeof IpcChannels.REVIEW_EXECUTE_FINISHED>,
       ) => void,
@@ -250,18 +259,15 @@ const electronHandler = {
         payload: IpcEventPayload<typeof IpcChannels.REVIEW_EXECUTE_FINISHED>,
       ) => {
         callback(payload);
-      }
-      ipcRenderer.on(
-        IpcChannels.REVIEW_EXECUTE_FINISHED,
-        subscription,
-      );
+      };
+      ipcRenderer.on(IpcChannels.REVIEW_EXECUTE_FINISHED, subscription);
       return () => {
         ipcRenderer.removeListener(
           IpcChannels.REVIEW_EXECUTE_FINISHED,
           subscription,
         );
-      }
-    }
+      };
+    },
   },
   ipcRenderer: {
     sendMessage(channel: Channels, ...args: unknown[]) {

@@ -65,7 +65,13 @@ export type ReviewChecklistResult = {
 
 // チェックリストの編集内容を表す型
 export type ReviewChecklistEdit = {
-  id?: number; // 新規作成時は未指定
+  id: number | null; // 新規作成時はnull
   content?: string; // 削除の場合は指定不要
   delete?: boolean; // trueの場合は削除対象
 };
+
+// パス定義
+export const ROUTES = {
+  CHAT: '/',
+  REVIEW: '/review',
+} as const;

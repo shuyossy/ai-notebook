@@ -1,26 +1,20 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Box, Menu, MenuItem, Divider, AlertColor } from '@mui/material';
-import { v4 as uuidv4 } from 'uuid';
+import React, { useState, useCallback } from 'react';
+import { Box, Divider, AlertColor } from '@mui/material';
 import SourceListModal from '../common/SourceListModal';
 import SettingsModal from '../common/SettingsModal';
-import { ChatRoom } from '../../../main/types';
-import { chatService } from '../../services/chatService';
 import SidebarHeader from './SidebarHeader';
-import ChatRoomList from './ChatRoomList';
 import SidebarFooter from './SidebarFooter';
 
 interface SidebarProps {
-  selectedRoomId: string | null;
-  onRoomSelect: (roomId: string) => void;
-  onReloadSources: () => void; // ソース読み込み処理を実行する関数
+  onReloadSources: () => void;
   showSnackbar: (message: string, severity: AlertColor) => void;
+  children?: React.ReactNode;
 }
 
 function Sidebar({
-  selectedRoomId,
-  onRoomSelect,
   onReloadSources,
   showSnackbar,
+  children = null,
 }: SidebarProps) {
   const [isSourceListOpen, setIsSourceListOpen] = useState(false);
   const [settingsHasError, setSettingsHasError] = useState(false);
@@ -28,93 +22,13 @@ function Sidebar({
     processing: boolean;
     enabledCount: number;
   }>({ processing: false, enabledCount: 0 });
-  const [chatRooms, setChatRooms] = useState<ChatRoom[]>([]);
-  const [menuAnchorEl, setMenuAnchorEl] = useState<null | HTMLElement>(null);
-  const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
 
   const onSettingsUpdated = useCallback(() => {
     // 設定更新完了時の処理
     showSnackbar('設定を更新しました', 'success');
   }, [showSnackbar]);
-
-  // チャットルーム一覧を取得
-  const fetchChatRooms = useCallback(async () => {
-    try {
-      const rooms = await chatService.getChatRooms();
-      // updatedAtで降順ソート
-      const sortedRooms = [...rooms].sort(
-        (a, b) =>
-          new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
-      );
-      setChatRooms(sortedRooms);
-      setLoading(false);
-    } catch (error) {
-      console.error(error);
-      setLoading(true);
-    }
-  }, []);
-
-  // 初期データ読み込み
-  useEffect(() => {
-    fetchChatRooms();
-  }, [fetchChatRooms]);
-
-  // メニュー操作
-  const handleMenuOpen = (
-    event: React.MouseEvent<HTMLElement>,
-    roomId: string,
-  ) => {
-    event.stopPropagation();
-    setMenuAnchorEl(event.currentTarget);
-    setActiveRoomId(roomId);
-  };
-
-  const handleMenuClose = () => {
-    setMenuAnchorEl(null);
-    setActiveRoomId(null);
-  };
-
-  // チャットルーム削除
-  const handleDeleteRoom = async () => {
-    if (!activeRoomId) return;
-
-    try {
-      await chatService.deleteChatRoom(activeRoomId);
-      // 削除したルームが選択中だった場合は選択を解除
-      if (selectedRoomId === activeRoomId) {
-        onRoomSelect('');
-      }
-
-      // 一覧を再取得して最新状態を反映
-      fetchChatRooms();
-    } catch (error) {
-      console.error(error);
-    } finally {
-      handleMenuClose();
-    }
-  };
-
-  // 新しいチャットを開始
-  const handleNewChat = () => {
-    // 新しいUUIDを生成してルームIDとして使用
-    const newRoomId = uuidv4();
-    // 選択状態を更新
-    onRoomSelect(newRoomId);
-    // モーダルは表示せず、すぐにチャット画面に遷移
-  };
-
-  // チャットルーム一覧の更新をトリガーする関数
-  const refreshChatRooms = useCallback(() => {
-    fetchChatRooms();
-  }, [fetchChatRooms]);
-
-  // チャットルーム一覧の定期更新
-  useEffect(() => {
-    const interval = setInterval(refreshChatRooms, 5000);
-    return () => clearInterval(interval);
-  }, [refreshChatRooms]);
 
   // 設定モーダルを開く
   const handleSettingsClick = () => {
@@ -133,10 +47,9 @@ function Sidebar({
         borderColor: 'divider',
       }}
     >
-      <SidebarHeader onCreateRoom={handleNewChat} />
-      <Divider />
+      <SidebarHeader />
 
-      {/* チャットルーム一覧 */}
+      {/* メイン部分 */}
       <Box
         sx={{
           flex: 1,
@@ -151,13 +64,7 @@ function Sidebar({
         }}
         className="hidden-scrollbar"
       >
-        <ChatRoomList
-          rooms={chatRooms}
-          selectedRoomId={selectedRoomId}
-          onRoomSelect={onRoomSelect}
-          onMenuOpen={handleMenuOpen}
-          loading={loading}
-        />
+        {children}
       </Box>
 
       <SidebarFooter
@@ -184,15 +91,6 @@ function Sidebar({
         onSettingsUpdated={onSettingsUpdated}
         onValidChange={(isValid) => setSettingsHasError(!isValid)}
       />
-
-      {/* チャットルームメニュー */}
-      <Menu
-        anchorEl={menuAnchorEl}
-        open={Boolean(menuAnchorEl)}
-        onClose={handleMenuClose}
-      >
-        <MenuItem onClick={handleDeleteRoom}>削除</MenuItem>
-      </Menu>
     </Box>
   );
 }

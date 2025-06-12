@@ -328,7 +328,7 @@ function SourceListModal({
                 </TableCell>
                 <TableCell>ファイルパス</TableCell>
                 <TableCell>タイトル（生成）</TableCell>
-                <TableCell>ステータス</TableCell>
+                <TableCell>初期化処理ステータス</TableCell>
                 <TableCell>最終更新</TableCell>
               </TableRow>
             </TableHead>

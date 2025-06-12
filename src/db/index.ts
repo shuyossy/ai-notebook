@@ -33,6 +33,9 @@ const initializeDatabase = async () => {
     // データベースの存在チェック
     await client.execute('SELECT 1 FROM sources LIMIT 1');
     await client.execute('SELECT 1 FROM topics LIMIT 1');
+    await client.execute('SELECT 1 FROM review_histories LIMIT 1');
+    await client.execute('SELECT 1 FROM review_checklists LIMIT 1');
+    await client.execute('SELECT 1 FROM review_checklist_sources LIMIT 1');
     // eslint-disable-next-line
   } catch (error) {
     // データベースが存在しない場合、マイグレーションを実行

@@ -322,7 +322,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
           }}
         >
           <Typography variant="h6" color="text.secondary">
-            チャットルームを選択してください
+            新規チャットを開始または既存のチャットを選択してください
           </Typography>
         </Box>
       )}
