@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Table,
   TableBody,
@@ -91,12 +91,31 @@ const ReviewChecklistSection: React.FC<ReviewChecklistSectionProps> = ({
   };
 
   // ソースファイルのカラムヘッダーを生成
-  const sourceHeaders =
-    checklistResults[0]?.sourceEvaluations?.map((evaluation) => (
-      <TableCell key={evaluation.sourceId} align="center">
-        {evaluation.sourceFileName}
+  // 全てのチェックリストからソース評価を取得し、ユニークなソースを抽出
+  const uniqueSources = useMemo(() => {
+    // Map で一度だけ同一 sourceId を排除
+    const map = new Map<number, { id: number; fileName: string }>();
+    checklistResults.forEach((checklist) => {
+      checklist.sourceEvaluations?.forEach((ev) => {
+        if (!map.has(ev.sourceId)) {
+          map.set(ev.sourceId, {
+            id: ev.sourceId,
+            fileName: ev.sourceFileName,
+          });
+        }
+      });
+    });
+    // Map の値を配列にして返却
+    return Array.from(map.values());
+  }, [checklistResults]);
+  // Mapから重複を除いたユニークなsource一覧を取得する
+  const sourceHeaders = useMemo(() => {
+    return uniqueSources.map((src) => (
+      <TableCell key={src.id} align="center">
+        {src.fileName}
       </TableCell>
-    )) || [];
+    ));
+  }, [uniqueSources]);
 
   // テーブルのヘッダー部分
   const renderTableHeader = () => (
@@ -128,27 +147,32 @@ const ReviewChecklistSection: React.FC<ReviewChecklistSectionProps> = ({
           checklist.content
         )}
       </TableCell>
-      {checklist.sourceEvaluations?.map((evaluation) => (
-        <TableCell key={evaluation.sourceId} align="center">
-          {evaluation.evaluation && (
-            <Stack spacing={1} alignItems="center">
-              <Chip
-                label={evaluation.evaluation}
-                sx={{
-                  bgcolor: evaluationColors[evaluation.evaluation],
-                  color: 'white',
-                  fontWeight: 'bold',
-                }}
-              />
-              {evaluation.comment && (
-                <Typography variant="body2" color="text.secondary">
-                  {evaluation.comment}
-                </Typography>
-              )}
-            </Stack>
-          )}
-        </TableCell>
-      ))}
+      {uniqueSources.map((src) => {
+        const evaluation = checklist.sourceEvaluations?.find(
+          (ev) => ev.sourceId === src.id,
+        );
+        return (
+          <TableCell key={src.id} align="center">
+            {evaluation?.evaluation ? (
+              <Stack spacing={1} alignItems="center">
+                <Chip
+                  label={evaluation.evaluation}
+                  sx={{
+                    bgcolor: evaluationColors[evaluation.evaluation],
+                    color: 'white',
+                    fontWeight: 'bold',
+                  }}
+                />
+                {evaluation.comment && (
+                  <Typography variant="body2" color="text.secondary">
+                    {evaluation.comment}
+                  </Typography>
+                )}
+              </Stack>
+            ) : null}
+          </TableCell>
+        );
+      })}
       <TableCell align="center">
         <Stack direction="row" spacing={1} justifyContent="center">
           {editingId === checklist.id ? (
