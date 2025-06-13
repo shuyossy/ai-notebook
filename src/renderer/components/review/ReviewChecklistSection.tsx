@@ -6,6 +6,7 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  TableSortLabel,
   Paper,
   IconButton,
   Button,
@@ -22,6 +23,7 @@ import CancelIcon from '@mui/icons-material/Cancel';
 import { ReviewChecklistSectionProps } from './types';
 import { ReviewEvaluation } from '../../../main/types';
 
+// 評価ごとの色マッピング
 const evaluationColors: Record<ReviewEvaluation, string> = {
   A: '#4caf50', // 緑
   B: '#ffb74d', // オレンジ
@@ -33,70 +35,63 @@ const ReviewChecklistSection: React.FC<ReviewChecklistSectionProps> = ({
   isLoading,
   onSave,
 }) => {
+  // --- 編集・追加用のステート ---
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editingContent, setEditingContent] = useState('');
   const [isAddingNew, setIsAddingNew] = useState(false);
   const [newContent, setNewContent] = useState('');
 
-  // 編集開始
+  // --- ソート用のステート ---
+  // sortBy: 現在ソート対象の sourceId。null のときソートなし。
+  const [sortBy, setSortBy] = useState<number | null>(null);
+  // sortDirection: 'desc' = 降順（A→B→C）、'asc' = 昇順（C→B→A）
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+
+  // --- 編集・保存・削除ハンドラ ---
   const handleStartEdit = (id: number, content: string) => {
     setEditingId(id);
     setEditingContent(content);
   };
-
-  // 編集キャンセル
   const handleCancelEdit = () => {
     setEditingId(null);
     setEditingContent('');
   };
-
-  // 新規追加キャンセル
+  const handleSave = async () => {
+    if (editingId == null) return;
+    await onSave([{ content: editingContent, id: editingId }]);
+    setEditingId(null);
+    setEditingContent('');
+  };
+  const handleDelete = async (id: number) => {
+    await onSave([{ id, delete: true }]);
+  };
   const handleCancelAdd = () => {
     setIsAddingNew(false);
     setNewContent('');
   };
-
-  // 保存処理
-  const handleSave = async () => {
-    await onSave([
-      {
-        content: editingContent,
-        id: editingId, // 既存のIDを使用
-      },
-    ]);
-    setEditingId(null);
-    setEditingContent('');
-  };
-
-  // 新規追加保存
   const handleSaveNew = async () => {
-    await onSave([
-      {
-        content: newContent,
-        id: null, // 新規追加なのでIDはnull
-      },
-    ]);
+    await onSave([{ content: newContent, id: null }]);
     setIsAddingNew(false);
     setNewContent('');
   };
 
-  // 削除処理
-  const handleDelete = async (id: number) => {
-    await onSave([
-      {
-        id, // 削除対象のIDを指定
-        delete: true, // 削除フラグを立てる
-      },
-    ]);
+  // --- ソート切り替えハンドラ ---
+  const handleSort = (sourceId: number) => {
+    if (sortBy === sourceId) {
+      // 同じ列をクリックしたら昇順／降順をトグル
+      setSortDirection((prev) => (prev === 'desc' ? 'asc' : 'desc'));
+    } else {
+      // 別の列をクリックしたら、その列を降順でソート開始
+      setSortBy(sourceId);
+      setSortDirection('desc');
+    }
   };
 
-  // ソースファイルのカラムヘッダーを生成
-  // 全てのチェックリストからソース評価を取得し、ユニークなソースを抽出
+  // --- 各チェックリストからユニークなソース一覧を抽出 ---
   const uniqueSources = useMemo(() => {
-    // Map で一度だけ同一 sourceId を排除
     const map = new Map<number, { id: number; fileName: string }>();
-    checklistResults.forEach((checklist) => {
-      checklist.sourceEvaluations?.forEach((ev) => {
+    checklistResults.forEach((cl) => {
+      cl.sourceEvaluations?.forEach((ev) => {
         if (!map.has(ev.sourceId)) {
           map.set(ev.sourceId, {
             id: ev.sourceId,
@@ -105,24 +100,57 @@ const ReviewChecklistSection: React.FC<ReviewChecklistSectionProps> = ({
         }
       });
     });
-    // Map の値を配列にして返却
     return Array.from(map.values());
   }, [checklistResults]);
-  // Mapから重複を除いたユニークなsource一覧を取得する
-  const sourceHeaders = useMemo(() => {
-    return uniqueSources.map((src) => (
-      <TableCell key={src.id} align="center">
-        {src.fileName}
-      </TableCell>
-    ));
-  }, [uniqueSources]);
 
-  // テーブルのヘッダー部分
+  // --- チェックリストをソート（ソースごとの評価値で並び替え） ---
+  const sortedResults = useMemo(() => {
+    // ソート対象がなければそのまま返す
+    if (sortBy == null) {
+      return checklistResults;
+    }
+    // コピーして破壊的変更を避ける
+    return [...checklistResults].sort((a, b) => {
+      const aEv =
+        a.sourceEvaluations?.find((ev) => ev.sourceId === sortBy)?.evaluation ??
+        null;
+      const bEv =
+        b.sourceEvaluations?.find((ev) => ev.sourceId === sortBy)?.evaluation ??
+        null;
+
+      // null（評価なし）は末尾に配置
+      if (aEv === null && bEv !== null) return 1;
+      if (aEv !== null && bEv === null) return -1;
+      if (aEv === null && bEv === null) return 0;
+
+      // 両方評価ありの場合、アルファベット順で比較
+      // 'A'<'B'<'C' の順 → アルファベット昇順 = 降順（A→B→C）
+      if (sortDirection === 'desc') {
+        return (aEv as string).localeCompare(bEv as string);
+      } else {
+        // 昇順（C→B→A）
+        return (bEv as string).localeCompare(aEv as string);
+      }
+    });
+  }, [checklistResults, sortBy, sortDirection]);
+
+  // --- テーブルヘッダをレンダリング ---
   const renderTableHeader = () => (
     <TableHead>
       <TableRow>
         <TableCell sx={{ width: '40%' }}>チェックリスト</TableCell>
-        {sourceHeaders}
+        {uniqueSources.map((src) => (
+          <TableCell key={src.id} align="center">
+            {/* クリックでソート切り替え */}
+            <TableSortLabel
+              active={sortBy === src.id}
+              direction={sortBy === src.id ? sortDirection : 'desc'}
+              onClick={() => handleSort(src.id)}
+            >
+              {src.fileName}
+            </TableSortLabel>
+          </TableCell>
+        ))}
         <TableCell align="center" sx={{ width: '120px' }}>
           操作
         </TableCell>
@@ -130,7 +158,7 @@ const ReviewChecklistSection: React.FC<ReviewChecklistSectionProps> = ({
     </TableHead>
   );
 
-  // テーブルの行を生成
+  // --- 各行をレンダリング ---
   const renderTableRow = (checklist: (typeof checklistResults)[0]) => (
     <TableRow key={checklist.id}>
       <TableCell>
@@ -148,24 +176,24 @@ const ReviewChecklistSection: React.FC<ReviewChecklistSectionProps> = ({
         )}
       </TableCell>
       {uniqueSources.map((src) => {
-        const evaluation = checklist.sourceEvaluations?.find(
-          (ev) => ev.sourceId === src.id,
+        const ev = checklist.sourceEvaluations?.find(
+          (x) => x.sourceId === src.id,
         );
         return (
           <TableCell key={src.id} align="center">
-            {evaluation?.evaluation ? (
+            {ev?.evaluation ? (
               <Stack spacing={1} alignItems="center">
                 <Chip
-                  label={evaluation.evaluation}
+                  label={ev.evaluation}
                   sx={{
-                    bgcolor: evaluationColors[evaluation.evaluation],
+                    bgcolor: evaluationColors[ev.evaluation],
                     color: 'white',
                     fontWeight: 'bold',
                   }}
                 />
-                {evaluation.comment && (
+                {ev.comment && (
                   <Typography variant="body2" color="text.secondary">
-                    {evaluation.comment}
+                    {ev.comment}
                   </Typography>
                 )}
               </Stack>
@@ -208,7 +236,7 @@ const ReviewChecklistSection: React.FC<ReviewChecklistSectionProps> = ({
     </TableRow>
   );
 
-  // 新規追加行
+  // --- 新規追加行 ---
   const renderAddRow = () => (
     <TableRow>
       <TableCell>
@@ -222,7 +250,8 @@ const ReviewChecklistSection: React.FC<ReviewChecklistSectionProps> = ({
           placeholder="新しいチェックリスト項目を入力"
         />
       </TableCell>
-      {sourceHeaders.map((_, i) => (
+      {/* 列数揃えるために空セルを出力 */}
+      {uniqueSources.map((_, i) => (
         <TableCell key={i} />
       ))}
       <TableCell align="center">
@@ -260,7 +289,8 @@ const ReviewChecklistSection: React.FC<ReviewChecklistSectionProps> = ({
         <Table size="small">
           {renderTableHeader()}
           <TableBody>
-            {checklistResults.map((checklist) => renderTableRow(checklist))}
+            {/* ソート済みデータで行をレンダリング */}
+            {sortedResults.map((cl) => renderTableRow(cl))}
             {isAddingNew && renderAddRow()}
           </TableBody>
         </Table>
