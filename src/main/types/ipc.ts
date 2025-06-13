@@ -44,7 +44,7 @@ export const IpcChannels = {
 
   // ドキュメントレビュー関連
   REVIEW_GET_HISTORIES: 'review-get-histories', // ドキュメント履歴切り替え時やチェックリスト抽出・ドキュメントレビュー時のポーリング処理にて呼び出される
-  REVIEW_GET_HISTORY_CHECKLIST: 'review-get-history-detail',
+  REVIEW_GET_HISTORY_DETAIL: 'review-get-history-detail',
   REVIEW_DELETE_HISTORY: 'review-delete-history',
   REVIEW_EXTRACT_CHECKLIST_CALL: 'review-extract-checklist-call', // チェックリスト抽出処理を開始する
   REVIEW_EXTRACT_CHECKLIST_FINISHED: 'review-extract-checklist-finished', // チェックリスト抽出が完了した際の通知
@@ -94,7 +94,7 @@ export type IpcRequestPayloadMap = {
 
   // ドキュメントレビュー関連
   [IpcChannels.REVIEW_GET_HISTORIES]: undefined;
-  [IpcChannels.REVIEW_GET_HISTORY_CHECKLIST]: string; // review history id
+  [IpcChannels.REVIEW_GET_HISTORY_DETAIL]: string; // review history id
   [IpcChannels.REVIEW_DELETE_HISTORY]: string; // review history id
   [IpcChannels.REVIEW_EXTRACT_CHECKLIST_CALL]: {
     reviewHistoryId?: string; // 指定がない場合は新規作成
@@ -147,7 +147,7 @@ export type IpcResponsePayloadMap = {
     histories?: ReviewHistory[];
     error?: string;
   };
-  [IpcChannels.REVIEW_GET_HISTORY_CHECKLIST]: {
+  [IpcChannels.REVIEW_GET_HISTORY_DETAIL]: {
     success: boolean;
     checklistResults?: ReviewChecklistResult[];
     error?: string;

@@ -40,7 +40,7 @@ export const reviewService = {
   },
 
   /**
-   * ドキュメントレビュー履歴のチェックリストを抽出
+   * ドキュメントレビュー履歴の詳細情報抽出
    * @param reviewHistoryId ドキュメントレビュー履歴ID
    * @returns 抽出されたチェックリスト
    */

@@ -698,6 +698,18 @@ const setupSourceHandlers = () => {
 };
 
 // ドキュメントレビュー用モックデータ
+// モックデータ作成用の任意長文字列生成関数
+function generateRandomString(length) {
+  const characters =
+    'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let result = '';
+  for (let i = 0; i < length; i++) {
+    // 文字セットからランダムに1文字ずつ追加
+    const randomIndex = Math.floor(Math.random() * characters.length);
+    result += characters[randomIndex];
+  }
+  return result;
+}
 const mockReviewHistories = [
   {
     id: '1',
@@ -716,13 +728,13 @@ const mockReviewHistories = [
 let mockReviewChecklist = [
   {
     id: 1,
-    content: 'チェックリスト項目1(レビュー済み)',
+    content: `チェックリスト項目1(レビュー済み)-${generateRandomString(1000)}`,
     sourceEvaluations: [
       {
         sourceId: 1,
         sourceFileName: 'source1.md',
         evaluation: 'A',
-        comment: '良い',
+        comment: `良い-${generateRandomString(2000)}`,
       },
       {
         sourceId: 2,
@@ -734,13 +746,13 @@ let mockReviewChecklist = [
   },
   {
     id: 2,
-    content: 'チェックリスト項目2(レビュー済み)',
+    content: `チェックリスト項目2(レビュー済み)-${generateRandomString(2000)}`,
     sourceEvaluations: [
       {
         sourceId: 1,
         sourceFileName: 'source1.md',
         evaluation: 'C',
-        comment: '要改善',
+        comment: `要改善-${generateRandomString(1500)}`,
       },
       {
         sourceId: 3,
@@ -752,7 +764,7 @@ let mockReviewChecklist = [
   },
   {
     id: 3,
-    content: 'チェックリスト項目3(レビュー未完了)',
+    content: `チェックリスト項目3(レビュー未完了)-${generateRandomString(3000)}`,
   },
   {
     id: 4,
@@ -788,12 +800,12 @@ ipcMain.handle(
 
 // チェックリストの取得ハンドラ
 ipcMain.handle(
-  IpcChannels.REVIEW_GET_HISTORY_CHECKLIST,
+  IpcChannels.REVIEW_GET_HISTORY_DETAIL,
   async (
     _,
     historyId: string,
   ): Promise<
-    IpcResponsePayloadMap[typeof IpcChannels.REVIEW_GET_HISTORY_CHECKLIST]
+    IpcResponsePayloadMap[typeof IpcChannels.REVIEW_GET_HISTORY_DETAIL]
   > => {
     try {
       // モックデータを返す
@@ -966,8 +978,8 @@ ipcMain.handle(
     // モック実装では、モックチェック結果に指定されたソースを追加する（ファイル名は適当）
     try {
       const newSourceEvaluations = sourceIds.map((sourceId, index) => ({
-        sourceId,
-        sourceFileName: `source${mockReviewChecklist[0].sourceEvaluations!.length + 1}.md`, // 適当なファイル名を設定
+        sourceId: sourceId + 100,
+        sourceFileName: `new-source${sourceId}.md`, // 適当なファイル名を設定
         evaluation: 'A', // 仮の評価
         comment: 'レビュー済み', // 仮のコメント
       })) as ReviewChecklistResult['sourceEvaluations'];
@@ -975,6 +987,8 @@ ipcMain.handle(
       mockReviewChecklist.forEach((item) => {
         item.sourceEvaluations?.push(...newSourceEvaluations!);
       });
+
+      console.log('mockReviewChecklist:', mockReviewChecklist);
 
       return { success: true };
     } catch (error) {

@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { Box, Divider, AlertColor } from '@mui/material';
+import { Box, AlertColor } from '@mui/material';
 import SourceListModal from '../common/SourceListModal';
 import SettingsModal from '../common/SettingsModal';
 import SidebarHeader from './SidebarHeader';

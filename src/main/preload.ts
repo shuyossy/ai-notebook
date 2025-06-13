@@ -179,10 +179,10 @@ const electronHandler = {
     getHistoryDetail: async (
       historyId: string,
     ): Promise<
-      IpcResponsePayload<typeof IpcChannels.REVIEW_GET_HISTORY_CHECKLIST>
+      IpcResponsePayload<typeof IpcChannels.REVIEW_GET_HISTORY_DETAIL>
     > => {
       return ipcRenderer.invoke(
-        IpcChannels.REVIEW_GET_HISTORY_CHECKLIST,
+        IpcChannels.REVIEW_GET_HISTORY_DETAIL,
         historyId,
       );
     },

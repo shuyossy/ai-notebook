@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import {
+  Box,
   Table,
   TableBody,
   TableCell,
@@ -35,19 +36,15 @@ const ReviewChecklistSection: React.FC<ReviewChecklistSectionProps> = ({
   isLoading,
   onSave,
 }) => {
-  // --- 編集・追加用のステート ---
+  // --- ステート ---
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editingContent, setEditingContent] = useState('');
   const [isAddingNew, setIsAddingNew] = useState(false);
   const [newContent, setNewContent] = useState('');
-
-  // --- ソート用のステート ---
-  // sortBy: 現在ソート対象の sourceId。null のときソートなし。
   const [sortBy, setSortBy] = useState<number | null>(null);
-  // sortDirection: 'desc' = 降順（A→B→C）、'asc' = 昇順（C→B→A）
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
-  // --- 編集・保存・削除ハンドラ ---
+  // --- ハンドラ ---
   const handleStartEdit = (id: number, content: string) => {
     setEditingId(id);
     setEditingContent(content);
@@ -74,20 +71,16 @@ const ReviewChecklistSection: React.FC<ReviewChecklistSectionProps> = ({
     setIsAddingNew(false);
     setNewContent('');
   };
-
-  // --- ソート切り替えハンドラ ---
   const handleSort = (sourceId: number) => {
     if (sortBy === sourceId) {
-      // 同じ列をクリックしたら昇順／降順をトグル
       setSortDirection((prev) => (prev === 'desc' ? 'asc' : 'desc'));
     } else {
-      // 別の列をクリックしたら、その列を降順でソート開始
       setSortBy(sourceId);
       setSortDirection('desc');
     }
   };
 
-  // --- 各チェックリストからユニークなソース一覧を抽出 ---
+  // --- ユニークソース抽出 ---
   const uniqueSources = useMemo(() => {
     const map = new Map<number, { id: number; fileName: string }>();
     checklistResults.forEach((cl) => {
@@ -103,13 +96,9 @@ const ReviewChecklistSection: React.FC<ReviewChecklistSectionProps> = ({
     return Array.from(map.values());
   }, [checklistResults]);
 
-  // --- チェックリストをソート（ソースごとの評価値で並び替え） ---
+  // --- ソート ---
   const sortedResults = useMemo(() => {
-    // ソート対象がなければそのまま返す
-    if (sortBy == null) {
-      return checklistResults;
-    }
-    // コピーして破壊的変更を避ける
+    if (sortBy == null) return checklistResults;
     return [...checklistResults].sort((a, b) => {
       const aEv =
         a.sourceEvaluations?.find((ev) => ev.sourceId === sortBy)?.evaluation ??
@@ -117,31 +106,36 @@ const ReviewChecklistSection: React.FC<ReviewChecklistSectionProps> = ({
       const bEv =
         b.sourceEvaluations?.find((ev) => ev.sourceId === sortBy)?.evaluation ??
         null;
-
-      // null（評価なし）は末尾に配置
       if (aEv === null && bEv !== null) return 1;
       if (aEv !== null && bEv === null) return -1;
       if (aEv === null && bEv === null) return 0;
-
-      // 両方評価ありの場合、アルファベット順で比較
-      // 'A'<'B'<'C' の順 → アルファベット昇順 = 降順（A→B→C）
-      if (sortDirection === 'desc') {
-        return (aEv as string).localeCompare(bEv as string);
-      } else {
-        // 昇順（C→B→A）
-        return (bEv as string).localeCompare(aEv as string);
-      }
+      return sortDirection === 'desc'
+        ? (aEv as string).localeCompare(bEv as string)
+        : (bEv as string).localeCompare(aEv as string);
     });
   }, [checklistResults, sortBy, sortDirection]);
 
-  // --- テーブルヘッダをレンダリング ---
-  const renderTableHeader = () => (
+  // --- ボックス用スタイル ---
+  const contentBoxSx = {
+    maxHeight: '15em',
+    overflowY: 'auto',
+    whiteSpace: 'pre-wrap',
+    wordBreak: 'break-word' as const,
+  };
+  const commentBoxSx = { ...contentBoxSx };
+
+  // --- ヘッダ ---
+  const renderHeader = () => (
     <TableHead>
       <TableRow>
-        <TableCell sx={{ width: '40%' }}>チェックリスト</TableCell>
+        {/* チェックリスト列を固定幅 */}
+        <TableCell
+          sx={{ minWidth: 300, whiteSpace: 'normal', wordBreak: 'break-word' }}
+        >
+          チェックリスト
+        </TableCell>
         {uniqueSources.map((src) => (
-          <TableCell key={src.id} align="center">
-            {/* クリックでソート切り替え */}
+          <TableCell key={src.id} align="center" sx={{ minWidth: 150 }}>
             <TableSortLabel
               active={sortBy === src.id}
               direction={sortBy === src.id ? sortDirection : 'desc'}
@@ -151,57 +145,69 @@ const ReviewChecklistSection: React.FC<ReviewChecklistSectionProps> = ({
             </TableSortLabel>
           </TableCell>
         ))}
-        <TableCell align="center" sx={{ width: '120px' }}>
+        <TableCell align="center" sx={{ minWidth: 120 }}>
           操作
         </TableCell>
       </TableRow>
     </TableHead>
   );
 
-  // --- 各行をレンダリング ---
-  const renderTableRow = (checklist: (typeof checklistResults)[0]) => (
+  // --- 行 ---
+  const renderRow = (checklist: (typeof checklistResults)[0]) => (
     <TableRow key={checklist.id}>
-      <TableCell>
-        {editingId === checklist.id ? (
-          <TextField
-            fullWidth
-            multiline
-            value={editingContent}
-            onChange={(e) => setEditingContent(e.target.value)}
-            variant="outlined"
-            size="small"
-          />
-        ) : (
-          checklist.content
-        )}
+      {/* チェックリスト */}
+      <TableCell sx={{ p: 1, verticalAlign: 'top' }}>
+        <Box sx={contentBoxSx}>
+          {editingId === checklist.id ? (
+            <TextField
+              fullWidth
+              multiline
+              value={editingContent}
+              onChange={(e) => setEditingContent(e.target.value)}
+              variant="outlined"
+              size="small"
+            />
+          ) : (
+            checklist.content
+          )}
+        </Box>
       </TableCell>
+      {/* 評価列 */}
       {uniqueSources.map((src) => {
         const ev = checklist.sourceEvaluations?.find(
           (x) => x.sourceId === src.id,
         );
         return (
-          <TableCell key={src.id} align="center">
-            {ev?.evaluation ? (
-              <Stack spacing={1} alignItems="center">
-                <Chip
-                  label={ev.evaluation}
-                  sx={{
-                    bgcolor: evaluationColors[ev.evaluation],
-                    color: 'white',
-                    fontWeight: 'bold',
-                  }}
-                />
-                {ev.comment && (
-                  <Typography variant="body2" color="text.secondary">
-                    {ev.comment}
-                  </Typography>
-                )}
-              </Stack>
-            ) : null}
+          <TableCell
+            key={src.id}
+            align="center"
+            sx={{ p: 1, verticalAlign: 'top' }}
+          >
+            <Box sx={commentBoxSx}>
+              {ev?.evaluation && (
+                <Stack spacing={1} alignItems="center">
+                  <Chip
+                    label={ev.evaluation}
+                    sx={{
+                      bgcolor: evaluationColors[ev.evaluation],
+                      color: 'white',
+                      fontWeight: 'bold',
+                      fontSize: '0.75rem',
+                    }}
+                  />
+                  {ev.comment && (
+                    <Typography variant="body2" sx={commentBoxSx}>
+                      {ev.comment}
+                    </Typography>
+                  )}
+                </Stack>
+              )}
+            </Box>
           </TableCell>
         );
       })}
-      <TableCell align="center">
+      {/* 操作 */}
+      <TableCell align="center" sx={{ p: 1 }}>
         <Stack direction="row" spacing={1} justifyContent="center">
           {editingId === checklist.id ? (
             <>
@@ -236,25 +242,26 @@ const ReviewChecklistSection: React.FC<ReviewChecklistSectionProps> = ({
     </TableRow>
   );
 
-  // --- 新規追加行 ---
-  const renderAddRow = () => (
+  // --- 追加行 ---
+  const renderAdd = () => (
     <TableRow>
-      <TableCell>
-        <TextField
-          fullWidth
-          multiline
-          value={newContent}
-          onChange={(e) => setNewContent(e.target.value)}
-          variant="outlined"
-          size="small"
-          placeholder="新しいチェックリスト項目を入力"
-        />
+      <TableCell sx={{ p: 1 }}>
+        <Box sx={contentBoxSx}>
+          <TextField
+            fullWidth
+            multiline
+            value={newContent}
+            onChange={(e) => setNewContent(e.target.value)}
+            variant="outlined"
+            size="small"
+            placeholder="新しいチェックリスト項目を入力"
+          />
+        </Box>
       </TableCell>
-      {/* 列数揃えるために空セルを出力 */}
       {uniqueSources.map((_, i) => (
         <TableCell key={i} />
       ))}
-      <TableCell align="center">
+      <TableCell align="center" sx={{ p: 1 }}>
         <Stack direction="row" spacing={1} justifyContent="center">
           <IconButton
             size="small"
@@ -284,17 +291,18 @@ const ReviewChecklistSection: React.FC<ReviewChecklistSectionProps> = ({
           チェックリスト追加
         </Button>
       </Stack>
-
-      <TableContainer component={Paper} variant="outlined">
-        <Table size="small">
-          {renderTableHeader()}
-          <TableBody>
-            {/* ソート済みデータで行をレンダリング */}
-            {sortedResults.map((cl) => renderTableRow(cl))}
-            {isAddingNew && renderAddRow()}
-          </TableBody>
-        </Table>
-      </TableContainer>
+      {/* 横スクロール */}
+      <Box sx={{ width: '100%', overflowX: 'auto' }}>
+        <TableContainer component={Paper} variant="outlined">
+          <Table size="small">
+            {renderHeader()}
+            <TableBody>
+              {sortedResults.map((cl) => renderRow(cl))}
+              {isAddingNew && renderAdd()}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </Box>
     </>
   );
 };
