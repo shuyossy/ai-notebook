@@ -75,6 +75,7 @@ export const reviewChecklists = sqliteTable('review_checklists', {
     .notNull()
     .references(() => reviewHistories.id, { onDelete: 'cascade' }),
   content: text('content').notNull(), // チェックリスト項目
+  createdBy: text('created_by').notNull(), // 'user' or 'system'
   createdAt: text('created_at')
     .notNull()
     .default(sql`(current_timestamp)`),

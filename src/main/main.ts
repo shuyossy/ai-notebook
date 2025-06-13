@@ -924,6 +924,7 @@ ipcMain.handle(
       const checklist = mockReviewChecklist;
       checklistEdits.forEach((edit) => {
         // 新規作成の場合
+        // 実際のアプリケーションではcreatedByをuserとしてDBに保存する
         if (edit.id === null) {
           const newId = checklist.length + 1; // モックでは単純にIDを増やす
           checklist.push({

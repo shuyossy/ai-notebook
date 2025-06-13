@@ -51,6 +51,9 @@ export type AgentBootStatus = {
 // レビュー評価の型定義
 export type ReviewEvaluation = 'A' | 'B' | 'C';
 
+// チェックリストの作成元
+export type ReviewChecklistCreatedBy = 'user' | 'system';
+
 // 最終的に画面に表示するチェックリストの型
 export type ReviewChecklistResult = {
   id: number; // チェックリストのID
