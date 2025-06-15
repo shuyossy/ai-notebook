@@ -12,15 +12,16 @@ CREATE TABLE `review_checklist_sources` (
 --> statement-breakpoint
 CREATE TABLE `review_checklists` (
 	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
-	`review_history_id` integer NOT NULL,
+	`review_history_id` text NOT NULL,
 	`content` text NOT NULL,
+	`created_by` text NOT NULL,
 	`created_at` text DEFAULT (current_timestamp) NOT NULL,
 	`updated_at` text DEFAULT (current_timestamp) NOT NULL,
 	FOREIGN KEY (`review_history_id`) REFERENCES `review_histories`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
 CREATE TABLE `review_histories` (
-	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+	`id` text PRIMARY KEY NOT NULL,
 	`title` text NOT NULL,
 	`created_at` text DEFAULT (current_timestamp) NOT NULL,
 	`updated_at` text DEFAULT (current_timestamp) NOT NULL

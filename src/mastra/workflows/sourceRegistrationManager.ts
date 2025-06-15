@@ -2,11 +2,11 @@ import fs from 'fs/promises';
 import path from 'path';
 import { and, eq, inArray } from 'drizzle-orm';
 import type { StepResult } from '@mastra/core/workflows';
-import { getStore } from '../../../main/store';
-import { getMastra } from '../../../main/main';
-import getDb from '../../../db';
-import { sources, topics } from '../../../db/schema';
-import FileExtractor from '../../../main/utils/fileExtractor';
+import { getStore } from '../../main/store';
+import { getMastra } from '../../main/main';
+import getDb from '../../db';
+import { sources, topics } from '../../db/schema';
+import FileExtractor from '../../main/utils/fileExtractor';
 
 /**
  * ディレクトリ内の全てのファイルを登録するワークフロー

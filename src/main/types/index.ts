@@ -78,3 +78,12 @@ export const ROUTES = {
   CHAT: '/',
   REVIEW: '/review',
 } as const;
+
+/**
+ * リポジトリ操作の結果型
+ */
+export type RepositoryResult<T> = {
+  success: boolean;
+  data?: T;
+  error?: string;
+};

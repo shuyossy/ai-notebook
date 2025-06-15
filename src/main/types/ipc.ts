@@ -97,7 +97,7 @@ export type IpcRequestPayloadMap = {
   [IpcChannels.REVIEW_GET_HISTORY_DETAIL]: string; // review history id
   [IpcChannels.REVIEW_DELETE_HISTORY]: string; // review history id
   [IpcChannels.REVIEW_EXTRACT_CHECKLIST_CALL]: {
-    reviewHistoryId?: string; // 指定がない場合は新規作成
+    reviewHistoryId: string;
     sourceIds: number[];
   };
   [IpcChannels.REVIEW_UPDATE_CHECKLIST]: {

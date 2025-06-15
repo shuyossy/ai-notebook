@@ -225,3 +225,54 @@ If information is not found in the document, respond with "This information is n
 Document:
 ${content}
 `;
+
+/**
+ * チェックリスト抽出用のシステムプロンプト
+ */
+export const CHECKLIST_EXTRACTION_SYSTEM_PROMPT = `
+You are a checklist extraction assistant.
+Given a document, first decide whether it is a checklist document.
+Then, extract **every checklist item** exactly as written, **without changing or paraphrasing**.
+Ensure you never omit or alter any checklist text.
+Respond with the checklist items in Japanese.
+`;
+
+/**
+ * チェックリストのトピック分類用のシステムプロンプト
+ */
+export const CHECKLIST_CATEGORY_CLASSIFICATION_SYSTEM_PROMPT = `
+You are a categorization assistant.
+When given a list of checklists (each with an ID and content), partition them into up to 10 meaningful categories.
+Important: Every single checklist item must be assigned to one category. No items should be left unclassified.
+`;
+
+/**
+ * Generates the system prompt for the document review execution agent.
+ * @param checklists - Array of checklist items with id and content
+ * @returns A string to use as system instructions for the review agent
+ */
+export function getDocumentReviewExecutionPrompt(
+  checklists: Array<{ id: number; content: string }>,
+): string {
+  // Build a human-readable list of checklist items
+  const formattedList = checklists
+    .map((item) => `ID: ${item.id} - ${item.content}`)
+    .join('\n');
+
+  return `You are a professional document reviewer. Your job is to evaluate the user-provided document against a set of checklist items.
+
+Checklist items:
+${formattedList}
+
+Instructions:
+1. For each checklist item, assign one of the following ratings:
+   - A: Excellent - fully meets the criterion.
+   - B: Satisfactory - partially meets the criterion.
+   - C: Needs Improvement - does not meet the criterion.
+2. Provide a comment in Japanese for each item.
+   - Discuss every relevant part of the document that corresponds to the item.
+   - If some sections satisfy the item and others do not, comment on each occurrence separately; do not offer only a general summary.
+3. Ensure no checklist item is omitted.
+4. Review the entire document for each checklist item before concluding.
+`;
+}

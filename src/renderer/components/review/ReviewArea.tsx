@@ -84,7 +84,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
 
         // チェックリスト抽出処理を開始
         const result = await window.electron.review.extractChecklist({
-          reviewHistoryId: selectedReviewHistoryId || undefined,
+          reviewHistoryId: selectedReviewHistoryId,
           sourceIds,
         });
 
@@ -255,7 +255,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
         top: 0,
         bottom: 0,
         height: '100vh',
-        overflow: 'auto',
+        overflow: 'hidden',
       }}
     >
       {/* アラートメッセージ */}
@@ -315,7 +315,15 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
           </Stack>
 
           {/* メインコンテンツ */}
-          <Paper sx={{ p: 2 }}>
+          <Paper
+            sx={{
+              p: 2,
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              minHeight: 0,
+            }}
+          >
             <ReviewChecklistSection
               checklistResults={checklistResults}
               isLoading={isExtracting || isReviewing}

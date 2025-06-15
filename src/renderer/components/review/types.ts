@@ -6,7 +6,7 @@ import { Source } from '../../../db/schema';
 
 // ReviewAreaのProps型
 export interface ReviewAreaProps {
-  selectedReviewHistoryId: string | null;
+  selectedReviewHistoryId: string;
 }
 
 // ReviewChecklistSectionのProps型

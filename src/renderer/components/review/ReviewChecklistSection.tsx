@@ -130,12 +130,12 @@ const ReviewChecklistSection: React.FC<ReviewChecklistSectionProps> = ({
       <TableRow>
         {/* チェックリスト列を固定幅 */}
         <TableCell
-          sx={{ minWidth: 300, whiteSpace: 'normal', wordBreak: 'break-word' }}
+          sx={{ minWidth: 250, whiteSpace: 'normal', wordBreak: 'break-word' }}
         >
           チェックリスト
         </TableCell>
         {uniqueSources.map((src) => (
-          <TableCell key={src.id} align="center" sx={{ minWidth: 150 }}>
+          <TableCell key={src.id} align="center" sx={{ minWidth: 200 }}>
             <TableSortLabel
               active={sortBy === src.id}
               direction={sortBy === src.id ? sortDirection : 'desc'}
@@ -280,7 +280,9 @@ const ReviewChecklistSection: React.FC<ReviewChecklistSectionProps> = ({
   );
 
   return (
-    <>
+    <Box
+      sx={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}
+    >
       <Stack direction="row" justifyContent="flex-end" mb={2}>
         <Button
           variant="outlined"
@@ -291,10 +293,13 @@ const ReviewChecklistSection: React.FC<ReviewChecklistSectionProps> = ({
           チェックリスト追加
         </Button>
       </Stack>
-      {/* 横スクロール */}
-      <Box sx={{ width: '100%', overflowX: 'auto' }}>
-        <TableContainer component={Paper} variant="outlined">
-          <Table size="small">
+      <Box sx={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
+        <TableContainer
+          component={Paper}
+          variant="outlined"
+          sx={{ width: '100%', overflowX: 'auto' }}
+        >
+          <Table size="small" stickyHeader>
             {renderHeader()}
             <TableBody>
               {sortedResults.map((cl) => renderRow(cl))}
@@ -303,7 +308,7 @@ const ReviewChecklistSection: React.FC<ReviewChecklistSectionProps> = ({
           </Table>
         </TableContainer>
       </Box>
-    </>
+    </Box>
   );
 };
 

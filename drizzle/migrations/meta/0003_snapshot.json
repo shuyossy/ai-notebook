@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "b6fbfd6c-9d69-40a7-81e1-08fb2ae0b551",
+  "id": "e4779464-5d36-4a28-a701-899c1b816205",
   "prevId": "e95a2e10-172d-46b3-9273-9b703dbab422",
   "tables": {
     "review_checklist_sources": {
@@ -105,13 +105,20 @@
         },
         "review_history_id": {
           "name": "review_history_id",
-          "type": "integer",
+          "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
         "content": {
           "name": "content",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_by": {
+          "name": "created_by",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -159,10 +166,10 @@
       "columns": {
         "id": {
           "name": "id",
-          "type": "integer",
+          "type": "text",
           "primaryKey": true,
           "notNull": true,
-          "autoincrement": true
+          "autoincrement": false
         },
         "title": {
           "name": "title",

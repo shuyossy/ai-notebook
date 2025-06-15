@@ -71,7 +71,7 @@ export const reviewHistories = sqliteTable('review_histories', {
 // レビューチェックリストを格納するテーブル
 export const reviewChecklists = sqliteTable('review_checklists', {
   id: integer('id').primaryKey({ autoIncrement: true }),
-  reviewHistoryId: integer('review_history_id')
+  reviewHistoryId: text('review_history_id')
     .notNull()
     .references(() => reviewHistories.id, { onDelete: 'cascade' }),
   content: text('content').notNull(), // チェックリスト項目

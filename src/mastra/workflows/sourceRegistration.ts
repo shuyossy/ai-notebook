@@ -3,15 +3,15 @@ import { Step, Workflow } from '@mastra/core/workflows';
 import { z } from 'zod';
 import { Agent } from '@mastra/core/agent';
 import { eq } from 'drizzle-orm';
-import getDb from '../../../db';
-import { sources, topics as dbTopics } from '../../../db/schema';
+import getDb from '../../db';
+import { sources, topics as dbTopics } from '../../db/schema';
 import {
   SOURCE_ANALYSIS_SYSTEM_PROMPT,
   EXTRACT_TOPIC_AND_SUMMARY_SYSTEM_PROMPT,
-} from '../../agents/prompts';
-import openAICompatibleModel from '../../agents/model/openAICompatible';
-import { stepStatus } from '../types';
-import { baseStepOutputSchema } from '../schema';
+} from '../agents/prompts';
+import openAICompatibleModel from '../agents/model/openAICompatible';
+import { stepStatus } from './types';
+import { baseStepOutputSchema } from './schema';
 
 // ファイルパスを入力とするスキーマ
 const triggerSchema = z.object({

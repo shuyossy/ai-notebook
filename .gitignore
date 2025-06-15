@@ -40,7 +40,7 @@ dist
 
 # original
 source
-db
+/db
 local_docker
 mcp.log
 electron-store

@@ -7,7 +7,6 @@ import {
   IpcEventPayload,
   IpcRequestPayload,
 } from './types/ipc';
-import { on } from 'node:events';
 
 export type Channels = (typeof IpcChannels)[keyof typeof IpcChannels];
 
