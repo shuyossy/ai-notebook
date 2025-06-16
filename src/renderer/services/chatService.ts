@@ -54,8 +54,8 @@ export const chatService = {
    * @param content メッセージ内容
    * @returns 送信結果
    */
-  sendMessage: (roomId: string, content: string): void => {
-    window.electron.chat.sendMessage(roomId, content);
+  sendMessage: (roomId: string, messages: ChatMessage[]): void => {
+    window.electron.chat.sendMessage({ roomId, messages });
   },
 
   /**

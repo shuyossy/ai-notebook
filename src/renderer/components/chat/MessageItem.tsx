@@ -265,12 +265,28 @@ const markdownComponents = {
 
 // ─────────────── ai-sdk・UIMessageのpartsレンダー用コンポーネント ───────────────
 
-const renderPart = (part: NonNullable<ChatMessage['parts']>[number]) => {
+const renderPart = (
+  part: NonNullable<ChatMessage['parts']>[number],
+  attachments?: ChatMessage['experimental_attachments'],
+) => {
   if (!part) return null;
   switch (part.type) {
     case 'text': {
       return (
         <Box sx={{ mb: 2, py: 2 }}>
+          {attachments?.map((att, idx) => (
+            <Box
+              key={idx}
+              sx={{ mb: 2, display: 'flex', justifyContent: 'center' }}
+            >
+              <Box
+                component="img"
+                src={att.url}
+                alt={att.name || `att-${idx}`}
+                sx={{ maxWidth: '100%', borderRadius: 1 }}
+              />
+            </Box>
+          ))}
           <ReactMarkdown
             remarkPlugins={[remarkGfm]}
             components={markdownComponents}
@@ -416,7 +432,7 @@ const MessageItem = forwardRef<HTMLDivElement, MessageProps>(
                 position: 'relative',
               }}
             >
-              {isUser && !isEditing && (
+              {isUser && !message.experimental_attachments && !isEditing && (
                 <IconButton
                   className="editBtn"
                   size="small"
@@ -439,7 +455,7 @@ const MessageItem = forwardRef<HTMLDivElement, MessageProps>(
                 </IconButton>
               )}
               {/* eslint-disable-next-line */}
-              {isEditing && isUser ? (
+              {isEditing && !message.experimental_attachments && isUser ? (
                 <Box sx={{ p: 1, width: '100%' }}>
                   <TextField
                     fullWidth
@@ -484,9 +500,14 @@ const MessageItem = forwardRef<HTMLDivElement, MessageProps>(
                   </Box>
                 </Box>
               ) : message.parts?.length ? (
-                message.parts.map(renderPart)
+                message.parts.map((p) =>
+                  renderPart(p, message.experimental_attachments),
+                )
               ) : (
-                renderPart({ type: 'text', text: message.content ?? '' })
+                renderPart(
+                  { type: 'text', text: message.content ?? '' },
+                  message.experimental_attachments,
+                )
               )}
             </Paper>
           </Box>
