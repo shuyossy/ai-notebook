@@ -3,7 +3,6 @@ import { MCPConfiguration, LogMessage } from '@mastra/mcp';
 import { v4 as uuid } from 'uuid';
 import { writeFileSync } from 'fs';
 import { documentQueryTool } from '../tools/sourcesTools';
-import { createStagehandTools } from '../tools/stagehand';
 import { createAgent } from './config/agent';
 import { getStore } from '../../main/store';
 import {
@@ -67,7 +66,6 @@ export const getOrchestrator = async (): Promise<{
   let redmineTools = {};
   let gitlabTools = {};
   let mcpTools = {};
-  let stagehandTools = {};
   let redmineInfo: RedmineBaseInfo | null = null;
 
   const excduldeTools: string[] = [];
@@ -184,28 +182,6 @@ export const getOrchestrator = async (): Promise<{
       }
     }
 
-    // Stagehandツールの登録
-    // Stagehandが有効な場合は登録する
-    const stagehandStore = store.get('stagehand');
-    const stagehandEnabled = stagehandStore.enabled;
-    if (stagehandEnabled) {
-      try {
-        stagehandTools = await createStagehandTools();
-        alertMessages.push({
-          id: uuid(),
-          type: 'info',
-          content: 'ブラウザ操作ツールの初期化に成功しました。',
-        });
-      } catch (error) {
-        alertMessages.push({
-          id: uuid(),
-          type: 'warning',
-          content: `ブラウザ操作ツールの初期化に失敗しました\n${error}`,
-        });
-        console.error('ブラウザ操作ツールの初期化に失敗しました:', error);
-      }
-    }
-
     // エージェントの作成
     agent = createAgent({
       name: ORCHESTRATOR_NAME,
@@ -213,7 +189,6 @@ export const getOrchestrator = async (): Promise<{
       tools: {
         // sourceListTool,
         documentQueryTool,
-        ...stagehandTools,
         ...redmineTools,
         ...gitlabTools,
         ...mcpTools,
@@ -262,7 +237,6 @@ export const getOrchestrator = async (): Promise<{
       redmine: !!redmineTools && Object.keys(redmineTools).length > 0,
       gitlab: !!gitlabTools && Object.keys(gitlabTools).length > 0,
       mcp: !!mcpTools && Object.keys(mcpTools).length > 0,
-      stagehand: !!stagehandTools && Object.keys(stagehandTools).length > 0,
     },
     redmineInfo,
   };

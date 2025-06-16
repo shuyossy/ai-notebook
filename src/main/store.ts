@@ -24,10 +24,6 @@ export interface StoreSchema {
   mcp: {
     serverConfigText: string;
   };
-  stagehand: {
-    enabled: boolean;
-    headless: boolean;
-  };
   systemPrompt: {
     content: string;
   };
@@ -80,20 +76,6 @@ const schema = {
       serverConfigText: {
         type: 'string',
         default: '{}',
-      },
-    },
-    required: [],
-  },
-  stagehand: {
-    type: 'object',
-    properties: {
-      enabled: {
-        type: 'boolean',
-        default: false,
-      },
-      headless: {
-        type: 'boolean',
-        default: false,
       },
     },
     required: [],
@@ -163,10 +145,6 @@ const defaults: StoreSchema = {
   },
   mcp: {
     serverConfigText: '{}',
-  },
-  stagehand: {
-    enabled: false,
-    headless: false,
   },
   systemPrompt: {
     content: '',

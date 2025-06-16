@@ -8,14 +8,7 @@ import webpackPaths from './webpack.paths';
 import { dependencies as externals } from '../../release/app/package.json';
 
 const configuration: webpack.Configuration = {
-  externals: [
-    ...Object.keys(externals || {}),
-    'playwright',
-    'playwright-core',
-    '@playwright/test',
-    'chromium-bidi',
-    '@browserbasehq/stagehand',
-  ],
+  externals: [...Object.keys(externals || {})],
 
   stats: 'errors-only',
 

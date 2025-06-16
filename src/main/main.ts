@@ -69,7 +69,6 @@ const mastraStatus: AgentBootStatus = {
     redmine: false,
     gitlab: false,
     mcp: false,
-    stagehand: false,
   },
 };
 // Redmineの基本情報を保持する変数
@@ -470,7 +469,6 @@ const setupChatHandlers = () => {
                     redmine: false,
                     gitlab: false,
                     mcp: false,
-                    stagehand: false,
                   },
                   redmineBaseInfo,
                 ),

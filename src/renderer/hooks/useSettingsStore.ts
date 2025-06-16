@@ -51,12 +51,6 @@ const useSettingsStore = () => {
   } = useElectronStore<Settings['mcp']>('mcp');
 
   const {
-    value: stagehandStore,
-    loading: loadingStagehand,
-    setValue: setStagehandStore,
-  } = useElectronStore<Settings['stagehand']>('stagehand');
-
-  const {
     value: systemPromptStore,
     loading: loadingSystemPrompt,
     setValue: setSystemPromptStore,
@@ -70,7 +64,6 @@ const useSettingsStore = () => {
     loadingRedmine ||
     loadingGitlab ||
     loadingMcp ||
-    loadingStagehand ||
     loadingSystemPrompt;
 
   // 設定値の状態管理
@@ -81,7 +74,6 @@ const useSettingsStore = () => {
     redmine: { endpoint: '', apiKey: '' },
     gitlab: { endpoint: '', apiKey: '' },
     mcp: { serverConfigText: '{}' },
-    stagehand: { enabled: false, headless: false },
     systemPrompt: { content: '' },
   });
 
@@ -93,7 +85,6 @@ const useSettingsStore = () => {
   //   redmine: { endpoint: '', apiKey: '' },
   //   gitlab: { endpoint: '', apiKey: '' },
   //   mcp: { serverConfigText: '{}' },
-  //   stagehand: { enabled: false, headless: false },
   //   systemPrompt: { content: '' },
   // });
 
@@ -105,7 +96,6 @@ const useSettingsStore = () => {
     redmine: {},
     gitlab: {},
     mcp: {},
-    stagehand: {},
     systemPrompt: {},
   });
 
@@ -187,7 +177,6 @@ const useSettingsStore = () => {
             serverConfigText: '{}',
           },
         },
-        stagehand: stagehandStore ?? { enabled: false, headless: false },
         systemPrompt: systemPromptStore ?? { content: '' },
       };
 
@@ -206,7 +195,6 @@ const useSettingsStore = () => {
     redmineStore,
     gitlabStore,
     mcpStore,
-    stagehandStore,
     systemPromptStore,
     loading,
     validateSection,
@@ -301,7 +289,6 @@ const useSettingsStore = () => {
         setRedmineStore(settings.redmine),
         setGitlabStore(settings.gitlab),
         setMcpStore(settings.mcp),
-        setStagehandStore(settings.stagehand),
         setSystemPromptStore(settings.systemPrompt),
       ]);
 

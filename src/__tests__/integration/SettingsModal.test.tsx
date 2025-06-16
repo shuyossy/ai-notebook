@@ -73,12 +73,6 @@ describe('SettingsModal Component', () => {
     expect(gitlabEndpoint).toHaveValue('https://gitlab.test.com');
     expect(gitlabApiKey).toHaveValue('test-gitlab-key');
 
-    // ブラウザ操作設定
-    const enabledSwitch = screen.getByLabelText('ブラウザ操作を有効化');
-    const headlessSwitch = screen.getByLabelText('ヘッドレスモードを有効化');
-    expect(enabledSwitch).toBeChecked();
-    expect(headlessSwitch).not.toBeChecked();
-
     // MCPサーバー設定
     expect(screen.getByLabelText('MCPサーバー設定（JSON）')).toHaveValue('{"testMcp": {"url": "https://mcp.test.com"} }');
 
@@ -162,10 +156,6 @@ describe('SettingsModal Component', () => {
     await user.clear(mcpConfigInput);
     await userEvent.type(mcpConfigInput, JSON.stringify(validMcpConfig, null, 2).replace(/[{[]/g, '$&$&'));
 
-    // ブラウザ操作設定の更新
-    await user.click(screen.getByLabelText('ブラウザ操作を有効化'));
-    await user.click(screen.getByLabelText('ヘッドレスモードを有効化'));
-
     // システムプロンプト設定の更新
     const systemPromptInput = screen.getByLabelText('システムプロンプトのカスタマイズが可能です');
     await user.clear(systemPromptInput);
@@ -211,12 +201,6 @@ describe('SettingsModal Component', () => {
       // MCP設定
       expect(window.electron.store.set).toHaveBeenCalledWith('mcp', {
         serverConfigText: JSON.stringify(validMcpConfig, null, 2),
-      });
-
-      // Stagehand設定
-      expect(window.electron.store.set).toHaveBeenCalledWith('stagehand', {
-        enabled: false,
-        headless: true,
       });
 
       // システムプロンプト設定

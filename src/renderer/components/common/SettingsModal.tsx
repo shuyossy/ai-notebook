@@ -214,38 +214,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
 
           <Box sx={{ width: '100%', mb: 1 }}>
             <Typography variant="h6" gutterBottom>
-              ブラウザ操作設定
-            </Typography>
-            <FormGroup>
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={settings.stagehand.enabled}
-                    onChange={(e) =>
-                      handleChange('stagehand', 'enabled', e.target.checked)
-                    }
-                    disabled={loading || saving}
-                  />
-                }
-                label="ブラウザ操作を有効化"
-              />
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={settings.stagehand.headless}
-                    onChange={(e) =>
-                      handleChange('stagehand', 'headless', e.target.checked)
-                    }
-                    disabled={loading || saving}
-                  />
-                }
-                label="ヘッドレスモードを有効化"
-              />
-            </FormGroup>
-          </Box>
-
-          <Box sx={{ width: '100%', mb: 1 }}>
-            <Typography variant="h6" gutterBottom>
               MCPサーバー設定
             </Typography>
             <TextField

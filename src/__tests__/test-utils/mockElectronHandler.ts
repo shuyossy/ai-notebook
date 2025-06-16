@@ -49,10 +49,6 @@ export const createDefaultMockSettings = (): Settings => ({
   mcp: {
     serverConfigText: '{"testMcp": {"url": "https://mcp.test.com"} }',
   },
-  stagehand: {
-    enabled: true,
-    headless: false,
-  },
   systemPrompt: {
     content: 'test system prompt',
   },
@@ -89,7 +85,6 @@ export const createMockElectronWithOptions = (
           redmine: false,
           gitlab: false,
           mcp: false,
-          stagehand: false,
         },
       }),
       reinitialize: jest.fn().mockResolvedValue(undefined),
