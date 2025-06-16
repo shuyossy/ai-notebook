@@ -303,9 +303,18 @@ const setupChatHandlers = () => {
         });
 
         // oldContentと一致するメッセージのリストを取得
-        const targetMessages = messages.filter(
-          (msg) => msg.content === oldContent,
-        );
+        const targetMessages = messages.filter((msg) => {
+          if (msg.role !== 'user') {
+            return false; // ユーザーメッセージのみを対象とする
+          }
+          if (typeof msg.content === 'string') {
+            return msg.content === oldContent; // 文字列の場合は直接比較
+          }
+          return (
+            // textパートは一つのみのはずなので、最初のtextパートを取得して比較
+            msg.content.filter((c) => c.type === 'text')[0].text === oldContent
+          );
+        });
 
         if (targetMessages.length === 0) {
           throw new Error('指定されたメッセージが見つかりません');
@@ -330,6 +339,7 @@ const setupChatHandlers = () => {
         }
         // 最初のメッセージからmessageIdに対応するメッセージまでの履歴を取得
         const history = messages.slice(0, targetMessageIndex);
+        console.log('new history:', history);
 
         // スレッドを削除
         await memory.storage.deleteThread({ threadId });
