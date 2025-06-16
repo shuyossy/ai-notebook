@@ -263,7 +263,7 @@ describe('Sidebar Component', () => {
     await user.click(screen.getByTestId('document-list-button'));
 
     // SourceListModalが表示されることを確認
-    expect(screen.getByText('ソース一覧')).toBeInTheDocument();
+    expect(screen.getByText('登録ドキュメント一覧')).toBeInTheDocument();
   });
 
   // テスト9: フッターの設定モーダル表示

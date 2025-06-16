@@ -17,6 +17,33 @@ export const sourceService = {
       };
     }
   },
+  /**
+   * ソースの登録ディレクトリを取得する
+   * @returns 登録ディレクトリのパス
+   */
+  getRegisterDir: async (): Promise<{
+    success: boolean;
+    dir?: string;
+    error?: string;
+  }> => {
+    try {
+      // IPC通信を使用してメインプロセスから登録ディレクトリを取得する
+      const source = (await window.electron.store.get('source')) as any;
+      if (!source || !source.registerDir) {
+        return {
+          success: false,
+          error: 'ドキュメント登録ディレクトリが設定されていません',
+        };
+      }
+      return { success: true, dir: source.registerDir || '' };
+      // eslint-disable-next-line
+    } catch (error) {
+      return {
+        success: false,
+        error: `ドキュメント登録ディレクトリの取得に失敗しました`,
+      };
+    }
+  },
 };
 
 export default sourceService;

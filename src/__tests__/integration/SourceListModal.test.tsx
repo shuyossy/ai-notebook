@@ -190,7 +190,7 @@ describe('SourceListModal Component', () => {
     });
 
     // リロードボタンが無効化されていることを確認
-    const reloadButton = screen.getByText('処理中...');
+    const reloadButton = screen.getByText('同期処理中...');
     expect(reloadButton).toBeDisabled();
 
     // チェックボックスが無効化されていることを確認
@@ -824,13 +824,67 @@ describe('SourceListModal Component', () => {
     });
 
     // 完了状態なのでリロードボタンが活性化されていることを確認
-    const reloadButton = screen.getByText('ソース読み込み');
+    const reloadButton = screen.getByText('ファイル同期');
     expect(reloadButton).toBeEnabled();
 
     // リロードボタンをクリック
     fireEvent.click(reloadButton);
 
     // onReloadSourcesが呼ばれたことを確認
-    expect(props.onReloadSources).toHaveBeenCalled();
+    await waitFor(() => {
+      expect(props.onReloadSources).toHaveBeenCalled();
+    });
+  });
+
+  // テスト11: 登録ディレクトリが空文字の場合のファイル同期挙動確認
+  test('登録ディレクトリが空文字の場合のファイル同期挙動確認', async () => {
+    // 登録ディレクトリが空文字のモックデータをセットアップ(window.electron.store.get('source'))
+    window.electron.store.get = jest.fn().mockReturnValue({
+      registerDir: '',
+    });
+
+    const props = {
+      ...defaultProps,
+    };
+
+    // コンポーネントをレンダリング
+    render(
+      <SourceListModal
+        open={props.open}
+        processing={props.processing}
+        onClose={props.onClose}
+        onReloadSources={props.onReloadSources}
+        onStatusUpdate={props.onStatusUpdate}
+        showSnackbar={props.showSnackbar}
+      />,
+    );
+
+    // 進める
+    act(() => {
+      jest.advanceTimersByTime(5000);
+    });
+
+    // ソースデータが取得されるまで待機
+    await waitFor(() => {
+      expect(window.electron.source.getSources).toHaveBeenCalled();
+    });
+
+    // ファイル同期ボタンが有効化されていることを確認
+    const reloadButton = screen.getByText('ファイル同期');
+    expect(reloadButton).toBeEnabled();
+
+    // ファイル同期ボタンをクリック
+    fireEvent.click(reloadButton);
+    // 登録ディレクトリが設定されていない場合のエラーメッセージが表示されることを確認
+    await waitFor(() => {
+      expect(props.showSnackbar).toHaveBeenCalledWith(
+        'ドキュメント登録ディレクトリが設定されていません',
+        'error',
+      );
+    });
+    // onReloadSourcesが呼ばれないことを確認
+    await waitFor(() => {
+      expect(props.onReloadSources).not.toHaveBeenCalled();
+    });
   });
 });

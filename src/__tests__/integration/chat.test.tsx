@@ -887,7 +887,7 @@ describe('ChatArea Component', () => {
 
     window.electron.chat.getMessages = jest.fn().mockResolvedValue(mockMultiImageMessages);
 
-    render(<ChatArea selectedRoomId="1" />);
+    render(<ChatArea selectedRoomId="18" />);
 
     // 全ての画像が表示されることを確認
     await waitFor(() => {
@@ -919,7 +919,7 @@ describe('ChatArea Component', () => {
 
     window.electron.chat.getMessages = jest.fn().mockResolvedValue(mockImageMessage);
     const user = userEvent.setup();
-    render(<ChatArea selectedRoomId="1" />);
+    render(<ChatArea selectedRoomId="19" />);
 
     // メッセージエリアを取得
     const messageText = await screen.findByText('画像付きメッセージ');
