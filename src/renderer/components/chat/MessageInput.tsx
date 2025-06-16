@@ -51,7 +51,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
   };
 
   return (
-    <Box sx={{ p: 2 }}>
+    <Box sx={{ p: 2, width: '100%', maxWidth: '900px', mx: 'auto' }}>
       <Paper
         component="form"
         onSubmit={handleSubmit}
