@@ -78,6 +78,8 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
   // チェックリストの抽出処理
   const handleExtractChecklist = useCallback(
     async (sourceIds: number[]) => {
+      if (!selectedReviewHistoryId) return;
+
       try {
         setIsExtracting(true);
         setIsModalOpen(false);
