@@ -4,10 +4,11 @@ import { Box, Divider, Typography, Alert } from '@mui/material';
 import { v4 as uuid } from 'uuid';
 import useAgentStatus from '../../hooks/useAgentStatus';
 import MessageList from './MessageList';
-import MessageInput from './MessageInput';
+import MessageInput, { Attachment } from './MessageInput';
 import { chatService } from '../../services/chatService';
 import { ChatMessage } from '../../../main/types';
 import { useAgentStore } from '../../stores/agentStore';
+import { IpcRequestPayload, IpcChannels } from '../../../main/types/ipc';
 
 interface AlertMessage {
   id: string;
@@ -126,14 +127,16 @@ const customFetch: typeof fetch = async (input, init) => {
           },
         });
 
-        const { message, threadId } = JSON.parse(init!.body as string);
+        const { messages, roomId } = JSON.parse(
+          init!.body as string,
+        ) as IpcRequestPayload<typeof IpcChannels.CHAT_SEND_MESSAGE>;
         init?.signal?.addEventListener('abort', () => {
-          console.log('Abort signal received, from threadId: ', threadId);
-          window.electron.chat.requestAbort(threadId);
+          console.log('Abort signal received, from threadId: ', roomId);
+          window.electron.chat.requestAbort(roomId);
           unsubscribe();
           controller.close();
         });
-        window.electron.chat.sendMessage(threadId, message);
+        window.electron.chat.sendMessage({ roomId, messages });
       },
       cancel() {
         unsubscribe();
@@ -166,6 +169,15 @@ const getPlaceholderText = (
   return 'メッセージを入力してください';
 };
 
+const fileToDataURL = (file: File): Promise<string> =>
+  // eslint-disable-next-line
+  new Promise((res, rej) => {
+    const reader = new FileReader();
+    reader.onload = () => res(reader.result as string);
+    reader.onerror = rej;
+    reader.readAsDataURL(file);
+  });
+
 const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
   const [loading, setLoading] = useState(false);
   const [initialMessages, setInitialMessages] = useState<ChatMessage[]>([]);
@@ -175,6 +187,10 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
   const [editMessageContent, setEditMessageContent] = useState<string>('');
   const { status: agentStatus } = useAgentStatus();
   const [isEditHistory, setIsEditHistory] = useState(false);
+  /* ---------- 添付画像 ---------- */
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  // メッセージ入力状態
+  const [input, setInput] = useState<string>('');
 
   const isAgentInitializing = agentStatus.state === 'initializing';
 
@@ -200,17 +216,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
     }
   }, [selectedRoomId]);
 
-  const {
-    messages,
-    setMessages,
-    reload,
-    input,
-    status,
-    error,
-    handleInputChange,
-    handleSubmit,
-    stop,
-  } = useChat({
+  const { messages, setMessages, reload, status, error, stop } = useChat({
     id: selectedRoomId ?? undefined,
     api: '/api/chat',
     fetch: customFetch,
@@ -222,6 +228,9 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
         request.messages.length > 0
           ? request.messages[request.messages.length - 1]
           : null;
+      if (!lastMessage) {
+        throw new Error('送信メッセージの取得に失敗しました');
+      }
 
       // 初回メッセージ送信時にスレッドを作成
       // titleについてはここで、指定してもmemoryのオプションでgenerateTitleをtrueにしていた場合、「New Thread 2025-04-27T08:20:05.694Z」のようなタイトルが自動生成されてしまう
@@ -231,9 +240,9 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
 
       // Return the structured body for your API route
       return {
-        message: lastMessage?.content, // Send only the most recent message content/role
-        threadId: selectedRoomId ?? undefined,
-      };
+        messages: [lastMessage], // Send only the most recent message content/role
+        roomId: selectedRoomId ?? undefined,
+      } as IpcRequestPayload<typeof IpcChannels.CHAT_SEND_MESSAGE>;
     },
     onError(err) {
       console.error('useChat error:', err);
@@ -265,6 +274,72 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
 
   const handleEditContentChange = (content: string) => {
     setEditMessageContent(content);
+  };
+
+  /* ---------- メッセージ送信処理 ---------- */
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setInput(e.target.value);
+  };
+
+  /* ---------- 添付画像操作 ---------- */
+  const addAttachments = async (files: FileList | File[]) => {
+    const fileArr = Array.from(files).filter((f) =>
+      f.type.startsWith('image/'),
+    );
+    if (!fileArr.length) return;
+
+    /* 最大 3 枚に抑制 */
+    const newFiles = fileArr.slice(0, 3 - attachments.length);
+    const att: Attachment[] = newFiles.map((file) => ({
+      file,
+      preview: URL.createObjectURL(file),
+    }));
+    setAttachments((prev) => [...prev, ...att]);
+  };
+
+  const removeAttachment = (idx: number) => {
+    setAttachments((prev) => {
+      const target = prev[idx];
+      if (target) URL.revokeObjectURL(target.preview); // メモリ開放
+      return prev.filter((_, i) => i !== idx);
+    });
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!input.trim() && attachments.length === 0) return;
+
+    /* 添付画像を base64 へ変換しメッセージを追加 */
+    const addAttachment = await Promise.all(
+      attachments.map(async (att) => ({
+        name: att.file.name,
+        contentType: att.file.type,
+        url: await fileToDataURL(att.file), // ObjectURLではなくbase64に変換
+      })),
+    );
+    const newMessage: ChatMessage = {
+      id: uuid(),
+      role: 'user',
+      content: input,
+      parts: [
+        {
+          type: 'text',
+          text: input,
+        },
+      ],
+      experimental_attachments:
+        addAttachment.length > 0 ? addAttachment : undefined,
+    };
+    console.log('新規メッセージ: ', newMessage);
+
+    setInput('');
+    // appendだと画像が反映されないため、使わない
+    // append(newMessage);
+    setMessages((prev) => [...prev, newMessage]);
+    reload();
+
+    /* 送信後クリーンアップ */
+    setAttachments([]);
   };
 
   const handleEditSubmit = async () => {
@@ -356,6 +431,9 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
             placeholder={getPlaceholderText(status, isAgentInitializing)}
             isStreaming={status === 'streaming'}
             onStop={stop}
+            attachments={attachments}
+            onAddFiles={addAttachments}
+            onRemoveAttachment={removeAttachment}
           />
 
           {/* {error && !isAgentInitializing && (

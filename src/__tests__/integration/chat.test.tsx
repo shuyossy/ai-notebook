@@ -304,8 +304,26 @@ describe('ChatArea Component', () => {
     // 送信処理が呼ばれることを確認
     await waitFor(() => {
       expect(window.electron.chat.sendMessage).toHaveBeenCalledWith(
-        '1',
-        'テストメッセージ',
+        expect.objectContaining({
+          // roomId が '1' であること
+          roomId: '1',
+
+          // messages が配列で、かつ中に以下を含むこと
+          messages: expect.arrayContaining([
+            expect.objectContaining({
+              // content プロパティ
+              content: 'テストメッセージ',
+
+              // role プロパティ
+              role: 'user',
+
+              // parts が配列で、かつ中に text: 'テストメッセージ' を含むこと
+              parts: expect.arrayContaining([
+                expect.objectContaining({ text: 'テストメッセージ' }),
+              ]),
+            }),
+          ]),
+        }),
       );
     });
   });
@@ -456,10 +474,30 @@ describe('ChatArea Component', () => {
     await user.keyboard('{Enter}');
 
     // 送信処理が呼ばれることを確認
-    expect(window.electron.chat.sendMessage).toHaveBeenCalledWith(
-      '1',
-      'テストメッセージ',
-    );
+    await waitFor(() => {
+      expect(window.electron.chat.sendMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          // roomId が '1' であること
+          roomId: '1',
+
+          // messages が配列で、かつ中に以下を含むこと
+          messages: expect.arrayContaining([
+            expect.objectContaining({
+              // content プロパティ
+              content: 'テストメッセージ',
+
+              // role プロパティ
+              role: 'user',
+
+              // parts が配列で、かつ中に text: 'テストメッセージ' を含むこと
+              parts: expect.arrayContaining([
+                expect.objectContaining({ text: 'テストメッセージ' }),
+              ]),
+            }),
+          ]),
+        }),
+      );
+    });
 
     // Shift+Enterで改行されることを確認
     await user.clear(input);

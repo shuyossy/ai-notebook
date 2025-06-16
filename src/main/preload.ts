@@ -52,13 +52,9 @@ const electronHandler = {
   chat: {
     // チャットメッセージを送信する
     sendMessage: async (
-      roomId: string,
-      content: string,
+      params: IpcRequestPayload<typeof IpcChannels.CHAT_SEND_MESSAGE>,
     ): Promise<IpcResponsePayload<typeof IpcChannels.CHAT_SEND_MESSAGE>> => {
-      return ipcRenderer.invoke(IpcChannels.CHAT_SEND_MESSAGE, {
-        roomId,
-        content,
-      });
+      return ipcRenderer.invoke(IpcChannels.CHAT_SEND_MESSAGE, params);
     },
     // チャットルーム一覧を取得する
     getRooms: async (): Promise<

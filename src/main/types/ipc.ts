@@ -61,7 +61,7 @@ export type IpcRequestPayloadMap = {
   [IpcChannels.SOURCE_UPDATE_ENABLED]: { sourceId: number; isEnabled: boolean };
 
   // チャット関連
-  [IpcChannels.CHAT_SEND_MESSAGE]: { roomId: string; content: string };
+  [IpcChannels.CHAT_SEND_MESSAGE]: { roomId: string; messages: ChatMessage[] };
   [IpcChannels.CHAT_GET_ROOMS]: undefined;
   [IpcChannels.CHAT_GET_MESSAGES]: string; // threadId
   [IpcChannels.CHAT_DELETE_ROOM]: string; // threadId

@@ -15,7 +15,7 @@ import { autoUpdater } from 'electron-updater';
 import log from 'electron-log';
 import { Mastra } from '@mastra/core';
 import { createLogger } from '@mastra/core/logger';
-import { createDataStream } from 'ai';
+import { createDataStream, CoreUserMessage, UserContent } from 'ai';
 import { eq } from 'drizzle-orm';
 import {
   ReadableStream,
@@ -360,7 +360,10 @@ const setupChatHandlers = () => {
     IpcChannels.CHAT_SEND_MESSAGE,
     async (
       event,
-      { roomId, content },
+      {
+        roomId,
+        messages,
+      }: IpcRequestPayloadMap[typeof IpcChannels.CHAT_SEND_MESSAGE],
     ): Promise<IpcResponsePayloadMap[typeof IpcChannels.CHAT_SEND_MESSAGE]> => {
       try {
         // 新しいAbortControllerを作成
@@ -415,35 +418,63 @@ const setupChatHandlers = () => {
               value: 'processing',
             });
             // streaming falseの場合のメッセージ送信処理
-            const res = await orchestratorAgent.generate(content, {
-              resourceId: 'user', // 固定のリソースID
-              instructions: await getOrchestratorSystemPrompt(
-                mastraStatus.tools ?? {
-                  redmine: false,
-                  gitlab: false,
-                  mcp: false,
-                  stagehand: false,
+            const res = await orchestratorAgent.generate(
+              messages.map((msg) => {
+                const content: UserContent = msg
+                  .parts!.filter((part) => part.type === 'text')
+                  .map((part) => {
+                    return { type: 'text', text: part.text };
+                  });
+                if (
+                  msg.experimental_attachments &&
+                  msg.experimental_attachments.length > 0
+                ) {
+                  content.push(
+                    // @ts-ignore
+                    ...msg.experimental_attachments.map((att) => {
+                      return {
+                        type: 'image',
+                        image: att.url,
+                        mimeType: att.contentType,
+                      };
+                    }),
+                  );
+                }
+                return {
+                  role: 'user',
+                  content,
+                } as CoreUserMessage;
+              }),
+              {
+                resourceId: 'user', // 固定のリソースID
+                instructions: await getOrchestratorSystemPrompt(
+                  mastraStatus.tools ?? {
+                    redmine: false,
+                    gitlab: false,
+                    mcp: false,
+                    stagehand: false,
+                  },
+                  redmineBaseInfo,
+                ),
+                threadId: roomId, // チャットルームIDをスレッドIDとして使用
+                maxSteps: 30, // ツールの利用上限
+                abortSignal: controller.signal, // 中断シグナルを設定
+                onStepFinish: (stepResult) => {
+                  // https://ai-sdk.dev/docs/ai-sdk-ui/stream-protocol
+                  // 上記を参考にai-sdkのストリームプロトコルに従ってメッセージを送信
+                  writer.write(`0:${JSON.stringify(stepResult.text)}\n`);
+                  stepResult.toolCalls.forEach((toolCall) => {
+                    writer.write(`9:${JSON.stringify(toolCall)}\n`);
+                  });
+                  stepResult.toolResults.forEach((toolResult) => {
+                    writer.write(`a:${JSON.stringify(toolResult)}\n`);
+                  });
+                  writer.write(
+                    `e:${JSON.stringify({ finishReason: stepResult.finishReason, ...stepResult.usage })}\n`,
+                  );
                 },
-                redmineBaseInfo,
-              ),
-              threadId: roomId, // チャットルームIDをスレッドIDとして使用
-              maxSteps: 30, // ツールの利用上限
-              abortSignal: controller.signal, // 中断シグナルを設定
-              onStepFinish: (stepResult) => {
-                // https://ai-sdk.dev/docs/ai-sdk-ui/stream-protocol
-                // 上記を参考にai-sdkのストリームプロトコルに従ってメッセージを送信
-                writer.write(`0:${JSON.stringify(stepResult.text)}\n`);
-                stepResult.toolCalls.forEach((toolCall) => {
-                  writer.write(`9:${JSON.stringify(toolCall)}\n`);
-                });
-                stepResult.toolResults.forEach((toolResult) => {
-                  writer.write(`a:${JSON.stringify(toolResult)}\n`);
-                });
-                writer.write(
-                  `e:${JSON.stringify({ finishReason: stepResult.finishReason, ...stepResult.usage })}\n`,
-                );
               },
-            });
+            );
             writer.write(
               `d:${JSON.stringify({ finishReason: res.finishReason, ...res.usage })}\n`,
             );
@@ -532,7 +563,40 @@ const setupChatHandlers = () => {
           return [];
         }
 
-        const { uiMessages } = result;
+        const { uiMessages, messages } = result;
+        // messages内の要素でroleが'user'の場合に、contentのtypeが'image'のものがあれば、画像データを対応するuiMessagesにも付与する
+        messages.forEach((message) => {
+          if (message.role === 'user' && typeof message.content !== 'string') {
+            const imageAttachments = message.content
+              .filter(
+                (part) =>
+                  part.type === 'image' && typeof part.image === 'string',
+              )
+              .map((part) => {
+                return {
+                  // @ts-ignore partはImagePart型であることが保証されている
+                  url: part.image,
+                  // @ts-ignore partはImagePart型であることが保証されている
+                  contentType: part.mimeType,
+                };
+              });
+            if (imageAttachments.length > 0) {
+              // uiMessagesの対応するメッセージに画像データを追加
+              const uiMessage = uiMessages.find(
+                // @ts-ignore CoreMessageもダンプしてみるとidが存在する
+                (uiMsg) => uiMsg.id === message.id,
+              );
+              if (uiMessage) {
+                uiMessage.experimental_attachments = imageAttachments;
+              } else {
+                console.warn(
+                  // @ts-ignore
+                  `対応するUIメッセージが見つかりません: ${message.id}`,
+                );
+              }
+            }
+          }
+        });
 
         // メッセージをチャットメッセージ形式に変換
         return uiMessages;
