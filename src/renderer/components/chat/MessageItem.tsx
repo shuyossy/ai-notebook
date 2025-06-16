@@ -140,7 +140,7 @@ const CodeBlockRenderer: React.FC<CodeProps> = ({
     return <MermaidDiagram chart={text} />;
   }
 
-  if (inline) {
+  if (!lang.trim() || inline) {
     // インラインコード
     return (
       <Box
@@ -261,7 +261,7 @@ const markdownComponents = {
   img: ImageRenderer,
   p: ParagraphRenderer,
   ...TableRenderers,
-} as unknown as Components;
+} as Components;
 
 // ─────────────── ai-sdk・UIMessageのpartsレンダー用コンポーネント ───────────────
 

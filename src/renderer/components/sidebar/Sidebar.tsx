@@ -128,7 +128,7 @@ function Sidebar({
         height: '100%',
         display: 'flex',
         flexDirection: 'column',
-        bgcolor: 'background.paper',
+        bgcolor: 'grey.50',
         borderRight: 1,
         borderColor: 'divider',
       }}
