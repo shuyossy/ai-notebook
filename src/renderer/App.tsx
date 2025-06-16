@@ -33,6 +33,7 @@ const theme = createTheme({
   },
   typography: {
     fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
+    fontSize: 14,
   },
   components: {
     MuiCssBaseline: {

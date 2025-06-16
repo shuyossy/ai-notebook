@@ -32,8 +32,10 @@ export const DatabaseSchema = z.object({
 export const SourceSchema = z.object({
   registerDir: z
     .string()
-    .min(1, { message: 'ソース登録ディレクトリは必須です' })
-    .refine(async (path) => await checkPathExists(path), {
+    .refine(async (path) => {
+      if (path.trim() === '') return true; // 空文字は許容
+      return await checkPathExists(path)
+    }, {
       message: '指定されたパスが存在しません',
     }),
 });

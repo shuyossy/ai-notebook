@@ -81,6 +81,9 @@ export default class SourceRegistrationManager {
     try {
       const store = getStore();
       const { registerDir } = store.get('source');
+      if (!registerDir || registerDir.trim() === '') {
+        throw new Error('ドキュメント登録ディレクトリが設定されていません');
+      }
       // ディレクトリ内のファイル一覧を取得
       let files = await this.readDirectoryRecursively(registerDir);
 

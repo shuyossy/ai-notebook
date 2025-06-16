@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   AlertColor,
+  Alert,
   Modal,
   Box,
   Typography,
@@ -25,6 +26,7 @@ import {
 } from '@mui/icons-material';
 
 import { Source } from '../../../db/schema';
+import { sourceService } from '../../services/sourceService';
 
 interface SourceListModalProps {
   open: boolean;
@@ -198,7 +200,16 @@ function SourceListModal({
     };
   }, [open, checkedSources, onStatusUpdate]);
 
-  const handleReloadClick = () => {
+  const handleReloadClick = async () => {
+    // ドキュメント登録ディレクトリが設定されていない場合はエラースナックバー表示
+    const { success, dir, error } = await sourceService.getRegisterDir();
+    if (!success || !dir?.trim()) {
+      showSnackbar(
+        error || 'ドキュメント登録ディレクトリが設定されていません',
+        'error',
+      );
+      return;
+    }
     onReloadSources();
   };
 
@@ -281,8 +292,15 @@ function SourceListModal({
         }}
       >
         <Typography variant="h6" component="h2" gutterBottom>
-          ソース一覧
+          登録ドキュメント一覧
         </Typography>
+        <Alert severity="info" sx={{ whiteSpace: 'pre-line', mb: 2 }}>
+          設定されたディレクトリ(歯車アイコンから変更可能)内のドキュメントを一覧表示しています
+          <br />
+          チェックされたドキュメントは、AIの回答時に適宜参照されます
+          <br />
+          ※ディレクトリの内容が更新された場合は、ファイル同期を実行してください
+        </Alert>
 
         <Box sx={{ mb: 2, display: 'flex', justifyContent: 'flex-end' }}>
           <Tooltip title="ソース登録ディレクトリ内のファイル内容と同期します">
@@ -292,7 +310,7 @@ function SourceListModal({
               disabled={processing || updatingSources.size > 0}
               startIcon={<SyncIcon />}
             >
-              {processing ? '処理中...' : 'ソース読み込み'}
+              {processing ? '同期処理中...' : 'ファイル同期'}
             </Button>
           </Tooltip>
         </Box>
@@ -333,7 +351,7 @@ function SourceListModal({
                 </TableCell>
                 <TableCell>ファイルパス</TableCell>
                 <TableCell>タイトル（生成）</TableCell>
-                <TableCell>初期化処理ステータス</TableCell>
+                <TableCell>同期処理ステータス</TableCell>
                 <TableCell>最終更新</TableCell>
               </TableRow>
             </TableHead>

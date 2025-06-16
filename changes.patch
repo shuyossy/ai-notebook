@@ -4,7 +4,7 @@ index 1c98b18d4..3e06b6a01 100644
 +++ b/.erb/configs/webpack.config.base.ts
 @@ -8,14 +8,7 @@ import webpackPaths from './webpack.paths';
  import { dependencies as externals } from '../../release/app/package.json';
- 
+
  const configuration: webpack.Configuration = {
 -  externals: [
 -    ...Object.keys(externals || {}),
@@ -15,9 +15,9 @@ index 1c98b18d4..3e06b6a01 100644
 -    '@browserbasehq/stagehand',
 -  ],
 +  externals: [...Object.keys(externals || {})],
- 
+
    stats: 'errors-only',
- 
+
 diff --git a/.gitignore b/.gitignore
 index 025b4f02a..b5cdd5709 100644
 --- a/.gitignore
@@ -2927,7 +2927,7 @@ index 9b5048762..3d7db5da0 100644
 @@ -73,12 +73,6 @@ describe('SettingsModal Component', () => {
      expect(gitlabEndpoint).toHaveValue('https://gitlab.test.com');
      expect(gitlabApiKey).toHaveValue('test-gitlab-key');
- 
+
 -    // ブラウザ操作設定
 -    const enabledSwitch = screen.getByLabelText('ブラウザ操作を有効化');
 -    const headlessSwitch = screen.getByLabelText('ヘッドレスモードを有効化');
@@ -2936,11 +2936,11 @@ index 9b5048762..3d7db5da0 100644
 -
      // MCPサーバー設定
      expect(screen.getByLabelText('MCPサーバー設定（JSON）')).toHaveValue('{"testMcp": {"url": "https://mcp.test.com"} }');
- 
+
 @@ -162,10 +156,6 @@ describe('SettingsModal Component', () => {
      await user.clear(mcpConfigInput);
      await userEvent.type(mcpConfigInput, JSON.stringify(validMcpConfig, null, 2).replace(/[{[]/g, '$&$&'));
- 
+
 -    // ブラウザ操作設定の更新
 -    await user.click(screen.getByLabelText('ブラウザ操作を有効化'));
 -    await user.click(screen.getByLabelText('ヘッドレスモードを有効化'));
@@ -2951,7 +2951,7 @@ index 9b5048762..3d7db5da0 100644
 @@ -213,12 +203,6 @@ describe('SettingsModal Component', () => {
          serverConfigText: JSON.stringify(validMcpConfig, null, 2),
        });
- 
+
 -      // Stagehand設定
 -      expect(window.electron.store.set).toHaveBeenCalledWith('stagehand', {
 -        enabled: false,
@@ -3169,7 +3169,7 @@ index fc3d86996..3b8a7183a 100644
    mcp: boolean;
 -  stagehand: boolean;
  };
- 
+
  /**
 diff --git a/src/main/types/settingsSchema.ts b/src/main/types/settingsSchema.ts
 index 4397a2253..f7958b70a 100644
@@ -3178,7 +3178,7 @@ index 4397a2253..f7958b70a 100644
 @@ -71,14 +71,6 @@ export const GitLabSchema = z.object({
    apiKey: z.string().optional().or(z.literal('')),
  });
- 
+
 -/**
 - * Stagehand設定のスキーマ
 - */
@@ -3197,7 +3197,7 @@ index 4397a2253..f7958b70a 100644
 -  stagehand: StagehandSchema,
    systemPrompt: SystemPromptSchema,
  });
- 
+
 diff --git a/src/mastra/agents/orchestrator.ts b/src/mastra/agents/orchestrator.ts
 index 63c018a8b..e6249bccd 100644
 --- a/src/mastra/agents/orchestrator.ts
@@ -3216,12 +3216,12 @@ index 63c018a8b..e6249bccd 100644
    let mcpTools = {};
 -  let stagehandTools = {};
    let redmineInfo: RedmineBaseInfo | null = null;
- 
+
    const excduldeTools: string[] = [];
 @@ -184,28 +182,6 @@ export const getOrchestrator = async (): Promise<{
        }
      }
- 
+
 -    // Stagehandツールの登録
 -    // Stagehandが有効な場合は登録する
 -    const stagehandStore = store.get('stagehand');
@@ -3270,7 +3270,7 @@ index 59e7f80a2..8e31dc5d9 100644
 @@ -143,15 +143,6 @@ ${systemPrompt}
  - **Memory Management Tool**
    updateWorkingMemory: Save or update facts in your working memory.
- 
+
 -${
 -  config.stagehand
 -    ? `- **Web Automation (Stagehand) Tools**
@@ -3870,7 +3870,7 @@ index 779aa6d89..cb60de696 100644
 @@ -212,38 +212,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
              />
            </Box>
- 
+
 -          <Box sx={{ width: '100%', mb: 1 }}>
 -            <Typography variant="h6" gutterBottom>
 -              ブラウザ操作設定
@@ -3912,7 +3912,7 @@ index 8f355e7c1..9089df808 100644
 +++ b/src/renderer/components/review/ReviewHistoryList.tsx
 @@ -187,7 +187,13 @@ function ReviewHistoryList({
    };
- 
+
    return (
 -    <Box>
 +    <Box
@@ -3948,7 +3948,7 @@ index 151a23321..9a10c4935 100644
 +++ b/src/renderer/components/sidebar/ChatRoomList.tsx
 @@ -187,7 +187,13 @@ function ChatRoomList({
    };
- 
+
    return (
 -    <Box>
 +    <Box
@@ -4007,7 +4007,7 @@ index 526c9f2c2..befaa6be5 100644
 @@ -50,12 +50,6 @@ const useSettingsStore = () => {
      setValue: setMcpStore,
    } = useElectronStore<Settings['mcp']>('mcp');
- 
+
 -  const {
 -    value: stagehandStore,
 -    loading: loadingStagehand,
@@ -4023,7 +4023,7 @@ index 526c9f2c2..befaa6be5 100644
      loadingMcp ||
 -    loadingStagehand ||
      loadingSystemPrompt;
- 
+
    // 設定値の状態管理
 @@ -81,7 +74,6 @@ const useSettingsStore = () => {
      redmine: { endpoint: '', apiKey: '' },
@@ -4032,7 +4032,7 @@ index 526c9f2c2..befaa6be5 100644
 -    stagehand: { enabled: false, headless: false },
      systemPrompt: { content: '' },
    });
- 
+
 @@ -93,7 +85,6 @@ const useSettingsStore = () => {
    //   redmine: { endpoint: '', apiKey: '' },
    //   gitlab: { endpoint: '', apiKey: '' },
@@ -4040,7 +4040,7 @@ index 526c9f2c2..befaa6be5 100644
 -  //   stagehand: { enabled: false, headless: false },
    //   systemPrompt: { content: '' },
    // });
- 
+
 @@ -105,7 +96,6 @@ const useSettingsStore = () => {
      redmine: {},
      gitlab: {},
@@ -4048,7 +4048,7 @@ index 526c9f2c2..befaa6be5 100644
 -    stagehand: {},
      systemPrompt: {},
    });
- 
+
 @@ -187,7 +177,6 @@ const useSettingsStore = () => {
              serverConfigText: '{}',
            },
@@ -4056,7 +4056,7 @@ index 526c9f2c2..befaa6be5 100644
 -        stagehand: stagehandStore ?? { enabled: false, headless: false },
          systemPrompt: systemPromptStore ?? { content: '' },
        };
- 
+
 @@ -206,7 +195,6 @@ const useSettingsStore = () => {
      redmineStore,
      gitlabStore,
@@ -4072,4 +4072,4 @@ index 526c9f2c2..befaa6be5 100644
 -        setStagehandStore(settings.stagehand),
          setSystemPromptStore(settings.systemPrompt),
        ]);
- 
+
