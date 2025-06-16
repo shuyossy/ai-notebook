@@ -15,9 +15,15 @@ import {
 } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
-import { ChatRoom, ChatMessage } from '../../main/types';
+import type { ChatRoom, ChatMessage } from '../../main/types';
 import ChatArea from '../../renderer/components/chat/ChatArea';
 import { createMockElectronWithOptions } from '../test-utils/mockElectronHandler';
+
+// File APIのモック
+global.URL.createObjectURL = jest.fn(
+  (blob: any) => `mock-url-${blob.name || 'file'}`,
+);
+global.URL.revokeObjectURL = jest.fn();
 
 // JSDOMではReadableStreamがサポートされていないため、polyfillを使用
 const { ReadableStream } = require('web-streams-polyfill/ponyfill');
@@ -671,5 +677,183 @@ describe('ChatArea Component', () => {
       expect(screen.getByText('こんにちは')).toBeInTheDocument();
       expect(screen.queryByText('編集後のメッセージ')).not.toBeInTheDocument();
     });
+  });
+
+  // テスト14: 画像添付が正しく機能すること
+  test('画像添付が正しく機能すること', async () => {
+    const user = userEvent.setup();
+    render(<ChatArea selectedRoomId="1" />);
+
+    // ファイル選択による画像の添付
+    const file = new File(['dummy content'], 'test.png', {
+      type: 'image/png',
+    });
+    const fileInput = screen.getByTestId('chat-file-input');
+
+    // 画像を1枚追加
+    await user.upload(fileInput, file);
+
+    // プレビューが表示されることを確認
+    await waitFor(() => {
+      const image = screen.getByAltText('attachment-0');
+      expect(image).toBeInTheDocument();
+      expect(image).toHaveAttribute(
+        'src',
+        expect.stringContaining('mock-url-'),
+      );
+    });
+
+    // 最大3枚までの制限を確認
+    const files = [
+      new File(['dummy1'], 'test1.png', { type: 'image/png' }),
+      new File(['dummy2'], 'test2.png', { type: 'image/png' }),
+      new File(['dummy3'], 'test3.png', { type: 'image/png' }),
+      new File(['dummy4'], 'test4.png', { type: 'image/png' }),
+    ];
+    await user.upload(fileInput, files);
+
+    // プレビューが3枚のみ表示されることを確認
+    const images = screen.getAllByRole('img');
+    expect(images).toHaveLength(3);
+
+    // 上限到達の警告メッセージが表示されることを確認
+    expect(screen.getByText('添付は最大 3 枚までです')).toBeInTheDocument();
+  });
+
+  // テスト15: 画像付きメッセージの送信が正しく機能すること
+  test('画像付きメッセージの送信が正しく機能すること', async () => {
+    const user = userEvent.setup();
+    render(<ChatArea selectedRoomId="1" />);
+
+    // 入力フィールドが表示されるまで待機
+    await waitFor(() => {
+      expect(
+        screen.getByPlaceholderText('メッセージを入力してください'),
+      ).toBeInTheDocument();
+    });
+
+    const file = new File(['dummy content'], 'test.png', {
+      type: 'image/png',
+    });
+    const fileInput = screen.getByTestId('chat-file-input');
+    const textInput =
+      screen.getByPlaceholderText('メッセージを入力してください');
+
+    // 画像とテキストを追加
+    await user.upload(fileInput, file);
+    await user.type(textInput, 'テスト画像付きメッセージ');
+
+    // 送信ボタンをクリック
+    const sendButton = screen.getByTestId('chat-send-button');
+    await user.click(sendButton);
+
+    // 送信リクエストが正しい形式で呼ばれることを確認
+    await waitFor(() => {
+      expect(window.electron.chat.sendMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          roomId: '1',
+          messages: expect.arrayContaining([
+            expect.objectContaining({
+              content: 'テスト画像付きメッセージ',
+              role: 'user',
+              parts: expect.arrayContaining([
+                expect.objectContaining({
+                  type: 'text',
+                  text: 'テスト画像付きメッセージ',
+                }),
+              ]),
+              experimental_attachments: expect.arrayContaining([
+                expect.objectContaining({
+                  contentType: 'image/png',
+                  name: 'test.png',
+                }),
+              ]),
+            }),
+          ]),
+        }),
+      );
+    });
+
+    // 送信後に入力欄とプレビューがクリアされることを確認
+    expect(textInput).toHaveValue('');
+    expect(screen.queryByAltText('attachment-0')).not.toBeInTheDocument();
+  });
+
+  // テスト16: クリップボードからの画像貼り付けが正しく機能すること
+  test('クリップボードからの画像貼り付けが正しく機能すること', async () => {
+    render(<ChatArea selectedRoomId="1" />);
+
+    // 入力フィールドが表示されるまで待機
+    await waitFor(() => {
+      expect(
+        screen.getByPlaceholderText('メッセージを入力してください'),
+      ).toBeInTheDocument();
+    });
+
+    const input = screen.getByPlaceholderText('メッセージを入力してください');
+
+    // 画像ファイルを含むクリップボードイベントを作成
+    const imageFile = new File(['dummy image'], 'paste.png', {
+      type: 'image/png',
+    });
+    const clipboardData = {
+      items: [
+        {
+          kind: 'file',
+          type: 'image/png',
+          getAsFile: () => imageFile,
+        },
+        {
+          kind: 'string',
+          type: 'text/plain',
+          getAsFile: () => null,
+        },
+      ],
+    };
+
+    // クリップボードイベントを発火
+    fireEvent.paste(input, {
+      clipboardData,
+    });
+
+    // 画像プレビューが表示されることを確認
+    await waitFor(() => {
+      const image = screen.getByAltText('attachment-0');
+      expect(image).toBeInTheDocument();
+      expect(image).toHaveAttribute(
+        'src',
+        expect.stringContaining('mock-url-'),
+      );
+    });
+  });
+
+  // テスト17: 添付画像の削除が正しく機能すること
+  test('添付画像の削除が正しく機能すること', async () => {
+    const user = userEvent.setup();
+    render(<ChatArea selectedRoomId="1" />);
+
+    // 画像を添付
+    const file = new File(['dummy content'], 'test.png', {
+      type: 'image/png',
+    });
+    const fileInput = screen.getByTestId('chat-file-input');
+
+    await user.upload(fileInput, file);
+
+    // プレビューと削除ボタンが表示されることを確認
+    const image = await screen.findByAltText('attachment-0');
+    expect(image).toBeInTheDocument();
+
+    // 削除ボタンをクリック
+    const closeButton = screen.getByTestId('chat-remove-attachment-0');
+    await user.click(closeButton);
+
+    // プレビューが削除されることを確認
+    expect(image).not.toBeInTheDocument();
+
+    // ObjectURLが解放されることを確認
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith(
+      expect.stringContaining('mock-url-'),
+    );
   });
 });

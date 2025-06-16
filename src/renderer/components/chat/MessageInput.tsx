@@ -134,6 +134,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
                   color: 'white',
                   '&:hover': { bgcolor: 'rgba(0,0,0,0.8)' },
                 }}
+                data-testid={`chat-remove-attachment-${idx}`}
               >
                 <CloseIcon fontSize="small" />
               </IconButton>
@@ -177,6 +178,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
             // 同じファイルを連続で選択したときの onChange 発火のためリセット
             if (fileInputRef.current) fileInputRef.current.value = '';
           }}
+          data-testid="chat-file-input"
         />
 
         {/* メインのテキストフィールド */}
