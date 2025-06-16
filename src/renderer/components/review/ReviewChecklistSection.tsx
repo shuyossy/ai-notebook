@@ -121,6 +121,7 @@ const ReviewChecklistSection: React.FC<ReviewChecklistSectionProps> = ({
     overflowY: 'auto',
     whiteSpace: 'pre-wrap',
     wordBreak: 'break-word' as const,
+    textAlign: 'left',
   };
   const commentBoxSx = { ...contentBoxSx };
 

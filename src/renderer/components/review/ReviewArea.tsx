@@ -8,6 +8,7 @@ import {
   Typography,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
+import CheckBoxIcon from '@mui/icons-material/CheckBox';
 import RateReviewIcon from '@mui/icons-material/RateReview';
 import { v4 as uuid } from 'uuid';
 import { ReviewAreaProps, ModalMode } from './types';
@@ -277,7 +278,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
             <Stack direction="row" spacing={2}>
               <Button
                 variant="contained"
-                startIcon={<AddIcon />}
+                startIcon={<CheckBoxIcon />}
                 onClick={() => {
                   setModalMode('extract');
                   setIsModalOpen(true);

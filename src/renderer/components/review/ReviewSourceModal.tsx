@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
+  Alert,
   Modal,
   Box,
   Typography,
@@ -144,6 +145,35 @@ function SourceListModal({
     return 'ソース選択';
   };
 
+  // アラート表示の内容
+  const getAlertMessage = () => {
+    if (modalMode === 'extract') {
+      return (
+        <>
+          設定されたディレクトリ(歯車アイコンから変更可能)内のドキュメントを一覧表示しています
+          <br />
+          選択されたドキュメントから、AIがレビュー用のチェックリストを作成できます
+          <br />
+          ※ディレクトリの内容が更新された場合は添付アイコンからファイル同期を実行してください
+          <br />
+          ※チェックリストは手動で編集・追加・削除が可能です
+        </>
+      );
+    }
+    if (modalMode === 'review') {
+      return (
+        <>
+          設定されたディレクトリ(歯車アイコンから変更可能)内のドキュメントを一覧表示しています
+          <br />
+          選択されたドキュメントに対して、AIがチェックリストに基づいてレビューを行います
+          <br />
+          ※ディレクトリの内容が更新された場合は添付アイコンからファイル同期を実行してください
+        </>
+      );
+    }
+    return null;
+  };
+
   const getStatusIcon = (status: Source['status'], error?: Source['error']) => {
     switch (status) {
       case 'completed':
@@ -225,6 +255,9 @@ function SourceListModal({
         <Typography variant="h6" component="h2" gutterBottom>
           {getTitle()}
         </Typography>
+        <Alert severity="info" sx={{ whiteSpace: 'pre-line', mb: 2 }}>
+          {getAlertMessage()}
+        </Alert>
 
         <Box sx={{ mb: 2, display: 'flex', justifyContent: 'flex-end' }}>
           <Tooltip title="ソース登録ディレクトリ内のファイル内容と同期します">
@@ -265,7 +298,7 @@ function SourceListModal({
                 </TableCell>
                 <TableCell>ファイルパス</TableCell>
                 <TableCell>タイトル（生成）</TableCell>
-                <TableCell>初期化処理ステータス</TableCell>
+                <TableCell>フォルダ同期処理ステータス</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
