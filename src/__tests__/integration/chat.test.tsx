@@ -856,4 +856,76 @@ describe('ChatArea Component', () => {
       expect.stringContaining('mock-url-'),
     );
   });
+
+  // テスト18: 複数画像付きメッセージが正しく表示されること
+  test('複数画像付きメッセージが正しく表示されること', async () => {
+    const mockMultiImageMessages = [
+      {
+        id: '1',
+        role: 'user',
+        content: '複数画像テスト',
+        createdAt: new Date('2025-05-01T12:00:00.000Z'),
+        experimental_attachments: [
+          {
+            name: 'test1.png',
+            contentType: 'image/png',
+            url: 'data:image/png;base64,dummybase64-1',
+          },
+          {
+            name: 'test2.png',
+            contentType: 'image/png',
+            url: 'data:image/png;base64,dummybase64-2',
+          },
+          {
+            name: 'test3.png',
+            contentType: 'image/png',
+            url: 'data:image/png;base64,dummybase64-3',
+          },
+        ],
+      }
+    ];
+
+    window.electron.chat.getMessages = jest.fn().mockResolvedValue(mockMultiImageMessages);
+
+    render(<ChatArea selectedRoomId="1" />);
+
+    // 全ての画像が表示されることを確認
+    await waitFor(() => {
+      const images = screen.getAllByRole('img');
+      expect(images).toHaveLength(3);
+      images.forEach((img, idx) => {
+        expect(img).toHaveAttribute('alt', expect.stringMatching(new RegExp(`test${idx + 1}.png|att-${idx}`)));
+      });
+    });
+  });
+
+  // テスト19: 画像付きメッセージの編集機能が無効化されていること
+  test('画像付きメッセージの編集機能が無効化されていること', async () => {
+    const mockImageMessage = [
+      {
+        id: '1',
+        role: 'user',
+        content: '画像付きメッセージ',
+        createdAt: new Date('2025-05-01T12:00:00.000Z'),
+        experimental_attachments: [
+          {
+            name: 'test.png',
+            contentType: 'image/png',
+            url: 'data:image/png;base64,dummybase64',
+          }
+        ],
+      }
+    ];
+
+    window.electron.chat.getMessages = jest.fn().mockResolvedValue(mockImageMessage);
+    const user = userEvent.setup();
+    render(<ChatArea selectedRoomId="1" />);
+
+    // メッセージエリアを取得
+    const messageText = await screen.findByText('画像付きメッセージ');
+
+    // ホバー時に編集アイコンが表示されないことを確認
+    await user.hover(messageText);
+    expect(screen.queryByTestId('edit-message-button-1')).not.toBeInTheDocument();
+  });
 });
