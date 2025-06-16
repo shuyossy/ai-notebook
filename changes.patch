@@ -1,1054 +1,277 @@
+diff --git a/src/__tests__/integration/Sidebar.test.tsx b/src/__tests__/integration/Sidebar.test.tsx
+index a23e7b6c3..b80e2f450 100644
+--- a/src/__tests__/integration/Sidebar.test.tsx
++++ b/src/__tests__/integration/Sidebar.test.tsx
+@@ -263,7 +263,7 @@ describe('Sidebar Component', () => {
+     await user.click(screen.getByTestId('document-list-button'));
+ 
+     // SourceListModalが表示されることを確認
+-    expect(screen.getByText('ソース一覧')).toBeInTheDocument();
++    expect(screen.getByText('登録ドキュメント一覧')).toBeInTheDocument();
+   });
+ 
+   // テスト9: フッターの設定モーダル表示
+diff --git a/src/__tests__/integration/SourceListModal.test.tsx b/src/__tests__/integration/SourceListModal.test.tsx
+index 5a8b7d8c1..905675b87 100644
+--- a/src/__tests__/integration/SourceListModal.test.tsx
++++ b/src/__tests__/integration/SourceListModal.test.tsx
+@@ -190,7 +190,7 @@ describe('SourceListModal Component', () => {
+     });
+ 
+     // リロードボタンが無効化されていることを確認
+-    const reloadButton = screen.getByText('処理中...');
++    const reloadButton = screen.getByText('同期処理中...');
+     expect(reloadButton).toBeDisabled();
+ 
+     // チェックボックスが無効化されていることを確認
+@@ -824,13 +824,67 @@ describe('SourceListModal Component', () => {
+     });
+ 
+     // 完了状態なのでリロードボタンが活性化されていることを確認
+-    const reloadButton = screen.getByText('ソース読み込み');
++    const reloadButton = screen.getByText('ファイル同期');
+     expect(reloadButton).toBeEnabled();
+ 
+     // リロードボタンをクリック
+     fireEvent.click(reloadButton);
+ 
+     // onReloadSourcesが呼ばれたことを確認
+-    expect(props.onReloadSources).toHaveBeenCalled();
++    await waitFor(() => {
++      expect(props.onReloadSources).toHaveBeenCalled();
++    });
++  });
++
++  // テスト11: 登録ディレクトリが空文字の場合のファイル同期挙動確認
++  test('登録ディレクトリが空文字の場合のファイル同期挙動確認', async () => {
++    // 登録ディレクトリが空文字のモックデータをセットアップ(window.electron.store.get('source'))
++    window.electron.store.get = jest.fn().mockReturnValue({
++      registerDir: '',
++    });
++
++    const props = {
++      ...defaultProps,
++    };
++
++    // コンポーネントをレンダリング
++    render(
++      <SourceListModal
++        open={props.open}
++        processing={props.processing}
++        onClose={props.onClose}
++        onReloadSources={props.onReloadSources}
++        onStatusUpdate={props.onStatusUpdate}
++        showSnackbar={props.showSnackbar}
++      />,
++    );
++
++    // 進める
++    act(() => {
++      jest.advanceTimersByTime(5000);
++    });
++
++    // ソースデータが取得されるまで待機
++    await waitFor(() => {
++      expect(window.electron.source.getSources).toHaveBeenCalled();
++    });
++
++    // ファイル同期ボタンが有効化されていることを確認
++    const reloadButton = screen.getByText('ファイル同期');
++    expect(reloadButton).toBeEnabled();
++
++    // ファイル同期ボタンをクリック
++    fireEvent.click(reloadButton);
++    // 登録ディレクトリが設定されていない場合のエラーメッセージが表示されることを確認
++    await waitFor(() => {
++      expect(props.showSnackbar).toHaveBeenCalledWith(
++        'ドキュメント登録ディレクトリが設定されていません',
++        'error',
++      );
++    });
++    // onReloadSourcesが呼ばれないことを確認
++    await waitFor(() => {
++      expect(props.onReloadSources).not.toHaveBeenCalled();
++    });
+   });
+ });
 diff --git a/src/__tests__/integration/chat.test.tsx b/src/__tests__/integration/chat.test.tsx
-index 09dd1a3ef..c54f3c7d6 100644
+index c54f3c7d6..56ce37919 100644
 --- a/src/__tests__/integration/chat.test.tsx
 +++ b/src/__tests__/integration/chat.test.tsx
-@@ -15,10 +15,16 @@ import {
- } from '@testing-library/react';
- import userEvent from '@testing-library/user-event';
- import '@testing-library/jest-dom';
--import { ChatRoom, ChatMessage } from '../../main/types';
-+import type { ChatRoom, ChatMessage } from '../../main/types';
- import ChatArea from '../../renderer/components/chat/ChatArea';
- import { createMockElectronWithOptions } from '../test-utils/mockElectronHandler';
+@@ -887,7 +887,7 @@ describe('ChatArea Component', () => {
  
-+// File APIのモック
-+global.URL.createObjectURL = jest.fn(
-+  (blob: any) => `mock-url-${blob.name || 'file'}`,
-+);
-+global.URL.revokeObjectURL = jest.fn();
-+
- // JSDOMではReadableStreamがサポートされていないため、polyfillを使用
- const { ReadableStream } = require('web-streams-polyfill/ponyfill');
- global.ReadableStream = ReadableStream;
-@@ -304,8 +310,26 @@ describe('ChatArea Component', () => {
-     // 送信処理が呼ばれることを確認
+     window.electron.chat.getMessages = jest.fn().mockResolvedValue(mockMultiImageMessages);
+ 
+-    render(<ChatArea selectedRoomId="1" />);
++    render(<ChatArea selectedRoomId="18" />);
+ 
+     // 全ての画像が表示されることを確認
      await waitFor(() => {
-       expect(window.electron.chat.sendMessage).toHaveBeenCalledWith(
--        '1',
--        'テストメッセージ',
-+        expect.objectContaining({
-+          // roomId が '1' であること
-+          roomId: '1',
-+
-+          // messages が配列で、かつ中に以下を含むこと
-+          messages: expect.arrayContaining([
-+            expect.objectContaining({
-+              // content プロパティ
-+              content: 'テストメッセージ',
-+
-+              // role プロパティ
-+              role: 'user',
-+
-+              // parts が配列で、かつ中に text: 'テストメッセージ' を含むこと
-+              parts: expect.arrayContaining([
-+                expect.objectContaining({ text: 'テストメッセージ' }),
-+              ]),
-+            }),
-+          ]),
-+        }),
-       );
-     });
-   });
-@@ -456,10 +480,30 @@ describe('ChatArea Component', () => {
-     await user.keyboard('{Enter}');
+@@ -919,7 +919,7 @@ describe('ChatArea Component', () => {
  
-     // 送信処理が呼ばれることを確認
--    expect(window.electron.chat.sendMessage).toHaveBeenCalledWith(
--      '1',
--      'テストメッセージ',
--    );
-+    await waitFor(() => {
-+      expect(window.electron.chat.sendMessage).toHaveBeenCalledWith(
-+        expect.objectContaining({
-+          // roomId が '1' であること
-+          roomId: '1',
-+
-+          // messages が配列で、かつ中に以下を含むこと
-+          messages: expect.arrayContaining([
-+            expect.objectContaining({
-+              // content プロパティ
-+              content: 'テストメッセージ',
-+
-+              // role プロパティ
-+              role: 'user',
-+
-+              // parts が配列で、かつ中に text: 'テストメッセージ' を含むこと
-+              parts: expect.arrayContaining([
-+                expect.objectContaining({ text: 'テストメッセージ' }),
-+              ]),
-+            }),
-+          ]),
-+        }),
-+      );
-+    });
+     window.electron.chat.getMessages = jest.fn().mockResolvedValue(mockImageMessage);
+     const user = userEvent.setup();
+-    render(<ChatArea selectedRoomId="1" />);
++    render(<ChatArea selectedRoomId="19" />);
  
-     // Shift+Enterで改行されることを確認
-     await user.clear(input);
-@@ -634,4 +678,254 @@ describe('ChatArea Component', () => {
-       expect(screen.queryByText('編集後のメッセージ')).not.toBeInTheDocument();
-     });
-   });
-+
-+  // テスト14: 画像添付が正しく機能すること
-+  test('画像添付が正しく機能すること', async () => {
-+    const user = userEvent.setup();
-+    render(<ChatArea selectedRoomId="1" />);
-+
-+    // ファイル選択による画像の添付
-+    const file = new File(['dummy content'], 'test.png', {
-+      type: 'image/png',
-+    });
-+    const fileInput = screen.getByTestId('chat-file-input');
-+
-+    // 画像を1枚追加
-+    await user.upload(fileInput, file);
-+
-+    // プレビューが表示されることを確認
-+    await waitFor(() => {
-+      const image = screen.getByAltText('attachment-0');
-+      expect(image).toBeInTheDocument();
-+      expect(image).toHaveAttribute(
-+        'src',
-+        expect.stringContaining('mock-url-'),
-+      );
-+    });
-+
-+    // 最大3枚までの制限を確認
-+    const files = [
-+      new File(['dummy1'], 'test1.png', { type: 'image/png' }),
-+      new File(['dummy2'], 'test2.png', { type: 'image/png' }),
-+      new File(['dummy3'], 'test3.png', { type: 'image/png' }),
-+      new File(['dummy4'], 'test4.png', { type: 'image/png' }),
-+    ];
-+    await user.upload(fileInput, files);
-+
-+    // プレビューが3枚のみ表示されることを確認
-+    const images = screen.getAllByRole('img');
-+    expect(images).toHaveLength(3);
-+
-+    // 上限到達の警告メッセージが表示されることを確認
-+    expect(screen.getByText('添付は最大 3 枚までです')).toBeInTheDocument();
-+  });
-+
-+  // テスト15: 画像付きメッセージの送信が正しく機能すること
-+  test('画像付きメッセージの送信が正しく機能すること', async () => {
-+    const user = userEvent.setup();
-+    render(<ChatArea selectedRoomId="1" />);
-+
-+    // 入力フィールドが表示されるまで待機
-+    await waitFor(() => {
-+      expect(
-+        screen.getByPlaceholderText('メッセージを入力してください'),
-+      ).toBeInTheDocument();
-+    });
-+
-+    const file = new File(['dummy content'], 'test.png', {
-+      type: 'image/png',
-+    });
-+    const fileInput = screen.getByTestId('chat-file-input');
-+    const textInput =
-+      screen.getByPlaceholderText('メッセージを入力してください');
-+
-+    // 画像とテキストを追加
-+    await user.upload(fileInput, file);
-+    await user.type(textInput, 'テスト画像付きメッセージ');
-+
-+    // 送信ボタンをクリック
-+    const sendButton = screen.getByTestId('chat-send-button');
-+    await user.click(sendButton);
-+
-+    // 送信リクエストが正しい形式で呼ばれることを確認
-+    await waitFor(() => {
-+      expect(window.electron.chat.sendMessage).toHaveBeenCalledWith(
-+        expect.objectContaining({
-+          roomId: '1',
-+          messages: expect.arrayContaining([
-+            expect.objectContaining({
-+              content: 'テスト画像付きメッセージ',
-+              role: 'user',
-+              parts: expect.arrayContaining([
-+                expect.objectContaining({
-+                  type: 'text',
-+                  text: 'テスト画像付きメッセージ',
-+                }),
-+              ]),
-+              experimental_attachments: expect.arrayContaining([
-+                expect.objectContaining({
-+                  contentType: 'image/png',
-+                  name: 'test.png',
-+                }),
-+              ]),
-+            }),
-+          ]),
-+        }),
-+      );
-+    });
-+
-+    // 送信後に入力欄とプレビューがクリアされることを確認
-+    expect(textInput).toHaveValue('');
-+    expect(screen.queryByAltText('attachment-0')).not.toBeInTheDocument();
-+  });
-+
-+  // テスト16: クリップボードからの画像貼り付けが正しく機能すること
-+  test('クリップボードからの画像貼り付けが正しく機能すること', async () => {
-+    render(<ChatArea selectedRoomId="1" />);
-+
-+    // 入力フィールドが表示されるまで待機
-+    await waitFor(() => {
-+      expect(
-+        screen.getByPlaceholderText('メッセージを入力してください'),
-+      ).toBeInTheDocument();
-+    });
-+
-+    const input = screen.getByPlaceholderText('メッセージを入力してください');
-+
-+    // 画像ファイルを含むクリップボードイベントを作成
-+    const imageFile = new File(['dummy image'], 'paste.png', {
-+      type: 'image/png',
-+    });
-+    const clipboardData = {
-+      items: [
-+        {
-+          kind: 'file',
-+          type: 'image/png',
-+          getAsFile: () => imageFile,
-+        },
-+        {
-+          kind: 'string',
-+          type: 'text/plain',
-+          getAsFile: () => null,
-+        },
-+      ],
-+    };
-+
-+    // クリップボードイベントを発火
-+    fireEvent.paste(input, {
-+      clipboardData,
-+    });
-+
-+    // 画像プレビューが表示されることを確認
-+    await waitFor(() => {
-+      const image = screen.getByAltText('attachment-0');
-+      expect(image).toBeInTheDocument();
-+      expect(image).toHaveAttribute(
-+        'src',
-+        expect.stringContaining('mock-url-'),
-+      );
-+    });
-+  });
-+
-+  // テスト17: 添付画像の削除が正しく機能すること
-+  test('添付画像の削除が正しく機能すること', async () => {
-+    const user = userEvent.setup();
-+    render(<ChatArea selectedRoomId="1" />);
-+
-+    // 画像を添付
-+    const file = new File(['dummy content'], 'test.png', {
-+      type: 'image/png',
-+    });
-+    const fileInput = screen.getByTestId('chat-file-input');
-+
-+    await user.upload(fileInput, file);
-+
-+    // プレビューと削除ボタンが表示されることを確認
-+    const image = await screen.findByAltText('attachment-0');
-+    expect(image).toBeInTheDocument();
-+
-+    // 削除ボタンをクリック
-+    const closeButton = screen.getByTestId('chat-remove-attachment-0');
-+    await user.click(closeButton);
-+
-+    // プレビューが削除されることを確認
-+    expect(image).not.toBeInTheDocument();
-+
-+    // ObjectURLが解放されることを確認
-+    expect(URL.revokeObjectURL).toHaveBeenCalledWith(
-+      expect.stringContaining('mock-url-'),
-+    );
-+  });
-+
-+  // テスト18: 複数画像付きメッセージが正しく表示されること
-+  test('複数画像付きメッセージが正しく表示されること', async () => {
-+    const mockMultiImageMessages = [
-+      {
-+        id: '1',
-+        role: 'user',
-+        content: '複数画像テスト',
-+        createdAt: new Date('2025-05-01T12:00:00.000Z'),
-+        experimental_attachments: [
-+          {
-+            name: 'test1.png',
-+            contentType: 'image/png',
-+            url: 'data:image/png;base64,dummybase64-1',
-+          },
-+          {
-+            name: 'test2.png',
-+            contentType: 'image/png',
-+            url: 'data:image/png;base64,dummybase64-2',
-+          },
-+          {
-+            name: 'test3.png',
-+            contentType: 'image/png',
-+            url: 'data:image/png;base64,dummybase64-3',
-+          },
-+        ],
-+      }
-+    ];
-+
-+    window.electron.chat.getMessages = jest.fn().mockResolvedValue(mockMultiImageMessages);
-+
-+    render(<ChatArea selectedRoomId="1" />);
-+
-+    // 全ての画像が表示されることを確認
-+    await waitFor(() => {
-+      const images = screen.getAllByRole('img');
-+      expect(images).toHaveLength(3);
-+      images.forEach((img, idx) => {
-+        expect(img).toHaveAttribute('alt', expect.stringMatching(new RegExp(`test${idx + 1}.png|att-${idx}`)));
-+      });
-+    });
-+  });
-+
-+  // テスト19: 画像付きメッセージの編集機能が無効化されていること
-+  test('画像付きメッセージの編集機能が無効化されていること', async () => {
-+    const mockImageMessage = [
-+      {
-+        id: '1',
-+        role: 'user',
-+        content: '画像付きメッセージ',
-+        createdAt: new Date('2025-05-01T12:00:00.000Z'),
-+        experimental_attachments: [
-+          {
-+            name: 'test.png',
-+            contentType: 'image/png',
-+            url: 'data:image/png;base64,dummybase64',
-+          }
-+        ],
-+      }
-+    ];
-+
-+    window.electron.chat.getMessages = jest.fn().mockResolvedValue(mockImageMessage);
-+    const user = userEvent.setup();
-+    render(<ChatArea selectedRoomId="1" />);
-+
-+    // メッセージエリアを取得
-+    const messageText = await screen.findByText('画像付きメッセージ');
-+
-+    // ホバー時に編集アイコンが表示されないことを確認
-+    await user.hover(messageText);
-+    expect(screen.queryByTestId('edit-message-button-1')).not.toBeInTheDocument();
-+  });
+     // メッセージエリアを取得
+     const messageText = await screen.findByText('画像付きメッセージ');
+diff --git a/src/main/types/settingsSchema.ts b/src/main/types/settingsSchema.ts
+index 4397a2253..70d3b0a7d 100644
+--- a/src/main/types/settingsSchema.ts
++++ b/src/main/types/settingsSchema.ts
+@@ -32,8 +32,10 @@ export const DatabaseSchema = z.object({
+ export const SourceSchema = z.object({
+   registerDir: z
+     .string()
+-    .min(1, { message: 'ソース登録ディレクトリは必須です' })
+-    .refine(async (path) => await checkPathExists(path), {
++    .refine(async (path) => {
++      if (path.trim() === '') return true; // 空文字は許容
++      return await checkPathExists(path)
++    }, {
+       message: '指定されたパスが存在しません',
+     }),
  });
-diff --git a/src/main/main.ts b/src/main/main.ts
-index 7783b1541..5300a20b7 100644
---- a/src/main/main.ts
-+++ b/src/main/main.ts
-@@ -15,7 +15,7 @@ import { autoUpdater } from 'electron-updater';
- import log from 'electron-log';
- import { Mastra } from '@mastra/core';
- import { createLogger } from '@mastra/core/logger';
--import { createDataStream } from 'ai';
-+import { createDataStream, CoreUserMessage, UserContent } from 'ai';
- import { eq } from 'drizzle-orm';
- import {
-   ReadableStream,
-@@ -360,7 +360,10 @@ const setupChatHandlers = () => {
-     IpcChannels.CHAT_SEND_MESSAGE,
-     async (
-       event,
--      { roomId, content },
-+      {
-+        roomId,
-+        messages,
-+      }: IpcRequestPayloadMap[typeof IpcChannels.CHAT_SEND_MESSAGE],
-     ): Promise<IpcResponsePayloadMap[typeof IpcChannels.CHAT_SEND_MESSAGE]> => {
-       try {
-         // 新しいAbortControllerを作成
-@@ -415,35 +418,63 @@ const setupChatHandlers = () => {
-               value: 'processing',
-             });
-             // streaming falseの場合のメッセージ送信処理
--            const res = await orchestratorAgent.generate(content, {
--              resourceId: 'user', // 固定のリソースID
--              instructions: await getOrchestratorSystemPrompt(
--                mastraStatus.tools ?? {
--                  redmine: false,
--                  gitlab: false,
--                  mcp: false,
--                  stagehand: false,
-+            const res = await orchestratorAgent.generate(
-+              messages.map((msg) => {
-+                const content: UserContent = msg
-+                  .parts!.filter((part) => part.type === 'text')
-+                  .map((part) => {
-+                    return { type: 'text', text: part.text };
-+                  });
-+                if (
-+                  msg.experimental_attachments &&
-+                  msg.experimental_attachments.length > 0
-+                ) {
-+                  content.push(
-+                    // @ts-ignore
-+                    ...msg.experimental_attachments.map((att) => {
-+                      return {
-+                        type: 'image',
-+                        image: att.url,
-+                        mimeType: att.contentType,
-+                      };
-+                    }),
-+                  );
-+                }
-+                return {
-+                  role: 'user',
-+                  content,
-+                } as CoreUserMessage;
-+              }),
-+              {
-+                resourceId: 'user', // 固定のリソースID
-+                instructions: await getOrchestratorSystemPrompt(
-+                  mastraStatus.tools ?? {
-+                    redmine: false,
-+                    gitlab: false,
-+                    mcp: false,
-+                    stagehand: false,
-+                  },
-+                  redmineBaseInfo,
-+                ),
-+                threadId: roomId, // チャットルームIDをスレッドIDとして使用
-+                maxSteps: 30, // ツールの利用上限
-+                abortSignal: controller.signal, // 中断シグナルを設定
-+                onStepFinish: (stepResult) => {
-+                  // https://ai-sdk.dev/docs/ai-sdk-ui/stream-protocol
-+                  // 上記を参考にai-sdkのストリームプロトコルに従ってメッセージを送信
-+                  writer.write(`0:${JSON.stringify(stepResult.text)}\n`);
-+                  stepResult.toolCalls.forEach((toolCall) => {
-+                    writer.write(`9:${JSON.stringify(toolCall)}\n`);
-+                  });
-+                  stepResult.toolResults.forEach((toolResult) => {
-+                    writer.write(`a:${JSON.stringify(toolResult)}\n`);
-+                  });
-+                  writer.write(
-+                    `e:${JSON.stringify({ finishReason: stepResult.finishReason, ...stepResult.usage })}\n`,
-+                  );
-                 },
--                redmineBaseInfo,
--              ),
--              threadId: roomId, // チャットルームIDをスレッドIDとして使用
--              maxSteps: 30, // ツールの利用上限
--              abortSignal: controller.signal, // 中断シグナルを設定
--              onStepFinish: (stepResult) => {
--                // https://ai-sdk.dev/docs/ai-sdk-ui/stream-protocol
--                // 上記を参考にai-sdkのストリームプロトコルに従ってメッセージを送信
--                writer.write(`0:${JSON.stringify(stepResult.text)}\n`);
--                stepResult.toolCalls.forEach((toolCall) => {
--                  writer.write(`9:${JSON.stringify(toolCall)}\n`);
--                });
--                stepResult.toolResults.forEach((toolResult) => {
--                  writer.write(`a:${JSON.stringify(toolResult)}\n`);
--                });
--                writer.write(
--                  `e:${JSON.stringify({ finishReason: stepResult.finishReason, ...stepResult.usage })}\n`,
--                );
-               },
--            });
-+            );
-             writer.write(
-               `d:${JSON.stringify({ finishReason: res.finishReason, ...res.usage })}\n`,
-             );
-@@ -532,7 +563,40 @@ const setupChatHandlers = () => {
-           return [];
-         }
- 
--        const { uiMessages } = result;
-+        const { uiMessages, messages } = result;
-+        // messages内の要素でroleが'user'の場合に、contentのtypeが'image'のものがあれば、画像データを対応するuiMessagesにも付与する
-+        messages.forEach((message) => {
-+          if (message.role === 'user' && typeof message.content !== 'string') {
-+            const imageAttachments = message.content
-+              .filter(
-+                (part) =>
-+                  part.type === 'image' && typeof part.image === 'string',
-+              )
-+              .map((part) => {
-+                return {
-+                  // @ts-ignore partはImagePart型であることが保証されている
-+                  url: part.image,
-+                  // @ts-ignore partはImagePart型であることが保証されている
-+                  contentType: part.mimeType,
-+                };
-+              });
-+            if (imageAttachments.length > 0) {
-+              // uiMessagesの対応するメッセージに画像データを追加
-+              const uiMessage = uiMessages.find(
-+                // @ts-ignore CoreMessageもダンプしてみるとidが存在する
-+                (uiMsg) => uiMsg.id === message.id,
-+              );
-+              if (uiMessage) {
-+                uiMessage.experimental_attachments = imageAttachments;
-+              } else {
-+                console.warn(
-+                  // @ts-ignore
-+                  `対応するUIメッセージが見つかりません: ${message.id}`,
-+                );
-+              }
-+            }
-+          }
-+        });
- 
-         // メッセージをチャットメッセージ形式に変換
-         return uiMessages;
-diff --git a/src/main/preload.ts b/src/main/preload.ts
-index 536963ac2..144208f0a 100644
---- a/src/main/preload.ts
-+++ b/src/main/preload.ts
-@@ -52,13 +52,9 @@ const electronHandler = {
-   chat: {
-     // チャットメッセージを送信する
-     sendMessage: async (
--      roomId: string,
--      content: string,
-+      params: IpcRequestPayload<typeof IpcChannels.CHAT_SEND_MESSAGE>,
-     ): Promise<IpcResponsePayload<typeof IpcChannels.CHAT_SEND_MESSAGE>> => {
--      return ipcRenderer.invoke(IpcChannels.CHAT_SEND_MESSAGE, {
--        roomId,
--        content,
--      });
-+      return ipcRenderer.invoke(IpcChannels.CHAT_SEND_MESSAGE, params);
-     },
-     // チャットルーム一覧を取得する
-     getRooms: async (): Promise<
-diff --git a/src/main/types/ipc.ts b/src/main/types/ipc.ts
-index 137105d47..63160b51f 100644
---- a/src/main/types/ipc.ts
-+++ b/src/main/types/ipc.ts
-@@ -61,7 +61,7 @@ export type IpcRequestPayloadMap = {
-   [IpcChannels.SOURCE_UPDATE_ENABLED]: { sourceId: number; isEnabled: boolean };
- 
-   // チャット関連
--  [IpcChannels.CHAT_SEND_MESSAGE]: { roomId: string; content: string };
-+  [IpcChannels.CHAT_SEND_MESSAGE]: { roomId: string; messages: ChatMessage[] };
-   [IpcChannels.CHAT_GET_ROOMS]: undefined;
-   [IpcChannels.CHAT_GET_MESSAGES]: string; // threadId
-   [IpcChannels.CHAT_DELETE_ROOM]: string; // threadId
-diff --git a/src/renderer/components/chat/ChatArea.tsx b/src/renderer/components/chat/ChatArea.tsx
-index ce4fc8fd3..49aa8b570 100644
---- a/src/renderer/components/chat/ChatArea.tsx
-+++ b/src/renderer/components/chat/ChatArea.tsx
-@@ -4,10 +4,11 @@ import { Box, Divider, Typography, Alert } from '@mui/material';
- import { v4 as uuid } from 'uuid';
- import useAgentStatus from '../../hooks/useAgentStatus';
- import MessageList from './MessageList';
--import MessageInput from './MessageInput';
-+import MessageInput, { Attachment } from './MessageInput';
- import { chatService } from '../../services/chatService';
- import { ChatMessage } from '../../../main/types';
- import { useAgentStore } from '../../stores/agentStore';
-+import { IpcRequestPayload, IpcChannels } from '../../../main/types/ipc';
- 
- interface AlertMessage {
-   id: string;
-@@ -126,14 +127,16 @@ const customFetch: typeof fetch = async (input, init) => {
-           },
-         });
- 
--        const { message, threadId } = JSON.parse(init!.body as string);
-+        const { messages, roomId } = JSON.parse(
-+          init!.body as string,
-+        ) as IpcRequestPayload<typeof IpcChannels.CHAT_SEND_MESSAGE>;
-         init?.signal?.addEventListener('abort', () => {
--          console.log('Abort signal received, from threadId: ', threadId);
--          window.electron.chat.requestAbort(threadId);
-+          console.log('Abort signal received, from threadId: ', roomId);
-+          window.electron.chat.requestAbort(roomId);
-           unsubscribe();
-           controller.close();
-         });
--        window.electron.chat.sendMessage(threadId, message);
-+        window.electron.chat.sendMessage({ roomId, messages });
-       },
-       cancel() {
-         unsubscribe();
-@@ -166,6 +169,15 @@ const getPlaceholderText = (
-   return 'メッセージを入力してください';
- };
- 
-+const fileToDataURL = (file: File): Promise<string> =>
-+  // eslint-disable-next-line
-+  new Promise((res, rej) => {
-+    const reader = new FileReader();
-+    reader.onload = () => res(reader.result as string);
-+    reader.onerror = rej;
-+    reader.readAsDataURL(file);
-+  });
-+
- const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
-   const [loading, setLoading] = useState(false);
-   const [initialMessages, setInitialMessages] = useState<ChatMessage[]>([]);
-@@ -175,6 +187,10 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
-   const [editMessageContent, setEditMessageContent] = useState<string>('');
-   const { status: agentStatus } = useAgentStatus();
-   const [isEditHistory, setIsEditHistory] = useState(false);
-+  /* ---------- 添付画像 ---------- */
-+  const [attachments, setAttachments] = useState<Attachment[]>([]);
-+  // メッセージ入力状態
-+  const [input, setInput] = useState<string>('');
- 
-   const isAgentInitializing = agentStatus.state === 'initializing';
- 
-@@ -200,17 +216,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
-     }
-   }, [selectedRoomId]);
- 
--  const {
--    messages,
--    setMessages,
--    reload,
--    input,
--    status,
--    error,
--    handleInputChange,
--    handleSubmit,
--    stop,
--  } = useChat({
-+  const { messages, setMessages, reload, status, error, stop } = useChat({
-     id: selectedRoomId ?? undefined,
-     api: '/api/chat',
-     fetch: customFetch,
-@@ -222,6 +228,9 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
-         request.messages.length > 0
-           ? request.messages[request.messages.length - 1]
-           : null;
-+      if (!lastMessage) {
-+        throw new Error('送信メッセージの取得に失敗しました');
+diff --git a/src/mastra/workflows/sourceRegistrationManager.ts b/src/mastra/workflows/sourceRegistrationManager.ts
+index db8ce245d..0aeb2b1e4 100644
+--- a/src/mastra/workflows/sourceRegistrationManager.ts
++++ b/src/mastra/workflows/sourceRegistrationManager.ts
+@@ -81,6 +81,9 @@ export default class SourceRegistrationManager {
+     try {
+       const store = getStore();
+       const { registerDir } = store.get('source');
++      if (!registerDir || registerDir.trim() === '') {
++        throw new Error('ドキュメント登録ディレクトリが設定されていません');
 +      }
+       // ディレクトリ内のファイル一覧を取得
+       let files = await this.readDirectoryRecursively(registerDir);
  
-       // 初回メッセージ送信時にスレッドを作成
-       // titleについてはここで、指定してもmemoryのオプションでgenerateTitleをtrueにしていた場合、「New Thread 2025-04-27T08:20:05.694Z」のようなタイトルが自動生成されてしまう
-@@ -231,9 +240,9 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
- 
-       // Return the structured body for your API route
-       return {
--        message: lastMessage?.content, // Send only the most recent message content/role
--        threadId: selectedRoomId ?? undefined,
--      };
-+        messages: [lastMessage], // Send only the most recent message content/role
-+        roomId: selectedRoomId ?? undefined,
-+      } as IpcRequestPayload<typeof IpcChannels.CHAT_SEND_MESSAGE>;
-     },
-     onError(err) {
-       console.error('useChat error:', err);
-@@ -267,6 +276,72 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
-     setEditMessageContent(content);
-   };
- 
-+  /* ---------- メッセージ送信処理 ---------- */
-+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-+    setInput(e.target.value);
-+  };
-+
-+  /* ---------- 添付画像操作 ---------- */
-+  const addAttachments = async (files: FileList | File[]) => {
-+    const fileArr = Array.from(files).filter((f) =>
-+      f.type.startsWith('image/'),
-+    );
-+    if (!fileArr.length) return;
-+
-+    /* 最大 3 枚に抑制 */
-+    const newFiles = fileArr.slice(0, 3 - attachments.length);
-+    const att: Attachment[] = newFiles.map((file) => ({
-+      file,
-+      preview: URL.createObjectURL(file),
-+    }));
-+    setAttachments((prev) => [...prev, ...att]);
-+  };
-+
-+  const removeAttachment = (idx: number) => {
-+    setAttachments((prev) => {
-+      const target = prev[idx];
-+      if (target) URL.revokeObjectURL(target.preview); // メモリ開放
-+      return prev.filter((_, i) => i !== idx);
-+    });
-+  };
-+
-+  const handleSubmit = async (e: React.FormEvent) => {
-+    e.preventDefault();
-+    if (!input.trim() && attachments.length === 0) return;
-+
-+    /* 添付画像を base64 へ変換しメッセージを追加 */
-+    const addAttachment = await Promise.all(
-+      attachments.map(async (att) => ({
-+        name: att.file.name,
-+        contentType: att.file.type,
-+        url: await fileToDataURL(att.file), // ObjectURLではなくbase64に変換
-+      })),
-+    );
-+    const newMessage: ChatMessage = {
-+      id: uuid(),
-+      role: 'user',
-+      content: input,
-+      parts: [
-+        {
-+          type: 'text',
-+          text: input,
-+        },
-+      ],
-+      experimental_attachments:
-+        addAttachment.length > 0 ? addAttachment : undefined,
-+    };
-+    console.log('新規メッセージ: ', newMessage);
-+
-+    setInput('');
-+    // appendだと画像が反映されないため、使わない
-+    // append(newMessage);
-+    setMessages((prev) => [...prev, newMessage]);
-+    reload();
-+
-+    /* 送信後クリーンアップ */
-+    setAttachments([]);
-+  };
-+
-   const handleEditSubmit = async () => {
-     const messageIndex = messages.findIndex((m) => m.id === editMessageId);
-     if (messageIndex === -1) return;
-@@ -356,6 +431,9 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
-             placeholder={getPlaceholderText(status, isAgentInitializing)}
-             isStreaming={status === 'streaming'}
-             onStop={stop}
-+            attachments={attachments}
-+            onAddFiles={addAttachments}
-+            onRemoveAttachment={removeAttachment}
-           />
- 
-           {/* {error && !isAgentInitializing && (
-diff --git a/src/renderer/components/chat/MessageInput.tsx b/src/renderer/components/chat/MessageInput.tsx
-index 721362e5d..643343ed9 100644
---- a/src/renderer/components/chat/MessageInput.tsx
-+++ b/src/renderer/components/chat/MessageInput.tsx
-@@ -1,16 +1,28 @@
--import React, { useState } from 'react';
-+import React, { useRef, useState, useCallback, ClipboardEvent } from 'react';
+diff --git a/src/renderer/components/common/SnackbarNotification.tsx b/src/renderer/components/common/SnackbarNotification.tsx
+index 7817038d1..e3fe74530 100644
+--- a/src/renderer/components/common/SnackbarNotification.tsx
++++ b/src/renderer/components/common/SnackbarNotification.tsx
+@@ -23,7 +23,11 @@ const SnackbarNotification: React.FC<SnackbarNotificationProps> = ({
+       onClose={onClose}
+       anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+     >
+-      <Alert onClose={onClose} severity={severity} sx={{ width: '100%' }}>
++      <Alert
++        onClose={onClose}
++        severity={severity}
++        sx={{ whiteSpace: 'pre-line', width: '100%' }}
++      >
+         {message}
+       </Alert>
+     </Snackbar>
+diff --git a/src/renderer/components/common/SourceListModal.tsx b/src/renderer/components/common/SourceListModal.tsx
+index 4b6dad504..61fcfeb53 100644
+--- a/src/renderer/components/common/SourceListModal.tsx
++++ b/src/renderer/components/common/SourceListModal.tsx
+@@ -1,6 +1,7 @@
+ import React, { useEffect, useState } from 'react';
  import {
+   AlertColor,
++  Alert,
+   Modal,
    Box,
--  TextField,
-   IconButton,
--  Paper,
-   InputAdornment,
-+  Paper,
-+  TextField,
-+  Tooltip,
-+  Typography,
- } from '@mui/material';
- import {
-   Send as SendIcon,
--  StopCircleOutlined as StopCircleOutlinedIcon,
-+  StopCircleOutlined as StopIcon,
-+  ImageOutlined as ImageIcon,
-+  Close as CloseIcon,
+   Typography,
+@@ -25,6 +26,7 @@ import {
  } from '@mui/icons-material';
  
-+/* ---------- 型定義 ---------- */
-+
-+export interface Attachment {
-+  file: File;
-+  /** プレビュー用の ObjectURL（メモリリーク防止のため removeAttachment で revoke） */
-+  preview: string;
-+}
-+
- interface MessageInputProps {
-   handleSubmit: (e: React.FormEvent) => void;
-   handleInputChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-@@ -19,6 +31,10 @@ interface MessageInputProps {
-   placeholder?: string;
-   isStreaming?: boolean;
-   onStop?: () => void;
-+  attachments: Attachment[];
-+  onAddFiles: (files: FileList | File[]) => void;
-+  onRemoveAttachment: (idx: number) => void;
-+  maxAttachments?: number;
- }
+ import { Source } from '../../../db/schema';
++import { sourceService } from '../../services/sourceService';
  
- const MessageInput: React.FC<MessageInputProps> = ({
-@@ -29,10 +45,37 @@ const MessageInput: React.FC<MessageInputProps> = ({
-   placeholder = 'メッセージを入力...',
-   isStreaming = false,
-   onStop,
-+  attachments,
-+  onAddFiles,
-+  onRemoveAttachment,
-+  maxAttachments = 3,
- }) => {
-   const [isComposing, setIsComposing] = useState(false);
-+  const fileInputRef = useRef<HTMLInputElement>(null);
+ interface SourceListModalProps {
+   open: boolean;
+@@ -193,7 +195,16 @@ function SourceListModal({
+     };
+   }, [open, checkedSources, onStatusUpdate]);
  
--  // Enterキーで送信（Shift+Enterで改行）
-+  /* ---------- ファイル選択ダイアログを開く ---------- */
-+  const openFileDialog = () => {
-+    if (fileInputRef.current) fileInputRef.current.click();
-+  };
-+
-+  /* ---------- クリップボード貼り付け ---------- */
-+  const handlePaste = useCallback(
-+    (e: ClipboardEvent<HTMLDivElement>) => {
-+      const items = e.clipboardData?.items;
-+      if (!items?.length) return;
-+      const files: File[] = [];
-+      Array.from(items).forEach((item) => {
-+        if (item.kind === 'file') {
-+          const file = item.getAsFile();
-+          if (file && file.type.startsWith('image/')) files.push(file);
-+        }
-+      });
-+      if (files.length) onAddFiles(files);
-+    },
-+    [onAddFiles],
-+  );
-+
-+  /* ---------- Enter キー送信（Shift+Enter で改行） ---------- */
-   const handleKeyDown = (e: React.KeyboardEvent) => {
-     if (e.key === 'Enter' && !e.shiftKey && !isComposing) {
-       e.preventDefault();
-@@ -40,18 +83,67 @@ const MessageInput: React.FC<MessageInputProps> = ({
-     }
+-  const handleReloadClick = () => {
++  const handleReloadClick = async () => {
++    // ドキュメント登録ディレクトリが設定されていない場合はエラースナックバー表示
++    const { success, dir, error } = await sourceService.getRegisterDir();
++    if (!success || !dir?.trim()) {
++      showSnackbar(
++        error || 'ドキュメント登録ディレクトリが設定されていません',
++        'error',
++      );
++      return;
++    }
+     onReloadSources();
    };
  
--  // IME変換開始時のハンドラ
--  const handleCompositionStart = () => {
--    setIsComposing(true);
--  };
-+  /* ---------- IME 制御 ---------- */
-+  const handleCompositionStart = () => setIsComposing(true);
-+  const handleCompositionEnd = () => setIsComposing(false);
- 
--  // IME変換確定時のハンドラ
--  const handleCompositionEnd = () => {
--    setIsComposing(false);
--  };
-+  /* ============================================================= */
- 
-   return (
-     <Box sx={{ p: 2 }}>
-+      {/* 添付画像プレビュー ------------------------------------------------ */}
-+      {attachments.length > 0 && (
-+        <Paper
-+          elevation={0}
-+          sx={{
-+            p: 1,
-+            mb: 1,
-+            display: 'flex',
-+            flexWrap: 'wrap',
-+            gap: 1,
-+          }}
-+        >
-+          {attachments.map((att, idx) => (
-+            <Box
-+              key={idx}
-+              sx={{
-+                position: 'relative',
-+                width: 80,
-+                height: 80,
-+                borderRadius: 1,
-+                overflow: 'hidden',
-+                flexShrink: 0,
-+              }}
-+            >
-+              {/* サムネイル */}
-+              <Box
-+                component="img"
-+                src={att.preview}
-+                alt={`attachment-${idx}`}
-+                sx={{ width: '100%', height: '100%', objectFit: 'cover' }}
-+              />
-+              {/* × ボタン */}
-+              <IconButton
-+                size="small"
-+                onClick={() => onRemoveAttachment(idx)}
-+                sx={{
-+                  position: 'absolute',
-+                  top: 2,
-+                  right: 2,
-+                  bgcolor: 'rgba(0,0,0,0.6)',
-+                  color: 'white',
-+                  '&:hover': { bgcolor: 'rgba(0,0,0,0.8)' },
-+                }}
-+                data-testid={`chat-remove-attachment-${idx}`}
-+              >
-+                <CloseIcon fontSize="small" />
-+              </IconButton>
-+            </Box>
-+          ))}
-+        </Paper>
-+      )}
-+
-+      {/* 入力欄 ----------------------------------------------------------- */}
-       <Paper
-         component="form"
-         onSubmit={handleSubmit}
-@@ -63,6 +155,33 @@ const MessageInput: React.FC<MessageInputProps> = ({
-           borderRadius: 2,
+@@ -276,8 +287,15 @@ function SourceListModal({
          }}
        >
-+        {/* 画像アイコン & Hidden input */}
-+        <Tooltip title="画像を添付 (最大3枚)">
-+          <span>
-+            <IconButton
-+              onClick={openFileDialog}
-+              disabled={attachments.length >= maxAttachments || disabled}
-+              sx={{ alignSelf: 'center' }}
-+            >
-+              <ImageIcon />
-+            </IconButton>
-+          </span>
-+        </Tooltip>
-+        <input
-+          ref={fileInputRef}
-+          type="file"
-+          accept="image/*"
-+          multiple
-+          hidden
-+          onChange={(e) => {
-+            if (e.target.files) onAddFiles(e.target.files);
-+            // 同じファイルを連続で選択したときの onChange 発火のためリセット
-+            if (fileInputRef.current) fileInputRef.current.value = '';
-+          }}
-+          data-testid="chat-file-input"
-+        />
-+
-+        {/* メインのテキストフィールド */}
-         <TextField
-           fullWidth
-           multiline
-@@ -75,29 +194,28 @@ const MessageInput: React.FC<MessageInputProps> = ({
-           onKeyDown={handleKeyDown}
-           onCompositionStart={handleCompositionStart}
-           onCompositionEnd={handleCompositionEnd}
-+          onPaste={handlePaste}
-           disabled={disabled}
-           slotProps={{
-             input: {
--              sx: {
--                p: 1,
--                '& fieldset': { border: 'none' }, // フィールドセットの枠線を消す
--              },
-+              sx: { p: 1, '& fieldset': { border: 'none' } },
-               endAdornment: (
-                 <InputAdornment position="end">
--                  {/* 送信ボタンまたは送信中インジケーター */}
-                   {isStreaming ? (
-                     <IconButton
-                       color="primary"
-                       onClick={onStop}
-                       data-testid="chat-stop-button"
-                     >
--                      <StopCircleOutlinedIcon />
-+                      <StopIcon />
-                     </IconButton>
-                   ) : (
-                     <IconButton
-                       color="primary"
--                      onClick={handleSubmit}
--                      disabled={disabled || !message.trim()}
-+                      type="submit"
-+                      disabled={
-+                        disabled || (!message.trim() && !attachments.length)
-+                      }
-                       data-testid="chat-send-button"
-                     >
-                       <SendIcon />
-@@ -109,6 +227,13 @@ const MessageInput: React.FC<MessageInputProps> = ({
-           }}
-         />
-       </Paper>
-+
-+      {/* 画像枚数が上限の場合の注意書き */}
-+      {attachments.length >= maxAttachments && (
-+        <Typography variant="caption" color="error">
-+          添付は最大 {maxAttachments} 枚までです
-+        </Typography>
-+      )}
-     </Box>
-   );
- };
-diff --git a/src/renderer/components/chat/MessageItem.tsx b/src/renderer/components/chat/MessageItem.tsx
-index a60f28626..85e985340 100644
---- a/src/renderer/components/chat/MessageItem.tsx
-+++ b/src/renderer/components/chat/MessageItem.tsx
-@@ -265,12 +265,28 @@ const markdownComponents = {
+         <Typography variant="h6" component="h2" gutterBottom>
+-          ソース一覧
++          登録ドキュメント一覧
+         </Typography>
++        <Alert severity="info" sx={{ whiteSpace: 'pre-line', mb: 2 }}>
++          設定されたディレクトリ(歯車アイコンから変更可能)内のドキュメントを一覧表示しています
++          <br />
++          チェックされたドキュメントは、AIの回答時に適宜参照されます
++          <br />
++          ※ディレクトリの内容が更新された場合は、ファイル同期を実行してください
++        </Alert>
  
- // ─────────────── ai-sdk・UIMessageのpartsレンダー用コンポーネント ───────────────
- 
--const renderPart = (part: NonNullable<ChatMessage['parts']>[number]) => {
-+const renderPart = (
-+  part: NonNullable<ChatMessage['parts']>[number],
-+  attachments?: ChatMessage['experimental_attachments'],
-+) => {
-   if (!part) return null;
-   switch (part.type) {
-     case 'text': {
-       return (
-         <Box sx={{ mb: 2, py: 2 }}>
-+          {attachments?.map((att, idx) => (
-+            <Box
-+              key={idx}
-+              sx={{ mb: 2, display: 'flex', justifyContent: 'center' }}
-+            >
-+              <Box
-+                component="img"
-+                src={att.url}
-+                alt={att.name || `att-${idx}`}
-+                sx={{ maxWidth: '100%', borderRadius: 1 }}
-+              />
-+            </Box>
-+          ))}
-           <ReactMarkdown
-             remarkPlugins={[remarkGfm]}
-             components={markdownComponents}
-@@ -416,7 +432,7 @@ const MessageItem = forwardRef<HTMLDivElement, MessageProps>(
-                 position: 'relative',
-               }}
+         <Box sx={{ mb: 2, display: 'flex', justifyContent: 'flex-end' }}>
+           <Tooltip title="ソース登録ディレクトリ内のファイル内容と同期します">
+@@ -287,7 +305,7 @@ function SourceListModal({
+               disabled={processing || updatingSources.size > 0}
+               startIcon={<SyncIcon />}
              >
--              {isUser && !isEditing && (
-+              {isUser && !message.experimental_attachments && !isEditing && (
-                 <IconButton
-                   className="editBtn"
-                   size="small"
-@@ -439,7 +455,7 @@ const MessageItem = forwardRef<HTMLDivElement, MessageProps>(
-                 </IconButton>
-               )}
-               {/* eslint-disable-next-line */}
--              {isEditing && isUser ? (
-+              {isEditing && !message.experimental_attachments && isUser ? (
-                 <Box sx={{ p: 1, width: '100%' }}>
-                   <TextField
-                     fullWidth
-@@ -484,9 +500,14 @@ const MessageItem = forwardRef<HTMLDivElement, MessageProps>(
-                   </Box>
-                 </Box>
-               ) : message.parts?.length ? (
--                message.parts.map(renderPart)
-+                message.parts.map((p) =>
-+                  renderPart(p, message.experimental_attachments),
-+                )
-               ) : (
--                renderPart({ type: 'text', text: message.content ?? '' })
-+                renderPart(
-+                  { type: 'text', text: message.content ?? '' },
-+                  message.experimental_attachments,
-+                )
-               )}
-             </Paper>
-           </Box>
-diff --git a/src/renderer/services/chatService.ts b/src/renderer/services/chatService.ts
-index 10db2acb3..54c19b753 100644
---- a/src/renderer/services/chatService.ts
-+++ b/src/renderer/services/chatService.ts
-@@ -54,8 +54,8 @@ export const chatService = {
-    * @param content メッセージ内容
-    * @returns 送信結果
-    */
--  sendMessage: (roomId: string, content: string): void => {
--    window.electron.chat.sendMessage(roomId, content);
-+  sendMessage: (roomId: string, messages: ChatMessage[]): void => {
-+    window.electron.chat.sendMessage({ roomId, messages });
+-              {processing ? '処理中...' : 'ソース読み込み'}
++              {processing ? '同期処理中...' : 'ファイル同期'}
+             </Button>
+           </Tooltip>
+         </Box>
+@@ -328,7 +346,7 @@ function SourceListModal({
+                 </TableCell>
+                 <TableCell>ファイルパス</TableCell>
+                 <TableCell>タイトル（生成）</TableCell>
+-                <TableCell>ステータス</TableCell>
++                <TableCell>同期処理ステータス</TableCell>
+                 <TableCell>最終更新</TableCell>
+               </TableRow>
+             </TableHead>
+diff --git a/src/renderer/services/sourceService.ts b/src/renderer/services/sourceService.ts
+index 4d49a8421..71dc83864 100644
+--- a/src/renderer/services/sourceService.ts
++++ b/src/renderer/services/sourceService.ts
+@@ -17,6 +17,33 @@ export const sourceService = {
+       };
+     }
    },
++  /**
++   * ソースの登録ディレクトリを取得する
++   * @returns 登録ディレクトリのパス
++   */
++  getRegisterDir: async (): Promise<{
++    success: boolean;
++    dir?: string;
++    error?: string;
++  }> => {
++    try {
++      // IPC通信を使用してメインプロセスから登録ディレクトリを取得する
++      const source = (await window.electron.store.get('source')) as any;
++      if (!source || !source.registerDir) {
++        return {
++          success: false,
++          error: 'ドキュメント登録ディレクトリが設定されていません',
++        };
++      }
++      return { success: true, dir: source.registerDir || '' };
++      // eslint-disable-next-line
++    } catch (error) {
++      return {
++        success: false,
++        error: `ドキュメント登録ディレクトリの取得に失敗しました`,
++      };
++    }
++  },
+ };
  
-   /**
+ export default sourceService;
