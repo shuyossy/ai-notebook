@@ -17,6 +17,7 @@ module.exports = {
     'no-console': 'off',
     'no-await-in-loop': 'off',
     'class-methods-use-this': 'off',
+    'preffer-template': 'off',
     'react/require-default-props': 'off', // パラメータのデストラクチャリングでデフォルト値を設定する方式を許可
     'react/function-component-definition': [
       'error',

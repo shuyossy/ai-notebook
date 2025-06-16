@@ -58,6 +58,11 @@ function SourceListModal({
   useEffect(() => {
     const initialCheckedState = sources.reduce(
       (acc, source) => {
+        // statusがcompletedでない場合はチェックを外す
+        if (source.status !== 'completed') {
+          acc[source.id] = false;
+          return acc;
+        }
         acc[source.id] = source.isEnabled === 1;
         return acc;
       },
@@ -355,7 +360,11 @@ function SourceListModal({
                       <Checkbox
                         checked={checkedSources[source.id] || false}
                         onChange={() => handleSourceCheckChange(source.id)}
-                        disabled={processing || updatingSources.size > 0}
+                        disabled={
+                          processing ||
+                          updatingSources.size > 0 ||
+                          source.status !== 'completed'
+                        }
                       />
                     </Tooltip>
                   </TableCell>
