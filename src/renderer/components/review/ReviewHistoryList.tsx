@@ -187,7 +187,13 @@ function ReviewHistoryList({
   };
 
   return (
-    <Box>
+    <Box
+      sx={{
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100%',
+      }}
+    >
       <Box
         sx={{ py: 1, px: 2, pt: 0, display: 'flex', justifyContent: 'start' }}
       >
@@ -202,7 +208,15 @@ function ReviewHistoryList({
         </Button>
       </Box>
       <Divider />
-      {renderContent()}
+      <Box
+        sx={{
+          flexGrow: 1,
+          overflowY: 'auto',
+        }}
+        className="hidden-scrollbar"
+      >
+        {renderContent()}
+      </Box>
     </Box>
   );
 }

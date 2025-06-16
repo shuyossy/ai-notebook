@@ -60,6 +60,8 @@ const SidebarHeader: React.FC<SidebarHeaderProps> = () => {
               />
             }
             sx={{
+              p: 0.8,
+              pb: 0,
               borderRadius: 2,
             }}
           >
@@ -69,7 +71,7 @@ const SidebarHeader: React.FC<SidebarHeaderProps> = () => {
                   sx={{
                     display: 'flex',
                     alignItems: 'center',
-                    gap: 0.2,
+                    gap: 1,
                   }}
                 >
                   {feature.icon}
