@@ -77,6 +77,7 @@ const analyzeSourceStep = new Step({
 
       const analysisResult = await summarizeSourceAgent.generate(content, {
         output: outputSchema,
+        maxRetries: 3,
       });
 
       title = analysisResult.object.title;
@@ -101,7 +102,7 @@ const analyzeSourceStep = new Step({
       } else if (error instanceof Error) {
         errorDetail = error.message;
       } else {
-        errorDetail = '不明なエラー';
+        errorDetail = JSON.stringify(error);
       }
       errorMessage = `ソース分析でエラーが発生しました:\n${errorDetail}`;
       console.error(error);
@@ -180,13 +181,16 @@ const extractTopicAndSummaryStep = new Step({
       status = 'success';
     } catch (error) {
       let errorDetail: string;
-      if (APICallError.isInstance(error) && error.responseBody) {
+      if (APICallError.isInstance(error)) {
         // APIコールエラーの場合はresponseBodyの内容を取得
-        errorDetail = error.responseBody;
+        errorDetail = error.message;
+        if (error.responseBody) {
+          errorDetail += `:\n${error.responseBody}`;
+        }
       } else if (error instanceof Error) {
         errorDetail = error.message;
       } else {
-        errorDetail = '不明なエラー';
+        errorDetail = JSON.stringify(error);
       }
       errorMessage = `ソース分析でエラーが発生しました:\n${errorDetail}`;
       console.error(error);
