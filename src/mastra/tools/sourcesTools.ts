@@ -1,3 +1,4 @@
+import { APICallError } from 'ai';
 import { z } from 'zod';
 import { Agent } from '@mastra/core/agent';
 import { createTool } from '@mastra/core/tools';
@@ -175,15 +176,24 @@ export const documentQueryTool = createTool({
         },
       };
     } catch (error) {
-      const errorMessage =
-        error instanceof Error
-          ? `${error.message}\n${error.stack}`
-          : String(error);
+      let errorDetail: string;
+      if (APICallError.isInstance(error)) {
+        // APIコールエラーの場合はresponseBodyの内容を取得
+        errorDetail = error.message;
+        if (error.responseBody) {
+          errorDetail += `:\n${error.responseBody}`;
+        }
+      } else if (error instanceof Error) {
+        errorDetail = error.message;
+      } else {
+        errorDetail = JSON.stringify(error);
+      }
+      const errorMessage = `ドキュメント検索ツール実行時にエラーが発生しました:\n${errorDetail}`;
 
       status = 'failed';
       return {
         status,
-        error: `Source query failed: ${errorMessage}`,
+        error: errorMessage,
       };
     }
   },

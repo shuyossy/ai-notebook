@@ -15,7 +15,12 @@ import { autoUpdater } from 'electron-updater';
 import log from 'electron-log';
 import { Mastra } from '@mastra/core';
 import { createLogger } from '@mastra/core/logger';
-import { createDataStream, CoreUserMessage, UserContent } from 'ai';
+import {
+  createDataStream,
+  CoreUserMessage,
+  UserContent,
+  APICallError,
+} from 'ai';
 import { eq } from 'drizzle-orm';
 import {
   ReadableStream,
@@ -499,10 +504,20 @@ const setupChatHandlers = () => {
             console.error('テキスト生成中にエラーが発生:', error);
             // エラー時もAbortControllerを削除
             threadAbortControllers.delete(roomId);
-            if (error == null) return 'unknown error';
-            if (typeof error === 'string') return error;
-            if (error instanceof Error) return error.message;
-            return JSON.stringify(error);
+            event.sender.send(IpcChannels.CHAT_COMPLETE);
+            let errorDetail: string;
+            if (APICallError.isInstance(error)) {
+              // APIコールエラーの場合はresponseBodyの内容を取得
+              errorDetail = error.message;
+              if (error.responseBody) {
+                errorDetail += `:\n${error.responseBody}`;
+              }
+            } else if (error instanceof Error) {
+              errorDetail = error.message;
+            } else {
+              errorDetail = JSON.stringify(error);
+            }
+            return `テキスト生成中にエラーが発生しました:\n${errorDetail}`;
           },
         });
 
