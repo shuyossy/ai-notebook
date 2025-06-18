@@ -26,7 +26,6 @@ import {
 } from '@mui/icons-material';
 
 import { Source } from '../../../db/schema';
-import { sourceService } from '../../services/sourceService';
 
 interface SourceListModalProps {
   open: boolean;
@@ -200,16 +199,7 @@ function SourceListModal({
     };
   }, [open, checkedSources, onStatusUpdate]);
 
-  const handleReloadClick = async () => {
-    // ドキュメント登録ディレクトリが設定されていない場合はエラースナックバー表示
-    const { success, dir, error } = await sourceService.getRegisterDir();
-    if (!success || !dir?.trim()) {
-      showSnackbar(
-        error || 'ドキュメント登録ディレクトリが設定されていません',
-        'error',
-      );
-      return;
-    }
+  const handleReloadClick = () => {
     onReloadSources();
   };
 
@@ -295,15 +285,17 @@ function SourceListModal({
           登録ドキュメント一覧
         </Typography>
         <Alert severity="info" sx={{ whiteSpace: 'pre-line', mb: 2 }}>
-          設定されたディレクトリ(歯車アイコンから変更可能)内のドキュメントを一覧表示しています
+          設定されたフォルダ内のドキュメントを一覧表示しています
           <br />
           選択されたドキュメントは、チャット機能において、AIの回答時に適宜参照されます
           <br />
-          ※ディレクトリの内容が更新された場合は、ファイル同期を実行してください
+          ※フォルダの内容が更新された場合は、ファイル同期を実行してください
+          <br />
+          ※フォルダのパスは設定画面（歯車アイコン）から変更可能です
         </Alert>
 
         <Box sx={{ mb: 2, display: 'flex', justifyContent: 'flex-end' }}>
-          <Tooltip title="ソース登録ディレクトリ内のファイル内容と同期します">
+          <Tooltip title="ソース登録フォルダ内のファイル内容と同期します">
             <Button
               variant="contained"
               onClick={handleReloadClick}

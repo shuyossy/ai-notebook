@@ -9,6 +9,16 @@ import { createHash } from 'crypto';
 import { app } from 'electron';
 import type { TextItem } from 'pdfjs-dist/types/src/display/api';
 
+// pdfテキスト抽出処理において、pdfjs-dist/legacy/build/pdf.mjsを動的インポートする際に、node.js環境でpdf処理をするためにライブラリ内部で@napi-rs/canvasを利用して、ブラウザのcanvasをpolyfillする
+// その際、動的にrequire("@napi-rs/canvas")が実行されるが、本番環境だとモジュールが見つけられないエラーになる
+// releaseディレクトリに@napi-rs/canvasを追加して解決を試みたが、それでも同様にモジュールが見つけられないエラーが発生するため、予め@napi-rs/canvasを呼び出してpolyfillを実行しておく
+import canvas from '@napi-rs/canvas';
+
+(globalThis as any).DOMMatrix = canvas.DOMMatrix;
+(globalThis as any).ImageData = canvas.ImageData;
+(globalThis as any).Path2D = canvas.Path2D;
+
+
 const execFileP = promisify(execFile);
 
 /** キャッシュ対象となるファイルの拡張子 */
@@ -19,6 +29,7 @@ const CACHE_TARGET_EXTENSIONS = [
   '.xlsx',
   '.ppt',
   '.pptx',
+  '.pdf',
 ];
 
 /** 抽出結果の型定義 */

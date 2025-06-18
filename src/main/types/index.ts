@@ -33,6 +33,7 @@ export type AgentBootMessage = {
  * エージェントのツール状態を表す型
  */
 export type AgentToolStatus = {
+  document: boolean;
   redmine: boolean;
   gitlab: boolean;
   mcp: boolean;

@@ -33,7 +33,7 @@ export const SourceSchema = z.object({
   registerDir: z
     .string()
     .refine(async (path) => {
-      if (path.trim() === '') return true; // 空文字は許容
+      if (path === '') return true; // 空文字は許容
       return await checkPathExists(path)
     }, {
       message: '指定されたパスが存在しません',

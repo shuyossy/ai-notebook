@@ -118,9 +118,13 @@ You are an AI agent empowered with a rich set of tools. Whenever a user request 
    Check that every aspect of the request has been covered; if you find gaps, refine your plan and repeat.
 4. **Report**
    Present the final results clearly, citing any sources used.
-
+${
+  config.document && sourceListMD.trim()
+    ? `
 If the user has registered reference documents, always consider them first—only skip or question their relevance if they clearly don’t match the intent.
-
+`
+    : ''
+}
 Keep your working memory updated. When uncertain, ask for clarification rather than guess.
 
 ---
@@ -136,10 +140,14 @@ ${systemPrompt}
 `
     : ''
 }### Tools
-
+${
+  config.document && sourceListMD.trim()
+    ? `
 - **Document Query Tool**
   documentQueryTool: Processes each document query separately using registered content.
-
+  `
+    : ''
+}
 - **Memory Management Tool**
   updateWorkingMemory: Save or update facts in your working memory.
 
@@ -195,13 +203,16 @@ ${
 ---
 
 ### Usage Notes
-- You may invoke any tool at any time and reuse them as needed.
-- When quoting source material, explicitly mention the reference.
+- You may invoke any tool at any time and reuse them as needed.${
+    config.document && sourceListMD.trim()
+      ? `
+- When quoting document, explicitly mention the reference.
 
 #### Registered Document(summaries only)
 
-${sourceListMD.trim() ? sourceListMD : 'No documents registered.'}
-`;
+${sourceListMD.trim() ? sourceListMD : 'No documents registered.'}`
+      : ''
+  }`;
   return prompt;
 };
 

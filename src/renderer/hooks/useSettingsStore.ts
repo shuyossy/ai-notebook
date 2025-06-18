@@ -168,7 +168,7 @@ const useSettingsStore = () => {
     if (!loading) {
       const newSettings = {
         database: databaseStore ?? { dir: '' },
-        source: sourceStore ?? { registerDir: './source' },
+        source: sourceStore ?? { registerDir: '' },
         api: apiStore ?? { key: '', url: '', model: '' },
         redmine: redmineStore ?? { endpoint: '', apiKey: '' },
         gitlab: gitlabStore ?? { endpoint: '', apiKey: '' },

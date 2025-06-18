@@ -1,4 +1,5 @@
 /* eslint-disable import/prefer-default-export */
+import { APICallError } from 'ai';
 import { Step, Workflow } from '@mastra/core/workflows';
 import { z } from 'zod';
 import { Agent } from '@mastra/core/agent';
@@ -93,10 +94,17 @@ const analyzeSourceStep = new Step({
 
       status = 'success';
     } catch (error) {
-      const errorDetail =
-        error instanceof Error ? error.message : '不明なエラー';
-      errorMessage = `ソース分析でエラーが発生しました: ${errorDetail}`;
-      console.error(errorMessage);
+      let errorDetail: string;
+      if (APICallError.isInstance(error) && error.responseBody) {
+        // APIコールエラーの場合はresponseBodyの内容を取得
+        errorDetail = error.responseBody;
+      } else if (error instanceof Error) {
+        errorDetail = error.message;
+      } else {
+        errorDetail = '不明なエラー';
+      }
+      errorMessage = `ソース分析でエラーが発生しました:\n${errorDetail}`;
+      console.error(error);
 
       // DBにエラー情報を更新
       await db
@@ -147,6 +155,7 @@ const extractTopicAndSummaryStep = new Step({
 
       const analysisResult = await summarizeTopicAgent.generate(content, {
         output: outputSchema,
+        maxRetries: 3,
       });
 
       // トピックと要約をデータベースに登録
@@ -170,10 +179,17 @@ const extractTopicAndSummaryStep = new Step({
         .where(eq(sources.id, sourceId));
       status = 'success';
     } catch (error) {
-      const errorDetail =
-        error instanceof Error ? error.message : '不明なエラー';
-      errorMessage = `トピックと要約の生成でエラーが発生しました: ${errorDetail}`;
-      console.error(errorMessage);
+      let errorDetail: string;
+      if (APICallError.isInstance(error) && error.responseBody) {
+        // APIコールエラーの場合はresponseBodyの内容を取得
+        errorDetail = error.responseBody;
+      } else if (error instanceof Error) {
+        errorDetail = error.message;
+      } else {
+        errorDetail = '不明なエラー';
+      }
+      errorMessage = `ソース分析でエラーが発生しました:\n${errorDetail}`;
+      console.error(error);
 
       // DBにエラー情報を更新
       const db = await getDb();
