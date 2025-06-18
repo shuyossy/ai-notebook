@@ -35,7 +35,7 @@ export const getMemory = (config: MemoryConfig = {}): Memory => {
   const dbSetting = store.get('database');
 
   if (!dbSetting.dir) {
-    throw new Error('データベースディレクトリが設定されていません。');
+    throw new Error('データベース保存フォルダが設定されていません。');
   }
 
   const options = {

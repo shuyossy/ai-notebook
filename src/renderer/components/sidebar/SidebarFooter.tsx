@@ -46,7 +46,7 @@ function SidebarFooter({
   return (
     <Box sx={{ p: 1, borderTop: 1, borderColor: 'divider' }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-        <Tooltip title="ソース一覧を表示">
+        <Tooltip title="登録ドキュメント一覧">
           <Badge
             badgeContent={getBadgeContent()}
             overlap="circular"

@@ -62,6 +62,7 @@ const mastraStatus: AgentBootStatus = {
   state: 'initializing',
   messages: [],
   tools: {
+    document: false,
     redmine: false,
     gitlab: false,
     mcp: false,
@@ -459,6 +460,7 @@ const setupChatHandlers = () => {
                 resourceId: 'user', // 固定のリソースID
                 instructions: await getOrchestratorSystemPrompt(
                   mastraStatus.tools ?? {
+                    document: false,
                     redmine: false,
                     gitlab: false,
                     mcp: false,

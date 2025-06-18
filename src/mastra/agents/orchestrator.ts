@@ -64,6 +64,7 @@ export const getOrchestrator = async (): Promise<{
 }> => {
   const alertMessages: AgentBootMessage[] = [];
   let agent: Agent | null = null;
+  let documentTools = {};
   let redmineTools = {};
   let gitlabTools = {};
   let mcpTools = {};
@@ -74,6 +75,26 @@ export const getOrchestrator = async (): Promise<{
 
   try {
     const store = getStore();
+
+    // ドキュメントツールの登録
+    // 空文字でない場合は登録する
+    const documentRegisterDir = store.get('source').registerDir;
+    if (documentRegisterDir && documentRegisterDir.trim() !== '') {
+      try {
+        documentTools = { documentQueryTool };
+        excduldeTools.push('documentQueryTool');
+      } catch (error) {
+        alertMessages.push({
+          id: uuid(),
+          type: 'warning',
+          content: `ドキュメント検索ツールの初期化に失敗しました\n設定を確認してください\n${error}`,
+        });
+      }
+    } else {
+      console.warn(
+        'ドキュメント検索ツールの登録フォルダが設定されていません。ドキュメントツールは登録されません。',
+      );
+    }
 
     // Redmineツールの登録
     // APIキーとエンドポイントが登録されていた場合は登録する
@@ -94,13 +115,13 @@ export const getOrchestrator = async (): Promise<{
         alertMessages.push({
           id: uuid(),
           type: 'info',
-          content: 'Redmineクライアントの初期化に成功しました。',
+          content: 'Redmine操作ツールの初期化に成功しました。',
         });
       } catch (error) {
         alertMessages.push({
           id: uuid(),
           type: 'warning',
-          content: `Redmineクライアントの初期化に失敗しました\n設定を確認してください\n${error}`,
+          content: `Redmine操作ツールの初期化に失敗しました\n設定を確認してください\n${error}`,
         });
         redmineInfo = null;
       }
@@ -130,13 +151,13 @@ export const getOrchestrator = async (): Promise<{
         alertMessages.push({
           id: uuid(),
           type: 'info',
-          content: 'Gitlabクライアントの初期化に成功しました。',
+          content: 'Gitlab操作ツールの初期化に成功しました。',
         });
       } catch (error) {
         alertMessages.push({
           id: uuid(),
           type: 'warning',
-          content: `Gitlabクライアントの初期化に失敗しました\n設定を確認してください\n${error}`,
+          content: `Gitlab操作ツールの初期化に失敗しました\n設定を確認してください\n${error}`,
         });
       }
     } else {
@@ -212,7 +233,7 @@ export const getOrchestrator = async (): Promise<{
       instructions: '', // 空の指示を設定（streamメソッド時に動的に設定するため）
       tools: {
         // sourceListTool,
-        documentQueryTool,
+        ...documentTools,
         ...stagehandTools,
         ...redmineTools,
         ...gitlabTools,
@@ -259,6 +280,7 @@ export const getOrchestrator = async (): Promise<{
     agent,
     alertMessages,
     toolStatus: {
+      document: !!documentTools && Object.keys(documentTools).length > 0,
       redmine: !!redmineTools && Object.keys(redmineTools).length > 0,
       gitlab: !!gitlabTools && Object.keys(gitlabTools).length > 0,
       mcp: !!mcpTools && Object.keys(mcpTools).length > 0,

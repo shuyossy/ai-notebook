@@ -46,12 +46,12 @@ describe('SettingsModal Component', () => {
 
     // データベース設定
     await waitFor(() => {
-      const dbPath = screen.getByRole('textbox', { name: 'データベースパス' });
+      const dbPath = screen.getByRole('textbox', { name: 'データベース保存フォルダ' });
       expect(dbPath).toHaveValue('/test/db');
     });
 
     // ソース設定
-    expect(screen.getByLabelText('ソース登録ディレクトリ')).toHaveValue(
+    expect(screen.getByLabelText('ドキュメント格納フォルダ')).toHaveValue(
       './test/source',
     );
 
@@ -122,12 +122,12 @@ describe('SettingsModal Component', () => {
     await user.type(apiModelInput, 'new-test-model');
 
     // データベース設定の更新
-    const dbDirInput = screen.getByLabelText('データベースパス');
+    const dbDirInput = screen.getByLabelText('データベース保存フォルダ');
     await user.clear(dbDirInput);
     await user.type(dbDirInput, '/new/test/db');
 
     // ソース設定の更新
-    const sourceInput = screen.getByLabelText('ソース登録ディレクトリ');
+    const sourceInput = screen.getByLabelText('ドキュメント格納フォルダ');
     await user.clear(sourceInput);
     await user.type(sourceInput, './new/test/source');
 
@@ -259,7 +259,7 @@ describe('SettingsModal Component', () => {
     const apiKeyInput = screen.getByLabelText('APIキー');
     const apiEndpointInput = screen.getByLabelText('APIエンドポイントURL');
     const apiModelInput = screen.getByLabelText('モデル名');
-    const dbDirInput = screen.getByLabelText('データベースパス');
+    const dbDirInput = screen.getByLabelText('データベース保存フォルダ');
 
     await waitFor(() => {
       expect(apiKeyInput).toBeEnabled();
@@ -295,7 +295,7 @@ describe('SettingsModal Component', () => {
       expect(screen.getByText('APIキーは必須です')).toBeInTheDocument();
       expect(screen.getByText('モデル名は必須です')).toBeInTheDocument();
 
-      // パスが存在しないエラー（DB,ドキュメント登録ディレクトリ）
+      // パスが存在しないエラー（DB,ドキュメント登録フォルダ）
       expect(screen.getAllByText('指定されたパスが存在しません').length).toEqual(2);
 
       // 無効なURL形式のエラー

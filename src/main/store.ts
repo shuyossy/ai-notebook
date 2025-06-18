@@ -146,7 +146,7 @@ const defaults: StoreSchema = {
     dir: './default_data_dir',
   },
   source: {
-    registerDir: './default_data_dir',
+    registerDir: '',
   },
   api: {
     key: '',

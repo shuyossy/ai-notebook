@@ -9,7 +9,7 @@ import { sources, topics } from '../../db/schema';
 import FileExtractor from '../../main/utils/fileExtractor';
 
 /**
- * ディレクトリ内の全てのファイルを登録するワークフロー
+ * フォルダ内の全てのファイルを登録するワークフロー
  */
 export default class SourceRegistrationManager {
   // eslint-disable-next-line
@@ -75,17 +75,17 @@ export default class SourceRegistrationManager {
   }
 
   /**
-   * ディレクトリ内の全てのファイルを登録
+   * フォルダ内の全てのファイルを登録
    */
   public async registerAllFiles(excludeRegisteredFile = true): Promise<void> {
     try {
       const store = getStore();
       const { registerDir } = store.get('source');
-      if (!registerDir || registerDir.trim() === '') {
-        throw new Error('ドキュメント登録ディレクトリが設定されていません');
+      let files: string[] = [];
+      if (registerDir.trim() !== '') {
+        // フォルダ内のファイル一覧を取得
+        files = await this.readDirectoryRecursively(registerDir);
       }
-      // ディレクトリ内のファイル一覧を取得
-      let files = await this.readDirectoryRecursively(registerDir);
 
       // DB接続を一度だけ確立
       const db = await getDb();
@@ -105,7 +105,7 @@ export default class SourceRegistrationManager {
         );
       }
 
-      // ディレクトリ内のファイルが存在しない場合は早期リターン
+      // フォルダ内のファイルが存在しない場合は早期リターン
       if (files.length === 0) {
         console.log('登録するファイルが見つかりませんでした');
         return;
@@ -254,7 +254,7 @@ export default class SourceRegistrationManager {
   }
 
   /**
-   * ディレクトリを再帰的に読み込み、全てのファイルパスを取得
+   * フォルダを再帰的に読み込み、全てのファイルパスを取得
    * @param dirPath ディレクトリパス
    * @returns ファイルパスの配列
    */

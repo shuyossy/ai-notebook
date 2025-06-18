@@ -134,7 +134,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
             </Typography>
             <TextField
               fullWidth
-              label="ソース登録ディレクトリ"
+              label="ドキュメント格納フォルダ"
               value={settings.source.registerDir}
               disabled={loading || saving}
               onChange={(e) =>
@@ -146,7 +146,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
               variant="outlined"
             />
             <Alert severity="warning" sx={{ mt: 1 }}>
-              設定を反映させるにはアプリのソースの再読み込みが必要です
+              AIが参照するドキュメントを格納するフォルダです
+              <br />
+              設定を変更した場合は、添付アイコンからフォルダ内容を同期してください
             </Alert>
           </Box>
 
@@ -316,7 +318,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
             </Typography>
             <TextField
               fullWidth
-              label="データベースパス"
+              label="データベース保存フォルダ"
               value={settings.database.dir}
               disabled={loading || saving}
               onChange={(e) => handleChange('database', 'dir', e.target.value)}

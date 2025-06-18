@@ -115,7 +115,7 @@ describe('Sidebar Component', () => {
     });
 
     // フッターのボタンが表示されることを確認
-    expect(screen.getByLabelText('ソース一覧を表示')).toBeInTheDocument();
+    expect(screen.getByLabelText('登録ドキュメント一覧')).toBeInTheDocument();
     expect(screen.getByLabelText('設定')).toBeInTheDocument();
   });
 
