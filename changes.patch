@@ -1,277 +1,569 @@
+diff --git a/src/__tests__/integration/SettingsModal.test.tsx b/src/__tests__/integration/SettingsModal.test.tsx
+index 9b5048762..f188b5056 100644
+--- a/src/__tests__/integration/SettingsModal.test.tsx
++++ b/src/__tests__/integration/SettingsModal.test.tsx
+@@ -46,12 +46,12 @@ describe('SettingsModal Component', () => {
+ 
+     // データベース設定
+     await waitFor(() => {
+-      const dbPath = screen.getByRole('textbox', { name: 'データベースパス' });
++      const dbPath = screen.getByRole('textbox', { name: 'データベース保存フォルダ' });
+       expect(dbPath).toHaveValue('/test/db');
+     });
+ 
+     // ソース設定
+-    expect(screen.getByLabelText('ソース登録ディレクトリ')).toHaveValue(
++    expect(screen.getByLabelText('ドキュメント格納フォルダ')).toHaveValue(
+       './test/source',
+     );
+ 
+@@ -122,12 +122,12 @@ describe('SettingsModal Component', () => {
+     await user.type(apiModelInput, 'new-test-model');
+ 
+     // データベース設定の更新
+-    const dbDirInput = screen.getByLabelText('データベースパス');
++    const dbDirInput = screen.getByLabelText('データベース保存フォルダ');
+     await user.clear(dbDirInput);
+     await user.type(dbDirInput, '/new/test/db');
+ 
+     // ソース設定の更新
+-    const sourceInput = screen.getByLabelText('ソース登録ディレクトリ');
++    const sourceInput = screen.getByLabelText('ドキュメント格納フォルダ');
+     await user.clear(sourceInput);
+     await user.type(sourceInput, './new/test/source');
+ 
+@@ -259,7 +259,7 @@ describe('SettingsModal Component', () => {
+     const apiKeyInput = screen.getByLabelText('APIキー');
+     const apiEndpointInput = screen.getByLabelText('APIエンドポイントURL');
+     const apiModelInput = screen.getByLabelText('モデル名');
+-    const dbDirInput = screen.getByLabelText('データベースパス');
++    const dbDirInput = screen.getByLabelText('データベース保存フォルダ');
+ 
+     await waitFor(() => {
+       expect(apiKeyInput).toBeEnabled();
+@@ -295,7 +295,7 @@ describe('SettingsModal Component', () => {
+       expect(screen.getByText('APIキーは必須です')).toBeInTheDocument();
+       expect(screen.getByText('モデル名は必須です')).toBeInTheDocument();
+ 
+-      // パスが存在しないエラー（DB,ドキュメント登録ディレクトリ）
++      // パスが存在しないエラー（DB,ドキュメント登録フォルダ）
+       expect(screen.getAllByText('指定されたパスが存在しません').length).toEqual(2);
+ 
+       // 無効なURL形式のエラー
 diff --git a/src/__tests__/integration/Sidebar.test.tsx b/src/__tests__/integration/Sidebar.test.tsx
-index a23e7b6c3..b80e2f450 100644
+index b80e2f450..cfdcf256f 100644
 --- a/src/__tests__/integration/Sidebar.test.tsx
 +++ b/src/__tests__/integration/Sidebar.test.tsx
-@@ -263,7 +263,7 @@ describe('Sidebar Component', () => {
-     await user.click(screen.getByTestId('document-list-button'));
+@@ -115,7 +115,7 @@ describe('Sidebar Component', () => {
+     });
  
-     // SourceListModalが表示されることを確認
--    expect(screen.getByText('ソース一覧')).toBeInTheDocument();
-+    expect(screen.getByText('登録ドキュメント一覧')).toBeInTheDocument();
+     // フッターのボタンが表示されることを確認
+-    expect(screen.getByLabelText('ソース一覧を表示')).toBeInTheDocument();
++    expect(screen.getByLabelText('登録ドキュメント一覧')).toBeInTheDocument();
+     expect(screen.getByLabelText('設定')).toBeInTheDocument();
    });
  
-   // テスト9: フッターの設定モーダル表示
 diff --git a/src/__tests__/integration/SourceListModal.test.tsx b/src/__tests__/integration/SourceListModal.test.tsx
-index 5a8b7d8c1..905675b87 100644
+index 905675b87..5a2efa897 100644
 --- a/src/__tests__/integration/SourceListModal.test.tsx
 +++ b/src/__tests__/integration/SourceListModal.test.tsx
-@@ -190,7 +190,7 @@ describe('SourceListModal Component', () => {
+@@ -835,56 +835,4 @@ describe('SourceListModal Component', () => {
+       expect(props.onReloadSources).toHaveBeenCalled();
      });
- 
-     // リロードボタンが無効化されていることを確認
--    const reloadButton = screen.getByText('処理中...');
-+    const reloadButton = screen.getByText('同期処理中...');
-     expect(reloadButton).toBeDisabled();
- 
-     // チェックボックスが無効化されていることを確認
-@@ -824,13 +824,67 @@ describe('SourceListModal Component', () => {
-     });
- 
-     // 完了状態なのでリロードボタンが活性化されていることを確認
--    const reloadButton = screen.getByText('ソース読み込み');
-+    const reloadButton = screen.getByText('ファイル同期');
-     expect(reloadButton).toBeEnabled();
- 
-     // リロードボタンをクリック
-     fireEvent.click(reloadButton);
- 
-     // onReloadSourcesが呼ばれたことを確認
--    expect(props.onReloadSources).toHaveBeenCalled();
-+    await waitFor(() => {
-+      expect(props.onReloadSources).toHaveBeenCalled();
-+    });
-+  });
-+
-+  // テスト11: 登録ディレクトリが空文字の場合のファイル同期挙動確認
-+  test('登録ディレクトリが空文字の場合のファイル同期挙動確認', async () => {
-+    // 登録ディレクトリが空文字のモックデータをセットアップ(window.electron.store.get('source'))
-+    window.electron.store.get = jest.fn().mockReturnValue({
-+      registerDir: '',
-+    });
-+
-+    const props = {
-+      ...defaultProps,
-+    };
-+
-+    // コンポーネントをレンダリング
-+    render(
-+      <SourceListModal
-+        open={props.open}
-+        processing={props.processing}
-+        onClose={props.onClose}
-+        onReloadSources={props.onReloadSources}
-+        onStatusUpdate={props.onStatusUpdate}
-+        showSnackbar={props.showSnackbar}
-+      />,
-+    );
-+
-+    // 進める
-+    act(() => {
-+      jest.advanceTimersByTime(5000);
-+    });
-+
-+    // ソースデータが取得されるまで待機
-+    await waitFor(() => {
-+      expect(window.electron.source.getSources).toHaveBeenCalled();
-+    });
-+
-+    // ファイル同期ボタンが有効化されていることを確認
-+    const reloadButton = screen.getByText('ファイル同期');
-+    expect(reloadButton).toBeEnabled();
-+
-+    // ファイル同期ボタンをクリック
-+    fireEvent.click(reloadButton);
-+    // 登録ディレクトリが設定されていない場合のエラーメッセージが表示されることを確認
-+    await waitFor(() => {
-+      expect(props.showSnackbar).toHaveBeenCalledWith(
-+        'ドキュメント登録ディレクトリが設定されていません',
-+        'error',
-+      );
-+    });
-+    // onReloadSourcesが呼ばれないことを確認
-+    await waitFor(() => {
-+      expect(props.onReloadSources).not.toHaveBeenCalled();
-+    });
    });
+-
+-  // テスト11: 登録ディレクトリが空文字の場合のファイル同期挙動確認
+-  test('登録ディレクトリが空文字の場合のファイル同期挙動確認', async () => {
+-    // 登録ディレクトリが空文字のモックデータをセットアップ(window.electron.store.get('source'))
+-    window.electron.store.get = jest.fn().mockReturnValue({
+-      registerDir: '',
+-    });
+-
+-    const props = {
+-      ...defaultProps,
+-    };
+-
+-    // コンポーネントをレンダリング
+-    render(
+-      <SourceListModal
+-        open={props.open}
+-        processing={props.processing}
+-        onClose={props.onClose}
+-        onReloadSources={props.onReloadSources}
+-        onStatusUpdate={props.onStatusUpdate}
+-        showSnackbar={props.showSnackbar}
+-      />,
+-    );
+-
+-    // 進める
+-    act(() => {
+-      jest.advanceTimersByTime(5000);
+-    });
+-
+-    // ソースデータが取得されるまで待機
+-    await waitFor(() => {
+-      expect(window.electron.source.getSources).toHaveBeenCalled();
+-    });
+-
+-    // ファイル同期ボタンが有効化されていることを確認
+-    const reloadButton = screen.getByText('ファイル同期');
+-    expect(reloadButton).toBeEnabled();
+-
+-    // ファイル同期ボタンをクリック
+-    fireEvent.click(reloadButton);
+-    // 登録ディレクトリが設定されていない場合のエラーメッセージが表示されることを確認
+-    await waitFor(() => {
+-      expect(props.showSnackbar).toHaveBeenCalledWith(
+-        'ドキュメント登録ディレクトリが設定されていません',
+-        'error',
+-      );
+-    });
+-    // onReloadSourcesが呼ばれないことを確認
+-    await waitFor(() => {
+-      expect(props.onReloadSources).not.toHaveBeenCalled();
+-    });
+-  });
  });
-diff --git a/src/__tests__/integration/chat.test.tsx b/src/__tests__/integration/chat.test.tsx
-index c54f3c7d6..56ce37919 100644
---- a/src/__tests__/integration/chat.test.tsx
-+++ b/src/__tests__/integration/chat.test.tsx
-@@ -887,7 +887,7 @@ describe('ChatArea Component', () => {
- 
-     window.electron.chat.getMessages = jest.fn().mockResolvedValue(mockMultiImageMessages);
- 
--    render(<ChatArea selectedRoomId="1" />);
-+    render(<ChatArea selectedRoomId="18" />);
- 
-     // 全ての画像が表示されることを確認
-     await waitFor(() => {
-@@ -919,7 +919,7 @@ describe('ChatArea Component', () => {
- 
-     window.electron.chat.getMessages = jest.fn().mockResolvedValue(mockImageMessage);
-     const user = userEvent.setup();
--    render(<ChatArea selectedRoomId="1" />);
-+    render(<ChatArea selectedRoomId="19" />);
- 
-     // メッセージエリアを取得
-     const messageText = await screen.findByText('画像付きメッセージ');
+diff --git a/src/main/main.ts b/src/main/main.ts
+index 47fd4c1a1..568acc3e6 100644
+--- a/src/main/main.ts
++++ b/src/main/main.ts
+@@ -62,6 +62,7 @@ const mastraStatus: AgentBootStatus = {
+   state: 'initializing',
+   messages: [],
+   tools: {
++    document: false,
+     redmine: false,
+     gitlab: false,
+     mcp: false,
+@@ -459,6 +460,7 @@ const setupChatHandlers = () => {
+                 resourceId: 'user', // 固定のリソースID
+                 instructions: await getOrchestratorSystemPrompt(
+                   mastraStatus.tools ?? {
++                    document: false,
+                     redmine: false,
+                     gitlab: false,
+                     mcp: false,
+diff --git a/src/main/store.ts b/src/main/store.ts
+index 8693ecf70..b5f4a6246 100644
+--- a/src/main/store.ts
++++ b/src/main/store.ts
+@@ -146,7 +146,7 @@ const defaults: StoreSchema = {
+     dir: './default_data_dir',
+   },
+   source: {
+-    registerDir: './default_data_dir',
++    registerDir: '',
+   },
+   api: {
+     key: '',
+diff --git a/src/main/types/index.ts b/src/main/types/index.ts
+index f3ae2c765..d104e442c 100644
+--- a/src/main/types/index.ts
++++ b/src/main/types/index.ts
+@@ -33,6 +33,7 @@ export type AgentBootMessage = {
+  * エージェントのツール状態を表す型
+  */
+ export type AgentToolStatus = {
++  document: boolean;
+   redmine: boolean;
+   gitlab: boolean;
+   mcp: boolean;
 diff --git a/src/main/types/settingsSchema.ts b/src/main/types/settingsSchema.ts
-index 4397a2253..70d3b0a7d 100644
+index 70d3b0a7d..961c3f0ed 100644
 --- a/src/main/types/settingsSchema.ts
 +++ b/src/main/types/settingsSchema.ts
-@@ -32,8 +32,10 @@ export const DatabaseSchema = z.object({
- export const SourceSchema = z.object({
+@@ -33,7 +33,7 @@ export const SourceSchema = z.object({
    registerDir: z
      .string()
--    .min(1, { message: 'ソース登録ディレクトリは必須です' })
--    .refine(async (path) => await checkPathExists(path), {
-+    .refine(async (path) => {
-+      if (path.trim() === '') return true; // 空文字は許容
-+      return await checkPathExists(path)
-+    }, {
+     .refine(async (path) => {
+-      if (path.trim() === '') return true; // 空文字は許容
++      if (path === '') return true; // 空文字は許容
+       return await checkPathExists(path)
+     }, {
        message: '指定されたパスが存在しません',
-     }),
- });
+diff --git a/src/mastra/agents/config/memory.ts b/src/mastra/agents/config/memory.ts
+index dfc9ec098..6e1c0abd3 100644
+--- a/src/mastra/agents/config/memory.ts
++++ b/src/mastra/agents/config/memory.ts
+@@ -35,7 +35,7 @@ export const getMemory = (config: MemoryConfig = {}): Memory => {
+   const dbSetting = store.get('database');
+ 
+   if (!dbSetting.dir) {
+-    throw new Error('データベースディレクトリが設定されていません。');
++    throw new Error('データベース保存フォルダが設定されていません。');
+   }
+ 
+   const options = {
+diff --git a/src/mastra/agents/orchestrator.ts b/src/mastra/agents/orchestrator.ts
+index 63c018a8b..eee266ebe 100644
+--- a/src/mastra/agents/orchestrator.ts
++++ b/src/mastra/agents/orchestrator.ts
+@@ -64,6 +64,7 @@ export const getOrchestrator = async (): Promise<{
+ }> => {
+   const alertMessages: AgentBootMessage[] = [];
+   let agent: Agent | null = null;
++  let documentTools = {};
+   let redmineTools = {};
+   let gitlabTools = {};
+   let mcpTools = {};
+@@ -75,6 +76,26 @@ export const getOrchestrator = async (): Promise<{
+   try {
+     const store = getStore();
+ 
++    // ドキュメントツールの登録
++    // 空文字でない場合は登録する
++    const documentRegisterDir = store.get('source').registerDir;
++    if (documentRegisterDir && documentRegisterDir.trim() !== '') {
++      try {
++        documentTools = { documentQueryTool };
++        excduldeTools.push('documentQueryTool');
++      } catch (error) {
++        alertMessages.push({
++          id: uuid(),
++          type: 'warning',
++          content: `ドキュメント検索ツールの初期化に失敗しました\n設定を確認してください\n${error}`,
++        });
++      }
++    } else {
++      console.warn(
++        'ドキュメント検索ツールの登録フォルダが設定されていません。ドキュメントツールは登録されません。',
++      );
++    }
++
+     // Redmineツールの登録
+     // APIキーとエンドポイントが登録されていた場合は登録する
+     const redmineApiKey = store.get('redmine').apiKey;
+@@ -94,13 +115,13 @@ export const getOrchestrator = async (): Promise<{
+         alertMessages.push({
+           id: uuid(),
+           type: 'info',
+-          content: 'Redmineクライアントの初期化に成功しました。',
++          content: 'Redmine操作ツールの初期化に成功しました。',
+         });
+       } catch (error) {
+         alertMessages.push({
+           id: uuid(),
+           type: 'warning',
+-          content: `Redmineクライアントの初期化に失敗しました\n設定を確認してください\n${error}`,
++          content: `Redmine操作ツールの初期化に失敗しました\n設定を確認してください\n${error}`,
+         });
+         redmineInfo = null;
+       }
+@@ -130,13 +151,13 @@ export const getOrchestrator = async (): Promise<{
+         alertMessages.push({
+           id: uuid(),
+           type: 'info',
+-          content: 'Gitlabクライアントの初期化に成功しました。',
++          content: 'Gitlab操作ツールの初期化に成功しました。',
+         });
+       } catch (error) {
+         alertMessages.push({
+           id: uuid(),
+           type: 'warning',
+-          content: `Gitlabクライアントの初期化に失敗しました\n設定を確認してください\n${error}`,
++          content: `Gitlab操作ツールの初期化に失敗しました\n設定を確認してください\n${error}`,
+         });
+       }
+     } else {
+@@ -212,7 +233,7 @@ export const getOrchestrator = async (): Promise<{
+       instructions: '', // 空の指示を設定（streamメソッド時に動的に設定するため）
+       tools: {
+         // sourceListTool,
+-        documentQueryTool,
++        ...documentTools,
+         ...stagehandTools,
+         ...redmineTools,
+         ...gitlabTools,
+@@ -259,6 +280,7 @@ export const getOrchestrator = async (): Promise<{
+     agent,
+     alertMessages,
+     toolStatus: {
++      document: !!documentTools && Object.keys(documentTools).length > 0,
+       redmine: !!redmineTools && Object.keys(redmineTools).length > 0,
+       gitlab: !!gitlabTools && Object.keys(gitlabTools).length > 0,
+       mcp: !!mcpTools && Object.keys(mcpTools).length > 0,
+diff --git a/src/mastra/agents/prompts.ts b/src/mastra/agents/prompts.ts
+index b6666041e..af4a97c16 100644
+--- a/src/mastra/agents/prompts.ts
++++ b/src/mastra/agents/prompts.ts
+@@ -118,9 +118,13 @@ You are an AI agent empowered with a rich set of tools. Whenever a user request
+    Check that every aspect of the request has been covered; if you find gaps, refine your plan and repeat.
+ 4. **Report**
+    Present the final results clearly, citing any sources used.
+-
++${
++  config.document && sourceListMD.trim()
++    ? `
+ If the user has registered reference documents, always consider them first—only skip or question their relevance if they clearly don’t match the intent.
+-
++`
++    : ''
++}
+ Keep your working memory updated. When uncertain, ask for clarification rather than guess.
+ 
+ ---
+@@ -136,10 +140,14 @@ ${systemPrompt}
+ `
+     : ''
+ }### Tools
+-
++${
++  config.document && sourceListMD.trim()
++    ? `
+ - **Document Query Tool**
+   documentQueryTool: Processes each document query separately using registered content.
+-
++  `
++    : ''
++}
+ - **Memory Management Tool**
+   updateWorkingMemory: Save or update facts in your working memory.
+ 
+@@ -204,13 +212,16 @@ ${
+ ---
+ 
+ ### Usage Notes
+-- You may invoke any tool at any time and reuse them as needed.
+-- When quoting source material, explicitly mention the reference.
++- You may invoke any tool at any time and reuse them as needed.${
++    config.document && sourceListMD.trim()
++      ? `
++- When quoting document, explicitly mention the reference.
+ 
+ #### Registered Document(summaries only)
+ 
+-${sourceListMD.trim() ? sourceListMD : 'No documents registered.'}
+-`;
++${sourceListMD.trim() ? sourceListMD : 'No documents registered.'}`
++      : ''
++  }`;
+   return prompt;
+ };
+ 
+diff --git a/src/mastra/workflows/sourceRegistration.ts b/src/mastra/workflows/sourceRegistration.ts
+index d046c267a..e11063938 100644
+--- a/src/mastra/workflows/sourceRegistration.ts
++++ b/src/mastra/workflows/sourceRegistration.ts
+@@ -1,4 +1,5 @@
+ /* eslint-disable import/prefer-default-export */
++import { APICallError } from 'ai';
+ import { Step, Workflow } from '@mastra/core/workflows';
+ import { z } from 'zod';
+ import { Agent } from '@mastra/core/agent';
+@@ -99,10 +100,17 @@ const analyzeSourceStep = new Step({
+ 
+       status = 'success';
+     } catch (error) {
+-      const errorDetail =
+-        error instanceof Error ? error.message : '不明なエラー';
+-      errorMessage = `ソース分析でエラーが発生しました: ${errorDetail}`;
+-      console.error(errorMessage);
++      let errorDetail: string;
++      if (APICallError.isInstance(error) && error.responseBody) {
++        // APIコールエラーの場合はresponseBodyの内容を取得
++        errorDetail = error.responseBody;
++      } else if (error instanceof Error) {
++        errorDetail = error.message;
++      } else {
++        errorDetail = '不明なエラー';
++      }
++      errorMessage = `ソース分析でエラーが発生しました:\n${errorDetail}`;
++      console.error(error);
+ 
+       // DBにエラー情報を更新
+       await db
+@@ -153,6 +161,7 @@ const extractTopicAndSummaryStep = new Step({
+ 
+       const analysisResult = await summarizeTopicAgent.generate(content, {
+         output: outputSchema,
++        maxRetries: 3,
+       });
+ 
+       // トピックと要約をデータベースに登録
+@@ -176,10 +185,17 @@ const extractTopicAndSummaryStep = new Step({
+         .where(eq(sources.id, sourceId));
+       status = 'success';
+     } catch (error) {
+-      const errorDetail =
+-        error instanceof Error ? error.message : '不明なエラー';
+-      errorMessage = `トピックと要約の生成でエラーが発生しました: ${errorDetail}`;
+-      console.error(errorMessage);
++      let errorDetail: string;
++      if (APICallError.isInstance(error) && error.responseBody) {
++        // APIコールエラーの場合はresponseBodyの内容を取得
++        errorDetail = error.responseBody;
++      } else if (error instanceof Error) {
++        errorDetail = error.message;
++      } else {
++        errorDetail = '不明なエラー';
++      }
++      errorMessage = `ソース分析でエラーが発生しました:\n${errorDetail}`;
++      console.error(error);
+ 
+       // DBにエラー情報を更新
+       const db = await getDb();
 diff --git a/src/mastra/workflows/sourceRegistrationManager.ts b/src/mastra/workflows/sourceRegistrationManager.ts
-index db8ce245d..0aeb2b1e4 100644
+index 0aeb2b1e4..9a1b3ee11 100644
 --- a/src/mastra/workflows/sourceRegistrationManager.ts
 +++ b/src/mastra/workflows/sourceRegistrationManager.ts
-@@ -81,6 +81,9 @@ export default class SourceRegistrationManager {
+@@ -9,7 +9,7 @@ import { sources, topics } from '../../db/schema';
+ import FileExtractor from '../../main/utils/fileExtractor';
+ 
+ /**
+- * ディレクトリ内の全てのファイルを登録するワークフロー
++ * フォルダ内の全てのファイルを登録するワークフロー
+  */
+ export default class SourceRegistrationManager {
+   // eslint-disable-next-line
+@@ -75,17 +75,17 @@ export default class SourceRegistrationManager {
+   }
+ 
+   /**
+-   * ディレクトリ内の全てのファイルを登録
++   * フォルダ内の全てのファイルを登録
+    */
+   public async registerAllFiles(excludeRegisteredFile = true): Promise<void> {
      try {
        const store = getStore();
        const { registerDir } = store.get('source');
-+      if (!registerDir || registerDir.trim() === '') {
-+        throw new Error('ドキュメント登録ディレクトリが設定されていません');
-+      }
-       // ディレクトリ内のファイル一覧を取得
-       let files = await this.readDirectoryRecursively(registerDir);
+-      if (!registerDir || registerDir.trim() === '') {
+-        throw new Error('ドキュメント登録ディレクトリが設定されていません');
++      let files: string[] = [];
++      if (registerDir.trim() !== '') {
++        // フォルダ内のファイル一覧を取得
++        files = await this.readDirectoryRecursively(registerDir);
+       }
+-      // ディレクトリ内のファイル一覧を取得
+-      let files = await this.readDirectoryRecursively(registerDir);
  
-diff --git a/src/renderer/components/common/SnackbarNotification.tsx b/src/renderer/components/common/SnackbarNotification.tsx
-index 7817038d1..e3fe74530 100644
---- a/src/renderer/components/common/SnackbarNotification.tsx
-+++ b/src/renderer/components/common/SnackbarNotification.tsx
-@@ -23,7 +23,11 @@ const SnackbarNotification: React.FC<SnackbarNotificationProps> = ({
-       onClose={onClose}
-       anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-     >
--      <Alert onClose={onClose} severity={severity} sx={{ width: '100%' }}>
-+      <Alert
-+        onClose={onClose}
-+        severity={severity}
-+        sx={{ whiteSpace: 'pre-line', width: '100%' }}
-+      >
-         {message}
-       </Alert>
-     </Snackbar>
+       // DB接続を一度だけ確立
+       const db = await getDb();
+@@ -105,7 +105,7 @@ export default class SourceRegistrationManager {
+         );
+       }
+ 
+-      // ディレクトリ内のファイルが存在しない場合は早期リターン
++      // フォルダ内のファイルが存在しない場合は早期リターン
+       if (files.length === 0) {
+         console.log('登録するファイルが見つかりませんでした');
+         return;
+@@ -254,7 +254,7 @@ export default class SourceRegistrationManager {
+   }
+ 
+   /**
+-   * ディレクトリを再帰的に読み込み、全てのファイルパスを取得
++   * フォルダを再帰的に読み込み、全てのファイルパスを取得
+    * @param dirPath ディレクトリパス
+    * @returns ファイルパスの配列
+    */
+diff --git a/src/renderer/components/common/SettingsModal.tsx b/src/renderer/components/common/SettingsModal.tsx
+index 779aa6d89..68611e84c 100644
+--- a/src/renderer/components/common/SettingsModal.tsx
++++ b/src/renderer/components/common/SettingsModal.tsx
+@@ -134,7 +134,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
+             </Typography>
+             <TextField
+               fullWidth
+-              label="ソース登録ディレクトリ"
++              label="ドキュメント格納フォルダ"
+               value={settings.source.registerDir}
+               disabled={loading || saving}
+               onChange={(e) =>
+@@ -146,7 +146,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
+               variant="outlined"
+             />
+             <Alert severity="warning" sx={{ mt: 1 }}>
+-              設定を反映させるにはアプリのソースの再読み込みが必要です
++              AIが参照するドキュメントを格納するフォルダです
++              <br />
++              設定を変更した場合は、添付アイコンからフォルダ内容を同期してください
+             </Alert>
+           </Box>
+ 
+@@ -316,7 +318,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
+             </Typography>
+             <TextField
+               fullWidth
+-              label="データベースパス"
++              label="データベース保存フォルダ"
+               value={settings.database.dir}
+               disabled={loading || saving}
+               onChange={(e) => handleChange('database', 'dir', e.target.value)}
 diff --git a/src/renderer/components/common/SourceListModal.tsx b/src/renderer/components/common/SourceListModal.tsx
-index 4b6dad504..61fcfeb53 100644
+index 61fcfeb53..dcd1899df 100644
 --- a/src/renderer/components/common/SourceListModal.tsx
 +++ b/src/renderer/components/common/SourceListModal.tsx
-@@ -1,6 +1,7 @@
- import React, { useEffect, useState } from 'react';
- import {
-   AlertColor,
-+  Alert,
-   Modal,
-   Box,
-   Typography,
-@@ -25,6 +26,7 @@ import {
+@@ -26,7 +26,6 @@ import {
  } from '@mui/icons-material';
  
  import { Source } from '../../../db/schema';
-+import { sourceService } from '../../services/sourceService';
+-import { sourceService } from '../../services/sourceService';
  
  interface SourceListModalProps {
    open: boolean;
-@@ -193,7 +195,16 @@ function SourceListModal({
+@@ -195,16 +194,7 @@ function SourceListModal({
      };
    }, [open, checkedSources, onStatusUpdate]);
  
--  const handleReloadClick = () => {
-+  const handleReloadClick = async () => {
-+    // ドキュメント登録ディレクトリが設定されていない場合はエラースナックバー表示
-+    const { success, dir, error } = await sourceService.getRegisterDir();
-+    if (!success || !dir?.trim()) {
-+      showSnackbar(
-+        error || 'ドキュメント登録ディレクトリが設定されていません',
-+        'error',
-+      );
-+      return;
-+    }
+-  const handleReloadClick = async () => {
+-    // ドキュメント登録ディレクトリが設定されていない場合はエラースナックバー表示
+-    const { success, dir, error } = await sourceService.getRegisterDir();
+-    if (!success || !dir?.trim()) {
+-      showSnackbar(
+-        error || 'ドキュメント登録ディレクトリが設定されていません',
+-        'error',
+-      );
+-      return;
+-    }
++  const handleReloadClick = () => {
      onReloadSources();
    };
  
-@@ -276,8 +287,15 @@ function SourceListModal({
-         }}
-       >
-         <Typography variant="h6" component="h2" gutterBottom>
--          ソース一覧
-+          登録ドキュメント一覧
+@@ -290,15 +280,17 @@ function SourceListModal({
+           登録ドキュメント一覧
          </Typography>
-+        <Alert severity="info" sx={{ whiteSpace: 'pre-line', mb: 2 }}>
-+          設定されたディレクトリ(歯車アイコンから変更可能)内のドキュメントを一覧表示しています
+         <Alert severity="info" sx={{ whiteSpace: 'pre-line', mb: 2 }}>
+-          設定されたディレクトリ(歯車アイコンから変更可能)内のドキュメントを一覧表示しています
++          設定されたフォルダ内のドキュメントを一覧表示しています
+           <br />
+           チェックされたドキュメントは、AIの回答時に適宜参照されます
+           <br />
+-          ※ディレクトリの内容が更新された場合は、ファイル同期を実行してください
++          ※フォルダの内容が更新された場合は、ファイル同期を実行してください
 +          <br />
-+          チェックされたドキュメントは、AIの回答時に適宜参照されます
-+          <br />
-+          ※ディレクトリの内容が更新された場合は、ファイル同期を実行してください
-+        </Alert>
++          ※フォルダのパスは設定画面（歯車アイコン）から変更可能です
+         </Alert>
  
          <Box sx={{ mb: 2, display: 'flex', justifyContent: 'flex-end' }}>
-           <Tooltip title="ソース登録ディレクトリ内のファイル内容と同期します">
-@@ -287,7 +305,7 @@ function SourceListModal({
-               disabled={processing || updatingSources.size > 0}
-               startIcon={<SyncIcon />}
-             >
--              {processing ? '処理中...' : 'ソース読み込み'}
-+              {processing ? '同期処理中...' : 'ファイル同期'}
-             </Button>
-           </Tooltip>
-         </Box>
-@@ -328,7 +346,7 @@ function SourceListModal({
-                 </TableCell>
-                 <TableCell>ファイルパス</TableCell>
-                 <TableCell>タイトル（生成）</TableCell>
--                <TableCell>ステータス</TableCell>
-+                <TableCell>同期処理ステータス</TableCell>
-                 <TableCell>最終更新</TableCell>
-               </TableRow>
-             </TableHead>
-diff --git a/src/renderer/services/sourceService.ts b/src/renderer/services/sourceService.ts
-index 4d49a8421..71dc83864 100644
---- a/src/renderer/services/sourceService.ts
-+++ b/src/renderer/services/sourceService.ts
-@@ -17,6 +17,33 @@ export const sourceService = {
-       };
-     }
-   },
-+  /**
-+   * ソースの登録ディレクトリを取得する
-+   * @returns 登録ディレクトリのパス
-+   */
-+  getRegisterDir: async (): Promise<{
-+    success: boolean;
-+    dir?: string;
-+    error?: string;
-+  }> => {
-+    try {
-+      // IPC通信を使用してメインプロセスから登録ディレクトリを取得する
-+      const source = (await window.electron.store.get('source')) as any;
-+      if (!source || !source.registerDir) {
-+        return {
-+          success: false,
-+          error: 'ドキュメント登録ディレクトリが設定されていません',
-+        };
-+      }
-+      return { success: true, dir: source.registerDir || '' };
-+      // eslint-disable-next-line
-+    } catch (error) {
-+      return {
-+        success: false,
-+        error: `ドキュメント登録ディレクトリの取得に失敗しました`,
-+      };
-+    }
-+  },
- };
- 
- export default sourceService;
+-          <Tooltip title="ソース登録ディレクトリ内のファイル内容と同期します">
++          <Tooltip title="ソース登録フォルダ内のファイル内容と同期します">
+             <Button
+               variant="contained"
+               onClick={handleReloadClick}
+diff --git a/src/renderer/components/sidebar/SidebarFooter.tsx b/src/renderer/components/sidebar/SidebarFooter.tsx
+index 32047bcce..109079d4d 100644
+--- a/src/renderer/components/sidebar/SidebarFooter.tsx
++++ b/src/renderer/components/sidebar/SidebarFooter.tsx
+@@ -46,7 +46,7 @@ function SidebarFooter({
+   return (
+     <Box sx={{ p: 1, borderTop: 1, borderColor: 'divider' }}>
+       <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+-        <Tooltip title="ソース一覧を表示">
++        <Tooltip title="登録ドキュメント一覧">
+           <Badge
+             badgeContent={getBadgeContent()}
+             overlap="circular"
+diff --git a/src/renderer/hooks/useSettingsStore.ts b/src/renderer/hooks/useSettingsStore.ts
+index 526c9f2c2..0690ebb99 100644
+--- a/src/renderer/hooks/useSettingsStore.ts
++++ b/src/renderer/hooks/useSettingsStore.ts
+@@ -178,7 +178,7 @@ const useSettingsStore = () => {
+     if (!loading) {
+       const newSettings = {
+         database: databaseStore ?? { dir: '' },
+-        source: sourceStore ?? { registerDir: './source' },
++        source: sourceStore ?? { registerDir: '' },
+         api: apiStore ?? { key: '', url: '', model: '' },
+         redmine: redmineStore ?? { endpoint: '', apiKey: '' },
+         gitlab: gitlabStore ?? { endpoint: '', apiKey: '' },
