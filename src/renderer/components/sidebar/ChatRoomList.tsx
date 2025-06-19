@@ -200,7 +200,7 @@ function ChatRoomList({
         <Button
           startIcon={<AddCircleOutlineOutlinedIcon />}
           onClick={handleCreateRoom}
-          sx={{ fontSize: '1rem' }}
+          sx={{ pl: 0.3, fontSize: '1rem' }}
           disabled={loading}
           // fullWidth
         >

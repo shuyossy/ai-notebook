@@ -105,6 +105,9 @@ function SourceListModal({
       }
     };
 
+    // 初回データ取得
+    fetchSources();
+
     const intervalId = setInterval(fetchSources, 5000);
 
     return () => {

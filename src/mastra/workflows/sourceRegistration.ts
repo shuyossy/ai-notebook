@@ -77,7 +77,6 @@ const analyzeSourceStep = new Step({
 
       const analysisResult = await summarizeSourceAgent.generate(content, {
         output: outputSchema,
-        maxRetries: 3,
       });
 
       title = analysisResult.object.title;
@@ -156,7 +155,6 @@ const extractTopicAndSummaryStep = new Step({
 
       const analysisResult = await summarizeTopicAgent.generate(content, {
         output: outputSchema,
-        maxRetries: 3,
       });
 
       // トピックと要約をデータベースに登録

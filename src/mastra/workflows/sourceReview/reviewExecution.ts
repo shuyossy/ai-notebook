@@ -1,3 +1,4 @@
+import { APICallError, NoObjectGeneratedError } from 'ai';
 import { Workflow, Step } from '@mastra/core/workflows';
 import { Agent } from '@mastra/core/agent';
 import { z } from 'zod';
@@ -5,7 +6,7 @@ import path from 'path';
 import { getReviewRepository } from '../../../db/repository/reviewRepository';
 import { getSourceRepository } from '../../../db/repository/sourceRepository';
 import {
-  CHECKLIST_CATEGORY_CLASSIFICATION_SYSTEM_PROMPT,
+  getChecklistCategolizePrompt,
   getDocumentReviewExecutionPrompt,
 } from '../../agents/prompts';
 import FileExtractor from '../../../main/utils/fileExtractor';
@@ -13,6 +14,12 @@ import type { ReviewEvaluation } from '../../../main/types';
 import { baseStepOutputSchema } from '../schema';
 import openAICompatibleModel from '../../agents/model/openAICompatible';
 import { stepStatus } from '../types';
+import { splitChecklistEquallyByMaxSize } from './lib';
+
+// 一つのカテゴリに含めるチェックリストの最大数
+const MAX_CHECKLISTS_PER_CATEGORY = 7;
+// 分割カテゴリの最大数
+const MAX_CATEGORIES = 10;
 
 // カテゴリ分類ステップの出力スキーマ
 const classifyChecklistsByCategoryOutputSchema = baseStepOutputSchema.extend({
@@ -75,7 +82,10 @@ const classifyChecklistsByCategoryStep = new Step({
       // カテゴリ分類エージェントを使用して分類
       const classifiCategoryAgent = new Agent({
         name: 'classifyCategoryAgent',
-        instructions: CHECKLIST_CATEGORY_CLASSIFICATION_SYSTEM_PROMPT,
+        instructions: getChecklistCategolizePrompt(
+          MAX_CHECKLISTS_PER_CATEGORY,
+          MAX_CATEGORIES,
+        ),
         model: openAICompatibleModel(),
       });
       const outputSchema = z.object({
@@ -99,50 +109,88 @@ const classifyChecklistsByCategoryStep = new Step({
         },
       );
       // 分類結果の妥当性をチェック
-      // 全てのチェックリストが分類されているか確認
-      const classifiedChecklists = classificationResult.object.categories;
-      if (!classifiedChecklists || classifiedChecklists.length === 0) {
-        throw new Error('チェックリストの分類に失敗しました');
+      const rawCategories = classificationResult.object.categories;
+      if (!rawCategories || rawCategories.length === 0) {
+        return {
+          status: 'success' as stepStatus,
+          categories: splitChecklistEquallyByMaxSize(
+            checklistsResult,
+            MAX_CHECKLISTS_PER_CATEGORY,
+          ),
+        };
       }
-      const checklistIds = new Set(checklistData.map((c) => c.id));
-      const categorizedChecklistIds = new Set(
-        classifiedChecklists.flatMap((c) => c.checklistIds),
+      // 全IDセットと、AIが返したID一覧のセットを作成
+      const allIds = new Set(checklistData.map((c) => c.id));
+      const assignedIds = new Set(rawCategories.flatMap((c) => c.checklistIds));
+
+      // 未分類アイテムがあれば「その他」カテゴリにまとめる
+      const uncategorized = Array.from(allIds).filter(
+        (id) => !assignedIds.has(id),
       );
-      // 分類されていないチェックリストを「その他」カテゴリに追加
-      const uncategorizedChecklistIds = Array.from(checklistIds).filter(
-        (id) => !categorizedChecklistIds.has(id),
-      );
-      if (uncategorizedChecklistIds.length > 0) {
-        classifiedChecklists.push({
+      if (uncategorized.length > 0) {
+        rawCategories.push({
           name: 'その他',
-          checklistIds: uncategorizedChecklistIds,
+          checklistIds: uncategorized,
         });
       }
-      // 複数カテゴリに属するチェックリストは、最初のカテゴリにのみ属するようにする
+
       const seen = new Set<number>();
-      const categories = classifiedChecklists.map(
-        ({ name, checklistIds: cIds }) => {
-          // そのカテゴリで初めて現れるIDだけを取り出す
-          const uniqueIds = cIds.filter((id) => !seen.has(id));
-          uniqueIds.forEach((id) => seen.add(id));
-          // content をつけたオブジェクトに変換
-          const checklists = uniqueIds.map((id) => {
+      const finalCategories: {
+        name: string;
+        checklists: { id: number; content: string }[];
+      }[] = [];
+
+      for (const { name, checklistIds } of rawCategories) {
+        // ── カテゴリ内の重複排除 ────────────────────────
+        const uniqueInCategory = Array.from(new Set(checklistIds));
+
+        // ── 他カテゴリですでに割り当て済みのIDを除外 ─────────
+        const filteredIds = uniqueInCategory.filter((id) => !seen.has(id));
+        filteredIds.forEach((id) => seen.add(id));
+
+        // ── 7件ずつチャンクに分けてサブカテゴリ化 ────────────
+        for (let i = 0; i < filteredIds.length; i += 7) {
+          const chunkIds = filteredIds.slice(i, i + 7);
+          const chunkName =
+            i === 0 ? name : `${name} (Part ${Math.floor(i / 7) + 1})`;
+
+          const checklists = chunkIds.map((id) => {
             const item = checklistData.find((c) => c.id === id)!;
             return { id: item.id, content: item.content };
           });
-          return { name, checklists };
-        },
-      );
+
+          finalCategories.push({ name: chunkName, checklists });
+        }
+      }
+
       return {
         status: 'success' as stepStatus,
-        categories,
+        categories: finalCategories,
       };
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : '不明なエラー';
+      let errorDetail: string;
+      if (
+        APICallError.isInstance(error) ||
+        (NoObjectGeneratedError.isInstance(error) &&
+          error.finishReason === 'length')
+      ) {
+        // APIコールエラーまたはAIモデルが生成できる文字数を超えた場合、手動でカテゴリー分割
+        // AIモデルが生成できる文字数を超えているため、手動でカテゴリー分割
+        const checklistsResult =
+          await repository.getChecklists(reviewHistoryId);
+        return {
+          status: 'success' as stepStatus,
+          categories: splitChecklistEquallyByMaxSize(checklistsResult, 7),
+        };
+      } else if (error instanceof Error) {
+        errorDetail = error.message;
+      } else {
+        errorDetail = JSON.stringify(error);
+      }
+      const errorMessage = `ドキュメントレビュー中にエラーが発生しました:\n${errorDetail}`;
       return {
         status: 'failed' as stepStatus,
-        errorMessage: `ドキュメントレビュー実行時にエラーが発生しました: ${errorMessage}`,
+        errorMessage,
       };
     }
   },
@@ -195,7 +243,9 @@ const reviewExecutionStep = new Step({
               const outputSchema = z.array(
                 z.object({
                   checklistId: z.number(),
-                  evaluation: z.enum(['A', 'B', 'C']).describe('evaluation'),
+                  evaluation: z
+                    .enum(['A', 'B', 'C', '-'])
+                    .describe('evaluation'),
                   comment: z.string().describe('evaluation comment'),
                 }),
               );
@@ -227,15 +277,29 @@ const reviewExecutionStep = new Step({
                 break;
               }
             } catch (error) {
-              const errorMessage =
-                error instanceof Error ? error.message : '不明なエラー';
+              let errorDetail: string;
+              if (APICallError.isInstance(error)) {
+                // APIコールエラーの場合はresponseBodyの内容を取得
+                errorDetail = error.message;
+                if (error.responseBody) {
+                  errorDetail += `:\n${error.responseBody}`;
+                }
+              } else if (
+                NoObjectGeneratedError.isInstance(error) &&
+                error.finishReason === 'length'
+              ) {
+                // AIモデルが生成できる文字数を超えているため、手動でレビューを分割
+                errorDetail = `AIモデルが生成できる文字数を超えています。チェックリスト量の削減を検討してください。`;
+              } else if (error instanceof Error) {
+                errorDetail = error.message;
+              } else {
+                errorDetail = JSON.stringify(error);
+              }
               // レビューに失敗したチェックリストを記録
               if (!errorDocuments.has(path.basename(source.path))) {
                 errorDocuments.set(path.basename(source.path), []);
               }
-              errorDocuments
-                .get(path.basename(source.path))!
-                .push(errorMessage);
+              errorDocuments.get(path.basename(source.path))!.push(errorDetail);
             } finally {
               attempt += 1;
             }
@@ -248,7 +312,7 @@ const reviewExecutionStep = new Step({
             errorDocuments
               .get(path.basename(source.path))!
               .push(
-                `最大試行回数(${maxAttempts})内で全てのチェックリストに対してレビューが完了しませんでした`,
+                `全てのチェックリストに対してレビューを完了することができませんでした`,
               );
           }
         }
@@ -279,7 +343,7 @@ const reviewExecutionStep = new Step({
         error instanceof Error ? error.message : '不明なエラー';
       return {
         status: 'failed' as stepStatus,
-        errorMessage: `ドキュメントレビュー実行時にエラーが発生しました: ${errorMessage}`,
+        errorMessage: `ドキュメントレビュー中にエラーが発生しました: ${errorMessage}`,
       };
     }
   },

@@ -62,6 +62,7 @@ const SidebarHeader: React.FC<SidebarHeaderProps> = () => {
             sx={{
               p: 0.8,
               pb: 0,
+              pl: 0,
               borderRadius: 2,
             }}
           >

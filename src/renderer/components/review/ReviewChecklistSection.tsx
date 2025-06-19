@@ -13,7 +13,7 @@ import {
   Button,
   TextField,
   Stack,
-  Chip,
+  Avatar,
   Typography,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
@@ -29,6 +29,7 @@ const evaluationColors: Record<ReviewEvaluation, string> = {
   A: '#4caf50', // 緑
   B: '#ffb74d', // オレンジ
   C: '#f44336', // 赤
+  '-': '#9e9e9e', // グレー（評価対象外／評価不可能）
 };
 
 const ReviewChecklistSection: React.FC<ReviewChecklistSectionProps> = ({
@@ -97,22 +98,31 @@ const ReviewChecklistSection: React.FC<ReviewChecklistSectionProps> = ({
   }, [checklistResults]);
 
   // --- ソート ---
+  const descOrder: ReviewEvaluation[] = ['A', 'B', 'C', '-'];
+  const ascOrder: ReviewEvaluation[] = ['C', 'A', 'B', '-'];
+
   const sortedResults = useMemo(() => {
     if (sortBy == null) return checklistResults;
+
+    // ソート方向に応じて使う配列を選択
+    const order = sortDirection === 'desc' ? descOrder : ascOrder;
+
     return [...checklistResults].sort((a, b) => {
+      // 対象ソースの評価を取得。未評価は '-' 扱い
       const aEv =
         a.sourceEvaluations?.find((ev) => ev.sourceId === sortBy)?.evaluation ??
-        null;
+        '-';
       const bEv =
         b.sourceEvaluations?.find((ev) => ev.sourceId === sortBy)?.evaluation ??
-        null;
-      if (aEv === null && bEv !== null) return 1;
-      if (aEv !== null && bEv === null) return -1;
-      if (aEv === null && bEv === null) return 0;
-      return sortDirection === 'desc'
-        ? (aEv as string).localeCompare(bEv as string)
-        : (bEv as string).localeCompare(aEv as string);
+        '-';
+
+      // 配列のインデックスで比較
+      const aIdx = order.indexOf(aEv);
+      const bIdx = order.indexOf(bEv);
+
+      return aIdx - bIdx;
     });
+    // eslint-disable-next-line
   }, [checklistResults, sortBy, sortDirection]);
 
   // --- ボックス用スタイル ---
@@ -187,15 +197,20 @@ const ReviewChecklistSection: React.FC<ReviewChecklistSectionProps> = ({
             <Box sx={commentBoxSx}>
               {ev?.evaluation && (
                 <Stack spacing={1} alignItems="center">
-                  <Chip
-                    label={ev.evaluation}
+                  <Avatar
                     sx={{
                       bgcolor: evaluationColors[ev.evaluation],
-                      color: 'white',
-                      fontWeight: 'bold',
-                      fontSize: '0.75rem',
+                      width: 32,
+                      height: 32,
                     }}
-                  />
+                  >
+                    <Typography
+                      variant="caption"
+                      sx={{ color: 'white', fontWeight: 'bold' }}
+                    >
+                      {ev.evaluation}
+                    </Typography>
+                  </Avatar>
                   {ev.comment && (
                     <Typography variant="body2" sx={commentBoxSx}>
                       {ev.comment}
@@ -260,6 +275,7 @@ const ReviewChecklistSection: React.FC<ReviewChecklistSectionProps> = ({
         </Box>
       </TableCell>
       {uniqueSources.map((_, i) => (
+        // eslint-disable-next-line
         <TableCell key={i} />
       ))}
       <TableCell align="center" sx={{ p: 1 }}>

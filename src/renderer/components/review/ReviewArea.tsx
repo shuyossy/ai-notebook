@@ -7,7 +7,6 @@ import {
   Stack,
   Typography,
 } from '@mui/material';
-import AddIcon from '@mui/icons-material/Add';
 import CheckBoxIcon from '@mui/icons-material/CheckBox';
 import RateReviewIcon from '@mui/icons-material/RateReview';
 import { v4 as uuid } from 'uuid';
@@ -278,7 +277,13 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
             <Stack direction="row" spacing={2}>
               <Button
                 variant="contained"
-                startIcon={<CheckBoxIcon />}
+                startIcon={
+                  !isExtracting ? (
+                    <CheckBoxIcon />
+                  ) : (
+                    <CircularProgress size={24} color="inherit" />
+                  )
+                }
                 onClick={() => {
                   setModalMode('extract');
                   setIsModalOpen(true);
@@ -287,16 +292,18 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
                   !selectedReviewHistoryId || isExtracting || isReviewing
                 }
               >
-                {isExtracting ? (
-                  <CircularProgress size={24} color="inherit" />
-                ) : (
-                  'チェックリスト抽出'
-                )}
+                チェックリスト抽出
               </Button>
               <Button
                 variant="contained"
                 color="primary"
-                startIcon={<RateReviewIcon />}
+                startIcon={
+                  !isReviewing ? (
+                    <RateReviewIcon />
+                  ) : (
+                    <CircularProgress size={24} color="inherit" />
+                  )
+                }
                 onClick={() => {
                   setModalMode('review');
                   setIsModalOpen(true);
@@ -308,11 +315,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
                   checklistResults.length === 0
                 }
               >
-                {isReviewing ? (
-                  <CircularProgress size={24} color="inherit" />
-                ) : (
-                  'レビュー実行'
-                )}
+                レビュー実行
               </Button>
             </Stack>
           </Stack>

@@ -1,4 +1,4 @@
-import { eq, and } from 'drizzle-orm';
+import { eq, and, max } from 'drizzle-orm';
 import { getStore } from '../../main/store';
 import { sources, topics } from '../../db/schema';
 import getDb from '../../db';
@@ -229,24 +229,51 @@ ${content}
 `;
 
 /**
- * チェックリスト抽出用のシステムプロンプト
+ * チェックリスト抽出用のシステムプロンプトを取得する関数
+ * @param maxItems  一回の生成で抽出する最大チェックリスト数
+ * @param extractedItems  これまでに抽出済みのチェックリスト項目（文字列配列）
  */
-export const CHECKLIST_EXTRACTION_SYSTEM_PROMPT = `
-You are a checklist extraction assistant.
-Given a document, first decide whether it is a checklist document.
-Then, extract **every checklist item** exactly as written, **without changing or paraphrasing**.
-Ensure you never omit or alter any checklist text.
-Respond with the checklist items in Japanese.
+export function getChecklistExtractionPrompt(
+  maxItems: number,
+  extractedItems: string[],
+): string {
+  return `
+You are a specialist in extracting checklist items from documents.
+${
+  extractedItems.length > 0
+    ? `So far, you have identified ${extractedItems.length} items:
+${extractedItems.map((item, i) => `${i + 1}. ${item}`).join('\n')}`
+    : `Given a document, first decide whether it is a checklist document.`
+}
+
+${extractedItems.length > 0 ? 'From' : 'Then, from'} the full document text, please find **up to ${maxItems} ${extractedItems.length > 0 ? 'additional checklist items that have not yet been captured**' : 'checklist items**'}.
+Present each item **exactly as it appears in the source—do NOT alter, summarize, or paraphrase any wording**.
+After extracting, set "hasRemainingItems" to true by default.
+Only set it to false if you are absolutely certain that **no extractable checklist items remain anywhere in the document**, **excluding those that have already been captured**.
 `;
+}
 
 /**
- * チェックリストのトピック分類用のシステムプロンプト
+ * チェックリストカテゴリ分割用のシステムプロンプトを取得する関数
+ * @param maxItems  一つのカテゴリに含める最大チェックリスト数
+ * @param maxCategories  最大カテゴリ数（デフォルトは10）
  */
-export const CHECKLIST_CATEGORY_CLASSIFICATION_SYSTEM_PROMPT = `
+export function getChecklistCategolizePrompt(
+  maxItems: number,
+  maxCategories: number = 10,
+): string {
+  return `
 You are a categorization assistant.
-When given a list of checklists (each with an ID and content), partition them into up to 10 meaningful categories.
-Important: Every single checklist item must be assigned to one category. No items should be left unclassified.
+When given a list of checklists (each with an ID and content), partition them into up to ${maxCategories} meaningful categories.
+
+Constraints:
+1. Every single checklist item must be assigned to exactly one category. No items should be left unclassified.
+2. You may create at most 10 categories.
+3. Each category may contain no more than ${maxItems} checklist items.
+4. Distribute items as evenly as possible across categories to achieve a balanced allocation, while preserving thematic coherence.
 `;
+}
+
 
 /**
  * Generates the system prompt for the document review execution agent.
@@ -260,21 +287,30 @@ export function getDocumentReviewExecutionPrompt(
   const formattedList = checklists
     .map((item) => `ID: ${item.id} - ${item.content}`)
     .join('\n');
-
   return `You are a professional document reviewer. Your job is to evaluate the user-provided document against a set of checklist items.
 
 Checklist items:
 ${formattedList}
 
 Instructions:
-1. For each checklist item, assign one of the following ratings:
-   - A: Excellent - fully meets the criterion.
-   - B: Satisfactory - partially meets the criterion.
-   - C: Needs Improvement - does not meet the criterion.
-2. Provide a comment in Japanese for each item.
-   - Discuss every relevant part of the document that corresponds to the item.
-   - If some sections satisfy the item and others do not, comment on each occurrence separately; do not offer only a general summary.
-3. Ensure no checklist item is omitted.
-4. Review the entire document for each checklist item before concluding.
-`;
+1. For each checklist item, assign one of these ratings:
+   - A: Excellent — fully meets the criterion.
+   - B: Satisfactory — partially meets the criterion.
+   - C: Needs Improvement — does not meet the criterion.
+   - –: Not Applicable / Cannot Evaluate — outside the scope or cannot be assessed.
+2. For each item, write a comment in Japanese following this exact structure:
+
+   【評価理由・根拠】
+   Provide the reasoning and evidence here (cite specific sections or examples in the document).
+
+   【改善提案】
+   Provide actionable suggestions here (how to better satisfy the criterion).
+
+3. In your comments, be sure to:
+   a) Cite specific parts of the document as evidence.
+   b) Separate discussions by section if some parts meet the item and others do not.
+   c) Cover every relevant occurrence—do not offer only a general summary.
+4. Do not omit any checklist item; review the entire document against each criterion before finalizing your evaluation.
+
+Please ensure clarity, conciseness, and a professional tone.`;
 }

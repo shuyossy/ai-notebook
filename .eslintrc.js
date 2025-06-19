@@ -16,6 +16,7 @@ module.exports = {
     '@typescript-eslint/no-unused-vars': 'error',
     'no-console': 'off',
     'no-await-in-loop': 'off',
+    'no-plusplus': 'off',
     'class-methods-use-this': 'off',
     'preffer-template': 'off',
     'react/require-default-props': 'off', // パラメータのデストラクチャリングでデフォルト値を設定する方式を許可

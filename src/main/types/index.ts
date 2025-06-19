@@ -49,7 +49,7 @@ export type AgentBootStatus = {
 };
 
 // レビュー評価の型定義
-export type ReviewEvaluation = 'A' | 'B' | 'C';
+export type ReviewEvaluation = 'A' | 'B' | 'C' | '-';
 
 // チェックリストの作成元
 export type ReviewChecklistCreatedBy = 'user' | 'system';
