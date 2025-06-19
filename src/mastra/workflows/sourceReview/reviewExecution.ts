@@ -148,11 +148,11 @@ const classifyChecklistsByCategoryStep = new Step({
         const filteredIds = uniqueInCategory.filter((id) => !seen.has(id));
         filteredIds.forEach((id) => seen.add(id));
 
-        // ── 7件ずつチャンクに分けてサブカテゴリ化 ────────────
-        for (let i = 0; i < filteredIds.length; i += 7) {
-          const chunkIds = filteredIds.slice(i, i + 7);
+        // ── MAX_CHECKLISTS_PER_CATEGORY件ずつチャンクに分けてサブカテゴリ化 ────────────
+        for (let i = 0; i < filteredIds.length; i += MAX_CHECKLISTS_PER_CATEGORY) {
+          const chunkIds = filteredIds.slice(i, i + MAX_CHECKLISTS_PER_CATEGORY);
           const chunkName =
-            i === 0 ? name : `${name} (Part ${Math.floor(i / 7) + 1})`;
+            i === 0 ? name : `${name} (Part ${Math.floor(i / MAX_CHECKLISTS_PER_CATEGORY) + 1})`;
 
           const checklists = chunkIds.map((id) => {
             const item = checklistData.find((c) => c.id === id)!;
