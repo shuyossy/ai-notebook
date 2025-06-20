@@ -510,7 +510,6 @@ const setupChatHandlers = () => {
             console.error('テキスト生成中にエラーが発生:', error);
             // エラー時もAbortControllerを削除
             threadAbortControllers.delete(roomId);
-            event.sender.send(IpcChannels.CHAT_COMPLETE);
             let errorDetail: string;
             if (APICallError.isInstance(error)) {
               // APIコールエラーの場合はresponseBodyの内容を取得

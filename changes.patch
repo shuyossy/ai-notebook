@@ -16,11 +16,11 @@ index 88ee7f5f6..a80c00992 100644
 +++ b/src/main/types/index.ts
 @@ -49,7 +49,7 @@ export type AgentBootStatus = {
  };
- 
+
  // レビュー評価の型定義
 -export type ReviewEvaluation = 'A' | 'B' | 'C';
 +export type ReviewEvaluation = 'A' | 'B' | 'C' | '-';
- 
+
  // チェックリストの作成元
  export type ReviewChecklistCreatedBy = 'user' | 'system';
 diff --git a/src/mastra/agents/prompts.ts b/src/mastra/agents/prompts.ts
@@ -35,7 +35,7 @@ index 4b392bd0f..9ae23eb7f 100644
  import getDb from '../../db';
 @@ -229,24 +229,46 @@ ${content}
  `;
- 
+
  /**
 - * チェックリスト抽出用のシステムプロンプト
 + * チェックリスト抽出用のシステムプロンプトを取得する関数
@@ -62,7 +62,7 @@ index 4b392bd0f..9ae23eb7f 100644
 -Respond with the checklist items in Japanese.
  `;
 +}
- 
+
  /**
 - * チェックリストのトピック分類用のシステムプロンプト
 + * チェックリストカテゴリ分割用のシステムプロンプトを取得する関数
@@ -87,7 +87,7 @@ index 4b392bd0f..9ae23eb7f 100644
 +4. Distribute items as evenly as possible across categories to achieve a balanced allocation, while preserving thematic coherence.
  `;
 +}
- 
+
  /**
   * Generates the system prompt for the document review execution agent.
 @@ -260,21 +282,30 @@ export function getDocumentReviewExecutionPrompt(
@@ -96,10 +96,10 @@ index 4b392bd0f..9ae23eb7f 100644
      .join('\n');
 -
    return `You are a professional document reviewer. Your job is to evaluate the user-provided document against a set of checklist items.
- 
+
  Checklist items:
  ${formattedList}
- 
+
  Instructions:
 -1. For each checklist item, assign one of the following ratings:
 -   - A: Excellent - fully meets the criterion.
@@ -137,20 +137,20 @@ index 7c86c26ab..1c7ed9e9e 100644
 --- a/src/mastra/workflows/sourceRegistration.ts
 +++ b/src/mastra/workflows/sourceRegistration.ts
 @@ -77,7 +77,6 @@ const analyzeSourceStep = new Step({
- 
+
        const analysisResult = await summarizeSourceAgent.generate(content, {
          output: outputSchema,
 -        maxRetries: 3,
        });
- 
+
        title = analysisResult.object.title;
 @@ -156,7 +155,6 @@ const extractTopicAndSummaryStep = new Step({
- 
+
        const analysisResult = await summarizeTopicAgent.generate(content, {
          output: outputSchema,
 -        maxRetries: 3,
        });
- 
+
        // トピックと要約をデータベースに登録
 diff --git a/src/mastra/workflows/sourceReview/checklistExtraction.ts b/src/mastra/workflows/sourceReview/checklistExtraction.ts
 index 47a4aba0d..f9729c40e 100644
@@ -170,7 +170,7 @@ index 47a4aba0d..f9729c40e 100644
  import FileExtractor from '../../../main/utils/fileExtractor';
  import { baseStepOutputSchema } from '../schema';
 @@ -54,60 +55,140 @@ const checklistExtractionStep = new Step({
- 
+
            const checklistExtractionAgent = new Agent({
              name: 'checklistExtractionAgent',
 -            instructions: CHECKLIST_EXTRACTION_SYSTEM_PROMPT,
@@ -188,7 +188,7 @@ index 47a4aba0d..f9729c40e 100644
 -              .describe('Extracted checklists'),
 +              .describe('Newly extracted checklist items'),
            });
- 
+
 -          const extractionResult = await checklistExtractionAgent.generate(
 -            content,
 -            {
@@ -261,7 +261,7 @@ index 47a4aba0d..f9729c40e 100644
 +              },
              );
 -          }
- 
+
 -          // 抽出されたチェックリストをDBに保存
 -          for (const checklistItem of extractionResult.object.checklists) {
 -            await reviewRepository.createChecklist(
@@ -347,9 +347,9 @@ index 47a4aba0d..f9729c40e 100644
 +          errorMessages.push(errorMessage);
          }
        });
- 
+
 @@ -116,18 +197,22 @@ const checklistExtractionStep = new Step({
- 
+
        // エラーがあれば失敗として返す
        if (errorMessages.length > 1) {
 -        throw new Error();
@@ -358,7 +358,7 @@ index 47a4aba0d..f9729c40e 100644
 +          errorMessage: errorMessages.join('\n'),
 +        };
        }
- 
+
        return {
          status: 'success' as stepStatus,
        };
@@ -384,7 +384,7 @@ index 39ea5f89a..5118994b1 100644
 @@ -1,4 +1,5 @@
  import { format } from 'date-fns';
 +import { ReviewChecklist } from '../../../db/schema';
- 
+
  export function generateReviewTitle(sourceTitles: string[] = []): string {
    const now = format(new Date(), 'yyyy-MM-dd HH:mm:ss');
 @@ -7,3 +8,57 @@ export function generateReviewTitle(sourceTitles: string[] = []): string {
@@ -473,7 +473,7 @@ index 0bcd99f46..e69595def 100644
 +const MAX_CHECKLISTS_PER_CATEGORY = 7;
 +// 分割カテゴリの最大数
 +const MAX_CATEGORIES = 10;
- 
+
  // カテゴリ分類ステップの出力スキーマ
  const classifyChecklistsByCategoryOutputSchema = baseStepOutputSchema.extend({
 @@ -75,7 +82,10 @@ const classifyChecklistsByCategoryStep = new Step({
@@ -754,11 +754,11 @@ index b23a2b9c3..eb66e5a82 100644
    C: '#f44336', // 赤
 +  '-': '#9e9e9e', // グレー（評価対象外／評価不可能）
  };
- 
+
  const ReviewChecklistSection: React.FC<ReviewChecklistSectionProps> = ({
 @@ -97,22 +98,31 @@ const ReviewChecklistSection: React.FC<ReviewChecklistSectionProps> = ({
    }, [checklistResults]);
- 
+
    // --- ソート ---
 +  const descOrder: ReviewEvaluation[] = ['A', 'B', 'C', '-'];
 +  const ascOrder: ReviewEvaluation[] = ['C', 'A', 'B', '-'];
@@ -794,7 +794,7 @@ index b23a2b9c3..eb66e5a82 100644
      });
 +    // eslint-disable-next-line
    }, [checklistResults, sortBy, sortDirection]);
- 
+
    // --- ボックス用スタイル ---
 @@ -187,15 +197,20 @@ const ReviewChecklistSection: React.FC<ReviewChecklistSectionProps> = ({
              <Box sx={commentBoxSx}>
@@ -851,12 +851,12 @@ index 8fcbc6c79..e1bc517d4 100644
 @@ -105,6 +105,9 @@ function SourceListModal({
        }
      };
- 
+
 +    // 初回データ取得
 +    fetchSources();
 +
      const intervalId = setInterval(fetchSources, 5000);
- 
+
      return () => {
 diff --git a/src/renderer/components/sidebar/ChatRoomList.tsx b/src/renderer/components/sidebar/ChatRoomList.tsx
 index 9a10c4935..8bfc66195 100644
