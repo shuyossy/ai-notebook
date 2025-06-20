@@ -12,9 +12,6 @@ import { baseStepOutputSchema } from '../schema';
 import { stepStatus } from '../types';
 import openAICompatibleModel from '../../agents/model/openAICompatible';
 
-// 一回のループで抽出する最大チェックリスト数
-const MAX_CHECKLISTS_PER_CALL = 15;
-
 // ワークフローの入力スキーマ
 const triggerSchema = z.object({
   reviewHistoryId: z.string().describe('レビュー履歴ID'),
@@ -65,11 +62,6 @@ const checklistExtractionStep = new Step({
             isChecklistDocument: z
               .boolean()
               .describe('Whether the given source is a checklist document'),
-            hasRemainingItems: z
-              .boolean()
-              .describe(
-                'True only when all extractable checklist items have been extracted and none remain',
-              ),
             newChecklists: z
               .array(z.string().describe('Checklist item'))
               .describe('Newly extracted checklist items'),
@@ -77,53 +69,70 @@ const checklistExtractionStep = new Step({
 
           // これまでに抽出したチェックリスト項目を蓄積する配列
           const accumulated: string[] = [];
-          let isCompleted = false;
 
           // 最大試行回数
           const MAX_ATTEMPTS = 5;
           let attempts = 0;
 
-          while (!isCompleted && attempts < MAX_ATTEMPTS) {
+          while (attempts < MAX_ATTEMPTS) {
+            let isCompleted = true;
             const extractionResult = await checklistExtractionAgent.generate(
               content,
               {
                 output: outputSchema,
-                instructions: getChecklistExtractionPrompt(
-                  MAX_CHECKLISTS_PER_CALL,
-                  accumulated,
-                ),
+                instructions: getChecklistExtractionPrompt(accumulated),
                 // AIの限界生成トークン数を超えた場合のエラーを回避するための設定
                 experimental_repairText: async (options) => {
+                  isCompleted = false;
                   const { text } = options;
-                  const lastChar = text.charAt(text.length - 1);
-                  if (lastChar === '"') {
-                    return text + ']}';
-                  } else if (lastChar === ']') {
-                    return text + '}';
-                  } else if (lastChar === ',') {
-                    // 最後のカンマを削除してから ']} を追加
-                    return text.slice(0, -1) + ']}';
-                  } else {
-                    // その他のケースでは強制的に ']} を追加
-                    return text + '"]}';
+                  let repairedText = text;
+                  let deleteLastItemFlag = false;
+                  try {
+                    const lastChar = text.charAt(text.length - 1);
+                    if (lastChar === '"') {
+                      repairedText = text + ']}';
+                    } else if (lastChar === ']') {
+                      repairedText = text + '}';
+                    } else if (lastChar === ',') {
+                      // 最後のカンマを削除してから ']} を追加
+                      repairedText = text.slice(0, -1) + ']}';
+                    } else {
+                      // その他のケースでは強制的に ']} を追加
+                      repairedText = text + '"]}';
+                      deleteLastItemFlag = true;
+                    }
+                    // JSONに変換してみて、エラーが出ないか確かめる
+                    // deleteLastItemFlagがtrueの場合は最後の項目を削除する
+                    const parsedJson = JSON.parse(repairedText) as z.infer<
+                      typeof outputSchema
+                    >;
+                    if (deleteLastItemFlag) {
+                      parsedJson.newChecklists.pop(); // 最後の項目を削除
+                    }
+                    repairedText = JSON.stringify(parsedJson);
+                  } catch (error) {
+                    throw new Error(
+                      'チェックリストの抽出結果がAIモデルの最大出力トークン数を超え、不正な出力となった為修正を試みましたが失敗しました。抽出結果が最大出力トークン内に収まるようにチェックリストのファイル分割を検討してください。',
+                    );
                   }
+                  return repairedText;
                 },
               },
             );
 
             if (!extractionResult.object.isChecklistDocument) {
               throw new Error(
-                `ソース "${source.title}" はチェックリスト抽出に適さないドキュメントです`,
+                `${path.basename(source.path)} はチェックリスト抽出に適さないドキュメントとして判定されたため処理を終了しました`,
               );
             }
 
             if (
-              extractionResult.object.hasRemainingItems &&
+              accumulated.length === 0 &&
               (!extractionResult.object.newChecklists ||
                 extractionResult.object.newChecklists.length === 0)
             ) {
               throw new Error(
-                `ソース "${source.title}" からチェックリストが抽出されませんでした`,
+                `${path.basename(source.path)} からチェックリストが抽出されませんでした`,
               );
             }
 
@@ -141,12 +150,14 @@ const checklistExtractionStep = new Step({
                 'system',
               );
             }
-
-            isCompleted = !extractionResult.object.hasRemainingItems;
+            // 抽出が完了した場合はループを抜ける
+            if (isCompleted) {
+              break;
+            }
             attempts++;
             if (attempts >= MAX_ATTEMPTS) {
               throw new Error(
-                `チェックリストの数が多く一部項目の抽出に失敗しました。チェックリストのファイル分割を検討してください。`,
+                `チェックリスト抽出処理の実行回数が一定数を超えました。チェックリストのファイル分割を検討してください。`,
               );
             }
           }
@@ -197,7 +208,10 @@ const checklistExtractionStep = new Step({
       };
     } catch (error) {
       if (error instanceof Error && error.message) {
-        errorMessages.push(`- ${error.message}`);
+        if (errorMessages.length > 1) {
+          errorMessages.push(''); // エラーメッセージの区切り
+        }
+        errorMessages.push(`${error.message}`);
       }
       return {
         status: 'failed' as stepStatus,

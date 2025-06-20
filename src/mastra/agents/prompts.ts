@@ -230,15 +230,13 @@ ${content}
 
 /**
  * チェックリスト抽出用のシステムプロンプトを取得する関数
- * @param maxItems  一回の生成で抽出する最大チェックリスト数
  * @param extractedItems  これまでに抽出済みのチェックリスト項目（文字列配列）
  */
-export function getChecklistExtractionPrompt(
-  maxItems: number,
-  extractedItems: string[],
-): string {
+export function getChecklistExtractionPrompt(extractedItems: string[]): string {
   return `
 You are a specialist in extracting checklist items from documents.
+Additionally, if you determine the document is not a checklist document, explicitly set isChecklistDocument to false.
+
 ${
   extractedItems.length > 0
     ? `So far, you have identified ${extractedItems.length} items:
@@ -246,10 +244,8 @@ ${extractedItems.map((item, i) => `${i + 1}. ${item}`).join('\n')}`
     : `Given a document, first decide whether it is a checklist document.`
 }
 
-${extractedItems.length > 0 ? 'From' : 'Then, from'} the full document text, please find **up to ${maxItems} ${extractedItems.length > 0 ? 'additional checklist items that have not yet been captured**' : 'checklist items**'}.
-Present each item **exactly as it appears in the source—do NOT alter, summarize, or paraphrase any wording**.
-After extracting, set "hasRemainingItems" to true by default.
-Only set it to false if you are absolutely certain that **no extractable checklist items remain anywhere in the document**, **excluding those that have already been captured**.
+${extractedItems.length > 0 ? 'From' : 'Then, from'} the full document text, please find ${extractedItems.length > 0 ? '**additional checklist items that have not yet been captured**' : '**every checklist item**'} exactly as written, **without changing or paraphrasing**..
+Ensure you never omit or alter any checklist text.
 `;
 }
 
@@ -273,7 +269,6 @@ Constraints:
 4. Distribute items as evenly as possible across categories to achieve a balanced allocation, while preserving thematic coherence.
 `;
 }
-
 
 /**
  * Generates the system prompt for the document review execution agent.
