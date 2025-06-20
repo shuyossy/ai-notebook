@@ -1,0 +1,101 @@
+1. ドキュメント概要
+本書は、クラウド型在庫管理システム「InventoryPro（インベントリープロ）」の基本設計書である。要件定義書を踏まえ、システム全体像、機能仕様、非機能要件、インターフェース、データ設計および運用方針をまとめた。レビューの際に確認すべきポイントを一部意図的に残している。
+
+2. システム概要
+- 名称：InventoryPro
+- 対象ユーザ：EC事業者、卸売業者、物流センター運営者
+- 利用規模：月間取引件数 100万件、同時接続ユーザ 500名
+- 目的：
+  1. リアルタイム在庫数の可視化とアラート通知
+  2. 発注予測とロット管理の自動化
+  3. 多拠点倉庫の統合管理によるオペレーション効率化
+
+3. 機能一覧
+1. ログイン／認証
+   - OAuth2.0（Google, Azure AD）連携
+   - セッションタイムアウト（未設定）
+2. 在庫ダッシュボード
+   - SKU別在庫数一覧
+   - アラート（閾値割れ／滞留在庫）メール通知
+   - ※アラート閾値は管理画面で動的変更可能だが、UI設計未確定
+3. 発注予測
+   - 過去売上データに基づく需要予測（月次単位）
+   - CSVエクスポート機能（ヘッダ仕様未定）
+4. ロット管理
+   - ロット入庫・出庫履歴登録
+   - 賞味期限アラート（バッチ処理、スケジュール未定）
+5. 多拠点在庫統合
+   - 拠点間移動指示
+   - 移動ステータス追跡（WebSocket連携は要検討）
+6. 管理機能
+   - ユーザ権限（一般／マネージャ／管理者）
+   - 拠点マスタ、品目マスタ管理
+   - ※ロール設計の詳細が曖昧
+
+4. 全体アーキテクチャ
+- クライアント：Vue.js 3（Composition API）
+- APIサーバ：Go（Ginフレームワーク）
+- 認証基盤：Keycloak（OAuth2.0）
+- データベース：MySQL 8.0
+- メッセージング：RabbitMQ
+- バッチ処理：Kubernetes CronJob
+- インフラ：GCP（GKE, Cloud SQL, Pub/Sub, Stackdriver）
+- CI/CD：GitHub Actions／Terraform
+
+5. データ設計
+5.1 エンティティ定義（一部抜粋）
+テーブル名        | 主キー           | 主なカラム                                      | 備考
+-----------------|-----------------|-----------------------------------------------|--------------------------------
+users            | user_id         | username, email, role, last_login              | last_login は DATETIME 型、インデックス未設定
+locations        | location_id     | name, address, manager_id                      | manager_id 外部キー制約なし
+items            | item_id         | sku, name, category_id                         | sku にユニーク制約あり
+inventory        | inventory_id    | item_id, location_id, quantity, updated_at     | updated_at にタイムスタンプ自動更新未設定
+lot_movements    | movement_id     | lot_no, item_id, from_location, to_location, moved_at | moved_at バッチ挿入、NULL許容
+
+5.2 インデックス設計
+- items(sku)
+- inventory(item_id, location_id)
+- ※users.last_login, lot_movements.moved_at にインデックスがないためログ検索性能に不安あり
+
+6. インターフェース設計
+6.1 REST API
+メソッド | エンドポイント                     | 説明                                          | 備考
+-------|-----------------------------------|---------------------------------------------|-----------------------------
+POST   | /api/login                        | トークン発行                                    | リクエストボディに client_id/secret
+GET    | /api/inventory?location={id}      | 指定拠点の在庫一覧取得                           | ページネーション未定義
+POST   | /api/inventory/{id}/adjust        | 在庫調整（入庫／出庫）                           | 調整理由パラメータ未設計
+GET    | /api/predict/orders               | 発注予測結果取得                                | キャッシュ戦略要検討
+POST   | /api/lot/move                     | ロット移動指示                                  | WebSocket 連携仕様未明示
+
+6.2 メッセージキュー
+- RabbitMQ に publish: `inventory.adjusted`, `lot.moved`
+- Subscriber: 通知サービス、Analyticsサービス
+
+7. 非機能要件
+1. パフォーマンス
+   - 在庫一覧取得 200ms 以下（1,000レコード／ページ想定）
+   - 発注予測バッチ処理 60分以内完了
+2. 可用性
+   - SLA 99.5%
+   - データベースはマルチリージョンレプリケーション（未構成）
+3. セキュリティ
+   - OWASP Top10 対策
+   - API レートリミット（未設計）
+4. 運用性
+   - ログ集約：Stackdriver Logging
+   - メトリクス：Stackdriver Monitoring
+   - アラート：CPU 80%以上、メモリ 75%以上
+
+8. 運用・保守
+- バックアップ：Cloud SQL 自動バックアップ（保持期間 7日）
+- 障害対応：SRE チームに PagerDuty 通知
+- リリース手順：GitHub Actions → ステージング → 本番（承認フロー手順書未作成）
+- ドキュメント管理：Confluence
+
+9. 今後の検討事項
+- Kafka を使ったリアルタイム在庫ストリーミング
+- モバイルアプリ（React Native）対応
+- AI 需要予測アルゴリズムの精度改善
+- 多言語対応（英語、中国語）
+
+以上を基に基本設計をレビューし、未決事項や要件不足箇所を洗い出してください。```
