@@ -15,7 +15,12 @@ import { autoUpdater } from 'electron-updater';
 import log from 'electron-log';
 import { Mastra } from '@mastra/core';
 import { createLogger } from '@mastra/core/logger';
-import { createDataStream, APICallError, convertToCoreMessages } from 'ai';
+import {
+  createDataStream,
+  CoreUserMessage,
+  UserContent,
+  APICallError,
+} from 'ai';
 import { eq } from 'drizzle-orm';
 import {
   ReadableStream,
@@ -430,7 +435,32 @@ const setupChatHandlers = () => {
             });
             // streaming falseの場合のメッセージ送信処理
             const res = await orchestratorAgent.generate(
-              convertToCoreMessages(messages),
+              messages.map((msg) => {
+                const content: UserContent = msg
+                  .parts!.filter((part) => part.type === 'text')
+                  .map((part) => {
+                    return { type: 'text', text: part.text };
+                  });
+                if (
+                  msg.experimental_attachments &&
+                  msg.experimental_attachments.length > 0
+                ) {
+                  content.push(
+                    // @ts-ignore
+                    ...msg.experimental_attachments.map((att) => {
+                      return {
+                        type: 'image',
+                        image: att.url,
+                        mimeType: att.contentType,
+                      };
+                    }),
+                  );
+                }
+                return {
+                  role: 'user',
+                  content,
+                } as CoreUserMessage;
+              }),
               {
                 resourceId: 'user', // 固定のリソースID
                 instructions: await getOrchestratorSystemPrompt(
@@ -474,6 +504,7 @@ const setupChatHandlers = () => {
             console.error('テキスト生成中にエラーが発生:', error);
             // エラー時もAbortControllerを削除
             threadAbortControllers.delete(roomId);
+            event.sender.send(IpcChannels.CHAT_COMPLETE);
             let errorDetail: string;
             if (APICallError.isInstance(error)) {
               // APIコールエラーの場合はresponseBodyの内容を取得
@@ -551,8 +582,6 @@ const setupChatHandlers = () => {
       try {
         const mastra = getMastra();
         const orchestratorAgent = mastra.getAgent('orchestratorAgent');
-        // 画像オブジェクトのMIMEタイプを同期検出するためのライブラリ
-        const { default: imageType } = await import('image-type');
 
         // スレッド内のメッセージを取得
         const result = await orchestratorAgent.getMemory()?.query({ threadId });
@@ -563,45 +592,38 @@ const setupChatHandlers = () => {
 
         const { uiMessages, messages } = result;
         // messages内の要素でroleが'user'の場合に、contentのtypeが'image'のものがあれば、画像データを対応するuiMessagesにも付与する
-        for (const message of messages) {
-          if (message.role !== 'user' || typeof message.content === 'string') {
-            // eslint-disable-next-line no-continue
-            continue;
+        messages.forEach((message) => {
+          if (message.role === 'user' && typeof message.content !== 'string') {
+            const imageAttachments = message.content
+              .filter(
+                (part) =>
+                  part.type === 'image' && typeof part.image === 'string',
+              )
+              .map((part) => {
+                return {
+                  // @ts-ignore partはImagePart型であることが保証されている
+                  url: part.image,
+                  // @ts-ignore partはImagePart型であることが保証されている
+                  contentType: part.mimeType,
+                };
+              });
+            if (imageAttachments.length > 0) {
+              // uiMessagesの対応するメッセージに画像データを追加
+              const uiMessage = uiMessages.find(
+                // @ts-ignore CoreMessageもダンプしてみるとidが存在する
+                (uiMsg) => uiMsg.id === message.id,
+              );
+              if (uiMessage) {
+                uiMessage.experimental_attachments = imageAttachments;
+              } else {
+                console.warn(
+                  // @ts-ignore
+                  `対応するUIメッセージが見つかりません: ${message.id}`,
+                );
+              }
+            }
           }
-
-          // 3) 画像パートのみ抽出
-          const imageParts = message.content.filter(
-            (part) => part.type === 'image',
-          );
-          if (imageParts.length === 0) {
-            // eslint-disable-next-line no-continue
-            continue;
-          }
-
-          // 4) 画像パートごとにBase64へ変換
-          const attachments = await Promise.all(
-            imageParts.map(async (part) => {
-              // a) Buffer に変換
-              const buffer = Buffer.from(Object.values(part.image));
-              // b) MIMEタイプを同期検出
-              const type = await imageType(buffer);
-              const mime = type ? type.mime : 'application/octet-stream';
-              // c) Data URL を組み立て
-              const dataUrl = `data:${mime};base64,${buffer.toString('base64')}`;
-              return { url: dataUrl };
-            }),
-          );
-
-          // 5) 対応する UI メッセージを特定して attachments をセット
-          // @ts-ignore CoreMessageもダンプしてみるとidが存在する
-          const uiMsg = uiMessages.find((u) => u.id === message.id);
-          if (uiMsg) {
-            uiMsg.experimental_attachments = attachments;
-          } else {
-            // @ts-ignore CoreMessageもダンプしてみるとidが存在する
-            console.warn(`対応するUIメッセージが見つかりません: ${message.id}`);
-          }
-        }
+        });
 
         // メッセージをチャットメッセージ形式に変換
         return uiMessages;
