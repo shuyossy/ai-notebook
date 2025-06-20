@@ -1,112 +1,885 @@
-diff --git a/src/renderer/components/common/SourceListModal.tsx b/src/renderer/components/common/SourceListModal.tsx
-index e70c3c5a3..6d31a5f16 100644
---- a/src/renderer/components/common/SourceListModal.tsx
-+++ b/src/renderer/components/common/SourceListModal.tsx
-@@ -297,7 +297,7 @@ function SourceListModal({
-         <Alert severity="info" sx={{ whiteSpace: 'pre-line', mb: 2 }}>
-           設定されたディレクトリ(歯車アイコンから変更可能)内のドキュメントを一覧表示しています
-           <br />
--          チェックされたドキュメントは、AIの回答時に適宜参照されます
-+          選択されたドキュメントは、チャット機能において、AIの回答時に適宜参照されます
-           <br />
-           ※ディレクトリの内容が更新された場合は、ファイル同期を実行してください
-         </Alert>
+diff --git a/.eslintrc.js b/.eslintrc.js
+index 6b08add27..e5c8d5d2e 100644
+--- a/.eslintrc.js
++++ b/.eslintrc.js
+@@ -16,6 +16,7 @@ module.exports = {
+     '@typescript-eslint/no-unused-vars': 'error',
+     'no-console': 'off',
+     'no-await-in-loop': 'off',
++    'no-plusplus': 'off',
+     'class-methods-use-this': 'off',
+     'preffer-template': 'off',
+     'react/require-default-props': 'off', // パラメータのデストラクチャリングでデフォルト値を設定する方式を許可
+diff --git a/src/main/types/index.ts b/src/main/types/index.ts
+index 88ee7f5f6..a80c00992 100644
+--- a/src/main/types/index.ts
++++ b/src/main/types/index.ts
+@@ -49,7 +49,7 @@ export type AgentBootStatus = {
+ };
+ 
+ // レビュー評価の型定義
+-export type ReviewEvaluation = 'A' | 'B' | 'C';
++export type ReviewEvaluation = 'A' | 'B' | 'C' | '-';
+ 
+ // チェックリストの作成元
+ export type ReviewChecklistCreatedBy = 'user' | 'system';
+diff --git a/src/mastra/agents/prompts.ts b/src/mastra/agents/prompts.ts
+index 4b392bd0f..9ae23eb7f 100644
+--- a/src/mastra/agents/prompts.ts
++++ b/src/mastra/agents/prompts.ts
+@@ -1,4 +1,4 @@
+-import { eq, and } from 'drizzle-orm';
++import { eq, and, max } from 'drizzle-orm';
+ import { getStore } from '../../main/store';
+ import { sources, topics } from '../../db/schema';
+ import getDb from '../../db';
+@@ -229,24 +229,46 @@ ${content}
+ `;
+ 
+ /**
+- * チェックリスト抽出用のシステムプロンプト
++ * チェックリスト抽出用のシステムプロンプトを取得する関数
++ * @param extractedItems  これまでに抽出済みのチェックリスト項目（文字列配列）
+  */
+-export const CHECKLIST_EXTRACTION_SYSTEM_PROMPT = `
+-You are a checklist extraction assistant.
+-Given a document, first decide whether it is a checklist document.
+-Then, extract **every checklist item** exactly as written, **without changing or paraphrasing**.
++export function getChecklistExtractionPrompt(extractedItems: string[]): string {
++  return `
++You are a specialist in extracting checklist items from documents.
++Additionally, if you determine the document is not a checklist document, explicitly set isChecklistDocument to false.
++
++${
++  extractedItems.length > 0
++    ? `So far, you have identified ${extractedItems.length} items:
++${extractedItems.map((item, i) => `${i + 1}. ${item}`).join('\n')}`
++    : `Given a document, first decide whether it is a checklist document.`
++}
++
++${extractedItems.length > 0 ? 'From' : 'Then, from'} the full document text, please find ${extractedItems.length > 0 ? '**additional checklist items that have not yet been captured**' : '**every checklist item**'} exactly as written, **without changing or paraphrasing**..
+ Ensure you never omit or alter any checklist text.
+-Respond with the checklist items in Japanese.
+ `;
++}
+ 
+ /**
+- * チェックリストのトピック分類用のシステムプロンプト
++ * チェックリストカテゴリ分割用のシステムプロンプトを取得する関数
++ * @param maxItems  一つのカテゴリに含める最大チェックリスト数
++ * @param maxCategories  最大カテゴリ数（デフォルトは10）
+  */
+-export const CHECKLIST_CATEGORY_CLASSIFICATION_SYSTEM_PROMPT = `
++export function getChecklistCategolizePrompt(
++  maxItems: number,
++  maxCategories: number = 10,
++): string {
++  return `
+ You are a categorization assistant.
+-When given a list of checklists (each with an ID and content), partition them into up to 10 meaningful categories.
+-Important: Every single checklist item must be assigned to one category. No items should be left unclassified.
++When given a list of checklists (each with an ID and content), partition them into up to ${maxCategories} meaningful categories.
++
++Constraints:
++1. Every single checklist item must be assigned to exactly one category. No items should be left unclassified.
++2. You may create at most 10 categories.
++3. Each category may contain no more than ${maxItems} checklist items.
++4. Distribute items as evenly as possible across categories to achieve a balanced allocation, while preserving thematic coherence.
+ `;
++}
+ 
+ /**
+  * Generates the system prompt for the document review execution agent.
+@@ -260,21 +282,30 @@ export function getDocumentReviewExecutionPrompt(
+   const formattedList = checklists
+     .map((item) => `ID: ${item.id} - ${item.content}`)
+     .join('\n');
+-
+   return `You are a professional document reviewer. Your job is to evaluate the user-provided document against a set of checklist items.
+ 
+ Checklist items:
+ ${formattedList}
+ 
+ Instructions:
+-1. For each checklist item, assign one of the following ratings:
+-   - A: Excellent - fully meets the criterion.
+-   - B: Satisfactory - partially meets the criterion.
+-   - C: Needs Improvement - does not meet the criterion.
+-2. Provide a comment in Japanese for each item.
+-   - Discuss every relevant part of the document that corresponds to the item.
+-   - If some sections satisfy the item and others do not, comment on each occurrence separately; do not offer only a general summary.
+-3. Ensure no checklist item is omitted.
+-4. Review the entire document for each checklist item before concluding.
+-`;
++1. For each checklist item, assign one of these ratings:
++   - A: Excellent — fully meets the criterion.
++   - B: Satisfactory — partially meets the criterion.
++   - C: Needs Improvement — does not meet the criterion.
++   - –: Not Applicable / Cannot Evaluate — outside the scope or cannot be assessed.
++2. For each item, write a comment in Japanese following this exact structure:
++
++   【評価理由・根拠】
++   Provide the reasoning and evidence here (cite specific sections or examples in the document).
++
++   【改善提案】
++   Provide actionable suggestions here (how to better satisfy the criterion).
++
++3. In your comments, be sure to:
++   a) Cite specific parts of the document as evidence.
++   b) Separate discussions by section if some parts meet the item and others do not.
++   c) Cover every relevant occurrence—do not offer only a general summary.
++4. Do not omit any checklist item; review the entire document against each criterion before finalizing your evaluation.
++
++Please ensure clarity, conciseness, and a professional tone.`;
+ }
+diff --git a/src/mastra/workflows/sourceRegistration.ts b/src/mastra/workflows/sourceRegistration.ts
+index 7c86c26ab..1c7ed9e9e 100644
+--- a/src/mastra/workflows/sourceRegistration.ts
++++ b/src/mastra/workflows/sourceRegistration.ts
+@@ -77,7 +77,6 @@ const analyzeSourceStep = new Step({
+ 
+       const analysisResult = await summarizeSourceAgent.generate(content, {
+         output: outputSchema,
+-        maxRetries: 3,
+       });
+ 
+       title = analysisResult.object.title;
+@@ -156,7 +155,6 @@ const extractTopicAndSummaryStep = new Step({
+ 
+       const analysisResult = await summarizeTopicAgent.generate(content, {
+         output: outputSchema,
+-        maxRetries: 3,
+       });
+ 
+       // トピックと要約をデータベースに登録
+diff --git a/src/mastra/workflows/sourceReview/checklistExtraction.ts b/src/mastra/workflows/sourceReview/checklistExtraction.ts
+index 47a4aba0d..f9729c40e 100644
+--- a/src/mastra/workflows/sourceReview/checklistExtraction.ts
++++ b/src/mastra/workflows/sourceReview/checklistExtraction.ts
+@@ -1,10 +1,11 @@
++import { APICallError, NoObjectGeneratedError } from 'ai';
+ import { Step, Workflow } from '@mastra/core/workflows';
+ import { z } from 'zod';
+ import { Agent } from '@mastra/core/agent';
+ import path from 'path';
+ import { getReviewRepository } from '../../../db/repository/reviewRepository';
+ import { getSourceRepository } from '../../../db/repository/sourceRepository';
+-import { CHECKLIST_EXTRACTION_SYSTEM_PROMPT } from '../../agents/prompts';
++import { getChecklistExtractionPrompt } from '../../agents/prompts';
+ import { Source } from '../../../db/schema';
+ import FileExtractor from '../../../main/utils/fileExtractor';
+ import { baseStepOutputSchema } from '../schema';
+@@ -54,60 +55,140 @@ const checklistExtractionStep = new Step({
+ 
+           const checklistExtractionAgent = new Agent({
+             name: 'checklistExtractionAgent',
+-            instructions: CHECKLIST_EXTRACTION_SYSTEM_PROMPT,
++            instructions: '',
+             model: openAICompatibleModel(),
+           });
+           const outputSchema = z.object({
+             isChecklistDocument: z
+               .boolean()
+               .describe('Whether the given source is a checklist document'),
+-            checklists: z
++            newChecklists: z
+               .array(z.string().describe('Checklist item'))
+-              .optional()
+-              .describe('Extracted checklists'),
++              .describe('Newly extracted checklist items'),
+           });
+ 
+-          const extractionResult = await checklistExtractionAgent.generate(
+-            content,
+-            {
+-              output: outputSchema,
+-            },
+-          );
+-
+-          if (!extractionResult.object.isChecklistDocument) {
+-            throw new Error(
+-              `ソース "${source.title}" はチェックリスト抽出に適さないドキュメントです`,
+-            );
+-          }
+-
+-          if (
+-            !extractionResult.object.checklists ||
+-            extractionResult.object.checklists.length === 0
+-          ) {
+-            throw new Error(
+-              `ソース "${source.title}" からチェックリストが抽出されませんでした`,
++          // これまでに抽出したチェックリスト項目を蓄積する配列
++          const accumulated: string[] = [];
++
++          // 最大試行回数
++          const MAX_ATTEMPTS = 5;
++          let attempts = 0;
++
++          while (attempts < MAX_ATTEMPTS) {
++            let isCompleted = true;
++            const extractionResult = await checklistExtractionAgent.generate(
++              content,
++              {
++                output: outputSchema,
++                instructions: getChecklistExtractionPrompt(accumulated),
++                // AIの限界生成トークン数を超えた場合のエラーを回避するための設定
++                experimental_repairText: async (options) => {
++                  isCompleted = false;
++                  const { text } = options;
++                  let repairedText = text;
++                  let deleteLastItemFlag = false;
++                  try {
++                    const lastChar = text.charAt(text.length - 1);
++                    if (lastChar === '"') {
++                      repairedText = text + ']}';
++                    } else if (lastChar === ']') {
++                      repairedText = text + '}';
++                    } else if (lastChar === ',') {
++                      // 最後のカンマを削除してから ']} を追加
++                      repairedText = text.slice(0, -1) + ']}';
++                    } else {
++                      // その他のケースでは強制的に ']} を追加
++                      repairedText = text + '"]}';
++                      deleteLastItemFlag = true;
++                    }
++                    // JSONに変換してみて、エラーが出ないか確かめる
++                    // deleteLastItemFlagがtrueの場合は最後の項目を削除する
++                    const parsedJson = JSON.parse(repairedText) as z.infer<
++                      typeof outputSchema
++                    >;
++                    if (deleteLastItemFlag) {
++                      parsedJson.newChecklists.pop(); // 最後の項目を削除
++                    }
++                    repairedText = JSON.stringify(parsedJson);
++                  } catch (error) {
++                    throw new Error(
++                      'チェックリストの抽出結果がAIモデルの最大出力トークン数を超え、不正な出力となった為修正を試みましたが失敗しました。抽出結果が最大出力トークン内に収まるようにチェックリストのファイル分割を検討してください。',
++                    );
++                  }
++                  return repairedText;
++                },
++              },
+             );
+-          }
+ 
+-          // 抽出されたチェックリストをDBに保存
+-          for (const checklistItem of extractionResult.object.checklists) {
+-            await reviewRepository.createChecklist(
+-              reviewHistoryId,
+-              checklistItem,
+-              'system',
++            if (!extractionResult.object.isChecklistDocument) {
++              throw new Error(
++                `${path.basename(source.path)} はチェックリスト抽出に適さないドキュメントとして判定されたため処理を終了しました`,
++              );
++            }
++
++            if (
++              accumulated.length === 0 &&
++              (!extractionResult.object.newChecklists ||
++                extractionResult.object.newChecklists.length === 0)
++            ) {
++              throw new Error(
++                `${path.basename(source.path)} からチェックリストが抽出されませんでした`,
++              );
++            }
++
++            // 抽出されたチェックリストから新規のものを蓄積
++            const newChecklists = extractionResult.object.newChecklists.filter(
++              (item) => !accumulated.includes(item),
+             );
++            accumulated.push(...newChecklists);
++
++            // 抽出されたチェックリストをDBに保存
++            for (const checklistItem of newChecklists) {
++              await reviewRepository.createChecklist(
++                reviewHistoryId,
++                checklistItem,
++                'system',
++              );
++            }
++            // 抽出が完了した場合はループを抜ける
++            if (isCompleted) {
++              break;
++            }
++            attempts++;
++            if (attempts >= MAX_ATTEMPTS) {
++              throw new Error(
++                `チェックリスト抽出処理の実行回数が一定数を超えました。チェックリストのファイル分割を検討してください。`,
++              );
++            }
+           }
+         } catch (error) {
+-          const errorMessageList: string[] = [];
++          let errorMessage = '';
++          let errorDetail: string;
++          if (APICallError.isInstance(error)) {
++            // APIコールエラーの場合はresponseBodyの内容を取得
++            errorDetail = error.message;
++            if (error.responseBody) {
++              errorDetail += `:\n${error.responseBody}`;
++            }
++          } else if (
++            NoObjectGeneratedError.isInstance(error) &&
++            error.finishReason === 'length'
++          ) {
++            errorDetail =
++              'AIモデルが生成できる文字数を超えています。チェックリストをファイル分割して再実行してください。';
++          } else if (error instanceof Error) {
++            errorDetail = error.message;
++          } else {
++            errorDetail = JSON.stringify(error);
++          }
+           if (source) {
+-            errorMessageList.push(
+-              `${path.basename(source.path)}のチェックリスト抽出でエラー: `,
+-            );
++            errorMessage += `- ${path.basename(source.path)}のチェックリスト抽出でエラー: ${errorDetail}`;
+           }
+-          errorMessageList.push(
+-            error instanceof Error ? error.message : '不明なエラー',
+-          );
+-          errorMessages.push(errorMessageList.join(''));
++          errorMessage +=
++            error instanceof Error
++              ? `- ${error.message}`
++              : `- ${JSON.stringify(error)}`;
++          errorMessages.push(errorMessage);
+         }
+       });
+ 
+@@ -116,18 +197,22 @@ const checklistExtractionStep = new Step({
+ 
+       // エラーがあれば失敗として返す
+       if (errorMessages.length > 1) {
+-        throw new Error();
++        return {
++          status: 'failed' as stepStatus,
++          errorMessage: errorMessages.join('\n'),
++        };
+       }
+ 
+       return {
+         status: 'success' as stepStatus,
+       };
+     } catch (error) {
+-      errorMessages.push(
+-        error instanceof Error && error.message
+-          ? error.message
+-          : '不明なエラー',
+-      );
++      if (error instanceof Error && error.message) {
++        if (errorMessages.length > 1) {
++          errorMessages.push(''); // エラーメッセージの区切り
++        }
++        errorMessages.push(`${error.message}`);
++      }
+       return {
+         status: 'failed' as stepStatus,
+         errorMessage: errorMessages.join('\n'),
+diff --git a/src/mastra/workflows/sourceReview/lib.ts b/src/mastra/workflows/sourceReview/lib.ts
+index 39ea5f89a..5118994b1 100644
+--- a/src/mastra/workflows/sourceReview/lib.ts
++++ b/src/mastra/workflows/sourceReview/lib.ts
+@@ -1,4 +1,5 @@
+ import { format } from 'date-fns';
++import { ReviewChecklist } from '../../../db/schema';
+ 
+ export function generateReviewTitle(sourceTitles: string[] = []): string {
+   const now = format(new Date(), 'yyyy-MM-dd HH:mm:ss');
+@@ -7,3 +8,57 @@ export function generateReviewTitle(sourceTitles: string[] = []): string {
+   }
+   return `New Review-${now}`;
+ }
++
++// チェックリストを「要素数の差は最大1かつ
++// 1パートあたり maxSize 件以下」に分割する関数
++export function splitChecklistEquallyByMaxSize(
++  checklist: ReviewChecklist[],
++  maxSize: number,
++): { name: string; checklists: {id: number, content:string}[] }[] {
++  // 1) maxSize のバリデーション
++  //    1 未満だと「1パートに1件以上」のルールを守れなくなるのでエラーにする
++  if (maxSize < 1) {
++    throw new Error('maxSize must be at least 1');
++  }
++
++  const n = checklist.length;
++  // 2) 空リストならすぐに空配列を返す
++  if (n === 0) {
++    return [];
++  }
++
++  // 3) 必要なパート数を計算
++  //    n / maxSize を切り上げることで、
++  //    いずれのパートも maxSize を超えない最小のパート数 parts が得られる
++  const parts = Math.ceil(n / maxSize);
++
++  // 4) 等分割のための基礎情報を計算
++  //    baseSize は「最低保証サイズ」、remainder は余り
++  //    → 先頭 remainder 個のパートに +1 して差を最大1に抑える
++  const baseSize = Math.floor(n / parts);
++  const remainder = n % parts;
++
++  const result: { name: string; checklists: {id: number, content:string}[] }[] = [];
++  let offset = 0; // スライス開始インデックス
++
++  // 5) 各パートを順番に切り出す
++  for (let i = 0; i < parts; i++) {
++    // 先頭 remainder 個のパートだけ +1
++    const thisSize = baseSize + (i < remainder ? 1 : 0);
++
++    // slice は end が length を超えても安全に末尾まで取得してくれる
++    const partChecklist = checklist.slice(offset, offset + thisSize);
++
++    result.push({
++      name: `Part ${i + 1}`,
++      checklists: partChecklist.map(item => ({
++        id: item.id,
++        content: item.content,
++      })),
++    });
++
++    offset += thisSize;
++  }
++
++  return result;
++}
+diff --git a/src/mastra/workflows/sourceReview/reviewExecution.ts b/src/mastra/workflows/sourceReview/reviewExecution.ts
+index 0bcd99f46..e69595def 100644
+--- a/src/mastra/workflows/sourceReview/reviewExecution.ts
++++ b/src/mastra/workflows/sourceReview/reviewExecution.ts
+@@ -1,3 +1,4 @@
++import { APICallError, NoObjectGeneratedError } from 'ai';
+ import { Workflow, Step } from '@mastra/core/workflows';
+ import { Agent } from '@mastra/core/agent';
+ import { z } from 'zod';
+@@ -5,7 +6,7 @@ import path from 'path';
+ import { getReviewRepository } from '../../../db/repository/reviewRepository';
+ import { getSourceRepository } from '../../../db/repository/sourceRepository';
+ import {
+-  CHECKLIST_CATEGORY_CLASSIFICATION_SYSTEM_PROMPT,
++  getChecklistCategolizePrompt,
+   getDocumentReviewExecutionPrompt,
+ } from '../../agents/prompts';
+ import FileExtractor from '../../../main/utils/fileExtractor';
+@@ -13,6 +14,12 @@ import type { ReviewEvaluation } from '../../../main/types';
+ import { baseStepOutputSchema } from '../schema';
+ import openAICompatibleModel from '../../agents/model/openAICompatible';
+ import { stepStatus } from '../types';
++import { splitChecklistEquallyByMaxSize } from './lib';
++
++// 一つのカテゴリに含めるチェックリストの最大数
++const MAX_CHECKLISTS_PER_CATEGORY = 7;
++// 分割カテゴリの最大数
++const MAX_CATEGORIES = 10;
+ 
+ // カテゴリ分類ステップの出力スキーマ
+ const classifyChecklistsByCategoryOutputSchema = baseStepOutputSchema.extend({
+@@ -75,7 +82,10 @@ const classifyChecklistsByCategoryStep = new Step({
+       // カテゴリ分類エージェントを使用して分類
+       const classifiCategoryAgent = new Agent({
+         name: 'classifyCategoryAgent',
+-        instructions: CHECKLIST_CATEGORY_CLASSIFICATION_SYSTEM_PROMPT,
++        instructions: getChecklistCategolizePrompt(
++          MAX_CHECKLISTS_PER_CATEGORY,
++          MAX_CATEGORIES,
++        ),
+         model: openAICompatibleModel(),
+       });
+       const outputSchema = z.object({
+@@ -99,50 +109,88 @@ const classifyChecklistsByCategoryStep = new Step({
+         },
+       );
+       // 分類結果の妥当性をチェック
+-      // 全てのチェックリストが分類されているか確認
+-      const classifiedChecklists = classificationResult.object.categories;
+-      if (!classifiedChecklists || classifiedChecklists.length === 0) {
+-        throw new Error('チェックリストの分類に失敗しました');
++      const rawCategories = classificationResult.object.categories;
++      if (!rawCategories || rawCategories.length === 0) {
++        return {
++          status: 'success' as stepStatus,
++          categories: splitChecklistEquallyByMaxSize(
++            checklistsResult,
++            MAX_CHECKLISTS_PER_CATEGORY,
++          ),
++        };
+       }
+-      const checklistIds = new Set(checklistData.map((c) => c.id));
+-      const categorizedChecklistIds = new Set(
+-        classifiedChecklists.flatMap((c) => c.checklistIds),
+-      );
+-      // 分類されていないチェックリストを「その他」カテゴリに追加
+-      const uncategorizedChecklistIds = Array.from(checklistIds).filter(
+-        (id) => !categorizedChecklistIds.has(id),
++      // 全IDセットと、AIが返したID一覧のセットを作成
++      const allIds = new Set(checklistData.map((c) => c.id));
++      const assignedIds = new Set(rawCategories.flatMap((c) => c.checklistIds));
++
++      // 未分類アイテムがあれば「その他」カテゴリにまとめる
++      const uncategorized = Array.from(allIds).filter(
++        (id) => !assignedIds.has(id),
+       );
+-      if (uncategorizedChecklistIds.length > 0) {
+-        classifiedChecklists.push({
++      if (uncategorized.length > 0) {
++        rawCategories.push({
+           name: 'その他',
+-          checklistIds: uncategorizedChecklistIds,
++          checklistIds: uncategorized,
+         });
+       }
+-      // 複数カテゴリに属するチェックリストは、最初のカテゴリにのみ属するようにする
++
+       const seen = new Set<number>();
+-      const categories = classifiedChecklists.map(
+-        ({ name, checklistIds: cIds }) => {
+-          // そのカテゴリで初めて現れるIDだけを取り出す
+-          const uniqueIds = cIds.filter((id) => !seen.has(id));
+-          uniqueIds.forEach((id) => seen.add(id));
+-          // content をつけたオブジェクトに変換
+-          const checklists = uniqueIds.map((id) => {
++      const finalCategories: {
++        name: string;
++        checklists: { id: number; content: string }[];
++      }[] = [];
++
++      for (const { name, checklistIds } of rawCategories) {
++        // ── カテゴリ内の重複排除 ────────────────────────
++        const uniqueInCategory = Array.from(new Set(checklistIds));
++
++        // ── 他カテゴリですでに割り当て済みのIDを除外 ─────────
++        const filteredIds = uniqueInCategory.filter((id) => !seen.has(id));
++        filteredIds.forEach((id) => seen.add(id));
++
++        // ── MAX_CHECKLISTS_PER_CATEGORY件ずつチャンクに分けてサブカテゴリ化 ────────────
++        for (let i = 0; i < filteredIds.length; i += MAX_CHECKLISTS_PER_CATEGORY) {
++          const chunkIds = filteredIds.slice(i, i + MAX_CHECKLISTS_PER_CATEGORY);
++          const chunkName =
++            i === 0 ? name : `${name} (Part ${Math.floor(i / MAX_CHECKLISTS_PER_CATEGORY) + 1})`;
++
++          const checklists = chunkIds.map((id) => {
+             const item = checklistData.find((c) => c.id === id)!;
+             return { id: item.id, content: item.content };
+           });
+-          return { name, checklists };
+-        },
+-      );
++
++          finalCategories.push({ name: chunkName, checklists });
++        }
++      }
++
+       return {
+         status: 'success' as stepStatus,
+-        categories,
++        categories: finalCategories,
+       };
+     } catch (error) {
+-      const errorMessage =
+-        error instanceof Error ? error.message : '不明なエラー';
++      let errorDetail: string;
++      if (
++        APICallError.isInstance(error) ||
++        (NoObjectGeneratedError.isInstance(error) &&
++          error.finishReason === 'length')
++      ) {
++        // APIコールエラーまたはAIモデルが生成できる文字数を超えた場合、手動でカテゴリー分割
++        // AIモデルが生成できる文字数を超えているため、手動でカテゴリー分割
++        const checklistsResult =
++          await repository.getChecklists(reviewHistoryId);
++        return {
++          status: 'success' as stepStatus,
++          categories: splitChecklistEquallyByMaxSize(checklistsResult, 7),
++        };
++      } else if (error instanceof Error) {
++        errorDetail = error.message;
++      } else {
++        errorDetail = JSON.stringify(error);
++      }
++      const errorMessage = `ドキュメントレビュー中にエラーが発生しました:\n${errorDetail}`;
+       return {
+         status: 'failed' as stepStatus,
+-        errorMessage: `ドキュメントレビュー実行時にエラーが発生しました: ${errorMessage}`,
++        errorMessage,
+       };
+     }
+   },
+@@ -195,7 +243,9 @@ const reviewExecutionStep = new Step({
+               const outputSchema = z.array(
+                 z.object({
+                   checklistId: z.number(),
+-                  evaluation: z.enum(['A', 'B', 'C']).describe('evaluation'),
++                  evaluation: z
++                    .enum(['A', 'B', 'C', '-'])
++                    .describe('evaluation'),
+                   comment: z.string().describe('evaluation comment'),
+                 }),
+               );
+@@ -227,15 +277,29 @@ const reviewExecutionStep = new Step({
+                 break;
+               }
+             } catch (error) {
+-              const errorMessage =
+-                error instanceof Error ? error.message : '不明なエラー';
++              let errorDetail: string;
++              if (APICallError.isInstance(error)) {
++                // APIコールエラーの場合はresponseBodyの内容を取得
++                errorDetail = error.message;
++                if (error.responseBody) {
++                  errorDetail += `:\n${error.responseBody}`;
++                }
++              } else if (
++                NoObjectGeneratedError.isInstance(error) &&
++                error.finishReason === 'length'
++              ) {
++                // AIモデルが生成できる文字数を超えているため、手動でレビューを分割
++                errorDetail = `AIモデルが生成できる文字数を超えています。チェックリスト量の削減を検討してください。`;
++              } else if (error instanceof Error) {
++                errorDetail = error.message;
++              } else {
++                errorDetail = JSON.stringify(error);
++              }
+               // レビューに失敗したチェックリストを記録
+               if (!errorDocuments.has(path.basename(source.path))) {
+                 errorDocuments.set(path.basename(source.path), []);
+               }
+-              errorDocuments
+-                .get(path.basename(source.path))!
+-                .push(errorMessage);
++              errorDocuments.get(path.basename(source.path))!.push(errorDetail);
+             } finally {
+               attempt += 1;
+             }
+@@ -248,7 +312,7 @@ const reviewExecutionStep = new Step({
+             errorDocuments
+               .get(path.basename(source.path))!
+               .push(
+-                `最大試行回数(${maxAttempts})内で全てのチェックリストに対してレビューが完了しませんでした`,
++                `全てのチェックリストに対してレビューを完了することができませんでした`,
+               );
+           }
+         }
+@@ -279,7 +343,7 @@ const reviewExecutionStep = new Step({
+         error instanceof Error ? error.message : '不明なエラー';
+       return {
+         status: 'failed' as stepStatus,
+-        errorMessage: `ドキュメントレビュー実行時にエラーが発生しました: ${errorMessage}`,
++        errorMessage: `ドキュメントレビュー中にエラーが発生しました: ${errorMessage}`,
+       };
+     }
+   },
 diff --git a/src/renderer/components/review/ReviewArea.tsx b/src/renderer/components/review/ReviewArea.tsx
-index 1330bf923..7cdd3cfc2 100644
+index 7cdd3cfc2..5e3d111c6 100644
 --- a/src/renderer/components/review/ReviewArea.tsx
 +++ b/src/renderer/components/review/ReviewArea.tsx
-@@ -8,6 +8,7 @@ import {
+@@ -7,7 +7,6 @@ import {
+   Stack,
    Typography,
  } from '@mui/material';
- import AddIcon from '@mui/icons-material/Add';
-+import CheckBoxIcon from '@mui/icons-material/CheckBox';
+-import AddIcon from '@mui/icons-material/Add';
+ import CheckBoxIcon from '@mui/icons-material/CheckBox';
  import RateReviewIcon from '@mui/icons-material/RateReview';
  import { v4 as uuid } from 'uuid';
- import { ReviewAreaProps, ModalMode } from './types';
-@@ -277,7 +278,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
+@@ -278,7 +277,13 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
              <Stack direction="row" spacing={2}>
                <Button
                  variant="contained"
--                startIcon={<AddIcon />}
-+                startIcon={<CheckBoxIcon />}
+-                startIcon={<CheckBoxIcon />}
++                startIcon={
++                  !isExtracting ? (
++                    <CheckBoxIcon />
++                  ) : (
++                    <CircularProgress size={24} color="inherit" />
++                  )
++                }
                  onClick={() => {
                    setModalMode('extract');
                    setIsModalOpen(true);
+@@ -287,16 +292,18 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
+                   !selectedReviewHistoryId || isExtracting || isReviewing
+                 }
+               >
+-                {isExtracting ? (
+-                  <CircularProgress size={24} color="inherit" />
+-                ) : (
+-                  'チェックリスト抽出'
+-                )}
++                チェックリスト抽出
+               </Button>
+               <Button
+                 variant="contained"
+                 color="primary"
+-                startIcon={<RateReviewIcon />}
++                startIcon={
++                  !isReviewing ? (
++                    <RateReviewIcon />
++                  ) : (
++                    <CircularProgress size={24} color="inherit" />
++                  )
++                }
+                 onClick={() => {
+                   setModalMode('review');
+                   setIsModalOpen(true);
+@@ -308,11 +315,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
+                   checklistResults.length === 0
+                 }
+               >
+-                {isReviewing ? (
+-                  <CircularProgress size={24} color="inherit" />
+-                ) : (
+-                  'レビュー実行'
+-                )}
++                レビュー実行
+               </Button>
+             </Stack>
+           </Stack>
 diff --git a/src/renderer/components/review/ReviewChecklistSection.tsx b/src/renderer/components/review/ReviewChecklistSection.tsx
-index e4624e782..b23a2b9c3 100644
+index b23a2b9c3..eb66e5a82 100644
 --- a/src/renderer/components/review/ReviewChecklistSection.tsx
 +++ b/src/renderer/components/review/ReviewChecklistSection.tsx
-@@ -121,6 +121,7 @@ const ReviewChecklistSection: React.FC<ReviewChecklistSectionProps> = ({
-     overflowY: 'auto',
-     whiteSpace: 'pre-wrap',
-     wordBreak: 'break-word' as const,
-+    textAlign: 'left',
-   };
-   const commentBoxSx = { ...contentBoxSx };
-
+@@ -13,7 +13,7 @@ import {
+   Button,
+   TextField,
+   Stack,
+-  Chip,
++  Avatar,
+   Typography,
+ } from '@mui/material';
+ import AddIcon from '@mui/icons-material/Add';
+@@ -29,6 +29,7 @@ const evaluationColors: Record<ReviewEvaluation, string> = {
+   A: '#4caf50', // 緑
+   B: '#ffb74d', // オレンジ
+   C: '#f44336', // 赤
++  '-': '#9e9e9e', // グレー（評価対象外／評価不可能）
+ };
+ 
+ const ReviewChecklistSection: React.FC<ReviewChecklistSectionProps> = ({
+@@ -97,22 +98,31 @@ const ReviewChecklistSection: React.FC<ReviewChecklistSectionProps> = ({
+   }, [checklistResults]);
+ 
+   // --- ソート ---
++  const descOrder: ReviewEvaluation[] = ['A', 'B', 'C', '-'];
++  const ascOrder: ReviewEvaluation[] = ['C', 'A', 'B', '-'];
++
+   const sortedResults = useMemo(() => {
+     if (sortBy == null) return checklistResults;
++
++    // ソート方向に応じて使う配列を選択
++    const order = sortDirection === 'desc' ? descOrder : ascOrder;
++
+     return [...checklistResults].sort((a, b) => {
++      // 対象ソースの評価を取得。未評価は '-' 扱い
+       const aEv =
+         a.sourceEvaluations?.find((ev) => ev.sourceId === sortBy)?.evaluation ??
+-        null;
++        '-';
+       const bEv =
+         b.sourceEvaluations?.find((ev) => ev.sourceId === sortBy)?.evaluation ??
+-        null;
+-      if (aEv === null && bEv !== null) return 1;
+-      if (aEv !== null && bEv === null) return -1;
+-      if (aEv === null && bEv === null) return 0;
+-      return sortDirection === 'desc'
+-        ? (aEv as string).localeCompare(bEv as string)
+-        : (bEv as string).localeCompare(aEv as string);
++        '-';
++
++      // 配列のインデックスで比較
++      const aIdx = order.indexOf(aEv);
++      const bIdx = order.indexOf(bEv);
++
++      return aIdx - bIdx;
+     });
++    // eslint-disable-next-line
+   }, [checklistResults, sortBy, sortDirection]);
+ 
+   // --- ボックス用スタイル ---
+@@ -187,15 +197,20 @@ const ReviewChecklistSection: React.FC<ReviewChecklistSectionProps> = ({
+             <Box sx={commentBoxSx}>
+               {ev?.evaluation && (
+                 <Stack spacing={1} alignItems="center">
+-                  <Chip
+-                    label={ev.evaluation}
++                  <Avatar
+                     sx={{
+                       bgcolor: evaluationColors[ev.evaluation],
+-                      color: 'white',
+-                      fontWeight: 'bold',
+-                      fontSize: '0.75rem',
++                      width: 32,
++                      height: 32,
+                     }}
+-                  />
++                  >
++                    <Typography
++                      variant="caption"
++                      sx={{ color: 'white', fontWeight: 'bold' }}
++                    >
++                      {ev.evaluation}
++                    </Typography>
++                  </Avatar>
+                   {ev.comment && (
+                     <Typography variant="body2" sx={commentBoxSx}>
+                       {ev.comment}
+@@ -260,6 +275,7 @@ const ReviewChecklistSection: React.FC<ReviewChecklistSectionProps> = ({
+         </Box>
+       </TableCell>
+       {uniqueSources.map((_, i) => (
++        // eslint-disable-next-line
+         <TableCell key={i} />
+       ))}
+       <TableCell align="center" sx={{ p: 1 }}>
+diff --git a/src/renderer/components/review/ReviewHistoryList.tsx b/src/renderer/components/review/ReviewHistoryList.tsx
+index 9089df808..80c8c8740 100644
+--- a/src/renderer/components/review/ReviewHistoryList.tsx
++++ b/src/renderer/components/review/ReviewHistoryList.tsx
+@@ -200,7 +200,7 @@ function ReviewHistoryList({
+         <Button
+           startIcon={<AddCircleOutlineOutlinedIcon />}
+           onClick={handleCreateReview}
+-          sx={{ fontSize: '1rem' }}
++          sx={{ pl: 0.3, fontSize: '1rem' }}
+           disabled={loading}
+           // fullWidth
+         >
 diff --git a/src/renderer/components/review/ReviewSourceModal.tsx b/src/renderer/components/review/ReviewSourceModal.tsx
-index 722a44c8e..b34da23cb 100644
+index 8fcbc6c79..e1bc517d4 100644
 --- a/src/renderer/components/review/ReviewSourceModal.tsx
 +++ b/src/renderer/components/review/ReviewSourceModal.tsx
-@@ -1,5 +1,6 @@
- import React, { useEffect, useState } from 'react';
- import {
-+  Alert,
-   Modal,
-   Box,
-   Typography,
-@@ -144,6 +145,35 @@ function SourceListModal({
-     return 'ソース選択';
-   };
-
-+  // アラート表示の内容
-+  const getAlertMessage = () => {
-+    if (modalMode === 'extract') {
-+      return (
-+        <>
-+          設定されたディレクトリ(歯車アイコンから変更可能)内のドキュメントを一覧表示しています
-+          <br />
-+          選択されたドキュメントから、AIがレビュー用のチェックリストを作成できます
-+          <br />
-+          ※ディレクトリの内容が更新された場合は添付アイコンからファイル同期を実行してください
-+          <br />
-+          ※チェックリストは手動で編集・追加・削除が可能です
-+        </>
-+      );
-+    }
-+    if (modalMode === 'review') {
-+      return (
-+        <>
-+          設定されたディレクトリ(歯車アイコンから変更可能)内のドキュメントを一覧表示しています
-+          <br />
-+          選択されたドキュメントに対して、AIがチェックリストに基づいてレビューを行います
-+          <br />
-+          ※ディレクトリの内容が更新された場合は添付アイコンからファイル同期を実行してください
-+        </>
-+      );
-+    }
-+    return null;
-+  };
+@@ -105,6 +105,9 @@ function SourceListModal({
+       }
+     };
+ 
++    // 初回データ取得
++    fetchSources();
 +
-   const getStatusIcon = (status: Source['status'], error?: Source['error']) => {
-     switch (status) {
-       case 'completed':
-@@ -225,6 +255,9 @@ function SourceListModal({
-         <Typography variant="h6" component="h2" gutterBottom>
-           {getTitle()}
-         </Typography>
-+        <Alert severity="info" sx={{ whiteSpace: 'pre-line', mb: 2 }}>
-+          {getAlertMessage()}
-+        </Alert>
-
-         <Box sx={{ mb: 2, display: 'flex', justifyContent: 'flex-end' }}>
-           <Tooltip title="ソース登録ディレクトリ内のファイル内容と同期します">
-@@ -265,7 +298,7 @@ function SourceListModal({
-                 </TableCell>
-                 <TableCell>ファイルパス</TableCell>
-                 <TableCell>タイトル（生成）</TableCell>
--                <TableCell>初期化処理ステータス</TableCell>
-+                <TableCell>フォルダ同期処理ステータス</TableCell>
-               </TableRow>
-             </TableHead>
-             <TableBody>
+     const intervalId = setInterval(fetchSources, 5000);
+ 
+     return () => {
+diff --git a/src/renderer/components/sidebar/ChatRoomList.tsx b/src/renderer/components/sidebar/ChatRoomList.tsx
+index 9a10c4935..8bfc66195 100644
+--- a/src/renderer/components/sidebar/ChatRoomList.tsx
++++ b/src/renderer/components/sidebar/ChatRoomList.tsx
+@@ -200,7 +200,7 @@ function ChatRoomList({
+         <Button
+           startIcon={<AddCircleOutlineOutlinedIcon />}
+           onClick={handleCreateRoom}
+-          sx={{ fontSize: '1rem' }}
++          sx={{ pl: 0.3, fontSize: '1rem' }}
+           disabled={loading}
+           // fullWidth
+         >
+diff --git a/src/renderer/components/sidebar/SidebarHeader.tsx b/src/renderer/components/sidebar/SidebarHeader.tsx
+index 2a1120fb8..0c6c4b0e1 100644
+--- a/src/renderer/components/sidebar/SidebarHeader.tsx
++++ b/src/renderer/components/sidebar/SidebarHeader.tsx
+@@ -62,6 +62,7 @@ const SidebarHeader: React.FC<SidebarHeaderProps> = () => {
+             sx={{
+               p: 0.8,
+               pb: 0,
++              pl: 0,
+               borderRadius: 2,
+             }}
+           >
