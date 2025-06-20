@@ -122,7 +122,7 @@ const checklistExtractionStep = new Step({
 
             if (!extractionResult.object.isChecklistDocument) {
               throw new Error(
-                `${path.basename(source.path)} はチェックリスト抽出に適さないドキュメントとして判定されたため処理を終了しました`,
+                `チェックリスト抽出に適さないドキュメントとして判定されたため処理を終了しました`,
               );
             }
 
@@ -131,9 +131,7 @@ const checklistExtractionStep = new Step({
               (!extractionResult.object.newChecklists ||
                 extractionResult.object.newChecklists.length === 0)
             ) {
-              throw new Error(
-                `${path.basename(source.path)} からチェックリストが抽出されませんでした`,
-              );
+              throw new Error(`チェックリストが抽出されませんでした`);
             }
 
             // 抽出されたチェックリストから新規のものを蓄積
@@ -183,11 +181,9 @@ const checklistExtractionStep = new Step({
           }
           if (source) {
             errorMessage += `- ${path.basename(source.path)}のチェックリスト抽出でエラー: ${errorDetail}`;
+          } else {
+            errorMessage += `- チェックリスト抽出処理でエラーが発生しました: ${errorDetail}`;
           }
-          errorMessage +=
-            error instanceof Error
-              ? `- ${error.message}`
-              : `- ${JSON.stringify(error)}`;
           errorMessages.push(errorMessage);
         }
       });

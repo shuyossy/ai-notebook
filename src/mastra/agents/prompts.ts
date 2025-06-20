@@ -244,8 +244,9 @@ ${extractedItems.map((item, i) => `${i + 1}. ${item}`).join('\n')}`
     : `Given a document, first decide whether it is a checklist document.`
 }
 
-${extractedItems.length > 0 ? 'From' : 'Then, from'} the full document text, please find ${extractedItems.length > 0 ? '**additional checklist items that have not yet been captured**' : '**every checklist item**'} exactly as written, **without changing or paraphrasing**..
+${extractedItems.length > 0 ? 'From' : 'Then, from'} the full document text, please find ${extractedItems.length > 0 ? '**additional checklist items that have not yet been captured**' : '**every checklist item**'} exactly as written, **without changing or paraphrasing**.
 Ensure you never omit or alter any checklist text.
+**Important:** Only output the checklist items (and the isChecklistDocument flag). Do not extract or include any other parts of the document that are not actual checklist entries.
 `;
 }
 
