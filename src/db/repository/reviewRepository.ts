@@ -1,4 +1,5 @@
 import { eq, and } from 'drizzle-orm';
+import path from 'path';
 import type {
   ReviewHistory,
   ReviewChecklist,
@@ -358,7 +359,7 @@ class DrizzleReviewRepository implements ReviewRepository {
         if (row.sourceId !== null) {
           group.sourceEvaluations!.push({
             sourceId: row.sourceId,
-            sourceFileName: row.sourcePath?.split('/').pop() ?? '',
+            sourceFileName: row.sourcePath ? path.basename(row.sourcePath) : '',
             evaluation: row.evaluation as ReviewEvaluation,
             comment: row.comment ?? undefined,
           });

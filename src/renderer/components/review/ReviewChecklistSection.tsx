@@ -194,7 +194,7 @@ const ReviewChecklistSection: React.FC<ReviewChecklistSectionProps> = ({
             align="center"
             sx={{ p: 1, verticalAlign: 'top' }}
           >
-            <Box sx={commentBoxSx}>
+            <Box>
               {ev?.evaluation && (
                 <Stack spacing={1} alignItems="center">
                   <Avatar
