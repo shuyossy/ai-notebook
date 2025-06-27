@@ -13,12 +13,7 @@ import fs from 'fs/promises';
 import { app, BrowserWindow, shell, ipcMain, crashReporter } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import log from 'electron-log';
-import {
-  createDataStream,
-  CoreUserMessage,
-  UserContent,
-  APICallError,
-} from 'ai';
+import { createDataStream, APICallError } from 'ai';
 import { eq } from 'drizzle-orm';
 import {
   ReadableStream,
@@ -194,21 +189,22 @@ const setupChatHandlers = () => {
 
   // チャットメッセージ編集履歴ハンドラ
   ipcMain.handle(
-    IpcChannels.CHAT_EDIT_HISTORY,
+    IpcChannels.CHAT_DELETE_MESSAGES_BEFORE_SPECIFIC_ID,
     async (
       _,
       {
         threadId,
-        oldContent,
-        oldCreatedAt,
-      }: IpcRequestPayloadMap[typeof IpcChannels.CHAT_EDIT_HISTORY],
-    ): Promise<IpcResponsePayloadMap[typeof IpcChannels.CHAT_EDIT_HISTORY]> => {
+        messageId,
+      }: IpcRequestPayloadMap[typeof IpcChannels.CHAT_DELETE_MESSAGES_BEFORE_SPECIFIC_ID],
+    ): Promise<
+      IpcResponsePayloadMap[typeof IpcChannels.CHAT_DELETE_MESSAGES_BEFORE_SPECIFIC_ID]
+    > => {
       try {
         const memory = mastra.getAgent('orchestrator').getMemory();
         if (!memory) {
           throw new Error('メモリインスタンスが初期化されていません');
         }
-        chatService.deleteMessagesAfter(threadId, oldContent, oldCreatedAt);
+        chatService.deleteMessagesBeforeSpecificId(threadId, messageId);
         return { success: true };
       } catch (error) {
         console.error('メッセージ履歴削除中にエラーが発生:', error);
@@ -283,56 +279,28 @@ const setupChatHandlers = () => {
               value: 'processing',
             });
             // streaming falseの場合のメッセージ送信処理
-            const res = await orchestratorAgent.generate(
-              messages.map((msg) => {
-                const content: UserContent = msg
-                  .parts!.filter((part) => part.type === 'text')
-                  .map((part) => {
-                    return { type: 'text', text: part.text };
-                  });
-                if (
-                  msg.experimental_attachments &&
-                  msg.experimental_attachments.length > 0
-                ) {
-                  content.push(
-                    // @ts-ignore
-                    ...msg.experimental_attachments.map((att) => {
-                      return {
-                        type: 'image',
-                        image: att.url,
-                        mimeType: att.contentType,
-                      };
-                    }),
-                  );
-                }
-                return {
-                  role: 'user',
-                  content,
-                } as CoreUserMessage;
-              }),
-              {
-                runtimeContext,
-                toolsets,
-                resourceId: 'user', // 固定のリソースID
-                threadId: roomId, // チャットルームIDをスレッドIDとして使用
-                maxSteps: 30, // ツールの利用上限
-                abortSignal: controller.signal, // 中断シグナルを設定
-                onStepFinish: (stepResult) => {
-                  // https://ai-sdk.dev/docs/ai-sdk-ui/stream-protocol
-                  // 上記を参考にai-sdkのストリームプロトコルに従ってメッセージを送信
-                  writer.write(`0:${JSON.stringify(stepResult.text)}\n`);
-                  stepResult.toolCalls.forEach((toolCall) => {
-                    writer.write(`9:${JSON.stringify(toolCall)}\n`);
-                  });
-                  stepResult.toolResults.forEach((toolResult) => {
-                    writer.write(`a:${JSON.stringify(toolResult)}\n`);
-                  });
-                  writer.write(
-                    `e:${JSON.stringify({ finishReason: stepResult.finishReason, ...stepResult.usage })}\n`,
-                  );
-                },
+            const res = await orchestratorAgent.generate(messages, {
+              runtimeContext,
+              toolsets,
+              resourceId: 'user', // 固定のリソースID
+              threadId: roomId, // チャットルームIDをスレッドIDとして使用
+              maxSteps: 30, // ツールの利用上限
+              abortSignal: controller.signal, // 中断シグナルを設定
+              onStepFinish: (stepResult) => {
+                // https://ai-sdk.dev/docs/ai-sdk-ui/stream-protocol
+                // 上記を参考にai-sdkのストリームプロトコルに従ってメッセージを送信
+                writer.write(`0:${JSON.stringify(stepResult.text)}\n`);
+                stepResult.toolCalls.forEach((toolCall) => {
+                  writer.write(`9:${JSON.stringify(toolCall)}\n`);
+                });
+                stepResult.toolResults.forEach((toolResult) => {
+                  writer.write(`a:${JSON.stringify(toolResult)}\n`);
+                });
+                writer.write(
+                  `e:${JSON.stringify({ finishReason: stepResult.finishReason, ...stepResult.usage })}\n`,
+                );
               },
-            );
+            });
             const { success, reason } = judgeFinishReason(res.finishReason);
             if (!success) {
               // 正常終了でない場合はエラーを投げる

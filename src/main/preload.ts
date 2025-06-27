@@ -90,10 +90,19 @@ const electronHandler = {
       return ipcRenderer.invoke(IpcChannels.CHAT_ABORT_REQUEST, threadId);
     },
     // メッセージ編集時に該当indexまでの履歴を削除する
-    editHistory: async (
-      params: IpcRequestPayload<typeof IpcChannels.CHAT_EDIT_HISTORY>,
-    ): Promise<IpcResponsePayload<typeof IpcChannels.CHAT_EDIT_HISTORY>> => {
-      return ipcRenderer.invoke(IpcChannels.CHAT_EDIT_HISTORY, params);
+    deleteMessagesBeforeSpecificId: async (
+      params: IpcRequestPayload<
+        typeof IpcChannels.CHAT_DELETE_MESSAGES_BEFORE_SPECIFIC_ID
+      >,
+    ): Promise<
+      IpcResponsePayload<
+        typeof IpcChannels.CHAT_DELETE_MESSAGES_BEFORE_SPECIFIC_ID
+      >
+    > => {
+      return ipcRenderer.invoke(
+        IpcChannels.CHAT_DELETE_MESSAGES_BEFORE_SPECIFIC_ID,
+        params,
+      );
     },
     // AIの応答を取得する（ストリーミング）
     onStream: (

@@ -293,8 +293,6 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
   const handleEditSubmit = async () => {
     const messageIndex = messages.findIndex((m) => m.id === editMessageId);
     if (messageIndex === -1) return;
-    const oldCreatedAt = messages[messageIndex].createdAt!;
-    const oldContent = messages[messageIndex].content;
 
     const updatedMessages = messages.slice(0, messageIndex + 1);
     updatedMessages[messageIndex] = {
@@ -309,10 +307,9 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
     };
     setMessages(updatedMessages);
     setIsEditHistory(true);
-    await window.electron.chat.editHistory({
+    await window.electron.chat.deleteMessagesBeforeSpecificId({
       threadId: selectedRoomId!,
-      oldContent,
-      oldCreatedAt,
+      messageId: editMessageId,
     });
     setEditMessageId('');
     setEditMessageContent('');

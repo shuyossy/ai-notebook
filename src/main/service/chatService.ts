@@ -1,10 +1,7 @@
 import { MastraMemory, StorageThreadType } from '@mastra/core';
 import { UIMessage } from 'ai';
-import { getSourceRepository } from '../../db/repository/sourceRepository';
 
 export class ChatService {
-  private sourceRepository = getSourceRepository();
-
   // スレッドごとのAbortControllerを管理するMap
   private threadAbortControllers = new Map<string, AbortController>();
 
@@ -86,54 +83,24 @@ export class ChatService {
    * @param oldContent 削除するメッセージのコンテンツ
    * @param oldCreatedAt 削除するメッセージの作成日時
    */
-  public async deleteMessagesAfter(
+  public async deleteMessagesBeforeSpecificId(
     threadId: string,
-    oldContent: string,
-    oldCreatedAt: Date,
+    messageId: string,
   ): Promise<void> {
     // メッセージ履歴を取得
     const messages = await this.memory.storage.getMessages({
       threadId,
     });
 
-    // oldContentと一致するメッセージのリストを取得
-    const targetMessages = messages.filter((msg) => {
-      if (msg.role !== 'user') {
-        return false; // ユーザーメッセージのみを対象とする
-      }
-      if (typeof msg.content === 'string') {
-        return msg.content === oldContent; // 文字列の場合は直接比較
-      }
-      return (
-        // textパートは一つのみのはずなので、最初のtextパートを取得して比較
-        msg.content.filter((c) => c.type === 'text')[0].text === oldContent
-      );
-    });
-
-    if (targetMessages.length === 0) {
-      throw new Error('指定されたメッセージが見つかりません');
-    }
-
-    // 取得したメッセージリストからoldCreatedAtと最も近いメッセージを検索
-    const targetMessage = targetMessages.reduce((closest, current) => {
-      const currentDate = new Date(current.createdAt);
-      const closestDate = new Date(closest.createdAt);
-      return Math.abs(currentDate.getTime() - oldCreatedAt.getTime()) <
-        Math.abs(closestDate.getTime() - oldCreatedAt.getTime())
-        ? current
-        : closest;
-    });
-
     // messageIdに対応するメッセージを検索
     const targetMessageIndex = messages.findIndex(
-      (msg) => msg.id === targetMessage.id,
+      (msg) => msg.id === messageId,
     );
     if (targetMessageIndex === -1) {
-      throw new Error(`メッセージID ${targetMessage.id} が見つかりません`);
+      throw new Error(`メッセージが見つかりません`);
     }
     // 最初のメッセージからmessageIdに対応するメッセージまでの履歴を取得
     const history = messages.slice(0, targetMessageIndex);
-    console.log('new history:', history);
 
     // スレッドを削除
     await this.memory.storage.deleteThread({ threadId });
@@ -161,44 +128,6 @@ export class ChatService {
     if (!result) {
       return [];
     }
-    const { uiMessages, messages } = result;
-
-    try {
-      // messages内の要素でroleが'user'の場合に、contentのtypeが'image'のものがあれば、画像データを対応するuiMessagesにも付与する
-      messages.forEach((message) => {
-        if (message.role === 'user' && typeof message.content !== 'string') {
-          const imageAttachments = message.content
-            .filter(
-              (part) => part.type === 'image' && typeof part.image === 'string',
-            )
-            .map((part) => {
-              return {
-                // @ts-ignore partはImagePart型であることが保証されている
-                url: part.image,
-                // @ts-ignore partはImagePart型であることが保証されている
-                contentType: part.mimeType,
-              };
-            });
-          if (imageAttachments.length > 0) {
-            // uiMessagesの対応するメッセージに画像データを追加
-            const uiMessage = uiMessages.find(
-              // @ts-ignore CoreMessageもダンプしてみるとidが存在する
-              (uiMsg) => uiMsg.id === message.id,
-            );
-            if (uiMessage) {
-              uiMessage.experimental_attachments = imageAttachments;
-            } else {
-              console.warn(
-                // @ts-ignore
-                `対応するUIメッセージが見つかりません: ${message.id}`,
-              );
-            }
-          }
-        }
-      });
-    } catch (error) {
-      console.error('画像データの付与中にエラーが発生しました:', error);
-    }
-    return uiMessages;
+    return result.uiMessages;
   }
 }

@@ -37,7 +37,8 @@ export const IpcChannels = {
   CHAT_STEP: 'chat-step',
   CHAT_ERROR: 'chat-error',
   CHAT_ABORT_REQUEST: 'chat-abort-request',
-  CHAT_EDIT_HISTORY: 'chat-edit-history',
+  CHAT_DELETE_MESSAGES_BEFORE_SPECIFIC_ID:
+    'chat-delete-messages-before-specific-id',
 
   // ファイルシステム関連
   FS_CHECK_PATH_EXISTS: 'fs-check-path-exists',
@@ -86,10 +87,9 @@ export type IpcRequestPayloadMap = {
     title: string;
   };
   [IpcChannels.CHAT_ABORT_REQUEST]: { threadId: string };
-  [IpcChannels.CHAT_EDIT_HISTORY]: {
+  [IpcChannels.CHAT_DELETE_MESSAGES_BEFORE_SPECIFIC_ID]: {
     threadId: string;
-    oldContent: string;
-    oldCreatedAt: Date;
+    messageId: string;
   };
 
   // ドキュメントレビュー関連
@@ -139,7 +139,10 @@ export type IpcResponsePayloadMap = {
   [IpcChannels.CHAT_DELETE_ROOM]: { success: boolean; error?: string };
   [IpcChannels.CHAT_CREATE_THREAD]: { success: boolean; error?: string };
   [IpcChannels.CHAT_ABORT_REQUEST]: { success: boolean; error?: string };
-  [IpcChannels.CHAT_EDIT_HISTORY]: { success: boolean; error?: string };
+  [IpcChannels.CHAT_DELETE_MESSAGES_BEFORE_SPECIFIC_ID]: {
+    success: boolean;
+    error?: string;
+  };
 
   // ドキュメントレビュー関連
   [IpcChannels.REVIEW_GET_HISTORIES]: {
