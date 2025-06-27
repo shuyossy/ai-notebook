@@ -173,7 +173,7 @@ function SourceListModal({
           return next;
         });
       } catch (err) {
-        console.error('ソース状態の更新に失敗しました:', err);
+        console.error('ドキュメントの有効化/無効化に失敗しました:', err);
         // エラー時もソースを更新中状態から削除
         setUpdatingSources((prev) => {
           const next = new Set(prev);
@@ -200,7 +200,7 @@ function SourceListModal({
         ).length;
         onStatusUpdate({ processing: newProcessing, enabledCount });
       } catch (error) {
-        console.error('ソースデータの取得に失敗しました:', error);
+        console.error('ドキュメントデータの取得に失敗しました:', error);
       }
     };
     // 初回データ取得

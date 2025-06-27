@@ -15,8 +15,6 @@ import SourceListModal from '../../renderer/components/common/SourceListModal';
 import type { Source } from '../../db/schema';
 import { ProcessStatus } from '../../main/types';
 import { createMockElectronWithOptions } from '../../__tests__/test-utils/mockElectronHandler';
-import { kMaxLength } from 'buffer';
-import { truncate } from 'node:original-fs';
 
 // テスト用のモックデータ
 const mockSources: Source[] = [

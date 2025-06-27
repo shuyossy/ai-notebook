@@ -20,6 +20,7 @@ import {
   WritableStream,
   TransformStream,
 } from 'node:stream/web';
+import { MastraError } from '@mastra/core/error';
 import { getStore } from './store';
 import type { Source } from '../db/schema';
 import {
@@ -319,11 +320,14 @@ const setupChatHandlers = () => {
             // エラー時もAbortControllerを削除
             chatService.deleteAbortController(roomId);
             let errorDetail: string;
-            if (APICallError.isInstance(error)) {
+            if (
+              error instanceof MastraError &&
+              APICallError.isInstance(error.cause)
+            ) {
               // APIコールエラーの場合はresponseBodyの内容を取得
-              errorDetail = error.message;
-              if (error.responseBody) {
-                errorDetail += `:\n${error.responseBody}`;
+              errorDetail = error.cause.message;
+              if (error.cause.responseBody) {
+                errorDetail += `:\n${error.cause.responseBody}`;
               }
             } else if (error instanceof Error) {
               errorDetail = error.message;
@@ -349,6 +353,7 @@ const setupChatHandlers = () => {
         event.sender.send(IpcChannels.CHAT_ERROR, {
           message: `${(error as Error).message}`,
         });
+        event.sender.send(IpcChannels.CHAT_COMPLETE);
         return { success: false, error: (error as Error).message };
       }
     },
