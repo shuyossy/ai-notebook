@@ -1,19 +1,19 @@
 import { useCallback, useEffect } from 'react';
-import { useAgentStore } from '../stores/agentStore';
+import { useSettingsZustandStore } from '../stores/settingsZustandStore';
 
-const useAgentStatus = () => {
+const useSettingsStatus = () => {
   const { status, setStatus, closeMessage, updatedFlg, setUpdatedFlg } =
-    useAgentStore();
+    useSettingsZustandStore();
 
   // ポーリング処理
   const startPolling = useCallback(() => {
     let intervalId: ReturnType<typeof setInterval>;
 
     const pollStatus = async () => {
-      const agentStatus = await window.electron.agent.getStatus();
+      const agentStatus = await window.electron.settings.getStatus();
       setStatus(agentStatus);
 
-      if (agentStatus.state !== 'initializing') {
+      if (agentStatus.state !== 'saving') {
         clearInterval(intervalId);
         setUpdatedFlg(false);
       }
@@ -33,7 +33,7 @@ const useAgentStatus = () => {
   // 設定保存時のポーリング再開
   useEffect(() => {
     if (updatedFlg) {
-      setStatus({ state: 'initializing', messages: [] });
+      setStatus({ state: 'saving', messages: [] });
       startPolling();
     }
   }, [updatedFlg, setStatus, startPolling]);
@@ -44,4 +44,4 @@ const useAgentStatus = () => {
   };
 };
 
-export default useAgentStatus;
+export default useSettingsStatus;

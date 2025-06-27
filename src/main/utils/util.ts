@@ -1,6 +1,7 @@
 /* eslint import/prefer-default-export: off */
 import { URL, pathToFileURL } from 'url';
 import path from 'path';
+import fs from 'fs';
 
 export function resolveHtmlPath(htmlFileName: string) {
   if (process.env.NODE_ENV === 'development') {
@@ -49,4 +50,20 @@ export function toAbsoluteFileURL(
   fileName?: string,
 ): string {
   return pathToFileURL(toAbsolutePath(dirOrPath, fileName)).href;
+}
+
+/**
+ * @param dirOrPath ディレクトリ or パス文字列
+ * @returns boolean 指定したパスが存在するかどうか
+ * @throws Error
+ */
+export function isPathExists(dirOrPath: string): boolean {
+  try {
+    const absolutePath = toAbsolutePath(dirOrPath);
+    return fs.existsSync(absolutePath);
+  } catch (error) {
+    throw new Error(
+      `パスの存在確認中にエラーが発生しました: ${error instanceof Error ? error.message : JSON.stringify(error)}`,
+    );
+  }
 }

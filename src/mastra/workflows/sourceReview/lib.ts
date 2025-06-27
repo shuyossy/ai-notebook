@@ -14,7 +14,7 @@ export function generateReviewTitle(sourceTitles: string[] = []): string {
 export function splitChecklistEquallyByMaxSize(
   checklist: ReviewChecklist[],
   maxSize: number,
-): { name: string; checklists: {id: number, content:string}[] }[] {
+): { name: string; checklists: { id: number; content: string }[] }[] {
   // 1) maxSize のバリデーション
   //    1 未満だと「1パートに1件以上」のルールを守れなくなるのでエラーにする
   if (maxSize < 1) {
@@ -38,7 +38,10 @@ export function splitChecklistEquallyByMaxSize(
   const baseSize = Math.floor(n / parts);
   const remainder = n % parts;
 
-  const result: { name: string; checklists: {id: number, content:string}[] }[] = [];
+  const result: {
+    name: string;
+    checklists: { id: number; content: string }[];
+  }[] = [];
   let offset = 0; // スライス開始インデックス
 
   // 5) 各パートを順番に切り出す
@@ -51,7 +54,7 @@ export function splitChecklistEquallyByMaxSize(
 
     result.push({
       name: `Part ${i + 1}`,
-      checklists: partChecklist.map(item => ({
+      checklists: partChecklist.map((item) => ({
         id: item.id,
         content: item.content,
       })),

@@ -47,7 +47,10 @@ function SourceListModal({
   useEffect(() => {
     const newCheckedSources: { [key: number]: boolean } = {};
     sources.forEach((source) => {
-      newCheckedSources[source.id] = checkedSources[source.id] || false;
+      newCheckedSources[source.id] =
+        source.status === 'completed'
+          ? checkedSources[source.id] || false
+          : false;
     });
     setCheckedSources(newCheckedSources);
     // eslint-disable-next-line
@@ -74,7 +77,18 @@ function SourceListModal({
 
   // 全選択/全解除の切り替えハンドラ
   const handleSelectAllChange = () => {
-    const someUnchecked = Object.values(checkedSources).some(
+    const targetSources = sources.filter(
+      (source) => source.status === 'completed',
+    );
+    if (targetSources.length === 0) return;
+    const targetCheckedSources = targetSources.reduce(
+      (acc, source) => {
+        acc[source.id] = checkedSources[source.id] || false;
+        return acc;
+      },
+      {} as { [key: number]: boolean },
+    );
+    const someUnchecked = Object.values(targetCheckedSources).some(
       (checked) => !checked,
     );
     const newCheckedState = { ...checkedSources };
@@ -83,7 +97,7 @@ function SourceListModal({
     const newValue = someUnchecked;
 
     // すべてのソースのチェック状態を更新
-    sources.forEach((source) => {
+    targetSources.forEach((source) => {
       newCheckedState[source.id] = newValue;
     });
     setCheckedSources(newCheckedState);
@@ -326,7 +340,7 @@ function SourceListModal({
                     <Checkbox
                       checked={checkedSources[source.id] || false}
                       onChange={() => handleSourceCheckChange(source.id)}
-                      disabled={processing}
+                      disabled={processing || source.status !== 'completed'}
                     />
                   </TableCell>
                   <TableCell>{source.path}</TableCell>

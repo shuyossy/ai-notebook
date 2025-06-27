@@ -1,20 +1,20 @@
 import { APICallError, NoObjectGeneratedError } from 'ai';
-import { Workflow, Step } from '@mastra/core/workflows';
-import { Agent } from '@mastra/core/agent';
+import { createWorkflow, createStep } from '@mastra/core/workflows';
+import { MastraError } from '@mastra/core/error';
 import { z } from 'zod';
 import path from 'path';
 import { getReviewRepository } from '../../../db/repository/reviewRepository';
 import { getSourceRepository } from '../../../db/repository/sourceRepository';
-import {
-  getChecklistCategolizePrompt,
-  getDocumentReviewExecutionPrompt,
-} from '../../agents/prompts';
 import FileExtractor from '../../../main/utils/fileExtractor';
 import type { ReviewEvaluation } from '../../../main/types';
 import { baseStepOutputSchema } from '../schema';
-import openAICompatibleModel from '../../agents/model/openAICompatible';
 import { stepStatus } from '../types';
 import { splitChecklistEquallyByMaxSize } from './lib';
+import {
+  ClassifyCategoryAgentRuntimeContext,
+  ReviewExecuteAgentRuntimeContext,
+} from '../../agents/workflowAgents';
+import { createRuntimeContext, judgeFinishReason } from '../../agents/lib';
 
 // 一つのカテゴリに含めるチェックリストの最大数
 const MAX_CHECKLISTS_PER_CATEGORY = 7;
@@ -44,24 +44,15 @@ const triggerSchema = z.object({
   sourceIds: z.array(z.number()).describe('レビュー対象ソースのIDリスト'),
 });
 
-/**
- * レビュー実行ワークフロー
- */
-export const reviewExecutionWorkflow = new Workflow({
-  name: 'reviewExecutionWorkflow',
-  triggerSchema,
-});
-
 // ステップ1: チェックリストをカテゴリごとに分類
-const classifyChecklistsByCategoryStep = new Step({
+const classifyChecklistsByCategoryStep = createStep({
   id: 'classifyChecklistsByCategoryStep',
   description: 'チェックリストをカテゴリごとに分類するステップ',
+  inputSchema: triggerSchema,
   outputSchema: classifyChecklistsByCategoryOutputSchema,
-  execute: async ({ context }) => {
+  execute: async ({ inputData, mastra }) => {
     // トリガーから入力を取得
-    const { reviewHistoryId } = context.triggerData as z.infer<
-      typeof triggerSchema
-    >;
+    const { reviewHistoryId } = inputData;
 
     // レビューリポジトリを取得
     const repository = getReviewRepository();
@@ -80,14 +71,7 @@ const classifyChecklistsByCategoryStep = new Step({
       }));
 
       // カテゴリ分類エージェントを使用して分類
-      const classifiCategoryAgent = new Agent({
-        name: 'classifyCategoryAgent',
-        instructions: getChecklistCategolizePrompt(
-          MAX_CHECKLISTS_PER_CATEGORY,
-          MAX_CATEGORIES,
-        ),
-        model: openAICompatibleModel(),
-      });
+      const classifiCategoryAgent = mastra.getAgent('classifyCategoryAgent');
       const outputSchema = z.object({
         categories: z
           .array(
@@ -100,12 +84,20 @@ const classifyChecklistsByCategoryStep = new Step({
           )
           .describe('Classified categories'),
       });
+      const runtimeContext =
+        createRuntimeContext<ClassifyCategoryAgentRuntimeContext>();
+      runtimeContext.set(
+        'maxChecklistsPerCategory',
+        MAX_CHECKLISTS_PER_CATEGORY,
+      );
+      runtimeContext.set('maxCategories', MAX_CATEGORIES);
       // チェックリスト項目をカテゴリごとに分類
       const classificationResult = await classifiCategoryAgent.generate(
         `checklist items:
   ${checklistData.map((item) => `ID: ${item.id} - ${item.content}`).join('\n')}`,
         {
           output: outputSchema,
+          runtimeContext,
         },
       );
       // 分類結果の妥当性をチェック
@@ -149,10 +141,19 @@ const classifyChecklistsByCategoryStep = new Step({
         filteredIds.forEach((id) => seen.add(id));
 
         // ── MAX_CHECKLISTS_PER_CATEGORY件ずつチャンクに分けてサブカテゴリ化 ────────────
-        for (let i = 0; i < filteredIds.length; i += MAX_CHECKLISTS_PER_CATEGORY) {
-          const chunkIds = filteredIds.slice(i, i + MAX_CHECKLISTS_PER_CATEGORY);
+        for (
+          let i = 0;
+          i < filteredIds.length;
+          i += MAX_CHECKLISTS_PER_CATEGORY
+        ) {
+          const chunkIds = filteredIds.slice(
+            i,
+            i + MAX_CHECKLISTS_PER_CATEGORY,
+          );
           const chunkName =
-            i === 0 ? name : `${name} (Part ${Math.floor(i / MAX_CHECKLISTS_PER_CATEGORY) + 1})`;
+            i === 0
+              ? name
+              : `${name} (Part ${Math.floor(i / MAX_CHECKLISTS_PER_CATEGORY) + 1})`;
 
           const checklists = chunkIds.map((id) => {
             const item = checklistData.find((c) => c.id === id)!;
@@ -168,11 +169,11 @@ const classifyChecklistsByCategoryStep = new Step({
         categories: finalCategories,
       };
     } catch (error) {
-      let errorDetail: string;
       if (
         APICallError.isInstance(error) ||
         (NoObjectGeneratedError.isInstance(error) &&
-          error.finishReason === 'length')
+          error.finishReason === 'length') ||
+        error instanceof MastraError
       ) {
         // APIコールエラーまたはAIモデルが生成できる文字数を超えた場合、手動でカテゴリー分割
         // AIモデルが生成できる文字数を超えているため、手動でカテゴリー分割
@@ -182,11 +183,10 @@ const classifyChecklistsByCategoryStep = new Step({
           status: 'success' as stepStatus,
           categories: splitChecklistEquallyByMaxSize(checklistsResult, 7),
         };
-      } else if (error instanceof Error) {
-        errorDetail = error.message;
-      } else {
-        errorDetail = JSON.stringify(error);
       }
+      const errorDetail =
+        error instanceof Error ? error.message : JSON.stringify(error);
+      // エラーが発生した場合はエラ
       const errorMessage = `ドキュメントレビュー中にエラーが発生しました:\n${errorDetail}`;
       return {
         status: 'failed' as stepStatus,
@@ -197,17 +197,24 @@ const classifyChecklistsByCategoryStep = new Step({
 });
 
 // ステップ2: チェックリストごとにレビューを実行
-const reviewExecutionStep = new Step({
+const reviewExecutionStep = createStep({
   id: 'reviewExecutionStep',
   description: 'チェックリストごとにレビューを実行するステップ',
+  inputSchema: classifyChecklistsByCategoryOutputSchema,
   outputSchema: baseStepOutputSchema,
-  execute: async ({ context }) => {
+  execute: async ({ inputData, getInitData, mastra }) => {
     // レビュー対象のソースID
-    const { sourceIds } = context.triggerData as z.infer<typeof triggerSchema>;
+    const { sourceIds } = getInitData() as z.infer<typeof triggerSchema>;
     // ステップ1からの入力を取得
-    const { categories } = context.getStepResult(
-      'classifyChecklistsByCategoryStep',
-    )! as z.infer<typeof classifyChecklistsByCategoryOutputSchema>;
+    const { categories } = inputData;
+
+    // ステップ1でfailedした場合はそのまま返す
+    if (inputData.status === 'failed') {
+      return {
+        status: 'failed' as stepStatus,
+        errorMessage: inputData.errorMessage,
+      };
+    }
 
     // リポジトリを取得
     const reviewRepository = getReviewRepository();
@@ -218,11 +225,7 @@ const reviewExecutionStep = new Step({
     const errorDocuments = new Map<string, string[]>();
 
     try {
-      const reviewAgent = new Agent({
-        name: 'reviewAgent',
-        instructions: '',
-        model: openAICompatibleModel(),
-      });
+      const reviewAgent = mastra.getAgent('reviewExecuteAgent');
 
       // 各カテゴリ、ソースごとにレビューを実行
       for (const category of categories!) {
@@ -249,13 +252,20 @@ const reviewExecutionStep = new Step({
                   comment: z.string().describe('evaluation comment'),
                 }),
               );
+              const runtimeContext =
+                createRuntimeContext<ReviewExecuteAgentRuntimeContext>();
+              runtimeContext.set('checklistItems', reviewTargetChecklists);
               // レビューエージェントを使用してレビューを実行
               const reviewResult = await reviewAgent.generate(content, {
                 output: outputSchema,
-                instructions: getDocumentReviewExecutionPrompt(
-                  reviewTargetChecklists,
-                ),
+                runtimeContext,
               });
+              const { success, reason } = judgeFinishReason(
+                reviewResult.finishReason,
+              );
+              if (!success) {
+                throw new Error(reason);
+              }
               // レビュー結果をDBに保存
               await reviewRepository.upsertReviewResult(
                 reviewResult.object.map((result) => ({
@@ -349,13 +359,17 @@ const reviewExecutionStep = new Step({
   },
 });
 
-// ワークフローを構築
-// eslint-disable-next-line
-reviewExecutionWorkflow
-  .step(classifyChecklistsByCategoryStep)
-  .then(reviewExecutionStep, {
-    when: {
-      'classifyChecklistsByCategoryStep.status': 'success',
-    },
-  })
+/**
+ * レビュー実行ワークフロー
+ */
+export const reviewExecutionWorkflow = createWorkflow({
+  id: 'reviewExecutionWorkflow',
+  inputSchema: triggerSchema,
+  // ドキュメントには最終ステップの出力スキーマを指定すれば良いように記載があるが、実際の出力結果は{最終ステップ: outputSchema}となっている
+  // Matraのバグ？
+  outputSchema: baseStepOutputSchema,
+  steps: [classifyChecklistsByCategoryStep, reviewExecutionStep],
+})
+  .then(classifyChecklistsByCategoryStep)
+  .then(reviewExecutionStep)
   .commit();

@@ -1,7 +1,7 @@
 import type { ElectronHandler } from '../../main/preload';
 import type { StoreSchema as Settings } from '../../main/store';
 import type { Source } from '../../db/schema';
-import type { ChatRoom, AgentBootStatus } from '../../main/types';
+import type { ChatRoom, SettingsSavingStatus } from '../../main/types';
 
 /**
  * Mockメソッドの型を定義
@@ -63,7 +63,7 @@ export interface MockOptions {
   chatRooms?: ChatRoom[];
   sourceEnabled?: boolean;
   fsAccess?: boolean;
-  agentStatus?: Partial<AgentBootStatus>;
+  settingsStatus?: Partial<SettingsSavingStatus>;
 }
 
 /**
@@ -77,9 +77,9 @@ export const createMockElectronWithOptions = (
     : createDefaultMockSettings();
 
   const mockHandlers = {
-    agent: {
-      getStatus: jest.fn().mockReturnValue(options.agentStatus || {
-        state: 'ready',
+    settings: {
+      getStatus: jest.fn().mockReturnValue(options.settingsStatus || {
+        state: 'done',
         messages: [],
         tools: {
           redmine: false,

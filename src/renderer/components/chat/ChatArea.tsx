@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useChat } from '@ai-sdk/react';
 import { Box, Divider, Typography } from '@mui/material';
 import { v4 as uuid } from 'uuid';
-import useAgentStatus from '../../hooks/useAgentStatus';
+import useSettingsStatus from '../../hooks/useSettingsStatus';
 import MessageList from './MessageList';
 import MessageInput, { Attachment } from './MessageInput';
 import { chatService } from '../../services/chatService';
@@ -133,14 +133,14 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
   const [additionalAlerts, setAdditionalAlerts] = useState<AlertMessage[]>([]);
   const [editMessageId, setEditMessageId] = useState<string>('');
   const [editMessageContent, setEditMessageContent] = useState<string>('');
-  const { status: agentStatus } = useAgentStatus();
+  const { status: settingsStatus } = useSettingsStatus();
   const [isEditHistory, setIsEditHistory] = useState(false);
   /* ---------- 添付画像 ---------- */
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   // メッセージ入力状態
   const [input, setInput] = useState<string>('');
 
-  const isAgentInitializing = agentStatus.state === 'initializing';
+  const isAgentInitializing = settingsStatus.state === 'saving';
 
   // メッセージ履歴を取得
   const fetchMessages = async (roomId: string) => {

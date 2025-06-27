@@ -36,6 +36,18 @@ const configuration: webpack.Configuration = {
     },
   },
 
+  /**
+   * ここで Node.js の内部モジュールを空（false）でフォールバックさせる
+   */
+  resolve: {
+    fallback: {
+      _http_common: false, // @ai-sdk/provider-utils/testで参照されるが、テスト用なので空にしても問題ない
+      // 必要なら他の内部モジュールも同様に設定
+      // http: false,
+      // https: false,
+    },
+  },
+
   module: {
     rules: [
       {

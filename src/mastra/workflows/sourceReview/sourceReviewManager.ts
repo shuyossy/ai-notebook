@@ -1,7 +1,6 @@
 import { IpcMainInvokeEvent } from 'electron';
 import { getReviewRepository } from '../../../db/repository/reviewRepository';
 import { getSourceRepository } from '../../../db/repository/sourceRepository';
-import { getMastra } from '../../../main/main';
 import {
   IpcChannels,
   IpcEventPayloadMap,
@@ -9,6 +8,7 @@ import {
 } from '../../../main/types/ipc';
 import { generateReviewTitle } from './lib';
 import { ReviewHistory } from '../../../db/schema';
+import { mastra } from '../..';
 
 /**
  * ソースレビュー処理を管理するクラス
@@ -62,7 +62,6 @@ export default class SourceReviewManager {
       let errorMessage;
 
       // Mastraワークフローを実行
-      const mastra = getMastra();
       const workflow = mastra.getWorkflow('checklistExtractionWorkflow');
 
       if (!workflow) {
@@ -74,27 +73,26 @@ export default class SourceReviewManager {
 
       const run = workflow.createRun();
       const runResult = await run.start({
-        triggerData: {
+        inputData: {
           reviewHistoryId,
           sourceIds,
         },
       });
 
       // 結果を確認
-      const extractResult = runResult.results.checklistExtractionStep;
-      switch (extractResult.status) {
+      switch (runResult.status) {
         case 'success':
-          if (extractResult.output?.status === 'success') {
+          if (runResult.result.status === 'success') {
             success = true;
           }
-          if (extractResult.output?.status === 'failed') {
+          if (runResult.result.status === 'failed') {
             success = false;
-            errorMessage = extractResult.output.errorMessage;
+            errorMessage = runResult.result.errorMessage;
           }
           break;
         case 'failed':
           success = false;
-          errorMessage = extractResult.error;
+          errorMessage = runResult.error.message;
           break;
         default:
           success = false;
@@ -139,7 +137,6 @@ export default class SourceReviewManager {
       let errorMessage;
 
       // Mastraワークフローを実行
-      const mastra = getMastra();
       const workflow = mastra.getWorkflow('reviewExecutionWorkflow');
 
       if (!workflow) {
@@ -161,35 +158,30 @@ export default class SourceReviewManager {
 
       const run = workflow.createRun();
       const result = await run.start({
-        triggerData: {
+        inputData: {
           reviewHistoryId,
           sourceIds,
         },
       });
 
       // 結果を確認
-      for (const step of Object.values(result.results)) {
-        switch (step.status) {
-          case 'success':
-            if (step.output?.status === 'success') {
-              success = true;
-            }
-            if (step.output?.status === 'failed') {
-              success = false;
-              errorMessage = step.output.errorMessage;
-            }
-            break;
-          case 'failed':
+      switch (result.status) {
+        case 'success':
+          if (result.result.status === 'success') {
+            success = true;
+          }
+          if (result.result.status === 'failed') {
             success = false;
-            errorMessage = step.error;
-            break;
-          default:
-            success = false;
-            errorMessage = 'レビュー実行処理が不明な状態で終了しました';
-        }
-        if (!success) {
-          break; // 最初の失敗でループを抜ける
-        }
+            errorMessage = result.result.errorMessage;
+          }
+          break;
+        case 'failed':
+          success = false;
+          errorMessage = result.error.message;
+          break;
+        default:
+          success = false;
+          errorMessage = 'チェックリスト抽出処理が不明な状態で終了しました';
       }
       return {
         success,

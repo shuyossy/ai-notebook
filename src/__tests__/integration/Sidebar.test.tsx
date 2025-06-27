@@ -3,6 +3,7 @@
  */
 import React from 'react';
 import { render, screen, waitFor, act } from '@testing-library/react';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import { v4 as uuidv4 } from 'uuid';
@@ -12,6 +13,9 @@ import type { ChatRoom, ProcessStatus } from '../../main/types';
 import type { Source } from '../../db/schema';
 import { StoreSchema as Settings } from '../../main/store';
 import { createMockElectronWithOptions } from '../../__tests__/test-utils/mockElectronHandler';
+import ChatRoomList from '../../renderer/components/sidebar/ChatRoomList';
+import ReviewHistoryList from '../../renderer/components/review/ReviewHistoryList';
+import { ROUTES } from '../../main/types';
 
 // uuidv4をモック化
 jest.mock('uuid', () => ({
@@ -101,12 +105,41 @@ describe('Sidebar Component', () => {
     onSettingsUpdated: jest.fn(),
   };
 
+  const renderAtPath = (initialPath: string) => {
+    render(
+      // MemoryRouter でテスト用の履歴を用意
+      <MemoryRouter initialEntries={[initialPath]}>
+        <Sidebar
+          onReloadSources={defaultProps.onReloadSources}
+          showSnackbar={defaultProps.showSnackbar}
+        >
+          <Routes>
+            <Route
+              path={ROUTES.CHAT}
+              element={
+                <ChatRoomList onRoomSelect={defaultProps.onRoomSelect} />
+              }
+            />
+            <Route
+              path={ROUTES.REVIEW}
+              element={
+                <ReviewHistoryList
+                  onReviewHistorySelect={defaultProps.onRoomSelect}
+                />
+              }
+            />
+          </Routes>
+        </Sidebar>
+      </MemoryRouter>,
+    );
+  };
+
   // テスト1: 正常にサイドバーとチャットルーム一覧が表示されること
   test('正常にサイドバーとチャットルーム一覧が表示されること', async () => {
-    render(<Sidebar {...defaultProps} />);
+    renderAtPath(ROUTES.CHAT);
 
     // New Chatボタンが表示されることを確認
-    expect(screen.getByText('New Chat')).toBeInTheDocument();
+    expect(screen.getByText('新規チャット')).toBeInTheDocument();
 
     // チャットルーム一覧が表示されるまで待機
     await waitFor(() => {
@@ -129,7 +162,7 @@ describe('Sidebar Component', () => {
         }),
     );
 
-    render(<Sidebar {...defaultProps} />);
+    renderAtPath(ROUTES.CHAT);
 
     // ローディング表示を確認
     expect(screen.getByText('チャット履歴取得中')).toBeInTheDocument();
@@ -149,7 +182,7 @@ describe('Sidebar Component', () => {
     // 空の配列を返すようにモックを設定
     window.electron.chat.getRooms = jest.fn().mockResolvedValue([]);
 
-    render(<Sidebar {...defaultProps} />);
+    renderAtPath(ROUTES.CHAT);
 
     // 空の状態のメッセージが表示されることを確認
     await waitFor(() => {
@@ -160,10 +193,17 @@ describe('Sidebar Component', () => {
   // テスト4: 新規チャットルームの作成
   test('新規チャットルームの作成', async () => {
     const user = userEvent.setup();
-    render(<Sidebar {...defaultProps} />);
+    renderAtPath(ROUTES.CHAT);
+    screen.debug(undefined, 100000);
+
+    // チャットルーム一覧が表示されるまで待機
+    await waitFor(() => {
+      expect(screen.getByText('Chat Room 1')).toBeInTheDocument();
+      expect(screen.getByText('Chat Room 2')).toBeInTheDocument();
+    });
 
     // New Chatボタンをクリック
-    await user.click(screen.getByText('New Chat'));
+    await user.click(screen.getByText('新規チャット'));
 
     // uuidv4が呼ばれることを確認
     expect(uuidv4).toHaveBeenCalled();
@@ -175,7 +215,7 @@ describe('Sidebar Component', () => {
   // テスト5: チャットルームの選択
   test('チャットルームの選択', async () => {
     const user = userEvent.setup();
-    render(<Sidebar {...defaultProps} />);
+    renderAtPath(ROUTES.CHAT);
 
     // チャットルーム一覧が表示されるまで待機
     await waitFor(() => {
@@ -192,7 +232,7 @@ describe('Sidebar Component', () => {
   // テスト6: チャットルームの削除
   test('チャットルームの削除の際に正しく指定したチャットルームが削除されること（チャットルームのソート確認も含む）', async () => {
     const user = userEvent.setup();
-    render(<Sidebar {...defaultProps} />);
+    renderAtPath(ROUTES.CHAT);
 
     // チャットルーム一覧が表示されるまで待機
     await waitFor(() => {
@@ -232,7 +272,7 @@ describe('Sidebar Component', () => {
       .mockRejectedValue(new Error('Failed to delete chat room'));
 
     const user = userEvent.setup();
-    render(<Sidebar {...defaultProps} />);
+    renderAtPath(ROUTES.CHAT);
 
     // チャットルーム一覧が表示されるまで待機
     await waitFor(() => {
@@ -257,7 +297,7 @@ describe('Sidebar Component', () => {
   // テスト8: フッターのソース一覧モーダル表示
   test('フッターのソース一覧モーダル表示', async () => {
     const user = userEvent.setup();
-    render(<Sidebar {...defaultProps} />);
+    renderAtPath(ROUTES.CHAT);
 
     // ソース一覧ボタンをクリック
     await user.click(screen.getByTestId('document-list-button'));
@@ -269,7 +309,7 @@ describe('Sidebar Component', () => {
   // テスト9: フッターの設定モーダル表示
   test('フッターの設定モーダル表示', async () => {
     const user = userEvent.setup();
-    render(<Sidebar {...defaultProps} />);
+    renderAtPath(ROUTES.CHAT);
 
     // 設定ボタンをクリック
     await user.click(screen.getByTestId('settings-button'));
@@ -283,7 +323,7 @@ describe('Sidebar Component', () => {
     // jestのタイマーを使用
     jest.useFakeTimers();
 
-    render(<Sidebar {...defaultProps} />);
+    renderAtPath(ROUTES.CHAT);
 
     // 初回の取得を確認
     await waitFor(() => {
@@ -312,7 +352,7 @@ describe('Sidebar Component', () => {
       .fn()
       .mockRejectedValue(new Error('Failed to fetch chat rooms'));
 
-    render(<Sidebar {...defaultProps} />);
+    renderAtPath(ROUTES.CHAT);
 
     // エラーログが出力されることを確認
     await waitFor(() => {
@@ -327,7 +367,7 @@ describe('Sidebar Component', () => {
 
   // テスト12: 設定エラーバッジの初期表示
   test('設定エラーバッジの初期表示', async () => {
-    render(<Sidebar {...defaultProps} />);
+    renderAtPath(ROUTES.CHAT);
 
     // 設定エラーがない場合、バッジは非表示
     const settingsButton = screen.getByTestId('settings-button');
@@ -342,7 +382,7 @@ describe('Sidebar Component', () => {
   // テスト13: 設定保存後のバッジ表示更新
   test('設定保存後のバッジ表示更新', async () => {
     const user = userEvent.setup({ delay: null });
-    render(<Sidebar {...defaultProps} />);
+    renderAtPath(ROUTES.CHAT);
 
     // 設定ボタンをクリックしてモーダルを開く
     await user.click(screen.getByTestId('settings-button'));
@@ -382,7 +422,7 @@ describe('Sidebar Component', () => {
     // タイマーのモック
     jest.useFakeTimers();
 
-    render(<Sidebar {...defaultProps} />);
+    renderAtPath(ROUTES.CHAT);
 
     // 進める
     act(() => {
@@ -463,28 +503,14 @@ describe('Sidebar Component', () => {
     ];
 
     // ソース取得のモックを設定（最初は処理中、その後完了）
-    let isFirstCall = true;
     window.electron.source.getSources = jest.fn().mockImplementation(() => {
-      if (isFirstCall) {
-        isFirstCall = false;
-        return Promise.resolve({
+      return Promise.resolve({
           success: true,
           sources: processingMockSources,
         });
-      }
-      return Promise.resolve({
-        success: true,
-        sources: completedMockSources,
-      });
     });
 
-    const user = userEvent.setup();
-    render(<Sidebar {...defaultProps} />);
-
-    // 進める
-    act(() => {
-      jest.advanceTimersByTime(5000);
-    });
+    renderAtPath(ROUTES.CHAT);
 
     // ソースデータが取得されるまで待機
     await waitFor(() => {
@@ -498,9 +524,21 @@ describe('Sidebar Component', () => {
       ).toBeInTheDocument();
     });
 
-    // 5秒待機してソースデータが更新されることを確認
+    window.electron.source.getSources = jest.fn().mockImplementation(() => {
+      return Promise.resolve({
+        success: true,
+        sources: completedMockSources,
+      });
+    });
+
+    // 進める
     act(() => {
       jest.advanceTimersByTime(5000);
+    });
+
+    // ソースデータが取得されるまで待機
+    await waitFor(() => {
+      expect(window.electron.source.getSources).toHaveBeenCalled();
     });
 
     // バッジに有効なソース数（2）が表示されることを確認
@@ -539,7 +577,7 @@ describe('Sidebar Component', () => {
       sources: largeMockSources,
     });
 
-    render(<Sidebar {...defaultProps} />);
+    renderAtPath(ROUTES.CHAT);
 
     // タイマーを進める
     act(() => {

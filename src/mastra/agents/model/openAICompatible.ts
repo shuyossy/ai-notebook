@@ -1,31 +1,23 @@
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
-import { getStore } from '../../../main/store';
+import { RuntimeContext } from '@mastra/core/runtime-context';
+import type { BaseRuntimeContext } from '../types';
 
-const getOpenAICompatibleModel = () => {
-  const store = getStore();
-  const apiConfig = {
-    key: store.get('api').key,
-    url: store.get('api').url,
-    model: store.get('api').model,
-  };
-
-  // API設定の確認
-  if (!apiConfig.key) {
-    throw new Error('APIキーが設定されていません');
-  }
-  if (!apiConfig.url) {
-    throw new Error('APIのURLが設定されていません');
-  }
-  if (!apiConfig.model) {
-    throw new Error('APIのモデル名が設定されていません');
+export const getOpenAICompatibleModel = ({
+  runtimeContext,
+}: {
+  runtimeContext: RuntimeContext<BaseRuntimeContext>;
+}) => {
+  const apiConfig = runtimeContext.get('model');
+  if (!apiConfig || !apiConfig.key || !apiConfig.url || !apiConfig.modelName) {
+    throw new Error(
+      'AI APIの設定が正しくありません。APIキー、URL、BPR IDを確認してください。',
+    );
   }
 
   const model = createOpenAICompatible({
     name: 'openAICompatibleModel',
     apiKey: apiConfig.key,
     baseURL: apiConfig.url,
-  }).chatModel(apiConfig.model);
+  }).chatModel(apiConfig.modelName);
   return model;
 };
-
-export default getOpenAICompatibleModel;

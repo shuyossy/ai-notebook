@@ -1,56 +1,11 @@
-import { eq, and, max } from 'drizzle-orm';
-import { getStore } from '../../main/store';
-import { sources, topics } from '../../db/schema';
-import getDb from '../../db';
-import { AgentToolStatus } from '../../main/types';
-import { RedmineBaseInfo } from '../tools/redmine';
-
-/**
- * データベースからソース情報を取得する
- */
-const getSourcesInfoByMDList = async () => {
-  const db = await getDb();
-  // 有効なソースのみ取得
-  const sourceList = await db
-    .select()
-    .from(sources)
-    .where(and(eq(sources.isEnabled, 1), eq(sources.status, 'completed')))
-    .orderBy(sources.title);
-
-  // 各ソースのトピックを取得
-  const sourceWithTopicList = await Promise.all(
-    sourceList.map(async (source) => {
-      const topicsList = await db
-        .select()
-        .from(topics)
-        .where(eq(topics.sourceId, source.id))
-        .orderBy(topics.name);
-
-      return {
-        id: source.id,
-        title: source.title,
-        path: source.path,
-        summary: source.summary,
-        topics: topicsList.map((topic) => ({
-          name: topic.name,
-          summary: topic.summary,
-        })),
-      };
-    }),
-  );
-
-  return sourceWithTopicList
-    .map(
-      (sourceWithTopic) => `  - ID:${sourceWithTopic.id}
-    - Title:${sourceWithTopic.title}
-    - Path:${sourceWithTopic.path}
-    - Summary:${sourceWithTopic.summary}
-    - Topics:
-  ${sourceWithTopic.topics.map((topic) => `      - Topic: ${topic.name} Summary: ${topic.summary}`).join('\n')}
-`,
-    )
-    .join('\n');
-};
+import { RuntimeContext } from '@mastra/core/runtime-context';
+import { OrchestratorRuntimeContext } from './orchestrator';
+import { DocumentExpertAgentRuntimeContext } from './toolAgents';
+import {
+  ChecklistExtractionAgentRuntimeContext,
+  ClassifyCategoryAgentRuntimeContext,
+  ReviewExecuteAgentRuntimeContext,
+} from './workflowAgents';
 
 /**
  * ソース解析用のシステムプロンプト
@@ -96,15 +51,22 @@ Each summary must include all important information related to the topic.
  * @param config ツールの有効/無効を指定する設定オブジェクト
  * @returns システムプロンプト文字列
  */
-export const getOrchestratorSystemPrompt = async (
-  config: AgentToolStatus,
-  redmineInfo: RedmineBaseInfo | null,
-): Promise<string> => {
-  const store = getStore();
+export const getOrchestratorSystemPrompt = async ({
+  runtimeContext,
+}: {
+  runtimeContext: RuntimeContext<OrchestratorRuntimeContext>;
+}): Promise<string> => {
+  const toolStatus = runtimeContext.get('toolStatus');
 
-  const sourceListMD = await getSourcesInfoByMDList();
+  const sourceListMD = runtimeContext.get('documentQuery')?.registeredDocuments;
 
-  const systemPrompt = store.get('systemPrompt.content');
+  const redmineInfo = runtimeContext.get('redmine')?.basicInfo;
+
+  const redmineEndpoint = runtimeContext.get('redmine')?.endpoint;
+
+  const gitlabEndpoint = runtimeContext.get('gitlab')?.endpoint;
+
+  const systemPrompt = runtimeContext.get('additionalSystemPrompt');
 
   const prompt = `
 You are an AI agent empowered with a rich set of tools. Whenever a user request arrives, follow this cycle:
@@ -119,7 +81,7 @@ You are an AI agent empowered with a rich set of tools. Whenever a user request 
 4. **Report**
    Present the final results clearly, citing any sources used.
 ${
-  config.document && sourceListMD.trim()
+  toolStatus.document && sourceListMD?.trim()
     ? `
 If the user has registered reference documents, always consider them first—only skip or question their relevance if they clearly don’t match the intent.
 `
@@ -141,7 +103,7 @@ ${systemPrompt}
     : ''
 }### Tools
 ${
-  config.document && sourceListMD.trim()
+  toolStatus.document && sourceListMD?.trim()
     ? `
 - **Document Query Tool**
   documentQueryTool: Processes each document query separately using registered content.
@@ -152,14 +114,14 @@ ${
   updateWorkingMemory: Save or update facts in your working memory.
 
 ${
-  config.redmine
+  toolStatus.redmine
     ? `- **Redmine Integration Tools**
   getRedmineIssuesList: Fetch a filtered list of issues.
   getRedmineIssueDetail: Get details of a specific issue.
   createRedmineIssue: Create a new issue.
   updateRedmineIssue: Update an existing issue.
   _Note:_
-    - Redmine URL: ${store.get('redmine').endpoint}
+    - Redmine URL: ${redmineEndpoint}
     - Identify projects by ID, name, or identifier (e.g. the segment after \`/projects/\` in the URL).
     - Default trackers, statuses, and priorities are available via \`getRedmineInfo\`.
   _Basic Info:_
@@ -176,7 +138,7 @@ ${redmineInfo?.priorities.map((p) => `      - ${p.name} (ID: ${p.id})`).join(`
 }
 
 ${
-  config.gitlab
+  toolStatus.gitlab
     ? `- **GitLab Integration Tools**
   getGitLabFileContent: Get Base64-encoded file content.
   getGitLabRawFile: Retrieve raw file data.
@@ -187,14 +149,14 @@ ${
   addMergeRequestComment: Add a comment to an MR.
   addMergeRequestDiffComment: Comment on specific diffs.
   _Note:_
-    - GitLab URL: ${store.get('gitlab').endpoint}
+    - GitLab URL: ${gitlabEndpoint}
     - Specify projects by ID or by non-encoded path (e.g. \`groupA/groupB/project\`).
   `
     : ''
 }
 
 ${
-  config.mcp
+  toolStatus.mcp
     ? `- **MCP (Model Context Protocol) Tools**
   Access additional server-provided tools and APIs via registered MCP servers.`
     : ''
@@ -204,7 +166,7 @@ ${
 
 ### Usage Notes
 - You may invoke any tool at any time and reuse them as needed.${
-    config.document && sourceListMD.trim()
+    toolStatus.document && sourceListMD?.trim()
       ? `
 - When quoting document, explicitly mention the reference.
 
@@ -219,20 +181,29 @@ ${sourceListMD.trim() ? sourceListMD : 'No documents registered.'}`
 /**
  * System prompt for answering questions based on source content
  */
-export const getSourceQuerySystemPrompt = (content: string) => `
+export const getDocumentQuerySystemPrompt = ({
+  runtimeContext,
+}: {
+  runtimeContext: RuntimeContext<DocumentExpertAgentRuntimeContext>;
+}): string => `
 You are an expert on the following document.
 Answer questions accurately based on the document's content.
 If information is not found in the document, respond with "This information is not present in the document."
 
 Document:
-${content}
+${runtimeContext.get('documentContent')}
 `;
 
 /**
  * チェックリスト抽出用のシステムプロンプトを取得する関数
  * @param extractedItems  これまでに抽出済みのチェックリスト項目（文字列配列）
  */
-export function getChecklistExtractionPrompt(extractedItems: string[]): string {
+export function getChecklistExtractionPrompt({
+  runtimeContext,
+}: {
+  runtimeContext: RuntimeContext<ChecklistExtractionAgentRuntimeContext>;
+}): string {
+  const extractedItems = runtimeContext.get('extractedItems');
   return `
 You are a specialist in extracting checklist items from documents.
 Additionally, if you determine the document is not a checklist document, explicitly set isChecklistDocument to false.
@@ -240,7 +211,10 @@ Additionally, if you determine the document is not a checklist document, explici
 ${
   extractedItems.length > 0
     ? `So far, you have identified ${extractedItems.length} items:
-${extractedItems.map((item, i) => `${i + 1}. ${item}`).join('\n')}`
+${runtimeContext
+  .get('extractedItems')
+  .map((item, i) => `${i + 1}. ${item}`)
+  .join('\n')}`
     : `Given a document, first decide whether it is a checklist document.`
 }
 
@@ -255,18 +229,19 @@ Ensure you never omit or alter any checklist text.
  * @param maxItems  一つのカテゴリに含める最大チェックリスト数
  * @param maxCategories  最大カテゴリ数（デフォルトは10）
  */
-export function getChecklistCategolizePrompt(
-  maxItems: number,
-  maxCategories: number = 10,
-): string {
+export function getChecklistCategolizePrompt({
+  runtimeContext,
+}: {
+  runtimeContext: RuntimeContext<ClassifyCategoryAgentRuntimeContext>;
+}): string {
   return `
 You are a categorization assistant.
-When given a list of checklists (each with an ID and content), partition them into up to ${maxCategories} meaningful categories.
+When given a list of checklists (each with an ID and content), partition them into up to ${runtimeContext.get('maxCategories')} meaningful categories.
 
 Constraints:
 1. Every single checklist item must be assigned to exactly one category. No items should be left unclassified.
 2. You may create at most 10 categories.
-3. Each category may contain no more than ${maxItems} checklist items.
+3. Each category may contain no more than ${runtimeContext.get('maxChecklistsPerCategory')} checklist items.
 4. Distribute items as evenly as possible across categories to achieve a balanced allocation, while preserving thematic coherence.
 `;
 }
@@ -276,9 +251,12 @@ Constraints:
  * @param checklists - Array of checklist items with id and content
  * @returns A string to use as system instructions for the review agent
  */
-export function getDocumentReviewExecutionPrompt(
-  checklists: Array<{ id: number; content: string }>,
-): string {
+export function getDocumentReviewExecutionPrompt({
+  runtimeContext,
+}: {
+  runtimeContext: RuntimeContext<ReviewExecuteAgentRuntimeContext>;
+}): string {
+  const checklists = runtimeContext.get('checklistItems');
   // Build a human-readable list of checklist items
   const formattedList = checklists
     .map((item) => `ID: ${item.id} - ${item.content}`)

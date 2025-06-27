@@ -41,7 +41,7 @@ describe('SettingsModal Component', () => {
 
     // 設定値が取得されるまで待機
     await waitFor(() => {
-      expect(window.electron.store.get).toHaveBeenCalledTimes(8);
+      expect(window.electron.store.get).toHaveBeenCalledTimes(7);
     });
 
     // データベース設定
@@ -94,7 +94,7 @@ describe('SettingsModal Component', () => {
     );
 
     await waitFor(() => {
-      expect(window.electron.store.get).toHaveBeenCalledTimes(8);
+      expect(window.electron.store.get).toHaveBeenCalledTimes(7);
     });
 
     // 全ての入力フィールドが有効になるまで待機
@@ -210,7 +210,7 @@ describe('SettingsModal Component', () => {
     });
 
     // エージェントの再初期化が呼ばれることを確認
-    expect(window.electron.agent.reinitialize).toHaveBeenCalled();
+    expect(window.electron.settings.reinitialize).toHaveBeenCalled();
 
     // コールバック関数が呼ばれることを確認
     expect(defaultProps.onSettingsUpdated).toHaveBeenCalled();
@@ -236,7 +236,7 @@ describe('SettingsModal Component', () => {
     );
 
     await waitFor(() => {
-      expect(window.electron.store.get).toHaveBeenCalledTimes(8);
+      expect(window.electron.store.get).toHaveBeenCalledTimes(7);
     });
 
     // 必須フィールドを空にする
@@ -312,7 +312,7 @@ describe('SettingsModal Component', () => {
     );
 
     await waitFor(() => {
-      expect(window.electron.store.get).toHaveBeenCalledTimes(8);
+      expect(window.electron.store.get).toHaveBeenCalledTimes(7);
     });
 
     const mcpConfigInput = screen.getByLabelText('MCPサーバー設定（JSON）');
@@ -439,7 +439,7 @@ describe('SettingsModal Component', () => {
     );
 
     await waitFor(() => {
-      expect(window.electron.store.get).toHaveBeenCalledTimes(8);
+      expect(window.electron.store.get).toHaveBeenCalledTimes(7);
     });
 
     // APIキーを更新してバリデーション完了を待機
@@ -486,7 +486,7 @@ describe('SettingsModal Component', () => {
     );
 
     await waitFor(() => {
-      expect(window.electron.store.get).toHaveBeenCalledTimes(8);
+      expect(window.electron.store.get).toHaveBeenCalledTimes(7);
     });
 
     // APIキーを更新
@@ -541,12 +541,6 @@ describe('SettingsModal Component', () => {
       expect(input).toBeDisabled();
     });
 
-    // スイッチが無効化されていることを確認
-    const switches = screen.getAllByRole('checkbox');
-    switches.forEach((switchEl) => {
-      expect(switchEl).toBeDisabled();
-    });
-
     // データがロードされるまで待機
     await waitFor(
       () => {
@@ -581,7 +575,7 @@ describe('SettingsModal Component', () => {
     );
 
     await waitFor(() => {
-      expect(window.electron.store.get).toHaveBeenCalledTimes(8);
+      expect(window.electron.store.get).toHaveBeenCalledTimes(7);
     });
 
     // APIキーを更新

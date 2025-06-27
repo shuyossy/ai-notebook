@@ -1,25 +1,9 @@
-import { getReviewRepository } from '../../../db/repository/reviewRepository';
-import { ReviewChecklistEdit } from '../../types';
-import { generateReviewTitle } from '../../../mastra/workflows/sourceReview/lib';
+import { getReviewRepository } from '../../db/repository/reviewRepository';
+import { ReviewChecklistEdit } from '../types';
+import { generateReviewTitle } from '../../mastra/workflows/sourceReview/lib';
 
 export class ReviewService {
-  /**
-   * シングルトンインスタンスを保持
-   */
-  // eslint-disable-next-line
-  private static instance: ReviewService | null = null;
-
   private repository = getReviewRepository();
-
-  /**
-   * シングルトンインスタンスを取得
-   */
-  public static getInstance(): ReviewService {
-    if (!ReviewService.instance) {
-      ReviewService.instance = new ReviewService();
-    }
-    return ReviewService.instance;
-  }
 
   /**
    * レビュー履歴一覧を取得

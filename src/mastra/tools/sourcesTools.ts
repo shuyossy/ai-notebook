@@ -1,14 +1,13 @@
 import { APICallError } from 'ai';
 import { z } from 'zod';
-import { Agent } from '@mastra/core/agent';
 import { createTool } from '@mastra/core/tools';
 import { eq, and } from 'drizzle-orm';
 import { sources } from '../../db/schema';
 import getDb from '../../db/index';
 import FileExtractor from '../../main/utils/fileExtractor';
-import { getSourceQuerySystemPrompt } from '../agents/prompts';
-import openAICompatibleModel from '../agents/model/openAICompatible';
 import { createBaseToolResponseSchema, RunToolStatus } from './types';
+import { DocumentExpertAgentRuntimeContext } from '../agents/toolAgents';
+import { createRuntimeContext, judgeFinishReason } from '../agents/lib';
 
 /**
  * ソース一覧表示ツール
@@ -116,7 +115,13 @@ export const documentQueryTool = createTool({
       ),
     }),
   ),
-  execute: async ({ context: { documentQueries } }, options) => {
+  execute: async ({ context: { documentQueries }, mastra }, options) => {
+    if (mastra === undefined) {
+      return {
+        status: 'failed' as RunToolStatus,
+        error: 'Mastraインスタンスが初期化されていません',
+      };
+    }
     let status: RunToolStatus = 'failed';
     try {
       const db = await getDb();
@@ -147,24 +152,35 @@ export const documentQueryTool = createTool({
       // 各クエリを並列で処理
       const answers = await Promise.all(
         documentQueries.map(async (item) => {
-          const source = sourceDataMap.get(item.sourceId);
-          const { content } = await FileExtractor.extractText(source.path);
+          let answer: string = '';
+          try {
+            const source = sourceDataMap.get(item.sourceId);
+            const { content } = await FileExtractor.extractText(source.path);
 
-          const sourceExpertAgent = new Agent({
-            name: 'documentExpertAgent',
-            instructions: getSourceQuerySystemPrompt(content),
-            model: openAICompatibleModel(),
-          });
+            const documentExpertAgent = mastra.getAgent('documentExpertAgent');
 
+            const runtimeContext =
+              createRuntimeContext<DocumentExpertAgentRuntimeContext>();
+
+            runtimeContext.set('documentContent', content);
+
+            const res = await documentExpertAgent.generate(item.query, {
+              abortSignal: options?.abortSignal,
+              runtimeContext,
+            });
+            const { success, reason } = judgeFinishReason(res.finishReason);
+            if (!success) {
+              throw new Error(reason);
+            }
+            answer = res.text;
+          } catch (error) {
+            answer = `error occured while processing the query: ${error instanceof Error ? `: ${error.message}` : JSON.stringify(error)}`;
+          }
           return {
             sourceId: item.sourceId,
             path: item.path,
             query: item.query,
-            answer: (
-              await sourceExpertAgent.generate(item.query, {
-                abortSignal: options?.abortSignal,
-              })
-            ).text,
+            answer,
           };
         }),
       );

@@ -26,6 +26,20 @@ const configuration: webpack.Configuration = {
   externals: ['fsevents', 'crypto-browserify'],
 
   /**
+   * ここで Node.js の内部モジュールを空（false）でフォールバックさせる
+   * rendererプロセスの開発環境では、mainプロセス側でのみ利用するパッケージもバンドルしてしまうため
+   * renderer側で利用しないのであれば空にして問題ない
+   */
+  resolve: {
+    fallback: {
+      _http_common: false,
+      // 必要なら他の内部モジュールも同様に設定
+      // http: false,
+      // https: false,
+    },
+  },
+
+  /**
    * Use `module` from `webpack.config.renderer.dev.js`
    */
   module: require('./webpack.config.renderer.dev').default.module,

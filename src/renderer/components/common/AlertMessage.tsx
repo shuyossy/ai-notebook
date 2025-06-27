@@ -1,6 +1,6 @@
 import React, { memo } from 'react';
 import { Box, Alert } from '@mui/material';
-import { useAgentStore } from '../../stores/agentStore';
+import { useSettingsZustandStore } from '../../stores/settingsZustandStore';
 
 export interface AlertMessage {
   id: string;
@@ -20,7 +20,7 @@ const AlertManager: React.FC<AlertManagerProps> = memo(
     closeAdditionalAlerts,
     position = 'top',
   }: AlertManagerProps) => {
-    const { status, closeMessage } = useAgentStore();
+    const { status, closeMessage } = useSettingsZustandStore();
 
     return (
       <Box

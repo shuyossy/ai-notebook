@@ -283,7 +283,7 @@ describe('ChatArea Component', () => {
 
     // ガイダンステキストが表示されることを確認
     expect(
-      screen.getByText('チャットルームを選択してください'),
+      screen.getByText('新規チャットを開始または既存のチャットを選択してください'),
     ).toBeInTheDocument();
   });
 
@@ -437,7 +437,7 @@ describe('ChatArea Component', () => {
   test('エージェント起動関連エラーの表示が正しいこと', async () => {
     window.electron = createMockElectronWithOptions({
       chatRooms: mockChatRooms,
-      agentStatus: {
+      settingsStatus: {
         state: 'error',
         messages: [
           {
@@ -583,7 +583,7 @@ describe('ChatArea Component', () => {
     const user = userEvent.setup();
     window.electron = createMockElectronWithOptions({
       chatRooms: mockChatRooms,
-      agentStatus: {
+      settingsStatus: {
         state: 'error',
         messages: [
           {
@@ -615,16 +615,16 @@ describe('ChatArea Component', () => {
       await user.click(closeButton);
     });
 
-    // window.electron.agent.removeMessageが呼ばれることを確認
-    expect(window.electron.agent.removeMessage).toHaveBeenCalledWith('1');
+    // window.electron.settings.removeMessageが呼ばれることを確認
+    expect(window.electron.settings.removeMessage).toHaveBeenCalledWith('1');
   });
 
   // テスト11: エージェント初期化中の表示が正しいこと
   test('エージェント初期化中の表示が正しいこと', async () => {
     window.electron = createMockElectronWithOptions({
       chatRooms: mockChatRooms,
-      agentStatus: {
-        state: 'initializing',
+      settingsStatus: {
+        state: 'saving',
       },
     });
 

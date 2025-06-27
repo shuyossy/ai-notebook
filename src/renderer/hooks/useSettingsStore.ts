@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { z } from 'zod';
 import type { StoreSchema as Settings } from '../../main/store';
 import {
@@ -7,7 +7,7 @@ import {
   type ValidationError,
 } from '../../main/types/settingsSchema';
 import { useElectronStore } from './useElectronStore';
-import { useAgentStore } from '../stores/agentStore';
+import { useSettingsZustandStore } from '../stores/settingsZustandStore';
 
 /**
  * 設定値の型安全な管理と検証を行うフック
@@ -101,7 +101,7 @@ const useSettingsStore = () => {
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { setUpdatedFlg } = useAgentStore();
+  const { setUpdatedFlg } = useSettingsZustandStore();
 
   /**
    * バリデーションエラーの種類を判定
@@ -294,9 +294,9 @@ const useSettingsStore = () => {
 
       // 必要な場合のみMastraを再初期化
       // if (requiresReinitialization) {
-      //   await window.electron.agent.reinitialize();
+      //   await window.electron.settings.reinitialize();
       // }
-      await window.electron.agent.reinitialize();
+      await window.electron.settings.reinitialize();
       setUpdatedFlg(true);
 
       // 新しい設定を元の設定として保存

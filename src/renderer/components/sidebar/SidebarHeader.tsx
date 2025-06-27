@@ -13,7 +13,7 @@ import ChatOutlinedIcon from '@mui/icons-material/ChatOutlined';
 import ChecklistOutlinedIcon from '@mui/icons-material/ChecklistOutlined';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ROUTES } from '../../../main/types';
-import useAgentStatus from '../../hooks/useAgentStatus';
+import useSettingsStatus from '../../hooks/useSettingsStatus';
 
 interface SidebarHeaderProps {}
 
@@ -27,7 +27,7 @@ const FEATURES = [
 ] as const;
 
 const SidebarHeader: React.FC<SidebarHeaderProps> = () => {
-  const { status } = useAgentStatus();
+  const { status } = useSettingsStatus();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -53,7 +53,7 @@ const SidebarHeader: React.FC<SidebarHeaderProps> = () => {
             value={getCurrentFeature()}
             onChange={handleFeatureChange}
             displayEmpty
-            disabled={status.state !== 'ready'}
+            disabled={status.state === 'saving'}
             input={
               <InputBase
                 sx={{ '&:before, &:after': { borderBottom: 'none' } }}

@@ -15,6 +15,8 @@ import SourceListModal from '../../renderer/components/common/SourceListModal';
 import type { Source } from '../../db/schema';
 import { ProcessStatus } from '../../main/types';
 import { createMockElectronWithOptions } from '../../__tests__/test-utils/mockElectronHandler';
+import { kMaxLength } from 'buffer';
+import { truncate } from 'node:original-fs';
 
 // テスト用のモックデータ
 const mockSources: Source[] = [
@@ -128,7 +130,7 @@ describe('SourceListModal Component', () => {
     // 全選択チェックボックスをスキップして、各ソースのチェックボックスを確認
     expect(checkboxes[1]).toBeChecked(); // source1 (isEnabled: 1)
     expect(checkboxes[2]).not.toBeChecked(); // source2 (isEnabled: 0)
-    expect(checkboxes[3]).toBeChecked(); // source3 (isEnabled: 1)
+    expect(checkboxes[3]).not.toBeChecked(); // source3 (isEnabled: 1) completedでない場合はチェックされない
   });
 
   // テスト2: ソースのリロードボタンが機能すること
@@ -372,14 +374,15 @@ describe('SourceListModal Component', () => {
         'ソース状態の更新に失敗しました:',
         expect.any(Error),
       );
-      expect(consoleSpy).toHaveBeenCalledTimes(mockSources.length);
+      expect(consoleSpy).toHaveBeenCalledTimes(1);
     });
 
     // チェックボックスが再度有効化されることを確認
     await waitFor(() => {
-      for (const checkbox of sourceCheckboxes) {
-        expect(checkbox).toBeEnabled();
-      }
+      expect(sourceCheckboxes[0]).toBeEnabled(); // source1 (isEnabled: 1)
+      expect(sourceCheckboxes[1]).toBeEnabled(); // source1 (isEnabled: 1)
+      expect(sourceCheckboxes[2]).toBeDisabled(); // source2 (isEnabled: 0)
+      expect(sourceCheckboxes[3]).toBeDisabled(); // source3 (isEnabled: 1) completedでない場合はチェックされない
     });
 
     consoleSpy.mockRestore();
@@ -422,11 +425,6 @@ describe('SourceListModal Component', () => {
     const checkboxes = screen.getAllByRole('checkbox');
     const allCheckbox = checkboxes[0]; // 全選択チェックボックス
 
-    // クリック前の状態を確保（一つでもチェックが外れているか）
-    const someUnchecked = Array.from(checkboxes)
-      .slice(1)
-      .some((cb) => !(cb as HTMLInputElement).checked);
-
     // クリックしてチェックボックスが無効化されることを確認
     fireEvent.click(allCheckbox);
     expect(allCheckbox).toBeDisabled();
@@ -436,20 +434,35 @@ describe('SourceListModal Component', () => {
       expect(checkbox).toBeDisabled();
     }
 
-    // 各ソースのupdateSourceEnabledが呼ばれることを確認
-    mockSources.forEach((source) => {
-      expect(window.electron.source.updateSourceEnabled).toHaveBeenCalledWith(
-        source.id,
-        someUnchecked, // 一つでもチェックが外れていれば true (全選択)
-      );
-    });
+    // id:1が無効化される（statusがcompletedのみが対象となり、今回はid:1のみ有効から無効になる）
+    expect(window.electron.source.updateSourceEnabled).toHaveBeenCalledWith(
+      1,
+      false,
+    );
+    expect(window.electron.source.updateSourceEnabled).not.toHaveBeenCalledWith(
+      2,
+      true,
+    );
+    expect(window.electron.source.updateSourceEnabled).not.toHaveBeenCalledWith(
+      3,
+      true,
+    );
+    expect(window.electron.source.updateSourceEnabled).not.toHaveBeenCalledWith(
+      2,
+      false,
+    );
+    expect(window.electron.source.updateSourceEnabled).not.toHaveBeenCalledWith(
+      3,
+      false,
+    );
 
     // 処理完了後にチェックボックスが再度有効化されることを確認
+    // チェックボックスが再度有効化されることを確認
     await waitFor(() => {
-      expect(allCheckbox).toBeEnabled();
-      checkboxes.slice(1).forEach((checkbox) => {
-        expect(checkbox).toBeEnabled();
-      });
+      expect(checkboxes[0]).toBeEnabled(); // source1 (isEnabled: 1)
+      expect(checkboxes[1]).toBeEnabled(); // source1 (isEnabled: 1)
+      expect(checkboxes[2]).toBeDisabled(); // source2 (isEnabled: 0)
+      expect(checkboxes[3]).toBeDisabled(); // source3 (isEnabled: 1) completedでない場合はチェックされない
     });
   });
 
@@ -559,11 +572,11 @@ describe('SourceListModal Component', () => {
         `${mockSources[0].path}の有効化/無効化に失敗しました: Update failed`,
         'error',
       );
-      expect(props.showSnackbar).toHaveBeenCalledWith(
+      expect(props.showSnackbar).not.toHaveBeenCalledWith(
         `${mockSources[1].path}の有効化/無効化に失敗しました: Update failed`,
         'error',
       );
-      expect(props.showSnackbar).toHaveBeenCalledWith(
+      expect(props.showSnackbar).not.toHaveBeenCalledWith(
         `${mockSources[2].path}の有効化/無効化に失敗しました: Update failed`,
         'error',
       );
@@ -571,7 +584,7 @@ describe('SourceListModal Component', () => {
 
     // チェックボックスの状態が元に戻ることを確認
     await waitFor(() => {
-      expect(checkboxes[1]).not.toBeChecked();
+      expect(checkboxes[1]).toBeChecked();
       expect(checkboxes[2]).not.toBeChecked();
       expect(checkboxes[3]).not.toBeChecked();
     });

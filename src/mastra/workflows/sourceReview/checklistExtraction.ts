@@ -1,16 +1,16 @@
+/* eslint-disable prefer-template */
 import { APICallError, NoObjectGeneratedError } from 'ai';
-import { Step, Workflow } from '@mastra/core/workflows';
+import { createStep, createWorkflow } from '@mastra/core/workflows';
 import { z } from 'zod';
-import { Agent } from '@mastra/core/agent';
 import path from 'path';
 import { getReviewRepository } from '../../../db/repository/reviewRepository';
 import { getSourceRepository } from '../../../db/repository/sourceRepository';
-import { getChecklistExtractionPrompt } from '../../agents/prompts';
 import { Source } from '../../../db/schema';
 import FileExtractor from '../../../main/utils/fileExtractor';
 import { baseStepOutputSchema } from '../schema';
 import { stepStatus } from '../types';
-import openAICompatibleModel from '../../agents/model/openAICompatible';
+import { ChecklistExtractionAgentRuntimeContext } from '../../agents/workflowAgents';
+import { createRuntimeContext, judgeFinishReason } from '../../agents/lib';
 
 // ワークフローの入力スキーマ
 const triggerSchema = z.object({
@@ -20,18 +20,17 @@ const triggerSchema = z.object({
     .describe('チェックリストを抽出するソースのIDリスト'),
 });
 
-const checklistExtractionStep = new Step({
+const checklistExtractionStep = createStep({
   id: 'checklistExtractionStep',
   description: '各ソースからチェックリストを抽出するステップ',
+  inputSchema: triggerSchema,
   outputSchema: baseStepOutputSchema,
-  execute: async ({ context }) => {
+  execute: async ({ inputData, mastra }) => {
     // レビュー用のリポジトリを取得
     const reviewRepository = getReviewRepository();
     const sourceRepository = getSourceRepository();
     // トリガーから入力を取得
-    const { reviewHistoryId, sourceIds } = context.triggerData as z.infer<
-      typeof triggerSchema
-    >;
+    const { reviewHistoryId, sourceIds } = inputData;
     const errorMessages: string[] = [
       'チェックリスト抽出処理で以下エラーが発生しました',
     ];
@@ -53,11 +52,9 @@ const checklistExtractionStep = new Step({
           // ファイル内容を抽出
           const { content } = await FileExtractor.extractText(source.path);
 
-          const checklistExtractionAgent = new Agent({
-            name: 'checklistExtractionAgent',
-            instructions: '',
-            model: openAICompatibleModel(),
-          });
+          const checklistExtractionAgent = mastra.getAgent(
+            'checklistExtractionAgent',
+          );
           const outputSchema = z.object({
             isChecklistDocument: z
               .boolean()
@@ -76,11 +73,15 @@ const checklistExtractionStep = new Step({
 
           while (attempts < MAX_ATTEMPTS) {
             let isCompleted = true;
+            const runtimeContext =
+              createRuntimeContext<ChecklistExtractionAgentRuntimeContext>();
+            // これまでに抽出したチェックリスト項目
+            runtimeContext.set('extractedItems', accumulated);
             const extractionResult = await checklistExtractionAgent.generate(
               content,
               {
                 output: outputSchema,
-                instructions: getChecklistExtractionPrompt(accumulated),
+                runtimeContext,
                 // AIの限界生成トークン数を超えた場合のエラーを回避するための設定
                 experimental_repairText: async (options) => {
                   isCompleted = false;
@@ -111,6 +112,9 @@ const checklistExtractionStep = new Step({
                     }
                     repairedText = JSON.stringify(parsedJson);
                   } catch (error) {
+                    console.error(
+                      `チェックリスト抽出の修正に失敗しました: ${error}`,
+                    );
                     throw new Error(
                       'チェックリストの抽出結果がAIモデルの最大出力トークン数を超え、不正な出力となった為修正を試みましたが失敗しました。抽出結果が最大出力トークン内に収まるようにチェックリストのファイル分割を検討してください。',
                     );
@@ -119,6 +123,12 @@ const checklistExtractionStep = new Step({
                 },
               },
             );
+            const { success, reason } = judgeFinishReason(
+              extractionResult.finishReason,
+            );
+            if (!success) {
+              throw new Error(reason);
+            }
 
             if (!extractionResult.object.isChecklistDocument) {
               throw new Error(
@@ -220,11 +230,11 @@ const checklistExtractionStep = new Step({
 /**
  * 各ソースからチェックリストを抽出するワークフロー
  */
-export const checklistExtractionWorkflow = new Workflow({
-  name: 'checklistExtractionWorkflow',
-  triggerSchema,
-});
-
-// ワークフローを構築
-// eslint-disable-next-line
-checklistExtractionWorkflow.step(checklistExtractionStep).commit();
+export const checklistExtractionWorkflow = createWorkflow({
+  id: 'checklistExtractionWorkflow',
+  inputSchema: triggerSchema,
+  outputSchema: baseStepOutputSchema,
+  steps: [checklistExtractionStep],
+})
+  .then(checklistExtractionStep)
+  .commit();

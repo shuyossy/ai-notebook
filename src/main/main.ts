@@ -13,8 +13,6 @@ import fs from 'fs/promises';
 import { app, BrowserWindow, shell, ipcMain, crashReporter } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import log from 'electron-log';
-import { Mastra } from '@mastra/core';
-import { createLogger } from '@mastra/core/logger';
 import {
   createDataStream,
   CoreUserMessage,
@@ -27,27 +25,24 @@ import {
   WritableStream,
   TransformStream,
 } from 'node:stream/web';
-import { sourceRegistrationWorkflow } from '../mastra/workflows/sourceRegistration';
-import { checklistExtractionWorkflow } from '../mastra/workflows/sourceReview/checklistExtraction';
-import { reviewExecutionWorkflow } from '../mastra/workflows/sourceReview/reviewExecution';
+import { getStore } from './store';
 import type { Source } from '../db/schema';
 import {
   IpcChannels,
   IpcResponsePayloadMap,
   IpcRequestPayloadMap,
 } from './types/ipc';
-import { AgentBootStatus, AgentBootMessage, AgentToolStatus } from './types';
-import { getOrchestratorSystemPrompt } from '../mastra/agents/prompts';
 import { sources } from '../db/schema';
 import getDb from '../db';
 import SourceRegistrationManager from '../mastra/workflows/sourceRegistrationManager';
 import SourceReviewManager from '../mastra/workflows/sourceReview/sourceReviewManager';
-import { getOrchestrator } from '../mastra/agents/orchestrator';
 import MenuBuilder from './menu';
 import { resolveHtmlPath } from './utils/util';
-import { initStore, getStore } from './store';
-import { RedmineBaseInfo } from '../mastra/tools/redmine';
-import { ReviewService } from './service/review/reviewService';
+import { ReviewService } from './service/reviewService';
+import { SettingsService } from './service/settingsService';
+import { ChatService } from './service/chatService';
+import { mastra } from '../mastra';
+import { judgeFinishReason } from '../mastra/agents/lib';
 
 class AppUpdater {
   constructor() {
@@ -63,120 +58,29 @@ class AppUpdater {
 (globalThis as any).WritableStream = WritableStream;
 (globalThis as any).TransformStream = TransformStream;
 
-// Mastraのインスタンスと状態を保持する変数
-let mastraInstance: Mastra | null = null;
-// スレッドごとのAbortControllerを管理するMap
-const threadAbortControllers = new Map<string, AbortController>();
-const mastraStatus: AgentBootStatus = {
-  state: 'initializing',
-  messages: [],
-  tools: {
-    document: false,
-    redmine: false,
-    gitlab: false,
-    mcp: false,
-  },
-};
-// Redmineの基本情報を保持する変数
-let redmineBaseInfo: RedmineBaseInfo | null = null;
+// ユーザは利用者のみなのでIDは固定
+const userId = 'user';
+
+const settingsService = new SettingsService();
+
+const MastraMemory = mastra.getAgent('orchestrator').getMemory();
+if (!MastraMemory) {
+  throw new Error('メモリが初期化されていません');
+}
+const chatService = new ChatService(MastraMemory);
+
+const reviewService = new ReviewService();
 
 /**
- * Mastraの状態を変更し、レンダラーに通知する
+ * 設定の初期化を行う関数
  */
-const updateMastraStatus = (
-  newState: AgentBootStatus['state'],
-  message?: AgentBootMessage,
-  tools?: AgentToolStatus,
-) => {
-  mastraStatus.state = newState;
-
-  if (message) {
-    const newMessage: AgentBootMessage = {
-      id: crypto.randomUUID(),
-      type: message.type,
-      content: message.content,
-    };
-    mastraStatus.messages?.push(newMessage);
-  }
-
-  if (tools) {
-    mastraStatus.tools = tools;
-  }
-};
-
-const initMastraStatus = () => {
-  mastraStatus.state = 'initializing';
-  mastraStatus.messages = [];
-};
-
-/**
- * メッセージIDを指定して削除する
- */
-const removeMessage = (messageId: string) => {
-  mastraStatus.messages = mastraStatus.messages?.filter(
-    (msg) => msg.id !== messageId,
-  );
-};
-
-/**
- * Mastraインスタンスを取得する関数
- * @returns Mastraインスタンス
- */
-export const getMastra = (): Mastra => {
-  if (!mastraInstance) {
-    throw new Error('Mastraインスタンスが初期化されていません');
-  }
-  return mastraInstance;
-};
-
-/**
- * Mastraの初期化を行う関数
- * 環境に応じたログレベルを設定し、オーケストレーターエージェントを登録する
- */
-const initializeMastra = async (): Promise<void> => {
+const initializeSettings = async (): Promise<void> => {
   try {
-    initMastraStatus();
-
-    // 開発環境か本番環境かによってログレベルを切り替え
-    const logLevel = process.env.NODE_ENV === 'production' ? 'info' : 'debug';
-
-    // ロガーの作成
-    const logger = createLogger({
-      name: 'MyPedia',
-      level: logLevel,
-    });
-
-    // オーケストレーターエージェントを取得
-    const { agent, alertMessages, toolStatus, redmineInfo } =
-      await getOrchestrator();
-
-    // Redmineの基本情報を保存
-    redmineBaseInfo = redmineInfo;
-
-    // 起動メッセージを更新
-    alertMessages.forEach((message) => {
-      mastraStatus.messages?.push(message);
-    });
-
-    if (!agent) {
-      throw new Error('オーケストレーターエージェントの取得に失敗しました');
-    }
-
-    // Mastraインスタンスを初期化
-    mastraInstance = new Mastra({
-      agents: { orchestratorAgent: agent },
-      workflows: {
-        sourceRegistrationWorkflow,
-        checklistExtractionWorkflow,
-        reviewExecutionWorkflow,
-      },
-      logger,
-    });
-
-    console.log('Mastraインスタンスの初期化が完了しました');
-    updateMastraStatus('ready', undefined, toolStatus);
+    // 設定の初期化
+    await settingsService.initializeSettings();
+    console.log('設定の初期化が完了しました');
   } catch (error) {
-    console.error('Mastraの初期化に失敗しました:', error);
+    console.error('設定の初期化に失敗しました:', error);
   }
 };
 
@@ -212,26 +116,26 @@ const setupStoreHandlers = () => {
 };
 
 /**
- * Mastraの状態を取得するIPCハンドラ
+ * 設定状態を取得するIPCハンドラ
  */
-// Mastraの状態取得ハンドラ
+// 設定状態取得ハンドラ
 ipcMain.handle(
-  IpcChannels.GET_AGENT_STATUS,
-  (): IpcResponsePayloadMap[typeof IpcChannels.GET_AGENT_STATUS] =>
-    mastraStatus,
+  IpcChannels.GET_SETTINGS_STATUS,
+  (): IpcResponsePayloadMap[typeof IpcChannels.GET_SETTINGS_STATUS] =>
+    settingsService.getStatus(),
 );
 
 // メッセージ削除ハンドラ
 ipcMain.handle(
-  IpcChannels.REMOVE_AGENT_MESSAGE,
+  IpcChannels.REMOVE_SETTINGS_MESSAGE,
   (
     _,
     messageId: string,
-  ): IpcResponsePayloadMap[typeof IpcChannels.REMOVE_AGENT_MESSAGE] => {
+  ): IpcResponsePayloadMap[typeof IpcChannels.REMOVE_SETTINGS_MESSAGE] => {
     let success = false;
     let error: string | undefined;
     try {
-      removeMessage(messageId);
+      settingsService.removeMessage(messageId);
       success = true;
     } catch (err) {
       success = false;
@@ -241,15 +145,15 @@ ipcMain.handle(
   },
 );
 
-// Mastraの設定更新ハンドラ
+// 設定更新ハンドラ
 ipcMain.handle(
-  IpcChannels.REINITIALIZE_AGENT,
+  IpcChannels.REINITIALIZE_SETTINGS,
   async (): Promise<
-    IpcResponsePayloadMap[typeof IpcChannels.REINITIALIZE_AGENT]
+    IpcResponsePayloadMap[typeof IpcChannels.REINITIALIZE_SETTINGS]
   > => {
     try {
-      // 設定変更時はエージェントのみ再初期化
-      await initializeMastra();
+      // 設定変更時はツールを初期化
+      await settingsService.initializeSettings();
       return { success: true };
     } catch (error) {
       return {
@@ -274,13 +178,11 @@ const setupChatHandlers = () => {
       let success = false;
       let error: string | undefined;
       try {
-        const controller = threadAbortControllers.get(threadId);
-        if (controller) {
-          controller.abort();
-          threadAbortControllers.delete(threadId);
-          console.log(`Thread ${threadId} の生成を中断しました`);
-          success = true;
-        }
+        const controller = chatService.getOrCreateAbortController(threadId);
+        controller.abort();
+        chatService.deleteAbortController(threadId);
+        console.log(`Thread ${threadId} の生成を中断しました`);
+        success = true;
       } catch (err) {
         console.error('スレッドの中断中にエラーが発生:', err);
         success = false;
@@ -302,74 +204,11 @@ const setupChatHandlers = () => {
       }: IpcRequestPayloadMap[typeof IpcChannels.CHAT_EDIT_HISTORY],
     ): Promise<IpcResponsePayloadMap[typeof IpcChannels.CHAT_EDIT_HISTORY]> => {
       try {
-        const mastra = getMastra();
-        const orchestratorAgent = mastra.getAgent('orchestratorAgent');
-        const memory = orchestratorAgent.getMemory();
-
+        const memory = mastra.getAgent('orchestrator').getMemory();
         if (!memory) {
           throw new Error('メモリインスタンスが初期化されていません');
         }
-
-        // メッセージ履歴を取得
-        const messages = await memory.storage.getMessages({
-          threadId,
-        });
-
-        // oldContentと一致するメッセージのリストを取得
-        const targetMessages = messages.filter((msg) => {
-          if (msg.role !== 'user') {
-            return false; // ユーザーメッセージのみを対象とする
-          }
-          if (typeof msg.content === 'string') {
-            return msg.content === oldContent; // 文字列の場合は直接比較
-          }
-          return (
-            // textパートは一つのみのはずなので、最初のtextパートを取得して比較
-            msg.content.filter((c) => c.type === 'text')[0].text === oldContent
-          );
-        });
-
-        if (targetMessages.length === 0) {
-          throw new Error('指定されたメッセージが見つかりません');
-        }
-
-        // 取得したメッセージリストからoldCreatedAtと最も近いメッセージを検索
-        const targetMessage = targetMessages.reduce((closest, current) => {
-          const currentDate = new Date(current.createdAt);
-          const closestDate = new Date(closest.createdAt);
-          return Math.abs(currentDate.getTime() - oldCreatedAt.getTime()) <
-            Math.abs(closestDate.getTime() - oldCreatedAt.getTime())
-            ? current
-            : closest;
-        });
-
-        // messageIdに対応するメッセージを検索
-        const targetMessageIndex = messages.findIndex(
-          (msg) => msg.id === targetMessage.id,
-        );
-        if (targetMessageIndex === -1) {
-          throw new Error(`メッセージID ${targetMessage.id} が見つかりません`);
-        }
-        // 最初のメッセージからmessageIdに対応するメッセージまでの履歴を取得
-        const history = messages.slice(0, targetMessageIndex);
-        console.log('new history:', history);
-
-        // スレッドを削除
-        await memory.storage.deleteThread({ threadId });
-
-        // スレッドを再作成
-        // await memory.createThread({
-        //   resourceId: 'user',
-        //   title: '',
-        //   threadId,
-        // });
-
-        // 取得した履歴をメモリに保存
-        await memory.saveMessages({
-          messages: history,
-          memoryConfig: undefined,
-        });
-
+        chatService.deleteMessagesAfter(threadId, oldContent, oldCreatedAt);
         return { success: true };
       } catch (error) {
         console.error('メッセージ履歴削除中にエラーが発生:', error);
@@ -390,12 +229,15 @@ const setupChatHandlers = () => {
     ): Promise<IpcResponsePayloadMap[typeof IpcChannels.CHAT_SEND_MESSAGE]> => {
       try {
         // 新しいAbortControllerを作成
-        const controller = new AbortController();
-        threadAbortControllers.set(roomId, controller);
+        const controller = chatService.getOrCreateAbortController(roomId);
 
-        // Mastraインスタンスからオーケストレーターエージェントを取得
-        const mastra = getMastra();
-        const orchestratorAgent = mastra.getAgent('orchestratorAgent');
+        const orchestratorAgent = mastra.getAgent('orchestrator');
+
+        // runtimeContextを作成
+        const runtimeContext = await settingsService.getRuntimeContext();
+
+        // 利用ツールの取得
+        const toolsets = await settingsService.getToolsets();
 
         // メッセージをストリーミングで送信
         // const stream = await orchestratorAgent.stream(content, {
@@ -469,16 +311,9 @@ const setupChatHandlers = () => {
                 } as CoreUserMessage;
               }),
               {
+                runtimeContext,
+                toolsets,
                 resourceId: 'user', // 固定のリソースID
-                instructions: await getOrchestratorSystemPrompt(
-                  mastraStatus.tools ?? {
-                    document: false,
-                    redmine: false,
-                    gitlab: false,
-                    mcp: false,
-                  },
-                  redmineBaseInfo,
-                ),
                 threadId: roomId, // チャットルームIDをスレッドIDとして使用
                 maxSteps: 30, // ツールの利用上限
                 abortSignal: controller.signal, // 中断シグナルを設定
@@ -498,18 +333,23 @@ const setupChatHandlers = () => {
                 },
               },
             );
+            const { success, reason } = judgeFinishReason(res.finishReason);
+            if (!success) {
+              // 正常終了でない場合はエラーを投げる
+              throw new Error(reason);
+            }
             writer.write(
               `d:${JSON.stringify({ finishReason: res.finishReason, ...res.usage })}\n`,
             );
             event.sender.send(IpcChannels.CHAT_COMPLETE);
             // 処理が完了したらAbortControllerを削除
-            threadAbortControllers.delete(roomId);
+            chatService.deleteAbortController(roomId);
           },
           onError(error) {
             // エラーが発生したときの処理
             console.error('テキスト生成中にエラーが発生:', error);
             // エラー時もAbortControllerを削除
-            threadAbortControllers.delete(roomId);
+            chatService.deleteAbortController(roomId);
             let errorDetail: string;
             if (APICallError.isInstance(error)) {
               // APIコールエラーの場合はresponseBodyの内容を取得
@@ -537,7 +377,7 @@ const setupChatHandlers = () => {
       } catch (error) {
         console.error('メッセージ送信中にエラーが発生:', error);
         // エラー時もAbortControllerを削除
-        threadAbortControllers.delete(roomId);
+        chatService.deleteAbortController(roomId);
         event.sender.send(IpcChannels.CHAT_ERROR, {
           message: `${(error as Error).message}`,
         });
@@ -553,22 +393,7 @@ const setupChatHandlers = () => {
       IpcResponsePayloadMap[typeof IpcChannels.CHAT_GET_ROOMS]
     > => {
       try {
-        const mastra = getMastra();
-        // マスターエージェントからメモリを取得（オーケストレーターエージェントを使用）
-        const orchestratorAgent = mastra.getAgent('orchestratorAgent');
-
-        // メモリのスレッド一覧を取得
-        const threads = await orchestratorAgent
-          .getMemory()
-          ?.getThreadsByResourceId({
-            resourceId: 'user',
-          });
-
-        if (!threads) {
-          return [];
-        }
-
-        // スレッドをチャットルーム形式に変換
+        const threads = await chatService.getThreadList(userId);
         return threads;
       } catch (error) {
         console.error('チャットルーム一覧の取得中にエラーが発生:', error);
@@ -585,53 +410,7 @@ const setupChatHandlers = () => {
       threadId: string,
     ): Promise<IpcResponsePayloadMap[typeof IpcChannels.CHAT_GET_MESSAGES]> => {
       try {
-        const mastra = getMastra();
-        const orchestratorAgent = mastra.getAgent('orchestratorAgent');
-
-        // スレッド内のメッセージを取得
-        const result = await orchestratorAgent.getMemory()?.query({ threadId });
-
-        if (!result) {
-          return [];
-        }
-
-        const { uiMessages, messages } = result;
-        // messages内の要素でroleが'user'の場合に、contentのtypeが'image'のものがあれば、画像データを対応するuiMessagesにも付与する
-        messages.forEach((message) => {
-          if (message.role === 'user' && typeof message.content !== 'string') {
-            const imageAttachments = message.content
-              .filter(
-                (part) =>
-                  part.type === 'image' && typeof part.image === 'string',
-              )
-              .map((part) => {
-                return {
-                  // @ts-ignore partはImagePart型であることが保証されている
-                  url: part.image,
-                  // @ts-ignore partはImagePart型であることが保証されている
-                  contentType: part.mimeType,
-                };
-              });
-            if (imageAttachments.length > 0) {
-              // uiMessagesの対応するメッセージに画像データを追加
-              const uiMessage = uiMessages.find(
-                // @ts-ignore CoreMessageもダンプしてみるとidが存在する
-                (uiMsg) => uiMsg.id === message.id,
-              );
-              if (uiMessage) {
-                uiMessage.experimental_attachments = imageAttachments;
-              } else {
-                console.warn(
-                  // @ts-ignore
-                  `対応するUIメッセージが見つかりません: ${message.id}`,
-                );
-              }
-            }
-          }
-        });
-
-        // メッセージをチャットメッセージ形式に変換
-        return uiMessages;
+        return chatService.getThreadMessages(threadId);
       } catch (error) {
         console.error('チャットメッセージの取得中にエラーが発生:', error);
         return [];
@@ -647,11 +426,7 @@ const setupChatHandlers = () => {
       threadId: string,
     ): Promise<IpcResponsePayloadMap[typeof IpcChannels.CHAT_DELETE_ROOM]> => {
       try {
-        const mastra = getMastra();
-        const orchestratorAgent = mastra.getAgent('orchestratorAgent');
-
-        // スレッドを削除
-        await orchestratorAgent.getMemory()?.deleteThread(threadId);
+        await chatService.deleteThread(threadId);
 
         return { success: true };
       } catch (error) {
@@ -671,18 +446,7 @@ const setupChatHandlers = () => {
       IpcResponsePayloadMap[typeof IpcChannels.CHAT_CREATE_THREAD]
     > => {
       try {
-        const mastra = getMastra();
-        const orchestratorAgent = mastra.getAgent('orchestratorAgent');
-        const memory = orchestratorAgent.getMemory();
-
-        if (!memory) {
-          throw new Error('メモリインスタンスが初期化されていません');
-        }
-        await memory.createThread({
-          resourceId: 'user',
-          title,
-          threadId: roomId,
-        });
+        await chatService.createThread(roomId, title, userId);
 
         return { success: true };
       } catch (error) {
@@ -794,8 +558,7 @@ const setupReviewHandlers = () => {
       IpcResponsePayloadMap[typeof IpcChannels.REVIEW_GET_HISTORIES]
     > => {
       try {
-        const service = ReviewService.getInstance();
-        const histories = await service.getReviewHistories();
+        const histories = await reviewService.getReviewHistories();
 
         return {
           success: true,
@@ -821,9 +584,8 @@ const setupReviewHandlers = () => {
       IpcResponsePayloadMap[typeof IpcChannels.REVIEW_GET_HISTORY_DETAIL]
     > => {
       try {
-        const service = ReviewService.getInstance();
         const checklistResults =
-          await service.getReviewHistoryDetail(historyId);
+          await reviewService.getReviewHistoryDetail(historyId);
 
         return {
           success: true,
@@ -849,8 +611,7 @@ const setupReviewHandlers = () => {
       IpcResponsePayloadMap[typeof IpcChannels.REVIEW_DELETE_HISTORY]
     > => {
       try {
-        const service = ReviewService.getInstance();
-        await service.deleteReviewHistory(historyId);
+        await reviewService.deleteReviewHistory(historyId);
 
         return { success: true };
       } catch (error) {
@@ -909,8 +670,7 @@ const setupReviewHandlers = () => {
       IpcResponsePayloadMap[typeof IpcChannels.REVIEW_UPDATE_CHECKLIST]
     > => {
       try {
-        const service = ReviewService.getInstance();
-        const result = await service.updateChecklists(
+        const result = await reviewService.updateChecklists(
           reviewHistoryId,
           checklistEdits,
         );
@@ -1084,8 +844,7 @@ crashReporter.start({
 
 const initialize = async () => {
   createWindow();
-  await initStore();
-  await initializeMastra(); // Mastraの初期化を追加
+  await initializeSettings();
   setupStoreHandlers();
   setupChatHandlers();
   setupFsHandlers();

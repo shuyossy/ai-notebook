@@ -11,24 +11,26 @@ import {
 export type Channels = (typeof IpcChannels)[keyof typeof IpcChannels];
 
 const electronHandler = {
-  agent: {
-    // Mastraの状態を取得する
+  settings: {
+    // 設定の状態を取得する
     getStatus: (): Promise<
-      IpcResponsePayload<typeof IpcChannels.GET_AGENT_STATUS>
+      IpcResponsePayload<typeof IpcChannels.GET_SETTINGS_STATUS>
     > => {
-      return ipcRenderer.invoke(IpcChannels.GET_AGENT_STATUS);
+      return ipcRenderer.invoke(IpcChannels.GET_SETTINGS_STATUS);
     },
-    // Mastraを再初期化する
+    // 設定を再初期化する
     reinitialize: async (): Promise<
-      IpcResponsePayload<typeof IpcChannels.REINITIALIZE_AGENT>
+      IpcResponsePayload<typeof IpcChannels.REINITIALIZE_SETTINGS>
     > => {
-      return ipcRenderer.invoke(IpcChannels.REINITIALIZE_AGENT);
+      return ipcRenderer.invoke(IpcChannels.REINITIALIZE_SETTINGS);
     },
-    // Mastraのメッセージを削除する
+    // 設定のメッセージを削除する
     removeMessage: async (
       messageId: string,
-    ): Promise<IpcResponsePayload<typeof IpcChannels.REINITIALIZE_AGENT>> => {
-      return ipcRenderer.invoke(IpcChannels.REMOVE_AGENT_MESSAGE, messageId);
+    ): Promise<
+      IpcResponsePayload<typeof IpcChannels.REINITIALIZE_SETTINGS>
+    > => {
+      return ipcRenderer.invoke(IpcChannels.REMOVE_SETTINGS_MESSAGE, messageId);
     },
   },
   fs: {

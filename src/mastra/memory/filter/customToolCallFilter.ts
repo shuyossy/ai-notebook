@@ -10,7 +10,7 @@ import { MemoryProcessor } from '@mastra/core';
  * By default (with no arguments), excludes all tool calls and their results.
  * Can be configured to exclude only specific tools by name.
  */
-export class customToolCallFilter extends MemoryProcessor {
+export class CustomToolCallFilter extends MemoryProcessor {
   private exclude: string[] | 'all';
 
   /**

@@ -1,7 +1,7 @@
 import type {
   ChatMessage,
   ChatRoom,
-  AgentBootStatus,
+  SettingsSavingStatus,
   ReviewChecklistResult,
   ReviewChecklistEdit,
 } from '.';
@@ -12,10 +12,10 @@ import type { Source, ReviewHistory } from '../../db/schema';
  */
 export const IpcChannels = {
   // Agent関連
-  GET_AGENT_STATUS: 'get-agent-status',
-  AGENT_STATUS_CHANGED: 'agent-status-changed',
-  REINITIALIZE_AGENT: 'reinitialize-agent',
-  REMOVE_AGENT_MESSAGE: 'remove-agent-message',
+  GET_SETTINGS_STATUS: 'get-settings-status',
+  SETTINGS_STATUS_CHANGED: 'settings-status-changed',
+  REINITIALIZE_SETTINGS: 'reinitialize-settings',
+  REMOVE_SETTINGS_MESSAGE: 'remove-settings-message',
 
   // ストア関連
   GET_STORE_VALUE: 'get-store-value',
@@ -61,8 +61,8 @@ export type IpcChannel = (typeof IpcChannels)[keyof typeof IpcChannels];
  */
 export type IpcRequestPayloadMap = {
   // Mastra関連
-  [IpcChannels.REINITIALIZE_AGENT]: undefined;
-  [IpcChannels.REMOVE_AGENT_MESSAGE]: string; // message id
+  [IpcChannels.REINITIALIZE_SETTINGS]: undefined;
+  [IpcChannels.REMOVE_SETTINGS_MESSAGE]: string; // message id
 
   // ファイルシステム関連
   [IpcChannels.FS_CHECK_PATH_EXISTS]: string;
@@ -112,9 +112,9 @@ export type IpcRequestPayloadMap = {
 
 export type IpcResponsePayloadMap = {
   // Mastra関連
-  [IpcChannels.GET_AGENT_STATUS]: AgentBootStatus;
-  [IpcChannels.REINITIALIZE_AGENT]: { success: boolean; error?: string };
-  [IpcChannels.REMOVE_AGENT_MESSAGE]: { success: boolean; error?: string };
+  [IpcChannels.GET_SETTINGS_STATUS]: SettingsSavingStatus;
+  [IpcChannels.REINITIALIZE_SETTINGS]: { success: boolean; error?: string };
+  [IpcChannels.REMOVE_SETTINGS_MESSAGE]: { success: boolean; error?: string };
 
   // ファイルシステム関連
   [IpcChannels.FS_CHECK_PATH_EXISTS]: boolean;

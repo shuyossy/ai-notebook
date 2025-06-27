@@ -1,5 +1,7 @@
 import path, { join } from 'path';
 import { app } from 'electron';
+// @ts-ignore
+import Store from 'electron-store';
 // 設定の型定義
 export interface StoreSchema {
   database: {
@@ -151,32 +153,14 @@ const defaults: StoreSchema = {
   },
 };
 
-// ストアのインスタンスを作成する関数
-export async function createStore() {
-  const Store = (await import('electron-store')).default;
-  const store = new Store<StoreSchema>({
-    schema,
-    defaults,
-    // アプリのユーザーデータディレクトリ内のconfigフォルダに保存
-    // cwd: path.join(app.getPath('userData'), 'config'),
-    cwd: getConfigDir(),
-  });
-
-  console.log('storeのインスタンス化に成功しました: ', store.store);
-
-  return store;
-}
-
 // グローバルなストアインスタンス
-let store: Awaited<ReturnType<typeof createStore>>;
-
-// ストアを初期化する関数
-export async function initStore() {
-  if (!store) {
-    store = await createStore();
-  }
-  return store;
-}
+const store = new Store<StoreSchema>({
+  schema,
+  defaults,
+  // アプリのユーザーデータディレクトリ内のconfigフォルダに保存
+  // cwd: path.join(app.getPath('userData'), 'config'),
+  cwd: getConfigDir(),
+});
 
 // ストアを取得する関数
 export function getStore() {

@@ -7,9 +7,6 @@ import {
   Box,
   CircularProgress,
   Alert,
-  FormGroup,
-  FormControlLabel,
-  Switch,
 } from '@mui/material';
 import Modal from './Modal';
 import useSettingsStore from '../../hooks/useSettingsStore';

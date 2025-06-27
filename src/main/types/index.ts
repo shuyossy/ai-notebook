@@ -20,10 +20,10 @@ export type ChatRoom = StorageThreadType;
  */
 export type ChatMessage = AiMessageType;
 
-// Mastraの状態管理用の型定義
-export type AgentBootState = 'initializing' | 'ready' | 'error';
+// 設定状態管理用の型定義
+export type SettingsSavingState = 'saving' | 'done' | 'error';
 
-export type AgentBootMessage = {
+export type SettingsSavingMessage = {
   id: string;
   type: 'info' | 'warning' | 'error';
   content: string;
@@ -42,10 +42,10 @@ export type AgentToolStatus = {
 /**
  * エージェントのブート状態を表す型
  */
-export type AgentBootStatus = {
-  state: AgentBootState;
-  messages?: AgentBootMessage[];
-  tools?: AgentToolStatus;
+export type SettingsSavingStatus = {
+  state: SettingsSavingState;
+  messages: SettingsSavingMessage[];
+  tools: AgentToolStatus;
 };
 
 // レビュー評価の型定義
@@ -87,3 +87,6 @@ export type RepositoryResult<T> = {
   data?: T;
   error?: string;
 };
+
+export type MakeOptional<T, K extends keyof T> = Omit<T, K> &
+  Partial<Pick<T, K>>;

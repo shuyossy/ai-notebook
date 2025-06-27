@@ -1,12 +1,9 @@
 import fs from 'fs/promises';
 import path from 'path';
-import { and, eq, inArray } from 'drizzle-orm';
-import type { StepResult } from '@mastra/core/workflows';
 import { getStore } from '../../main/store';
-import { getMastra } from '../../main/main';
-import getDb from '../../db';
-import { sources, topics } from '../../db/schema';
 import FileExtractor from '../../main/utils/fileExtractor';
+import { mastra } from '..';
+import { getSourceRepository } from '../../db/repository/sourceRepository';
 
 /**
  * フォルダ内の全てのファイルを登録するワークフロー
@@ -14,6 +11,8 @@ import FileExtractor from '../../main/utils/fileExtractor';
 export default class SourceRegistrationManager {
   // eslint-disable-next-line
   private static instance: SourceRegistrationManager | null = null;
+
+  private sourceRepository = getSourceRepository();
 
   /**
    * シングルトンインスタンスを取得するメソッド
@@ -32,16 +31,8 @@ export default class SourceRegistrationManager {
   // eslint-disable-next-line
   private async deleteSourceAndCache(sourcePath: string): Promise<void> {
     try {
-      const db = await getDb();
-      // ソースIDを取得
-      const source = await db
-        .select()
-        .from(sources)
-        .where(eq(sources.path, sourcePath));
-      const sourceId = source[0]?.id;
-      if (sourceId !== undefined && sourceId !== null) {
-        await db.delete(sources).where(eq(sources.id, sourceId));
-        await db.delete(topics).where(eq(topics.sourceId, sourceId));
+      const result = await this.sourceRepository.deleteSourceByPath(sourcePath);
+      if (result) {
         if (FileExtractor.isCacheTarget(sourcePath)) {
           await FileExtractor.deleteCache(sourcePath);
         }
@@ -57,12 +48,11 @@ export default class SourceRegistrationManager {
    */
   public async clearProcessingSources(): Promise<void> {
     try {
-      const db = await getDb();
       // 削除対象のソースを取得
-      const targetSources = await db
-        .select()
-        .from(sources)
-        .where(inArray(sources.status, ['idle', 'processing']));
+      const targetSources = await this.sourceRepository.getSouorceInStatus([
+        'processing',
+        'idle',
+      ]);
 
       // 各ソースを削除
       for (const source of targetSources) {
@@ -88,8 +78,7 @@ export default class SourceRegistrationManager {
       }
 
       // DB接続を一度だけ確立
-      const db = await getDb();
-      const allSources = await db.select().from(sources);
+      const allSources = await this.sourceRepository.getAllSources();
 
       // DBに存在するが実ファイルが存在しないソースを削除
       const existingPaths = new Set(files);
@@ -117,16 +106,11 @@ export default class SourceRegistrationManager {
 
         // files 配列を１つずつ順番に処理
         for (const filePath of files) {
-          // DB に同じパスで status が completed/idle/processing のレコードがあるか問い合わせ
-          const existingSource = await db
-            .select()
-            .from(sources)
-            .where(
-              and(
-                eq(sources.path, filePath),
-                inArray(sources.status, ['completed', 'idle', 'processing']),
-              ),
-            );
+          // DB に同じパスで status が idle/processing のレコードがあるか問い合わせ
+          const existingSource =
+            await this.sourceRepository.getSourceByPathInStatus(filePath, [
+              'completed',
+            ]);
 
           // レコードが見つからなかった（＝未登録 or ステータス未完了）ファイルだけ残す
           if (existingSource.length === 0) {
@@ -156,7 +140,7 @@ export default class SourceRegistrationManager {
         summary: '',
         status: 'idle' as const,
       }));
-      await db.insert(sources).values(rows);
+      await this.sourceRepository.insertSources(rows);
 
       // files配列を reduce でたたみ込み、逐次処理を実現する
       const registrationResults = await files.reduce<
@@ -167,74 +151,32 @@ export default class SourceRegistrationManager {
         (previousPromise, filePath) => {
           return previousPromise.then(async (resultList) => {
             try {
+              let success = false;
               // ファイルからテキストを抽出
               const { content } = await FileExtractor.extractText(filePath);
 
               // Mastraインスタンスからワークフローを取得して実行
-              const mastra = getMastra();
               const workflow = mastra.getWorkflow('sourceRegistrationWorkflow');
               const run = workflow.createRun();
               const result = await run.start({
-                triggerData: { filePath, content },
+                inputData: { filePath, content },
               });
 
-              // 失敗したステップを収集
-              const failedSteps = Object.entries(
-                result.results as Record<
-                  string,
-                  StepResult<{
-                    status: 'success' | 'failed';
-                    errorMessage?: string;
-                  }>
-                >,
-              )
-                .filter(([, value]) => {
-                  if (value.status === 'failed') {
-                    return true;
-                  }
-                  if (
-                    value.status === 'success' &&
-                    value.output?.status === 'failed'
-                  ) {
-                    return true;
-                  }
-                  return false;
-                })
-                .map(([step, value]) => {
-                  const errorMessage =
-                    value.status === 'success'
-                      ? value.output?.errorMessage
-                      : undefined;
-                  return {
-                    step,
-                    stepStatus: value.status,
-                    errorMessage,
-                  };
-                });
-
-              if (failedSteps.length > 0) {
-                resultList.push({
-                  success: false,
-                  filePath,
-                });
-                return resultList;
+              // 結果を確認
+              if (
+                result.status === 'success' &&
+                result.result.status === 'success'
+              ) {
+                success = true;
               }
 
-              resultList.push({ success: true, filePath });
+              resultList.push({ success, filePath });
             } catch (error) {
               console.error(error);
               resultList.push({
                 success: false,
                 filePath,
               });
-              await db
-                .update(sources)
-                .set({
-                  status: 'failed' as const,
-                  error:
-                    error instanceof Error ? error.message : '不明なエラー',
-                })
-                .where(eq(sources.path, filePath));
             }
             // 次のイテレーションに結果配列を渡す
             return resultList;
