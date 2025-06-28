@@ -1,6 +1,7 @@
 /* eslint-disable prefer-template */
 import { APICallError, NoObjectGeneratedError } from 'ai';
 import { createStep, createWorkflow } from '@mastra/core/workflows';
+import { MastraError } from '@mastra/core/error';
 import { z } from 'zod';
 import path from 'path';
 import { getReviewRepository } from '../../../db/repository/reviewRepository';
@@ -10,7 +11,7 @@ import FileExtractor from '../../../main/utils/fileExtractor';
 import { baseStepOutputSchema } from '../schema';
 import { stepStatus } from '../types';
 import { ChecklistExtractionAgentRuntimeContext } from '../../agents/workflowAgents';
-import { createRuntimeContext, judgeFinishReason } from '../../agents/lib';
+import { createRuntimeContext } from '../../agents/lib';
 
 // ワークフローの入力スキーマ
 const triggerSchema = z.object({
@@ -123,12 +124,6 @@ const checklistExtractionStep = createStep({
                 },
               },
             );
-            const { success, reason } = judgeFinishReason(
-              extractionResult.finishReason,
-            );
-            if (!success) {
-              throw new Error(reason);
-            }
 
             if (!extractionResult.object.isChecklistDocument) {
               throw new Error(
@@ -172,11 +167,14 @@ const checklistExtractionStep = createStep({
         } catch (error) {
           let errorMessage = '';
           let errorDetail: string;
-          if (APICallError.isInstance(error)) {
+          if (
+            error instanceof MastraError &&
+            APICallError.isInstance(error.cause)
+          ) {
             // APIコールエラーの場合はresponseBodyの内容を取得
-            errorDetail = error.message;
-            if (error.responseBody) {
-              errorDetail += `:\n${error.responseBody}`;
+            errorDetail = error.cause.message;
+            if (error.cause.responseBody) {
+              errorDetail += `:\n${error.cause.responseBody}`;
             }
           } else if (
             NoObjectGeneratedError.isInstance(error) &&

@@ -1,6 +1,7 @@
 import { APICallError } from 'ai';
 import { z } from 'zod';
 import { createTool } from '@mastra/core/tools';
+import { MastraError } from '@mastra/core/error';
 import { eq, and } from 'drizzle-orm';
 import { sources } from '../../db/schema';
 import getDb from '../../db/index';
@@ -168,11 +169,11 @@ export const documentQueryTool = createTool({
               abortSignal: options?.abortSignal,
               runtimeContext,
             });
+            answer = res.text;
             const { success, reason } = judgeFinishReason(res.finishReason);
             if (!success) {
               throw new Error(reason);
             }
-            answer = res.text;
           } catch (error) {
             answer = `error occured while processing the query: ${error instanceof Error ? `: ${error.message}` : JSON.stringify(error)}`;
           }
@@ -193,11 +194,14 @@ export const documentQueryTool = createTool({
       };
     } catch (error) {
       let errorDetail: string;
-      if (APICallError.isInstance(error)) {
+      if (
+        error instanceof MastraError &&
+        APICallError.isInstance(error.cause)
+      ) {
         // APIコールエラーの場合はresponseBodyの内容を取得
-        errorDetail = error.message;
-        if (error.responseBody) {
-          errorDetail += `:\n${error.responseBody}`;
+        errorDetail = error.cause.message;
+        if (error.cause.responseBody) {
+          errorDetail += `:\n${error.cause.responseBody}`;
         }
       } else if (error instanceof Error) {
         errorDetail = error.message;

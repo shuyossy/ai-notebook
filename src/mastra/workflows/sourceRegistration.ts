@@ -1,6 +1,7 @@
 /* eslint-disable import/prefer-default-export */
 import { APICallError } from 'ai';
 import { createWorkflow, createStep } from '@mastra/core/workflows';
+import { MastraError } from '@mastra/core/error';
 import { z } from 'zod';
 import { stepStatus } from './types';
 import { baseStepOutputSchema } from './schema';
@@ -82,9 +83,14 @@ const analyzeSourceStep = createStep({
       status = 'success';
     } catch (error) {
       let errorDetail: string;
-      if (APICallError.isInstance(error) && error.responseBody) {
+      if (
+        error instanceof MastraError &&
+        APICallError.isInstance(error.cause)
+      ) {
         // APIコールエラーの場合はresponseBodyの内容を取得
-        errorDetail = error.responseBody;
+        errorDetail = error.cause.responseBody
+          ? error.cause.responseBody
+          : error.cause.message;
       } else if (error instanceof Error) {
         errorDetail = error.message;
       } else {
@@ -176,11 +182,14 @@ const extractTopicAndSummaryStep = createStep({
       status = 'success';
     } catch (error) {
       let errorDetail: string;
-      if (APICallError.isInstance(error)) {
+      if (
+        error instanceof MastraError &&
+        APICallError.isInstance(error.cause)
+      ) {
         // APIコールエラーの場合はresponseBodyの内容を取得
-        errorDetail = error.message;
-        if (error.responseBody) {
-          errorDetail += `:\n${error.responseBody}`;
+        errorDetail = error.cause.message;
+        if (error.cause.responseBody) {
+          errorDetail += `:\n${error.cause.responseBody}`;
         }
       } else if (error instanceof Error) {
         errorDetail = error.message;

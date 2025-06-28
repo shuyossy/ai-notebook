@@ -288,11 +288,14 @@ const reviewExecutionStep = createStep({
               }
             } catch (error) {
               let errorDetail: string;
-              if (APICallError.isInstance(error)) {
+              if (
+                error instanceof MastraError &&
+                APICallError.isInstance(error.cause)
+              ) {
                 // APIコールエラーの場合はresponseBodyの内容を取得
-                errorDetail = error.message;
-                if (error.responseBody) {
-                  errorDetail += `:\n${error.responseBody}`;
+                errorDetail = error.cause.message;
+                if (error.cause.responseBody) {
+                  errorDetail += `:\n${error.cause.responseBody}`;
                 }
               } else if (
                 NoObjectGeneratedError.isInstance(error) &&
