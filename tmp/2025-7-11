@@ -1,0 +1,48 @@
+package com.example.demo.config;
+
+import com.azure.ai.openai.OpenAIClientBuilder;
+import jakarta.servlet.http.HttpSession;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.ai.model.azure.openai.autoconfigure.AzureOpenAIClientBuilderCustomizer;
+import org.springframework.web.context.request.RequestAttributes;
+import org.springframework.web.context.request.RequestContextHolder;
+import reactor.netty.http.client.HttpClient;
+
+@Configuration
+public class AzureOpenAiConfig {
+
+    /**
+     * AzureOpenAIClientBuilder をカスタマイズして、
+     * 各リクエスト時にセッションから USER_ID を取得し、
+     * X-User-Id ヘッダとして追加します。
+     */
+    @Bean
+    public AzureOpenAIClientBuilderCustomizer headerCustomizer() {
+        return new AzureOpenAIClientBuilderCustomizer() {
+            @Override
+            public void customize(OpenAIClientBuilder builder) {
+                // Reactor Netty の HTTP クライアントを生成
+                HttpClient httpClient = HttpClient.create()
+                    .doOnRequest((request, connection) -> {
+                        // RequestContextHolder から現在のリクエストスコープ属性を取得
+                        RequestAttributes attrs = RequestContextHolder.getRequestAttributes();
+                        if (attrs != null) {
+                            Object sessionObj = attrs.resolveReference(RequestAttributes.REFERENCE_SESSION);
+                            if (sessionObj instanceof HttpSession) {
+                                HttpSession session = (HttpSession) sessionObj;
+                                String userId = (String) session.getAttribute("USER_ID");
+                                if (userId != null) {
+                                    // X-User-Id ヘッダをセット
+                                    request.requestHeaders().set("X-User-Id", userId);
+                                }
+                            }
+                        }
+                    });
+
+                // カスタム HttpClient をビルダーにセット
+                builder.httpClient(httpClient);
+            }
+        };
+    }
+}
