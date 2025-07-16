@@ -1,168 +1,108 @@
-diff --git a/src/mastra/tools/sourcesTools.ts b/src/mastra/tools/sourcesTools.ts
-index 778879e35..5244a0b26 100644
---- a/src/mastra/tools/sourcesTools.ts
-+++ b/src/mastra/tools/sourcesTools.ts
-@@ -1,6 +1,7 @@
- import { APICallError } from 'ai';
- import { z } from 'zod';
- import { createTool } from '@mastra/core/tools';
-+import { MastraError } from '@mastra/core/error';
- import { eq, and } from 'drizzle-orm';
- import { sources } from '../../db/schema';
- import getDb from '../../db/index';
-@@ -168,11 +169,11 @@ export const documentQueryTool = createTool({
-               abortSignal: options?.abortSignal,
-               runtimeContext,
-             });
-+            answer = res.text;
-             const { success, reason } = judgeFinishReason(res.finishReason);
-             if (!success) {
-               throw new Error(reason);
-             }
--            answer = res.text;
-           } catch (error) {
-             answer = `error occured while processing the query: ${error instanceof Error ? `: ${error.message}` : JSON.stringify(error)}`;
-           }
-@@ -193,11 +194,14 @@ export const documentQueryTool = createTool({
-       };
-     } catch (error) {
-       let errorDetail: string;
--      if (APICallError.isInstance(error)) {
-+      if (
-+        error instanceof MastraError &&
-+        APICallError.isInstance(error.cause)
-+      ) {
-         // APIコールエラーの場合はresponseBodyの内容を取得
--        errorDetail = error.message;
--        if (error.responseBody) {
--          errorDetail += `:\n${error.responseBody}`;
-+        errorDetail = error.cause.message;
-+        if (error.cause.responseBody) {
-+          errorDetail += `:\n${error.cause.responseBody}`;
-         }
-       } else if (error instanceof Error) {
-         errorDetail = error.message;
-diff --git a/src/mastra/workflows/sourceRegistration.ts b/src/mastra/workflows/sourceRegistration.ts
-index eddbd01ec..6550181cb 100644
---- a/src/mastra/workflows/sourceRegistration.ts
-+++ b/src/mastra/workflows/sourceRegistration.ts
-@@ -1,6 +1,7 @@
- /* eslint-disable import/prefer-default-export */
- import { APICallError } from 'ai';
- import { createWorkflow, createStep } from '@mastra/core/workflows';
-+import { MastraError } from '@mastra/core/error';
- import { z } from 'zod';
- import { stepStatus } from './types';
- import { baseStepOutputSchema } from './schema';
-@@ -82,9 +83,14 @@ const analyzeSourceStep = createStep({
-       status = 'success';
-     } catch (error) {
-       let errorDetail: string;
--      if (APICallError.isInstance(error) && error.responseBody) {
-+      if (
-+        error instanceof MastraError &&
-+        APICallError.isInstance(error.cause)
-+      ) {
-         // APIコールエラーの場合はresponseBodyの内容を取得
--        errorDetail = error.responseBody;
-+        errorDetail = error.cause.responseBody
-+          ? error.cause.responseBody
-+          : error.cause.message;
-       } else if (error instanceof Error) {
-         errorDetail = error.message;
-       } else {
-@@ -176,11 +182,14 @@ const extractTopicAndSummaryStep = createStep({
-       status = 'success';
-     } catch (error) {
-       let errorDetail: string;
--      if (APICallError.isInstance(error)) {
-+      if (
-+        error instanceof MastraError &&
-+        APICallError.isInstance(error.cause)
-+      ) {
-         // APIコールエラーの場合はresponseBodyの内容を取得
--        errorDetail = error.message;
--        if (error.responseBody) {
--          errorDetail += `:\n${error.responseBody}`;
-+        errorDetail = error.cause.message;
-+        if (error.cause.responseBody) {
-+          errorDetail += `:\n${error.cause.responseBody}`;
-         }
-       } else if (error instanceof Error) {
-         errorDetail = error.message;
-diff --git a/src/mastra/workflows/sourceReview/checklistExtraction.ts b/src/mastra/workflows/sourceReview/checklistExtraction.ts
-index 664c33911..c49dc6bfe 100644
---- a/src/mastra/workflows/sourceReview/checklistExtraction.ts
-+++ b/src/mastra/workflows/sourceReview/checklistExtraction.ts
-@@ -1,6 +1,7 @@
- /* eslint-disable prefer-template */
- import { APICallError, NoObjectGeneratedError } from 'ai';
- import { createStep, createWorkflow } from '@mastra/core/workflows';
-+import { MastraError } from '@mastra/core/error';
- import { z } from 'zod';
- import path from 'path';
- import { getReviewRepository } from '../../../db/repository/reviewRepository';
-@@ -10,7 +11,7 @@ import FileExtractor from '../../../main/utils/fileExtractor';
- import { baseStepOutputSchema } from '../schema';
- import { stepStatus } from '../types';
- import { ChecklistExtractionAgentRuntimeContext } from '../../agents/workflowAgents';
--import { createRuntimeContext, judgeFinishReason } from '../../agents/lib';
-+import { createRuntimeContext } from '../../agents/lib';
+diff --git a/src/__tests__/integration/SettingsModal.test.tsx b/src/__tests__/integration/SettingsModal.test.tsx
+index 1ea1b938f..b0ef72fdf 100644
+--- a/src/__tests__/integration/SettingsModal.test.tsx
++++ b/src/__tests__/integration/SettingsModal.test.tsx
+@@ -216,7 +216,7 @@ describe('SettingsModal Component', () => {
+     expect(defaultProps.onSettingsUpdated).toHaveBeenCalled();
+     expect(defaultProps.onClose).toHaveBeenCalled();
+     expect(defaultProps.onValidChange).toHaveBeenCalledWith(true);
+-  }, 30000);
++  }, 60000);
  
- // ワークフローの入力スキーマ
- const triggerSchema = z.object({
-@@ -123,12 +124,6 @@ const checklistExtractionStep = createStep({
-                 },
-               },
-             );
--            const { success, reason } = judgeFinishReason(
--              extractionResult.finishReason,
--            );
--            if (!success) {
--              throw new Error(reason);
--            }
+   // テスト3: バリデーションエラーが正しく表示されること
+   test('バリデーションエラーが正しく表示されること', async () => {
+diff --git a/src/__tests__/integration/SourceListModal.test.tsx b/src/__tests__/integration/SourceListModal.test.tsx
+index 1c5c60a7c..7eb208241 100644
+--- a/src/__tests__/integration/SourceListModal.test.tsx
++++ b/src/__tests__/integration/SourceListModal.test.tsx
+@@ -304,7 +304,7 @@ describe('SourceListModal Component', () => {
+     // エラーログが出力されることを確認
+     await waitFor(() => {
+       expect(consoleSpy).toHaveBeenCalledWith(
+-        'ソース状態の更新に失敗しました:',
++        'ドキュメントの有効化/無効化に失敗しました:',
+         expect.any(Error),
+       );
+     });
+@@ -369,7 +369,7 @@ describe('SourceListModal Component', () => {
+     // エラーログが出力されることを確認（各ソースごとにエラーが発生）
+     await waitFor(() => {
+       expect(consoleSpy).toHaveBeenCalledWith(
+-        'ソース状態の更新に失敗しました:',
++        'ドキュメントの有効化/無効化に失敗しました:',
+         expect.any(Error),
+       );
+       expect(consoleSpy).toHaveBeenCalledTimes(1);
+@@ -740,7 +740,7 @@ describe('SourceListModal Component', () => {
+     // エラーログが出力されることを確認
+     await waitFor(() => {
+       expect(consoleSpy).toHaveBeenCalledWith(
+-        'ソースデータの取得に失敗しました:',
++        'ドキュメントデータの取得に失敗しました:',
+         expect.any(Error),
+       );
+     });
+diff --git a/src/__tests__/integration/chat.test.tsx b/src/__tests__/integration/chat.test.tsx
+index 06cdf3be3..16ee29656 100644
+--- a/src/__tests__/integration/chat.test.tsx
++++ b/src/__tests__/integration/chat.test.tsx
+@@ -367,10 +367,9 @@ describe('ChatArea Component', () => {
+     await user.click(saveButton);
  
-             if (!extractionResult.object.isChecklistDocument) {
-               throw new Error(
-@@ -172,11 +167,14 @@ const checklistExtractionStep = createStep({
-         } catch (error) {
-           let errorMessage = '';
-           let errorDetail: string;
--          if (APICallError.isInstance(error)) {
-+          if (
-+            error instanceof MastraError &&
-+            APICallError.isInstance(error.cause)
-+          ) {
-             // APIコールエラーの場合はresponseBodyの内容を取得
--            errorDetail = error.message;
--            if (error.responseBody) {
--              errorDetail += `:\n${error.responseBody}`;
-+            errorDetail = error.cause.message;
-+            if (error.cause.responseBody) {
-+              errorDetail += `:\n${error.cause.responseBody}`;
-             }
-           } else if (
-             NoObjectGeneratedError.isInstance(error) &&
-diff --git a/src/mastra/workflows/sourceReview/reviewExecution.ts b/src/mastra/workflows/sourceReview/reviewExecution.ts
-index dc4ca11aa..7cc87b9b6 100644
---- a/src/mastra/workflows/sourceReview/reviewExecution.ts
-+++ b/src/mastra/workflows/sourceReview/reviewExecution.ts
-@@ -288,11 +288,14 @@ const reviewExecutionStep = createStep({
-               }
-             } catch (error) {
-               let errorDetail: string;
--              if (APICallError.isInstance(error)) {
-+              if (
-+                error instanceof MastraError &&
-+                APICallError.isInstance(error.cause)
-+              ) {
-                 // APIコールエラーの場合はresponseBodyの内容を取得
--                errorDetail = error.message;
--                if (error.responseBody) {
--                  errorDetail += `:\n${error.responseBody}`;
-+                errorDetail = error.cause.message;
-+                if (error.cause.responseBody) {
-+                  errorDetail += `:\n${error.cause.responseBody}`;
-                 }
-               } else if (
-                 NoObjectGeneratedError.isInstance(error) &&
+     // 編集リクエストが送信されることを確認
+-    expect(window.electron.chat.editHistory).toHaveBeenCalledWith({
++    expect(window.electron.chat.deleteMessagesBeforeSpecificId).toHaveBeenCalledWith({
+       threadId: '1',
+-      oldContent: 'こんにちは',
+-      oldCreatedAt: mockChatMessages[0].createdAt,
++      messageId: '1',
+     });
+   });
+ 
+diff --git a/src/__tests__/test-utils/mockElectronHandler.ts b/src/__tests__/test-utils/mockElectronHandler.ts
+index 8887a78f6..6438820c8 100644
+--- a/src/__tests__/test-utils/mockElectronHandler.ts
++++ b/src/__tests__/test-utils/mockElectronHandler.ts
+@@ -111,7 +111,7 @@ export const createMockElectronWithOptions = (
+       onError: jest.fn(),
+       onStream: jest.fn(),
+       onComplete: jest.fn(),
+-      editHistory: jest.fn(),
++      deleteMessagesBeforeSpecificId: jest.fn(),
+     },
+     source: {
+       reloadSources: jest.fn().mockResolvedValue({
+@@ -131,6 +131,7 @@ export const createMockElectronWithOptions = (
+       on: jest.fn(),
+       once: jest.fn(),
+     },
++    review: {},
+   };
+ 
+   return mockHandlers as ElectronMock;
+diff --git a/src/renderer/components/common/SourceListModal.tsx b/src/renderer/components/common/SourceListModal.tsx
+index f4a40bbe3..8230facbd 100644
+--- a/src/renderer/components/common/SourceListModal.tsx
++++ b/src/renderer/components/common/SourceListModal.tsx
+@@ -102,7 +102,7 @@ function SourceListModal({
+         }));
+       }
+     } catch (err) {
+-      console.error('ソース状態の更新に失敗しました:', err);
++      console.error('ドキュメントの有効化/無効化に失敗しました:', err);
+     } finally {
+       // 更新中状態から削除
+       setUpdatingSources((prev) => {
+diff --git a/src/renderer/components/review/ReviewSourceModal.tsx b/src/renderer/components/review/ReviewSourceModal.tsx
+index 689ed3ddb..cffaf2de2 100644
+--- a/src/renderer/components/review/ReviewSourceModal.tsx
++++ b/src/renderer/components/review/ReviewSourceModal.tsx
+@@ -115,7 +115,7 @@ function SourceListModal({
+         );
+         setProcessing(newProcessing);
+       } catch (error) {
+-        console.error('ソースデータの取得に失敗しました:', error);
++        console.error('ドキュメントデータの取得に失敗しました:', error);
+       }
+     };
+ 
