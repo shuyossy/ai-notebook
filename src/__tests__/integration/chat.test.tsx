@@ -367,10 +367,9 @@ describe('ChatArea Component', () => {
     await user.click(saveButton);
 
     // 編集リクエストが送信されることを確認
-    expect(window.electron.chat.editHistory).toHaveBeenCalledWith({
+    expect(window.electron.chat.deleteMessagesBeforeSpecificId).toHaveBeenCalledWith({
       threadId: '1',
-      oldContent: 'こんにちは',
-      oldCreatedAt: mockChatMessages[0].createdAt,
+      messageId: '1',
     });
   });
 

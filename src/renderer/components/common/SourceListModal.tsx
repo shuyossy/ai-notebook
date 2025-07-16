@@ -102,7 +102,7 @@ function SourceListModal({
         }));
       }
     } catch (err) {
-      console.error('ソース状態の更新に失敗しました:', err);
+      console.error('ドキュメントの有効化/無効化に失敗しました:', err);
     } finally {
       // 更新中状態から削除
       setUpdatingSources((prev) => {

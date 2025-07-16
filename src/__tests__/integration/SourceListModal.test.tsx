@@ -304,7 +304,7 @@ describe('SourceListModal Component', () => {
     // エラーログが出力されることを確認
     await waitFor(() => {
       expect(consoleSpy).toHaveBeenCalledWith(
-        'ソース状態の更新に失敗しました:',
+        'ドキュメントの有効化/無効化に失敗しました:',
         expect.any(Error),
       );
     });
@@ -369,7 +369,7 @@ describe('SourceListModal Component', () => {
     // エラーログが出力されることを確認（各ソースごとにエラーが発生）
     await waitFor(() => {
       expect(consoleSpy).toHaveBeenCalledWith(
-        'ソース状態の更新に失敗しました:',
+        'ドキュメントの有効化/無効化に失敗しました:',
         expect.any(Error),
       );
       expect(consoleSpy).toHaveBeenCalledTimes(1);
@@ -740,7 +740,7 @@ describe('SourceListModal Component', () => {
     // エラーログが出力されることを確認
     await waitFor(() => {
       expect(consoleSpy).toHaveBeenCalledWith(
-        'ソースデータの取得に失敗しました:',
+        'ドキュメントデータの取得に失敗しました:',
         expect.any(Error),
       );
     });

@@ -115,7 +115,7 @@ function SourceListModal({
         );
         setProcessing(newProcessing);
       } catch (error) {
-        console.error('ソースデータの取得に失敗しました:', error);
+        console.error('ドキュメントデータの取得に失敗しました:', error);
       }
     };
 

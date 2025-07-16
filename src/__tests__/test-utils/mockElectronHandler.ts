@@ -111,7 +111,7 @@ export const createMockElectronWithOptions = (
       onError: jest.fn(),
       onStream: jest.fn(),
       onComplete: jest.fn(),
-      editHistory: jest.fn(),
+      deleteMessagesBeforeSpecificId: jest.fn(),
     },
     source: {
       reloadSources: jest.fn().mockResolvedValue({
@@ -131,6 +131,7 @@ export const createMockElectronWithOptions = (
       on: jest.fn(),
       once: jest.fn(),
     },
+    review: {},
   };
 
   return mockHandlers as ElectronMock;
