@@ -1,15 +1,83 @@
-experimental_repairText: async (options) => {
-                  const { text } = options;
-                  const lastChar = text.charAt(text.length - 1);
-                  if (lastChar === '"') {
-                    return text + ']}';
-                  } else if (lastChar === ']') {
-                    return text + '}';
-                  } else if (lastChar === ',') {
-                    // 最後のカンマを削除してから ']} を追加
-                    return text.slice(0, -1) + ']}';
-                  } else {
-                    // その他のケースでは強制的に ']} を追加
-                    return text + '"]}';
-                  }
-                },
+<# =====================================================================
+ PowerShell Script : export-and-refresh-user-data.ps1
+ 追加モジュール不要・公開鍵認証版
+===================================================================== #>
+
+# ------------- 1. 変数定義 -------------
+$excelPath   = Join-Path $PSScriptRoot "社員IDマスタデータ.xlsx"
+$sheetName   = "全項目"
+
+$tempDir     = [IO.Path]::GetTempPath()
+$timestamp   = (Get-Date -Format "yyyyMMdd_HHmmss")
+$csvName     = "shain_master_$timestamp.csv"
+$localCsv    = Join-Path $tempDir $csvName
+$remoteCsv   = "/work/$csvName"
+
+$host        = "10.249.134.79"
+$user        = "root"
+
+# 鍵ファイル（秘密鍵）・・・*.pub ではなく id_rsa を指定
+$keyFile     = Join-Path $PSScriptRoot "id_rsa"
+
+# ---------- 2. Excel → CSV (UTF-8 BOM) ----------
+Write-Host "Excel から [$sheetName] を CSV へ書き出し中 ..." -ForegroundColor Cyan
+$excel = New-Object -ComObject Excel.Application
+$excel.DisplayAlerts = $false
+
+try {
+    $wb   = $excel.Workbooks.Open((Resolve-Path $excelPath))
+    $ws   = $wb.Worksheets.Item($sheetName)
+
+    # 対象シートをコピーして別ブックに（余計なシートを排除）
+    $ws.Copy()
+    $tmpBook = $excel.ActiveWorkbook
+
+    # ファイル形式 62 : CSV UTF-8 (Comma delimited)
+    $tmpBook.SaveAs($localCsv, 62)
+
+    # 念のため BOM 付き UTF-8 で上書き（PowerShell 5 は BOM 付き）
+    (Get-Content $localCsv) | Set-Content -Encoding UTF8 $localCsv
+    Write-Host "CSV 保存完了 → $localCsv" -ForegroundColor Green
+}
+finally {
+    if ($tmpBook) { $tmpBook.Close($false) }
+    if ($wb)      { $wb.Close($false) }
+    $excel.Quit()
+    [Runtime.InteropServices.Marshal]::ReleaseComObject($excel) | Out-Null
+}
+
+# ---------- 3. scp で転送 ----------
+Write-Host "scp でリモートへ転送 ..." -ForegroundColor Cyan
+$scpArgs = @(
+    "-i", "`"$keyFile`"",
+    "`"$localCsv`"",
+    "$user@$host:`"$remoteCsv`""
+)
+
+$scp = Start-Process -FilePath "scp" -ArgumentList $scpArgs -NoNewWindow -Wait -PassThru
+if ($scp.ExitCode -ne 0) {
+    Write-Error "scp 失敗 (ExitCode=$($scp.ExitCode))。処理を中断します。"
+    Remove-Item $localCsv -Force -ErrorAction SilentlyContinue
+    exit $scp.ExitCode
+}
+Write-Host "scp 完了: $remoteCsv" -ForegroundColor Green
+
+# ---------- 4. ssh でリモートコマンド ----------
+Write-Host "ssh で Python スクリプト実行 ..." -ForegroundColor Cyan
+$remoteCmd = "python3 /sak/infra/keycloak/refresh_user_data.py $remoteCsv"
+$sshArgs   = @(
+    "-i", "`"$keyFile`"",
+    "$user@$host",
+    $remoteCmd
+)
+
+$ssh = Start-Process -FilePath "ssh" -ArgumentList $sshArgs -NoNewWindow -Wait -PassThru
+if ($ssh.ExitCode -ne 0) {
+    Write-Warning "リモートコマンドが異常終了 (ExitCode=$($ssh.ExitCode))"
+}
+
+# ---------- 5. クリーンアップ ----------
+Write-Host "ローカル一時ファイルを削除 ..." -ForegroundColor Cyan
+Remove-Item $localCsv -Force -ErrorAction SilentlyContinue
+
+Write-Host "----- すべての処理が完了しました -----" -ForegroundColor Magenta
