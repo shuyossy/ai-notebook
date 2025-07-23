@@ -1,83 +1,111 @@
 <# =====================================================================
  PowerShell Script : export-and-refresh-user-data.ps1
- 追加モジュール不要・公開鍵認証版
+ 追加モジュール不要・公開鍵認証版（絶対パス指定・一時コピー対応）
 ===================================================================== #>
 
-# ------------- 1. 変数定義 -------------
-$excelPath   = Join-Path $PSScriptRoot "社員IDマスタデータ.xlsx"
-$sheetName   = "全項目"
+# -----------------------------
+# 1. 絶対パス設定
+# -----------------------------
+# ※ 必ず環境に合わせて書き換えてください
+# 元のマスタデータ（Excelファイル）の絶対パス
+$excelSource = "C:\absolute\path\to\社員IDマスタデータ.xlsx"
 
-$tempDir     = [IO.Path]::GetTempPath()
-$timestamp   = (Get-Date -Format "yyyyMMdd_HHmmss")
-$csvName     = "shain_master_$timestamp.csv"
-$localCsv    = Join-Path $tempDir $csvName
-$remoteCsv   = "/work/$csvName"
+# 秘密鍵ファイルの絶対パス（.pub ではなく秘密鍵を指定）
+$keyFile     = "C:\absolute\path\to\id_rsa"
 
+# リモートサーバ情報
 $host        = "10.249.134.79"
 $user        = "root"
 
-# 鍵ファイル（秘密鍵）・・・*.pub ではなく id_rsa を指定
-$keyFile     = Join-Path $PSScriptRoot "id_rsa"
+# シート名とタイムスタンプ
+$sheetName   = "全項目"
+$timestamp   = (Get-Date -Format "yyyyMMdd_HHmmss")
 
-# ---------- 2. Excel → CSV (UTF-8 BOM) ----------
-Write-Host "Excel から [$sheetName] を CSV へ書き出し中 ..." -ForegroundColor Cyan
+# -----------------------------
+# 2. 一時フォルダ準備
+# -----------------------------
+# Windows の一時フォルダ取得
+$tempDir   = [IO.Path]::GetTempPath()
+
+# マスタデータを一時フォルダ内にコピー
+$tempExcel = Join-Path $tempDir "社員IDマスタデータ.xlsx"
+Copy-Item -Path $excelSource -Destination $tempExcel -Force
+Write-Host "マスタデータを一時フォルダにコピー: $tempExcel" -ForegroundColor Cyan
+
+# CSV 出力先ファイル名
+$csvName   = "shain_master_$timestamp.csv"
+$localCsv  = Join-Path $tempDir $csvName     # 例: C:\Users\xxx\AppData\Local\Temp\shain_master_20250723_104500.csv
+$remoteCsv = "/work/$csvName"
+
+# -----------------------------
+# 3. Excel → CSV (UTF-8 BOM) 書き出し
+# -----------------------------
+Write-Host "Excel から [$sheetName] を CSV (UTF-8 BOM) に書き出し中 ..." -ForegroundColor Cyan
 $excel = New-Object -ComObject Excel.Application
 $excel.DisplayAlerts = $false
 
 try {
-    $wb   = $excel.Workbooks.Open((Resolve-Path $excelPath))
-    $ws   = $wb.Worksheets.Item($sheetName)
+    # 一時コピーした Excel を開く
+    $wb = $excel.Workbooks.Open((Resolve-Path $tempExcel))
+    $ws = $wb.Worksheets.Item($sheetName)
 
-    # 対象シートをコピーして別ブックに（余計なシートを排除）
+    # 対象シートを別ブックへコピー（他シート排除）
     $ws.Copy()
     $tmpBook = $excel.ActiveWorkbook
 
-    # ファイル形式 62 : CSV UTF-8 (Comma delimited)
+    # ファイル形式 62 = CSV UTF-8 (BOM付き)
     $tmpBook.SaveAs($localCsv, 62)
 
-    # 念のため BOM 付き UTF-8 で上書き（PowerShell 5 は BOM 付き）
+    # PowerShell 5 では既に BOM 付きだが、念のため再上書き
     (Get-Content $localCsv) | Set-Content -Encoding UTF8 $localCsv
-    Write-Host "CSV 保存完了 → $localCsv" -ForegroundColor Green
+
+    Write-Host "CSV 書き出し完了: $localCsv" -ForegroundColor Green
 }
 finally {
+    # 後片付け：Excel プロセス解放
     if ($tmpBook) { $tmpBook.Close($false) }
     if ($wb)      { $wb.Close($false) }
     $excel.Quit()
     [Runtime.InteropServices.Marshal]::ReleaseComObject($excel) | Out-Null
 }
 
-# ---------- 3. scp で転送 ----------
-Write-Host "scp でリモートへ転送 ..." -ForegroundColor Cyan
+# -----------------------------
+# 4. scp でファイル転送
+# -----------------------------
+Write-Host "scp でリモートへファイル転送中 ..." -ForegroundColor Cyan
 $scpArgs = @(
-    "-i", "`"$keyFile`"",
-    "`"$localCsv`"",
-    "$user@$host:`"$remoteCsv`""
+    "-i", "`"$keyFile`"",             # 秘密鍵ファイル
+    "`"$localCsv`"",                  # 送信元ファイル
+    "$user@$host:`"$remoteCsv`""      # 宛先パス
 )
-
 $scp = Start-Process -FilePath "scp" -ArgumentList $scpArgs -NoNewWindow -Wait -PassThru
 if ($scp.ExitCode -ne 0) {
-    Write-Error "scp 失敗 (ExitCode=$($scp.ExitCode))。処理を中断します。"
+    Write-Error "scp 失敗 (ExitCode=$($scp.ExitCode))。処理中断します。"
     Remove-Item $localCsv -Force -ErrorAction SilentlyContinue
     exit $scp.ExitCode
 }
-Write-Host "scp 完了: $remoteCsv" -ForegroundColor Green
+Write-Host "scp 転送完了: $remoteCsv" -ForegroundColor Green
 
-# ---------- 4. ssh でリモートコマンド ----------
-Write-Host "ssh で Python スクリプト実行 ..." -ForegroundColor Cyan
+# -----------------------------
+# 5. ssh でリモートコマンド実行
+# -----------------------------
+Write-Host "ssh でリモート Python 実行中 ..." -ForegroundColor Cyan
 $remoteCmd = "python3 /sak/infra/keycloak/refresh_user_data.py $remoteCsv"
 $sshArgs   = @(
     "-i", "`"$keyFile`"",
     "$user@$host",
     $remoteCmd
 )
-
 $ssh = Start-Process -FilePath "ssh" -ArgumentList $sshArgs -NoNewWindow -Wait -PassThru
 if ($ssh.ExitCode -ne 0) {
-    Write-Warning "リモートコマンドが異常終了 (ExitCode=$($ssh.ExitCode))"
+    Write-Warning "リモートコマンドが異常終了しました (ExitCode=$($ssh.ExitCode))"
 }
 
-# ---------- 5. クリーンアップ ----------
-Write-Host "ローカル一時ファイルを削除 ..." -ForegroundColor Cyan
-Remove-Item $localCsv -Force -ErrorAction SilentlyContinue
+# -----------------------------
+# 6. クリーンアップ
+# -----------------------------
+Write-Host "ローカルの一時ファイルを削除中 ..." -ForegroundColor Cyan
+Remove-Item $localCsv  -Force -ErrorAction SilentlyContinue
+Remove-Item $tempExcel -Force -ErrorAction SilentlyContinue
 
 Write-Host "----- すべての処理が完了しました -----" -ForegroundColor Magenta
