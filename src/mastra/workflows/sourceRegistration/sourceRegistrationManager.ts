@@ -1,9 +1,9 @@
 import fs from 'fs/promises';
 import path from 'path';
-import { getStore } from '../../main/store';
-import FileExtractor from '../../main/utils/fileExtractor';
-import { mastra } from '..';
-import { getSourceRepository } from '../../db/repository/sourceRepository';
+import { getStore } from '../../../main/store';
+import FileExtractor from '../../../main/utils/fileExtractor';
+import { mastra } from '../..';
+import { getSourceRepository } from '../../../db/repository/sourceRepository';
 
 /**
  * フォルダ内の全てのファイルを登録するワークフロー

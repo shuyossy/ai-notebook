@@ -13,7 +13,7 @@ import type { ChatRoom, ProcessStatus } from '../../main/types';
 import type { Source } from '../../db/schema';
 import { StoreSchema as Settings } from '../../main/store';
 import { createMockElectronWithOptions } from '../../__tests__/test-utils/mockElectronHandler';
-import ChatRoomList from '../../renderer/components/sidebar/ChatRoomList';
+import ChatRoomList from '../../renderer/components/chat/ChatRoomList';
 import ReviewHistoryList from '../../renderer/components/review/ReviewHistoryList';
 import { ROUTES } from '../../main/types';
 
@@ -505,9 +505,9 @@ describe('Sidebar Component', () => {
     // ソース取得のモックを設定（最初は処理中、その後完了）
     window.electron.source.getSources = jest.fn().mockImplementation(() => {
       return Promise.resolve({
-          success: true,
-          sources: processingMockSources,
-        });
+        success: true,
+        sources: processingMockSources,
+      });
     });
 
     renderAtPath(ROUTES.CHAT);

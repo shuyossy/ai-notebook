@@ -11,7 +11,7 @@ import {
   classifyCategoryAgent,
   reviewExecuteAgent,
 } from './agents/workflowAgents';
-import { sourceRegistrationWorkflow } from './workflows/sourceRegistration';
+import { sourceRegistrationWorkflow } from './workflows/sourceRegistration/sourceRegistration';
 import { checklistExtractionWorkflow } from './workflows/sourceReview/checklistExtraction';
 import { reviewExecutionWorkflow } from './workflows/sourceReview/reviewExecution';
 

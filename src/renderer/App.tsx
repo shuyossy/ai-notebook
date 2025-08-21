@@ -14,7 +14,7 @@ import ReviewArea from './components/review/ReviewArea';
 import SnackbarNotification from './components/common/SnackbarNotification';
 import { sourceService } from './services/sourceService';
 import { ROUTES } from '../main/types';
-import ChatRoomList from './components/sidebar/ChatRoomList';
+import ChatRoomList from './components/chat/ChatRoomList';
 import ReviewHistoryList from './components/review/ReviewHistoryList';
 
 // テーマの設定
