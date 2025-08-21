@@ -1,308 +1,217 @@
-diff --git a/package-lock.json b/package-lock.json
-index e8726deb5..e30a89337 100644
---- a/package-lock.json
-+++ b/package-lock.json
-@@ -38,6 +38,7 @@
-         "electron-log": "^5.3.2",
-         "electron-store": "^10.0.1",
-         "electron-updater": "^6.3.9",
-+        "image-type": "^6.0.0",
-         "js-tiktoken": "^1.0.20",
-         "lucide-react": "^0.503.0",
-         "mastra": "^0.4.9",
-@@ -12038,6 +12039,30 @@
-         "@testing-library/dom": ">=7.21.4"
+diff --git a/src/mastra/tools/redmine/issueTools.ts b/src/mastra/tools/redmine/issueTools.ts
+index e273e80bc..02095faa8 100644
+--- a/src/mastra/tools/redmine/issueTools.ts
++++ b/src/mastra/tools/redmine/issueTools.ts
+@@ -29,9 +29,7 @@ export const createGetIssuesListTool = (client: RedmineClient) => {
+     inputSchema: z.object({
+       project_id: z
+         .union([z.string(), z.number()])
+-        .describe(
+-          'Project ID, name, or identifier (required)',
+-        ),
++        .describe('Project ID, name, or identifier (required)'),
+       status_id: z
+         .union([z.string(), z.number(), z.enum(['open', 'closed', '*'])])
+         .optional()
+@@ -262,11 +260,12 @@ export const createCreateIssueTool = (client: RedmineClient) => {
+     inputSchema: z.object({
+       project_id: z
+         .union([z.string(), z.number()])
+-        .describe(
+-          'Project ID, name, or identifier (required)',
+-        ),
++        .describe('Project ID, name, or identifier (required)'),
+       subject: z.string().describe('Issue title (required)'),
+-      description: z.string().optional().describe('Issue description (optional)'),
++      description: z
++        .string()
++        .optional()
++        .describe('Issue description (optional)'),
+       tracker_id: z
+         .union([z.string(), z.number()])
+         .optional()
+@@ -279,7 +278,14 @@ export const createCreateIssueTool = (client: RedmineClient) => {
+         .union([z.string(), z.number()])
+         .optional()
+         .describe('Priority ID or name (optional)'),
+-      parent_issue_id: z.number().optional().describe('Parent issue ID (optional)'),
++      assigned_to_id: z
++        .union([z.string(), z.number()])
++        .optional()
++        .describe('Assignee ID or name (optional)'),
++      parent_issue_id: z
++        .number()
++        .optional()
++        .describe('Parent issue ID (optional)'),
+       fixed_version_id: z
+         .union([z.string(), z.number()])
+         .optional()
+@@ -288,8 +294,14 @@ export const createCreateIssueTool = (client: RedmineClient) => {
+         .string()
+         .optional()
+         .describe('Start date (YYYY-MM-DD format) (optional)'),
+-      due_date: z.string().optional().describe('Due date (YYYY-MM-DD format) (optional)'),
+-      estimated_hours: z.number().optional().describe('Estimated hours (optional)'),
++      due_date: z
++        .string()
++        .optional()
++        .describe('Due date (YYYY-MM-DD format) (optional)'),
++      estimated_hours: z
++        .number()
++        .optional()
++        .describe('Estimated hours (optional)'),
+     }),
+     outputSchema: createBaseToolResponseSchema(
+       z.object({
+@@ -374,6 +386,23 @@ export const createCreateIssueTool = (client: RedmineClient) => {
+         }
        }
-     },
-+    "node_modules/@tokenizer/inflate": {
-+      "version": "0.2.7",
-+      "resolved": "https://registry.npmjs.org/@tokenizer/inflate/-/inflate-0.2.7.tgz",
-+      "integrity": "sha512-MADQgmZT1eKjp06jpI2yozxaU9uVs4GzzgSL+uEq7bVcJ9V1ZXQkeGNql1fsSI0gMy1vhvNTNbUqrx+pZfJVmg==",
-+      "license": "MIT",
-+      "dependencies": {
-+        "debug": "^4.4.0",
-+        "fflate": "^0.8.2",
-+        "token-types": "^6.0.0"
-+      },
-+      "engines": {
-+        "node": ">=18"
-+      },
-+      "funding": {
-+        "type": "github",
-+        "url": "https://github.com/sponsors/Borewit"
-+      }
-+    },
-+    "node_modules/@tokenizer/token": {
-+      "version": "0.3.0",
-+      "resolved": "https://registry.npmjs.org/@tokenizer/token/-/token-0.3.0.tgz",
-+      "integrity": "sha512-OvjF+z51L3ov0OyAU0duzsYuvO01PH7x4t6DJx+guahgTnBHkhJdG7soQeTSFLWN3efnHyibZ4Z8l2EuWwJN3A==",
-+      "license": "MIT"
-+    },
-     "node_modules/@tootallnate/once": {
-       "version": "2.0.0",
-       "resolved": "https://registry.npmjs.org/@tootallnate/once/-/once-2.0.0.tgz",
-@@ -21277,6 +21302,12 @@
-         "node": ">= 8"
-       }
-     },
-+    "node_modules/fflate": {
-+      "version": "0.8.2",
-+      "resolved": "https://registry.npmjs.org/fflate/-/fflate-0.8.2.tgz",
-+      "integrity": "sha512-cPJU47OaAoCbg0pBvzsgpTPhmhqI5eJjh/JIu8tPj5q+T7iLvW/JAYUqmE7KOB4R1ZyEhzBaIQpQpardBF5z8A==",
-+      "license": "MIT"
-+    },
-     "node_modules/figures": {
-       "version": "6.1.0",
-       "resolved": "https://registry.npmjs.org/figures/-/figures-6.1.0.tgz",
-@@ -21357,6 +21388,24 @@
-         "url": "https://opencollective.com/webpack"
-       }
-     },
-+    "node_modules/file-type": {
-+      "version": "20.5.0",
-+      "resolved": "https://registry.npmjs.org/file-type/-/file-type-20.5.0.tgz",
-+      "integrity": "sha512-BfHZtG/l9iMm4Ecianu7P8HRD2tBHLtjXinm4X62XBOYzi7CYA7jyqfJzOvXHqzVrVPYqBo2/GvbARMaaJkKVg==",
-+      "license": "MIT",
-+      "dependencies": {
-+        "@tokenizer/inflate": "^0.2.6",
-+        "strtok3": "^10.2.0",
-+        "token-types": "^6.0.0",
-+        "uint8array-extras": "^1.4.0"
-+      },
-+      "engines": {
-+        "node": ">=18"
-+      },
-+      "funding": {
-+        "url": "https://github.com/sindresorhus/file-type?sponsor=1"
-+      }
-+    },
-     "node_modules/filelist": {
-       "version": "1.0.4",
-       "resolved": "https://registry.npmjs.org/filelist/-/filelist-1.0.4.tgz",
-@@ -23074,6 +23123,21 @@
-       "integrity": "sha512-yOJQEKrNwoYqrWLS4DcnzM7SEQhRKis5mB+LdKKh4cPmGYlLPR0ozRzHV5jmEk2IxptqJNQA5Cc0gw8Fj12bXA==",
-       "dev": true
-     },
-+    "node_modules/image-type": {
-+      "version": "6.0.0",
-+      "resolved": "https://registry.npmjs.org/image-type/-/image-type-6.0.0.tgz",
-+      "integrity": "sha512-efpcYd/E9A7a+oanft11ceIbO9Aw0iszfJ7Qfh4QLWl2Ulsth9nnllV/L1TmzKwlQ2O5FuT08vy5zxLnGxZe8w==",
-+      "license": "MIT",
-+      "dependencies": {
-+        "file-type": "^20.5.0"
-+      },
-+      "engines": {
-+        "node": ">=20"
-+      },
-+      "funding": {
-+        "url": "https://github.com/sponsors/sindresorhus"
-+      }
-+    },
-     "node_modules/immediate": {
-       "version": "3.0.6",
-       "resolved": "https://registry.npmjs.org/immediate/-/immediate-3.0.6.tgz",
-@@ -33057,6 +33121,22 @@
-       ],
-       "license": "MIT"
-     },
-+    "node_modules/strtok3": {
-+      "version": "10.3.1",
-+      "resolved": "https://registry.npmjs.org/strtok3/-/strtok3-10.3.1.tgz",
-+      "integrity": "sha512-3JWEZM6mfix/GCJBBUrkA8p2Id2pBkyTkVCJKto55w080QBKZ+8R171fGrbiSp+yMO/u6F8/yUh7K4V9K+YCnw==",
-+      "license": "MIT",
-+      "dependencies": {
-+        "@tokenizer/token": "^0.3.0"
-+      },
-+      "engines": {
-+        "node": ">=18"
-+      },
-+      "funding": {
-+        "type": "github",
-+        "url": "https://github.com/sponsors/Borewit"
-+      }
-+    },
-     "node_modules/stubborn-fs": {
-       "version": "1.2.5",
-       "resolved": "https://registry.npmjs.org/stubborn-fs/-/stubborn-fs-1.2.5.tgz",
-@@ -33724,6 +33804,23 @@
-         "node": ">=0.6"
-       }
-     },
-+    "node_modules/token-types": {
-+      "version": "6.0.0",
-+      "resolved": "https://registry.npmjs.org/token-types/-/token-types-6.0.0.tgz",
-+      "integrity": "sha512-lbDrTLVsHhOMljPscd0yitpozq7Ga2M5Cvez5AjGg8GASBjtt6iERCAJ93yommPmz62fb45oFIXHEZ3u9bfJEA==",
-+      "license": "MIT",
-+      "dependencies": {
-+        "@tokenizer/token": "^0.3.0",
-+        "ieee754": "^1.2.1"
-+      },
-+      "engines": {
-+        "node": ">=14.16"
-+      },
-+      "funding": {
-+        "type": "github",
-+        "url": "https://github.com/sponsors/Borewit"
-+      }
-+    },
-     "node_modules/totalist": {
-       "version": "3.0.1",
-       "resolved": "https://registry.npmjs.org/totalist/-/totalist-3.0.1.tgz",
-diff --git a/package.json b/package.json
-index 87a8604ad..75f67adfa 100644
---- a/package.json
-+++ b/package.json
-@@ -115,6 +115,7 @@
-     "electron-log": "^5.3.2",
-     "electron-store": "^10.0.1",
-     "electron-updater": "^6.3.9",
-+    "image-type": "^6.0.0",
-     "js-tiktoken": "^1.0.20",
-     "lucide-react": "^0.503.0",
-     "mastra": "^0.4.9",
-diff --git a/src/main/main.ts b/src/main/main.ts
-index 1a722c848..56547b5ff 100644
---- a/src/main/main.ts
-+++ b/src/main/main.ts
-@@ -15,12 +15,7 @@ import { autoUpdater } from 'electron-updater';
- import log from 'electron-log';
- import { Mastra } from '@mastra/core';
- import { createLogger } from '@mastra/core/logger';
--import {
--  createDataStream,
--  CoreUserMessage,
--  UserContent,
--  APICallError,
--} from 'ai';
-+import { createDataStream, APICallError, convertToCoreMessages } from 'ai';
- import { eq } from 'drizzle-orm';
- import {
-   ReadableStream,
-@@ -435,32 +430,7 @@ const setupChatHandlers = () => {
-             });
-             // streaming falseの場合のメッセージ送信処理
-             const res = await orchestratorAgent.generate(
--              messages.map((msg) => {
--                const content: UserContent = msg
--                  .parts!.filter((part) => part.type === 'text')
--                  .map((part) => {
--                    return { type: 'text', text: part.text };
--                  });
--                if (
--                  msg.experimental_attachments &&
--                  msg.experimental_attachments.length > 0
--                ) {
--                  content.push(
--                    // @ts-ignore
--                    ...msg.experimental_attachments.map((att) => {
--                      return {
--                        type: 'image',
--                        image: att.url,
--                        mimeType: att.contentType,
--                      };
--                    }),
--                  );
--                }
--                return {
--                  role: 'user',
--                  content,
--                } as CoreUserMessage;
--              }),
-+              convertToCoreMessages(messages),
-               {
-                 resourceId: 'user', // 固定のリソースID
-                 instructions: await getOrchestratorSystemPrompt(
-@@ -504,7 +474,6 @@ const setupChatHandlers = () => {
-             console.error('テキスト生成中にエラーが発生:', error);
-             // エラー時もAbortControllerを削除
-             threadAbortControllers.delete(roomId);
--            event.sender.send(IpcChannels.CHAT_COMPLETE);
-             let errorDetail: string;
-             if (APICallError.isInstance(error)) {
-               // APIコールエラーの場合はresponseBodyの内容を取得
-@@ -582,6 +551,8 @@ const setupChatHandlers = () => {
-       try {
-         const mastra = getMastra();
-         const orchestratorAgent = mastra.getAgent('orchestratorAgent');
-+        // 画像オブジェクトのMIMEタイプを同期検出するためのライブラリ
-+        const { default: imageType } = await import('image-type');
  
-         // スレッド内のメッセージを取得
-         const result = await orchestratorAgent.getMemory()?.query({ threadId });
-@@ -592,38 +563,45 @@ const setupChatHandlers = () => {
- 
-         const { uiMessages, messages } = result;
-         // messages内の要素でroleが'user'の場合に、contentのtypeが'image'のものがあれば、画像データを対応するuiMessagesにも付与する
--        messages.forEach((message) => {
--          if (message.role === 'user' && typeof message.content !== 'string') {
--            const imageAttachments = message.content
--              .filter(
--                (part) =>
--                  part.type === 'image' && typeof part.image === 'string',
--              )
--              .map((part) => {
--                return {
--                  // @ts-ignore partはImagePart型であることが保証されている
--                  url: part.image,
--                  // @ts-ignore partはImagePart型であることが保証されている
--                  contentType: part.mimeType,
--                };
--              });
--            if (imageAttachments.length > 0) {
--              // uiMessagesの対応するメッセージに画像データを追加
--              const uiMessage = uiMessages.find(
--                // @ts-ignore CoreMessageもダンプしてみるとidが存在する
--                (uiMsg) => uiMsg.id === message.id,
--              );
--              if (uiMessage) {
--                uiMessage.experimental_attachments = imageAttachments;
--              } else {
--                console.warn(
--                  // @ts-ignore
--                  `対応するUIメッセージが見つかりません: ${message.id}`,
--                );
--              }
--            }
-+        for (const message of messages) {
-+          if (message.role !== 'user' || typeof message.content === 'string') {
-+            // eslint-disable-next-line no-continue
-+            continue;
-           }
--        });
-+
-+          // 3) 画像パートのみ抽出
-+          const imageParts = message.content.filter(
-+            (part) => part.type === 'image',
++      if (context.assigned_to_id) {
++        if (
++          typeof context.assigned_to_id === 'string' &&
++          !Number.isNaN(Number(context.assigned_to_id))
++        ) {
++          issueData.assigned_to_id = Number(context.assigned_to_id);
++        } else if (typeof context.assigned_to_id === 'string') {
++          const users = await client.getUsers();
++          issueData.assigned_to_id = await client.resolveId(
++            context.assigned_to_id,
++            users,
 +          );
-+          if (imageParts.length === 0) {
-+            // eslint-disable-next-line no-continue
-+            continue;
-+          }
-+
-+          // 4) 画像パートごとにBase64へ変換
-+          const attachments = await Promise.all(
-+            imageParts.map(async (part) => {
-+              // a) Buffer に変換
-+              const buffer = Buffer.from(Object.values(part.image));
-+              // b) MIMEタイプを同期検出
-+              const type = await imageType(buffer);
-+              const mime = type ? type.mime : 'application/octet-stream';
-+              // c) Data URL を組み立て
-+              const dataUrl = `data:${mime};base64,${buffer.toString('base64')}`;
-+              return { url: dataUrl };
-+            }),
-+          );
-+
-+          // 5) 対応する UI メッセージを特定して attachments をセット
-+          // @ts-ignore CoreMessageもダンプしてみるとidが存在する
-+          const uiMsg = uiMessages.find((u) => u.id === message.id);
-+          if (uiMsg) {
-+            uiMsg.experimental_attachments = attachments;
-+          } else {
-+            // @ts-ignore CoreMessageもダンプしてみるとidが存在する
-+            console.warn(`対応するUIメッセージが見つかりません: ${message.id}`);
-+          }
++        } else {
++          issueData.assigned_to_id = context.assigned_to_id;
 +        }
++      }
++
+       if (context.parent_issue_id) {
+         issueData.parent_issue_id = context.parent_issue_id;
+       }
+@@ -454,7 +483,10 @@ export const createUpdateIssueTool = (client: RedmineClient) => {
+       issue_id: z.number().describe('ID of the issue to update (required)'),
+       notes: z.string().optional().describe('Update comment (optional)'),
+       subject: z.string().optional().describe('Issue title (optional)'),
+-      description: z.string().optional().describe('Issue description (optional)'),
++      description: z
++        .string()
++        .optional()
++        .describe('Issue description (optional)'),
+       tracker_id: z
+         .union([z.string(), z.number()])
+         .optional()
+@@ -467,8 +499,14 @@ export const createUpdateIssueTool = (client: RedmineClient) => {
+         .union([z.string(), z.number()])
+         .optional()
+         .describe('Priority ID or name (optional)'),
+-      assigned_to_id: z.number().optional().describe('Assignee ID (optional)'),
+-      parent_issue_id: z.number().optional().describe('Parent issue ID (optional)'),
++      assigned_to_id: z
++        .union([z.string(), z.number()])
++        .optional()
++        .describe('Assignee ID or name (optional)'),
++      parent_issue_id: z
++        .number()
++        .optional()
++        .describe('Parent issue ID (optional)'),
+       fixed_version_id: z
+         .union([z.string(), z.number()])
+         .optional()
+@@ -477,8 +515,14 @@ export const createUpdateIssueTool = (client: RedmineClient) => {
+         .string()
+         .optional()
+         .describe('Start date (YYYY-MM-DD format) (optional)'),
+-      due_date: z.string().optional().describe('Due date (YYYY-MM-DD format) (optional)'),
+-      estimated_hours: z.number().optional().describe('Estimated hours (optional)'),
++      due_date: z
++        .string()
++        .optional()
++        .describe('Due date (YYYY-MM-DD format) (optional)'),
++      estimated_hours: z
++        .number()
++        .optional()
++        .describe('Estimated hours (optional)'),
+     }),
+     outputSchema: createBaseToolResponseSchema(
+       z.object({
+@@ -560,6 +604,23 @@ export const createUpdateIssueTool = (client: RedmineClient) => {
+         }
+       }
  
-         // メッセージをチャットメッセージ形式に変換
-         return uiMessages;
++      if (context.assigned_to_id) {
++        if (
++          typeof context.assigned_to_id === 'string' &&
++          !Number.isNaN(Number(context.assigned_to_id))
++        ) {
++          updateData.assigned_to_id = Number(context.assigned_to_id);
++        } else if (typeof context.assigned_to_id === 'string') {
++          const users = await client.getUsers();
++          updateData.assigned_to_id = await client.resolveId(
++            context.assigned_to_id,
++            users,
++          );
++        } else {
++          updateData.assigned_to_id = context.assigned_to_id;
++        }
++      }
++
+       if (context.parent_issue_id) {
+         updateData.parent_issue_id = context.parent_issue_id;
+       }
+diff --git a/src/mastra/tools/redmine/redmineClient.ts b/src/mastra/tools/redmine/redmineClient.ts
+index f8317d3d5..284463e9b 100644
+--- a/src/mastra/tools/redmine/redmineClient.ts
++++ b/src/mastra/tools/redmine/redmineClient.ts
+@@ -47,6 +47,8 @@ export class RedmineClient {
+ 
+   private prioritiesCache: NameIdMapping[] = [];
+ 
++  private usersCache: NameIdMapping[] = [];
++
+   /* コンストラクタ
+    * @param config RedmineClientConfig - クライアント設定
+    */
+@@ -223,6 +225,32 @@ export class RedmineClient {
+     };
+   }
+ 
++  /**
++   * ユーザー一覧を取得してキャッシュに保存
++   * @returns ユーザー情報の配列
++   */
++  async getUsers(): Promise<NameIdMapping[]> {
++    if (this.usersCache.length > 0) {
++      return this.usersCache;
++    }
++
++    interface UsersResponse {
++      users: Array<{
++        id: number;
++        firstname: string;
++        lastname: string;
++      }>;
++    }
++
++    const response = await this.request<UsersResponse>('users.json', 'GET');
++    this.usersCache = response.users.map((user) => ({
++      id: user.id,
++      name: `${user.firstname} ${user.lastname}`,
++    }));
++
++    return this.usersCache;
++  }
++
+   /**
+    * プロジェクト一覧を取得してIDマッピングを返す
+    * @returns プロジェクトの名前とIDのマッピング配列
+diff --git a/src/mastra/tools/redmine/types.ts b/src/mastra/tools/redmine/types.ts
+index 65ce90508..dd090e16e 100644
+--- a/src/mastra/tools/redmine/types.ts
++++ b/src/mastra/tools/redmine/types.ts
+@@ -21,6 +21,7 @@ interface RedmineIssueCommonData {
+   due_date?: string;
+   estimated_hours?: number;
+   fixed_version_id?: number | string;
++  assigned_to_id?: number | string;
+ }
+ 
+ /**
