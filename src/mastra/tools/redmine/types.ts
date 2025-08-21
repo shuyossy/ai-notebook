@@ -21,7 +21,7 @@ interface RedmineIssueCommonData {
   due_date?: string;
   estimated_hours?: number;
   fixed_version_id?: number | string;
-  assigned_to_id?: number | string | 'me';
+  assigned_to_id?: number | string;
 }
 
 /**

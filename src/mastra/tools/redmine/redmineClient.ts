@@ -47,6 +47,8 @@ export class RedmineClient {
 
   private prioritiesCache: NameIdMapping[] = [];
 
+  private usersCache: NameIdMapping[] = [];
+
   /* コンストラクタ
    * @param config RedmineClientConfig - クライアント設定
    */
@@ -221,6 +223,32 @@ export class RedmineClient {
       statuses,
       priorities,
     };
+  }
+
+  /**
+   * ユーザー一覧を取得してキャッシュに保存
+   * @returns ユーザー情報の配列
+   */
+  async getUsers(): Promise<NameIdMapping[]> {
+    if (this.usersCache.length > 0) {
+      return this.usersCache;
+    }
+
+    interface UsersResponse {
+      users: Array<{
+        id: number;
+        firstname: string;
+        lastname: string;
+      }>;
+    }
+
+    const response = await this.request<UsersResponse>('users.json', 'GET');
+    this.usersCache = response.users.map((user) => ({
+      id: user.id,
+      name: `${user.firstname} ${user.lastname}`,
+    }));
+
+    return this.usersCache;
   }
 
   /**
