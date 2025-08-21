@@ -29,9 +29,7 @@ export const createGetIssuesListTool = (client: RedmineClient) => {
     inputSchema: z.object({
       project_id: z
         .union([z.string(), z.number()])
-        .describe(
-          'Project ID, name, or identifier (required)',
-        ),
+        .describe('Project ID, name, or identifier (required)'),
       status_id: z
         .union([z.string(), z.number(), z.enum(['open', 'closed', '*'])])
         .optional()
@@ -262,11 +260,12 @@ export const createCreateIssueTool = (client: RedmineClient) => {
     inputSchema: z.object({
       project_id: z
         .union([z.string(), z.number()])
-        .describe(
-          'Project ID, name, or identifier (required)',
-        ),
+        .describe('Project ID, name, or identifier (required)'),
       subject: z.string().describe('Issue title (required)'),
-      description: z.string().optional().describe('Issue description (optional)'),
+      description: z
+        .string()
+        .optional()
+        .describe('Issue description (optional)'),
       tracker_id: z
         .union([z.string(), z.number()])
         .optional()
@@ -279,7 +278,11 @@ export const createCreateIssueTool = (client: RedmineClient) => {
         .union([z.string(), z.number()])
         .optional()
         .describe('Priority ID or name (optional)'),
-      parent_issue_id: z.number().optional().describe('Parent issue ID (optional)'),
+      assigned_to_id: z.number().optional().describe('Assignee ID (optional)'),
+      parent_issue_id: z
+        .number()
+        .optional()
+        .describe('Parent issue ID (optional)'),
       fixed_version_id: z
         .union([z.string(), z.number()])
         .optional()
@@ -288,8 +291,14 @@ export const createCreateIssueTool = (client: RedmineClient) => {
         .string()
         .optional()
         .describe('Start date (YYYY-MM-DD format) (optional)'),
-      due_date: z.string().optional().describe('Due date (YYYY-MM-DD format) (optional)'),
-      estimated_hours: z.number().optional().describe('Estimated hours (optional)'),
+      due_date: z
+        .string()
+        .optional()
+        .describe('Due date (YYYY-MM-DD format) (optional)'),
+      estimated_hours: z
+        .number()
+        .optional()
+        .describe('Estimated hours (optional)'),
     }),
     outputSchema: createBaseToolResponseSchema(
       z.object({
@@ -374,6 +383,10 @@ export const createCreateIssueTool = (client: RedmineClient) => {
         }
       }
 
+      if (context.assigned_to_id) {
+        issueData.assigned_to_id = context.assigned_to_id;
+      }
+
       if (context.parent_issue_id) {
         issueData.parent_issue_id = context.parent_issue_id;
       }
@@ -454,7 +467,10 @@ export const createUpdateIssueTool = (client: RedmineClient) => {
       issue_id: z.number().describe('ID of the issue to update (required)'),
       notes: z.string().optional().describe('Update comment (optional)'),
       subject: z.string().optional().describe('Issue title (optional)'),
-      description: z.string().optional().describe('Issue description (optional)'),
+      description: z
+        .string()
+        .optional()
+        .describe('Issue description (optional)'),
       tracker_id: z
         .union([z.string(), z.number()])
         .optional()
@@ -468,7 +484,10 @@ export const createUpdateIssueTool = (client: RedmineClient) => {
         .optional()
         .describe('Priority ID or name (optional)'),
       assigned_to_id: z.number().optional().describe('Assignee ID (optional)'),
-      parent_issue_id: z.number().optional().describe('Parent issue ID (optional)'),
+      parent_issue_id: z
+        .number()
+        .optional()
+        .describe('Parent issue ID (optional)'),
       fixed_version_id: z
         .union([z.string(), z.number()])
         .optional()
@@ -477,8 +496,14 @@ export const createUpdateIssueTool = (client: RedmineClient) => {
         .string()
         .optional()
         .describe('Start date (YYYY-MM-DD format) (optional)'),
-      due_date: z.string().optional().describe('Due date (YYYY-MM-DD format) (optional)'),
-      estimated_hours: z.number().optional().describe('Estimated hours (optional)'),
+      due_date: z
+        .string()
+        .optional()
+        .describe('Due date (YYYY-MM-DD format) (optional)'),
+      estimated_hours: z
+        .number()
+        .optional()
+        .describe('Estimated hours (optional)'),
     }),
     outputSchema: createBaseToolResponseSchema(
       z.object({
@@ -558,6 +583,10 @@ export const createUpdateIssueTool = (client: RedmineClient) => {
         } else {
           updateData.priority_id = context.priority_id;
         }
+      }
+
+      if (context.assigned_to_id) {
+        updateData.assigned_to_id = context.assigned_to_id;
       }
 
       if (context.parent_issue_id) {
