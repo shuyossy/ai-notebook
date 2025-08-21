@@ -278,10 +278,7 @@ export const createCreateIssueTool = (client: RedmineClient) => {
         .union([z.string(), z.number()])
         .optional()
         .describe('Priority ID or name (optional)'),
-      assigned_to_id: z
-        .union([z.string(), z.number()])
-        .optional()
-        .describe('Assignee ID or name (optional)'),
+      assigned_to_id: z.number().optional().describe('Assignee ID (optional)'),
       parent_issue_id: z
         .number()
         .optional()
@@ -387,20 +384,7 @@ export const createCreateIssueTool = (client: RedmineClient) => {
       }
 
       if (context.assigned_to_id) {
-        if (
-          typeof context.assigned_to_id === 'string' &&
-          !Number.isNaN(Number(context.assigned_to_id))
-        ) {
-          issueData.assigned_to_id = Number(context.assigned_to_id);
-        } else if (typeof context.assigned_to_id === 'string') {
-          const users = await client.getUsers();
-          issueData.assigned_to_id = await client.resolveId(
-            context.assigned_to_id,
-            users,
-          );
-        } else {
-          issueData.assigned_to_id = context.assigned_to_id;
-        }
+        issueData.assigned_to_id = context.assigned_to_id;
       }
 
       if (context.parent_issue_id) {
@@ -499,10 +483,7 @@ export const createUpdateIssueTool = (client: RedmineClient) => {
         .union([z.string(), z.number()])
         .optional()
         .describe('Priority ID or name (optional)'),
-      assigned_to_id: z
-        .union([z.string(), z.number()])
-        .optional()
-        .describe('Assignee ID or name (optional)'),
+      assigned_to_id: z.number().optional().describe('Assignee ID (optional)'),
       parent_issue_id: z
         .number()
         .optional()
@@ -605,20 +586,7 @@ export const createUpdateIssueTool = (client: RedmineClient) => {
       }
 
       if (context.assigned_to_id) {
-        if (
-          typeof context.assigned_to_id === 'string' &&
-          !Number.isNaN(Number(context.assigned_to_id))
-        ) {
-          updateData.assigned_to_id = Number(context.assigned_to_id);
-        } else if (typeof context.assigned_to_id === 'string') {
-          const users = await client.getUsers();
-          updateData.assigned_to_id = await client.resolveId(
-            context.assigned_to_id,
-            users,
-          );
-        } else {
-          updateData.assigned_to_id = context.assigned_to_id;
-        }
+        updateData.assigned_to_id = context.assigned_to_id;
       }
 
       if (context.parent_issue_id) {
