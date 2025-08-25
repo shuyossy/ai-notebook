@@ -1,3 +1,4 @@
+// @ts-ignore
 import { MastraMemory, StorageThreadType } from '@mastra/core';
 import { UIMessage } from 'ai';
 

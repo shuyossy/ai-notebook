@@ -1,0 +1,33 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      // webpack dev server 等を起動するタスク（背景で動かし続ける）
+      "label": "npm: start",
+      "type": "shell",
+      "command": "npm",
+      "args": [
+        "run",
+        "start"
+      ],
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      // Main を事前ビルドするタスク（必要な場合に preLaunchTask に差し替えて使う）
+      "label": "npm: build-main",
+      "type": "shell",
+      "command": "npm",
+      "args": [
+        "run",
+        "build:main"
+      ],
+      "problemMatcher": []
+    }
+  ]
+}

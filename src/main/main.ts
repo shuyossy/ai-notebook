@@ -20,6 +20,7 @@ import {
   WritableStream,
   TransformStream,
 } from 'node:stream/web';
+// @ts-ignore
 import { MastraError } from '@mastra/core/error';
 import { getStore } from './store';
 import type { Source } from '../db/schema';
@@ -59,13 +60,18 @@ const userId = 'user';
 
 const settingsService = new SettingsService();
 
-const MastraMemory = mastra.getAgent('orchestrator').getMemory();
-if (!MastraMemory) {
-  throw new Error('メモリが初期化されていません');
-}
-const chatService = new ChatService(MastraMemory);
+const mastraMemory = mastra.getAgent('orchestrator').getMemory();
+// @ts-ignore
+let chatService: ChatService;
 
 const reviewService = new ReviewService();
+
+mastraMemory.then((memory) => {
+  if (!memory) {
+    throw new Error('メモリが初期化されていません');
+  }
+  chatService = new ChatService(memory);
+});
 
 /**
  * 設定の初期化を行う関数

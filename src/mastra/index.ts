@@ -1,6 +1,8 @@
 // メモリ設定などelectron-storeから読み込む
 // そのためmain.tsではelectron-storeの初期化後に動的インポートで遅延ロードする
+// @ts-ignore
 import { Mastra } from '@mastra/core';
+// @ts-ignore
 import { createLogger } from '@mastra/core/logger';
 import { orchestrator } from './agents/orchestrator';
 import { documentExpertAgent } from './agents/toolAgents';

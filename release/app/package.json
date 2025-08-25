@@ -9,7 +9,7 @@
     "link-modules": "node -r ts-node/register ../../.erb/scripts/link-modules.ts"
   },
   "dependencies": {
-    "@libsql/client": "0.15.4",
+    "@libsql/client": "0.15.12",
     "@napi-rs/canvas": "0.1.70"
   }
 }
