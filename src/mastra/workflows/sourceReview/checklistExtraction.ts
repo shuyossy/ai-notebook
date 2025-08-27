@@ -497,7 +497,7 @@ const checklistIntegrationStep = createStep({
       }
 
       return {
-        status: 'success' as stepStatus
+        status: 'success' as stepStatus,
       };
     } catch (error) {
       if (error instanceof Error && error.message) {
@@ -556,14 +556,19 @@ export const checklistExtractionWorkflow = createWorkflow({
         })
         // Step2: 各トピックに対してチェックリスト作成（foreachでループ）
         .foreach(topicChecklistCreationStep)
-        .map(async ({ getInitData, inputData}) => {
+        .map(async ({ getInitData, inputData }) => {
           const initData = getInitData();
-          const allChecklistItems = inputData.map(i => {
-            if (i.status !== 'success' || !i.checklistItems) {
-              throw new Error(i?.errorMessage || 'トピック別チェックリスト作成に失敗しました');
-            }
-            return i.checklistItems;
-          }).flat();
+          const allChecklistItems = inputData
+            .map((i) => {
+              if (i.status !== 'success' || !i.checklistItems) {
+                throw new Error(
+                  i?.errorMessage ||
+                    'トピック別チェックリスト作成に失敗しました',
+                );
+              }
+              return i.checklistItems;
+            })
+            .flat();
 
           return {
             reviewHistoryId: initData.reviewHistoryId,

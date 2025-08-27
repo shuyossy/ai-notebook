@@ -1,6 +1,6 @@
 import { WorkflowResult } from '@mastra/core';
 import { baseStepOutputSchema } from './schema';
-import { z } from "zod";
+import { z } from 'zod';
 
 // workflowの結果を確認するための関数
 export function checkStatus(result: WorkflowResult<any, any>): {
@@ -25,7 +25,9 @@ export function checkStatus(result: WorkflowResult<any, any>): {
   const values = Object.values(result.result);
 
   // 1つでもstatusがfailedのものを探す
-  const failedItem = (values as z.infer<typeof baseStepOutputSchema>[]).find((item: any) => item.status === 'failed');
+  const failedItem = (values as z.infer<typeof baseStepOutputSchema>[]).find(
+    (item: any) => item.status === 'failed',
+  );
 
   // failedが見つかった場合
   if (failedItem) {

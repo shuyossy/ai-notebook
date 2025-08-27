@@ -5,7 +5,7 @@ import {
   ChecklistExtractionAgentRuntimeContext,
   ClassifyCategoryAgentRuntimeContext,
   ReviewExecuteAgentRuntimeContext,
-  TopicChecklistAgentRuntimeContext
+  TopicChecklistAgentRuntimeContext,
 } from './workflowAgents';
 
 /**
