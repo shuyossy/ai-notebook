@@ -5,6 +5,7 @@ import {
   SOURCE_ANALYSIS_SYSTEM_PROMPT,
   EXTRACT_TOPIC_AND_SUMMARY_SYSTEM_PROMPT,
   getChecklistExtractionPrompt,
+  getGeneralDocumentChecklistPrompt,
   getChecklistCategolizePrompt,
   getDocumentReviewExecutionPrompt,
 } from './prompts';
@@ -39,6 +40,12 @@ export const summarizeTopicAgent = new Agent({
 export const checklistExtractionAgent = new Agent({
   name: 'checklistExtractionAgent',
   instructions: getChecklistExtractionPrompt,
+  model: getOpenAICompatibleModel,
+});
+
+export const generalDocumentChecklistAgent = new Agent({
+  name: 'generalDocumentChecklistAgent',
+  instructions: getGeneralDocumentChecklistPrompt,
   model: getOpenAICompatibleModel,
 });
 

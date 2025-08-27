@@ -19,7 +19,11 @@ const triggerSchema = z.object({
   sourceIds: z
     .array(z.number())
     .describe('チェックリストを抽出するソースのIDリスト'),
-});
+  documentType: z
+    .enum(['checklist', 'general'])
+    .default('checklist')
+    .describe('ドキュメント種別: checklist=チェックリストドキュメント, general=一般ドキュメント'),
+});;
 
 const checklistExtractionStep = createStep({
   id: 'checklistExtractionStep',
@@ -31,7 +35,7 @@ const checklistExtractionStep = createStep({
     const reviewRepository = getReviewRepository();
     const sourceRepository = getSourceRepository();
     // トリガーから入力を取得
-    const { reviewHistoryId, sourceIds } = inputData;
+    const { reviewHistoryId, sourceIds, documentType } = inputData;
     const errorMessages: string[] = [
       'チェックリスト抽出処理で以下エラーが発生しました',
     ];
@@ -53,9 +57,11 @@ const checklistExtractionStep = createStep({
           // ファイル内容を抽出
           const { content } = await FileExtractor.extractText(source.path);
 
-          const checklistExtractionAgent = mastra.getAgent(
-            'checklistExtractionAgent',
-          );
+          // ドキュメント種別に応じてエージェントを選択
+          const agentName = documentType === 'general' 
+            ? 'generalDocumentChecklistAgent' 
+            : 'checklistExtractionAgent';
+          const checklistExtractionAgent = mastra.getAgent(agentName);
           const outputSchema = z.object({
             isChecklistDocument: z
               .boolean()
@@ -125,7 +131,8 @@ const checklistExtractionStep = createStep({
               },
             );
 
-            if (!extractionResult.object.isChecklistDocument) {
+            // チェックリストドキュメントの場合のみドキュメント判定をチェック
+            if (documentType === 'checklist' && !extractionResult.object.isChecklistDocument) {
               throw new Error(
                 `チェックリスト抽出に適さないドキュメントとして判定されたため処理を終了しました`,
               );

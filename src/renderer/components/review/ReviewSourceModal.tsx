@@ -15,6 +15,11 @@ import {
   Tooltip,
   Chip,
   Checkbox,
+  FormControl,
+  RadioGroup,
+  FormControlLabel,
+  Radio,
+  FormLabel,
 } from '@mui/material';
 import {
   Check as CheckIcon,
@@ -25,7 +30,7 @@ import {
 } from '@mui/icons-material';
 
 import { Source } from '../../../db/schema';
-import { ReviewSourceModalProps } from './types';
+import { ReviewSourceModalProps, DocumentType } from './types';
 
 function SourceListModal({
   open,
@@ -40,6 +45,7 @@ function SourceListModal({
     [key: number]: boolean;
   }>({});
   const [processing, setProcessing] = useState(true);
+  const [documentType, setDocumentType] = useState<DocumentType>('checklist');
 
   // チェック状態の更新
   // ソースの更新状態が変わったときにチェック状態を更新する
@@ -65,6 +71,8 @@ function SourceListModal({
       });
       return { ...prev };
     });
+    // ドキュメント種別もリセット
+    setDocumentType('checklist');
   }, [modalMode, selectedReviewHistoryId]);
 
   // チェックボックスの変更ハンドラ
@@ -139,6 +147,7 @@ function SourceListModal({
           return checkedSources[+key];
         })
         .map((key) => +key),
+      modalMode === 'extract' ? documentType : undefined,
     );
   };
 
@@ -165,11 +174,13 @@ function SourceListModal({
   // アラート表示の内容
   const getAlertMessage = () => {
     if (modalMode === 'extract') {
-      return (
+      const baseMessage = (
         <>
           設定されたフォルダ内のドキュメントを一覧表示しています
           <br />
-          選択されたドキュメントから、AIがレビュー用のチェックリストを作成できます
+          {documentType === 'checklist'
+            ? '選択されたチェックリストドキュメントから、AIが既存のチェック項目を抽出できます'
+            : '選択された一般ドキュメントから、AIがレビュー用のチェックリストを新規作成できます'}
           <br />
           ※
           <br />
@@ -180,6 +191,7 @@ function SourceListModal({
           フォルダのパスは設定画面（歯車アイコン）から変更可能です
         </>
       );
+      return baseMessage;
     }
     if (modalMode === 'review') {
       return (
@@ -283,6 +295,30 @@ function SourceListModal({
         <Alert severity="info" sx={{ whiteSpace: 'pre-line', mb: 2 }}>
           {getAlertMessage()}
         </Alert>
+
+        {modalMode === 'extract' && (
+          <FormControl component="fieldset" sx={{ mb: 2 }}>
+            <FormLabel component="legend">ドキュメント種別</FormLabel>
+            <RadioGroup
+              row
+              value={documentType}
+              onChange={(e) => setDocumentType(e.target.value as DocumentType)}
+            >
+              <FormControlLabel
+                value="checklist"
+                control={<Radio />}
+                label="チェックリストドキュメント（既存項目を抽出）"
+                disabled={processing}
+              />
+              <FormControlLabel
+                value="general"
+                control={<Radio />}
+                label="一般ドキュメント（新規チェックリスト作成）"
+                disabled={processing}
+              />
+            </RadioGroup>
+          </FormControl>
+        )}
 
         <Box sx={{ mb: 2, display: 'flex', justifyContent: 'flex-end' }}>
           <Tooltip title="ソース登録ディレクトリ内のファイル内容と同期します">

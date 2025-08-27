@@ -10,7 +10,7 @@ import {
 import CheckBoxIcon from '@mui/icons-material/CheckBox';
 import RateReviewIcon from '@mui/icons-material/RateReview';
 import { v4 as uuid } from 'uuid';
-import { ReviewAreaProps, ModalMode } from './types';
+import { ReviewAreaProps, ModalMode, DocumentType } from './types';
 import ReviewChecklistSection from './ReviewChecklistSection';
 import ReviewSourceModal from './ReviewSourceModal';
 import {
@@ -77,7 +77,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
 
   // チェックリストの抽出処理
   const handleExtractChecklist = useCallback(
-    async (sourceIds: number[]) => {
+    async (sourceIds: number[], documentType?: DocumentType) => {
       if (!selectedReviewHistoryId) return;
 
       try {
@@ -88,6 +88,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
         const result = await window.electron.review.extractChecklist({
           reviewHistoryId: selectedReviewHistoryId,
           sourceIds,
+          documentType,
         });
 
         if (!result.success) {
@@ -196,9 +197,9 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
   );
 
   const handleModalSubmit = useCallback(
-    async (sourceIds: number[]) => {
+    async (sourceIds: number[], documentType?: DocumentType) => {
       if (modalMode === 'extract') {
-        await handleExtractChecklist(sourceIds);
+        await handleExtractChecklist(sourceIds, documentType);
       } else if (modalMode === 'review') {
         await handleExecuteReview(sourceIds);
       }

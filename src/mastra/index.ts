@@ -10,6 +10,7 @@ import {
   summarizeSourceAgent,
   summarizeTopicAgent,
   checklistExtractionAgent,
+  generalDocumentChecklistAgent,
   classifyCategoryAgent,
   reviewExecuteAgent,
 } from './agents/workflowAgents';
@@ -33,6 +34,7 @@ export const mastra: Mastra = new Mastra({
     summarizeSourceAgent,
     summarizeTopicAgent,
     checklistExtractionAgent,
+    generalDocumentChecklistAgent,
     classifyCategoryAgent,
     reviewExecuteAgent,
   },

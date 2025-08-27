@@ -6,6 +6,7 @@ import type {
   ReviewChecklistEdit,
 } from '.';
 import type { Source, ReviewHistory } from '../../db/schema';
+import type { DocumentType } from '../../renderer/components/review/types';
 
 /**
  * IPC通信で使用するチャネル名の定義
@@ -99,6 +100,7 @@ export type IpcRequestPayloadMap = {
   [IpcChannels.REVIEW_EXTRACT_CHECKLIST_CALL]: {
     reviewHistoryId: string;
     sourceIds: number[];
+    documentType?: DocumentType;
   };
   [IpcChannels.REVIEW_UPDATE_CHECKLIST]: {
     reviewHistoryId: string;

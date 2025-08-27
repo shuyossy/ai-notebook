@@ -18,11 +18,14 @@ export interface ReviewChecklistSectionProps {
 
 export type ModalMode = 'extract' | 'review';
 
+// ドキュメント種別の定義
+export type DocumentType = 'checklist' | 'general';
+
 // ReviewSourceModalのProps型
 export interface ReviewSourceModalProps {
   open: boolean;
   onClose: () => void;
-  onSubmit: (sourceIds: number[]) => void;
+  onSubmit: (sourceIds: number[], documentType?: DocumentType) => void;
   selectedReviewHistoryId: string | null;
   disabled?: boolean;
   modalMode: ModalMode;

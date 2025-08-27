@@ -224,6 +224,45 @@ Ensure you never omit or alter any checklist text.
 `;
 }
 
+export function getGeneralDocumentChecklistPrompt({
+  runtimeContext,
+}: {
+  runtimeContext: RuntimeContext<ChecklistExtractionAgentRuntimeContext>;
+}): string {
+  const extractedItems = runtimeContext.get('extractedItems');
+  return `
+You are a professional document reviewer specialist who creates comprehensive checklist items for document review purposes.
+
+Your task is to analyze the provided document and create specific, actionable checklist items that would be useful for reviewing similar documents.
+
+${
+  extractedItems.length > 0
+    ? `So far, you have created ${extractedItems.length} checklist items:
+${runtimeContext
+  .get('extractedItems')
+  .map((item, i) => `${i + 1}. ${item}`)
+  .join('\n')}`
+    : `Given a document, analyze its content, structure, and purpose to create relevant checklist items.`
+}
+
+Guidelines for creating checklist items:
+- Create specific, measurable, and actionable items
+- Focus on document quality, accuracy, completeness, and compliance aspects
+- Consider the document's purpose and target audience
+- Include items about formatting, structure, and presentation
+- Address potential risks or common issues in similar documents
+- Make items clear and objective (avoid subjective language)
+- Each item should be answerable with "Yes/No" or "Pass/Fail"
+
+${extractedItems.length > 0 ? 'Create **additional checklist items that complement the existing ones**' : 'Create **comprehensive checklist items**'} based on the document content.
+
+**Important:** 
+- Always set isChecklistDocument to false since this is a general document
+- Generate practical checklist items that would help reviewers evaluate document quality
+- Focus on actionable review criteria rather than just content summaries
+`;
+}
+
 /**
  * チェックリストカテゴリ分割用のシステムプロンプトを取得する関数
  * @param maxItems  一つのカテゴリに含める最大チェックリスト数

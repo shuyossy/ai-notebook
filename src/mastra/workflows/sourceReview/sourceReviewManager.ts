@@ -9,6 +9,7 @@ import {
 import { generateReviewTitle } from './lib';
 import { ReviewHistory } from '../../../db/schema';
 import { mastra } from '../..';
+import { DocumentType } from '../../../renderer/components/review/types';
 
 /**
  * ソースレビュー処理を管理するクラス
@@ -40,6 +41,7 @@ export default class SourceReviewManager {
   public async extractChecklist(
     reviewHistoryId: string,
     sourceIds: number[],
+    documentType: DocumentType = 'checklist',
   ): Promise<{ success: boolean; error?: string }> {
     try {
       let reviewHistory: ReviewHistory | null;
@@ -76,6 +78,7 @@ export default class SourceReviewManager {
         inputData: {
           reviewHistoryId,
           sourceIds,
+          documentType,
         },
       });
 
@@ -207,9 +210,10 @@ export default class SourceReviewManager {
     reviewHistoryId: string,
     sourceIds: number[],
     event: IpcMainInvokeEvent,
+    documentType: DocumentType = 'checklist',
   ): IpcResponsePayloadMap[typeof IpcChannels.REVIEW_EXTRACT_CHECKLIST_CALL] {
     try {
-      this.extractChecklist(reviewHistoryId, sourceIds)
+      this.extractChecklist(reviewHistoryId, sourceIds, documentType)
         .then((res) => {
           // 完了イベントを送信
           event.sender.send(IpcChannels.REVIEW_EXTRACT_CHECKLIST_FINISHED, {
