@@ -10,8 +10,12 @@ import { Source } from '../../../db/schema';
 import FileExtractor from '../../../main/utils/fileExtractor';
 import { baseStepOutputSchema } from '../schema';
 import { stepStatus } from '../types';
-import { ChecklistExtractionAgentRuntimeContext } from '../../agents/workflowAgents';
+import {
+  ChecklistExtractionAgentRuntimeContext,
+  TopicChecklistAgentRuntimeContext,
+} from '../../agents/workflowAgents';
 import { createRuntimeContext } from '../../agents/lib';
+import { content } from '../../../../tailwind.config';
 
 // ワークフローの入力スキーマ
 const triggerSchema = z.object({
@@ -22,14 +26,44 @@ const triggerSchema = z.object({
   documentType: z
     .enum(['checklist', 'general'])
     .default('checklist')
-    .describe('ドキュメント種別: checklist=チェックリストドキュメント, general=一般ドキュメント'),
-});;
+    .describe(
+      'ドキュメント種別: checklist=チェックリストドキュメント, general=一般ドキュメント',
+    ),
+});
 
-const checklistExtractionStep = createStep({
-  id: 'checklistExtractionStep',
-  description: '各ソースからチェックリストを抽出するステップ',
+// チェックリストドキュメント用のステップ出力スキーマ
+const checklistDocumentStepOutputSchema = baseStepOutputSchema.extend({
+  extractedItems: z.array(z.string()).optional(),
+});
+
+// 一般ドキュメント用のトピック出力スキーマ
+const topicExtractionStepOutputSchema = baseStepOutputSchema.extend({
+  topics: z
+    .array(
+      z.object({
+        title: z.string(),
+        description: z.string(),
+        content: z.string(),
+      }),
+    )
+    .optional(),
+});
+
+// トピック別チェックリスト作成の出力スキーマ
+const topicChecklistStepOutputSchema = baseStepOutputSchema.extend({
+  checklistItems: z.array(z.string()).optional(),
+});
+
+// チェックリスト統合の出力スキーマ
+const checklistIntegrationStepOutputSchema = baseStepOutputSchema;
+
+// === チェックリストドキュメント用ステップ ===
+
+const checklistDocumentExtractionStep = createStep({
+  id: 'checklistDocumentExtractionStep',
+  description: 'チェックリストドキュメントから既存項目を抽出するステップ',
   inputSchema: triggerSchema,
-  outputSchema: baseStepOutputSchema,
+  outputSchema: checklistDocumentStepOutputSchema,
   execute: async ({ inputData, mastra }) => {
     // レビュー用のリポジトリを取得
     const reviewRepository = getReviewRepository();
@@ -37,7 +71,7 @@ const checklistExtractionStep = createStep({
     // トリガーから入力を取得
     const { reviewHistoryId, sourceIds, documentType } = inputData;
     const errorMessages: string[] = [
-      'チェックリスト抽出処理で以下エラーが発生しました',
+      'チェックリスト抽出処理中に以下エラーが発生しました',
     ];
 
     try {
@@ -57,11 +91,9 @@ const checklistExtractionStep = createStep({
           // ファイル内容を抽出
           const { content } = await FileExtractor.extractText(source.path);
 
-          // ドキュメント種別に応じてエージェントを選択
-          const agentName = documentType === 'general' 
-            ? 'generalDocumentChecklistAgent' 
-            : 'checklistExtractionAgent';
-          const checklistExtractionAgent = mastra.getAgent(agentName);
+          const checklistExtractionAgent = mastra.getAgent(
+            'checklistExtractionAgent',
+          );
           const outputSchema = z.object({
             isChecklistDocument: z
               .boolean()
@@ -131,8 +163,8 @@ const checklistExtractionStep = createStep({
               },
             );
 
-            // チェックリストドキュメントの場合のみドキュメント判定をチェック
-            if (documentType === 'checklist' && !extractionResult.object.isChecklistDocument) {
+            // チェックリストドキュメントでない場合はエラー
+            if (!extractionResult.object.isChecklistDocument) {
               throw new Error(
                 `チェックリスト抽出に適さないドキュメントとして判定されたため処理を終了しました`,
               );
@@ -232,14 +264,315 @@ const checklistExtractionStep = createStep({
   },
 });
 
-/**
- * 各ソースからチェックリストを抽出するワークフロー
- */
+// === 一般ドキュメント用ステップ群 ===
+
+// Step1: トピック抽出ステップ
+const topicExtractionStep = createStep({
+  id: 'topicExtractionStep',
+  description: '一般ドキュメントから独立したトピックを抽出するステップ',
+  inputSchema: triggerSchema,
+  outputSchema: topicExtractionStepOutputSchema,
+  execute: async ({ inputData, mastra, bail }) => {
+    const sourceRepository = getSourceRepository();
+    const { sourceIds } = inputData;
+    const errorMessages: string[] = [
+      'チェックリスト作成処理中にエラーが発生しました',
+    ];
+
+    try {
+      const allTopics: Array<{
+        title: string;
+        description: string;
+        content: string;
+      }> = [];
+
+      // 各ソースからトピックを抽出
+      const extractionPromises = sourceIds.map(async (sourceId) => {
+        let source: Source | null = null;
+        try {
+          source = await sourceRepository.getSourceById(sourceId);
+
+          if (source === null) {
+            throw new Error(`ソースID ${sourceId} が見つかりません`);
+          }
+
+          // ファイル内容を抽出
+          const { content } = await FileExtractor.extractText(source.path);
+
+          const topicExtractionAgent = mastra.getAgent('topicExtractionAgent');
+          const outputSchema = z.object({
+            topics: z
+              .array(
+                z.object({
+                  title: z.string().describe('Topic title'),
+                  description: z.string().describe('Topic description'),
+                }),
+              )
+              .describe('Extracted topics from the document'),
+          });
+          const runtimeContext = createRuntimeContext();
+
+          const extractionResult = await topicExtractionAgent.generate(
+            content,
+            {
+              output: outputSchema,
+              runtimeContext,
+            },
+          );
+
+          allTopics.push(
+            ...extractionResult.object.topics.map((topic) => ({
+              ...topic,
+              content,
+            })),
+          );
+        } catch (error) {
+          let errorDetail: string;
+          if (error instanceof Error) {
+            errorDetail = error.message;
+          } else {
+            errorDetail = JSON.stringify(error);
+          }
+          if (source) {
+            errorMessages.push(
+              `- ${path.basename(source.path)}のトピック抽出でエラー: ${errorDetail}`,
+            );
+          } else {
+            errorMessages.push(
+              `- トピック抽出処理でエラーが発生しました: ${errorDetail}`,
+            );
+          }
+        }
+      });
+
+      await Promise.all(extractionPromises);
+
+      // エラーがあれば失敗として返す
+      if (errorMessages.length > 1) {
+        return bail({
+          status: 'failed' as stepStatus,
+          errorMessage: errorMessages.join('\n'),
+        });
+      }
+
+      if (allTopics.length === 0) {
+        return bail({
+          status: 'failed' as stepStatus,
+          errorMessage: 'トピックが抽出されませんでした',
+        });
+      }
+
+      return {
+        status: 'success' as stepStatus,
+        topics: allTopics,
+      };
+    } catch (error) {
+      if (error instanceof Error && error.message) {
+        if (errorMessages.length > 1) {
+          errorMessages.push(''); // エラーメッセージの区切り
+        }
+        errorMessages.push(`${error.message}`);
+      }
+      return bail({
+        status: 'failed' as stepStatus,
+        errorMessage: errorMessages.join('\n'),
+      });
+    }
+  },
+});
+
+// Step2: トピック別チェックリスト作成ステップ
+const topicChecklistCreationStep = createStep({
+  id: 'topicChecklistCreationStep',
+  description: 'トピックに基づいてチェックリスト項目を作成するステップ',
+  inputSchema: z.object({
+    title: z.string(),
+    description: z.string(),
+    content: z.string(),
+    reviewHistoryId: z.string(),
+  }),
+  outputSchema: topicChecklistStepOutputSchema,
+  execute: async ({ inputData, mastra, bail }) => {
+    const { title, description, content, reviewHistoryId } = inputData;
+    const errorMessages: string[] = [
+      'チェックリスト作成処理中にエラーが発生しました',
+    ];
+
+    try {
+      const topicChecklistAgent = mastra.getAgent('topicChecklistAgent');
+      const outputSchema = z.object({
+        checklistItems: z
+          .array(z.string().describe('Checklist item'))
+          .describe('Generated checklist items for the topic'),
+      });
+
+      const runtimeContext =
+        createRuntimeContext<TopicChecklistAgentRuntimeContext>();
+      runtimeContext.set('topic', { title, description });
+
+      const result = await topicChecklistAgent.generate(content, {
+        output: outputSchema,
+        runtimeContext,
+      });
+
+      if (
+        !result.object.checklistItems ||
+        result.object.checklistItems.length === 0
+      ) {
+        return bail({
+          status: 'failed' as stepStatus,
+          errorMessage: `トピック「${title}」に対するチェックリスト項目が生成されませんでした`,
+        });
+      }
+
+      return {
+        status: 'success' as stepStatus,
+        checklistItems: result.object.checklistItems,
+      };
+    } catch (error) {
+      if (error instanceof Error && error.message) {
+        if (errorMessages.length > 1) {
+          errorMessages.push(''); // エラーメッセージの区切り
+        }
+        errorMessages.push(`トピック「${title}」: ${error.message}`);
+      }
+      return bail({
+        status: 'failed' as stepStatus,
+        errorMessage: errorMessages.join('\n'),
+      });
+    }
+  },
+});
+
+// Step3: チェックリスト統合ステップ
+const checklistIntegrationStep = createStep({
+  id: 'checklistIntegrationStep',
+  description: '各トピックから生成されたチェックリスト項目を統合するステップ',
+  inputSchema: z.object({
+    reviewHistoryId: z.string(),
+    allChecklistItems: z.array(z.string()),
+  }),
+  outputSchema: checklistIntegrationStepOutputSchema,
+  execute: async ({ inputData, mastra, bail }) => {
+    const { reviewHistoryId, allChecklistItems } = inputData;
+    const errorMessages: string[] = [
+      'チェックリスト作成処理中にエラーが発生しました',
+    ];
+
+    try {
+      const reviewRepository = getReviewRepository();
+
+      // 既存のシステム作成チェックリストを削除
+      await reviewRepository.deleteSystemCreatedChecklists(reviewHistoryId);
+
+      // const checklistIntegrationAgent = mastra.getAgent('checklistIntegrationAgent');
+      // const outputSchema = z.object({
+      //   integratedItems: z.array(z.string().describe('Integrated and deduplicated checklist item'))
+      //     .describe('Final integrated checklist items'),
+      // });
+
+      // const allItemsText = allChecklistItems.join('\n- ');
+
+      // const result = await checklistIntegrationAgent.generate(
+      //   allItemsText,
+      //   {
+      //     output: outputSchema,
+      //   },
+      // );
+
+      // if (!result.object.integratedItems || result.object.integratedItems.length === 0) {
+      //   return {
+      //     status: 'failed' as stepStatus,
+      //     errorMessage: 'チェックリスト項目の統合に失敗しました',
+      //   };
+      // }
+
+      // 統合されたチェックリストをDBに保存
+      for (const checklistItem of allChecklistItems) {
+        await reviewRepository.createChecklist(
+          reviewHistoryId,
+          checklistItem,
+          'system',
+        );
+      }
+
+      return {
+        status: 'success' as stepStatus
+      };
+    } catch (error) {
+      if (error instanceof Error && error.message) {
+        if (errorMessages.length > 1) {
+          errorMessages.push(''); // エラーメッセージの区切り
+        }
+        errorMessages.push(`${error.message}`);
+      }
+      return bail({
+        status: 'failed' as stepStatus,
+        errorMessage: errorMessages.join('\n'),
+      });
+    }
+  },
+});
+
+// === メインワークフロー ===
+
 export const checklistExtractionWorkflow = createWorkflow({
   id: 'checklistExtractionWorkflow',
   inputSchema: triggerSchema,
   outputSchema: baseStepOutputSchema,
-  steps: [checklistExtractionStep],
 })
-  .then(checklistExtractionStep)
+  .branch([
+    // チェックリストドキュメントの場合
+    [
+      async ({ inputData }) => inputData.documentType === 'checklist',
+      checklistDocumentExtractionStep,
+    ],
+    // 一般ドキュメントの場合
+    [
+      async ({ inputData }) => inputData.documentType === 'general',
+      createWorkflow({
+        id: 'generalDocumentWorkflow',
+        inputSchema: triggerSchema,
+        outputSchema: baseStepOutputSchema,
+      })
+        // Step1: トピック抽出
+        .then(topicExtractionStep)
+        .map(async ({ getInitData, getStepResult }) => {
+          const topicResult = getStepResult(topicExtractionStep);
+          const initData = getInitData();
+
+          if (topicResult?.status !== 'success' || !topicResult.topics) {
+            throw new Error(
+              topicResult?.errorMessage || 'トピック抽出に失敗しました',
+            );
+          }
+
+          return topicResult.topics.map((topic) => ({
+            title: topic.title,
+            description: topic.description,
+            content: topic.content,
+            reviewHistoryId: initData.reviewHistoryId,
+          }));
+        })
+        // Step2: 各トピックに対してチェックリスト作成（foreachでループ）
+        .foreach(topicChecklistCreationStep)
+        .map(async ({ getInitData, inputData}) => {
+          const initData = getInitData();
+          const allChecklistItems = inputData.map(i => {
+            if (i.status !== 'success' || !i.checklistItems) {
+              throw new Error(i?.errorMessage || 'トピック別チェックリスト作成に失敗しました');
+            }
+            return i.checklistItems;
+          }).flat();
+
+          return {
+            reviewHistoryId: initData.reviewHistoryId,
+            allChecklistItems,
+          };
+        })
+        // Step3: チェックリスト統合(保存)
+        .then(checklistIntegrationStep)
+        .commit(),
+    ],
+  ])
   .commit();

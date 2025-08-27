@@ -4,6 +4,7 @@ import { getStore } from '../../../main/store';
 import FileExtractor from '../../../main/utils/fileExtractor';
 import { mastra } from '../..';
 import { getSourceRepository } from '../../../db/repository/sourceRepository';
+import { checkStatus } from '../libs';
 
 /**
  * フォルダ内の全てのファイルを登録するワークフロー
@@ -163,14 +164,12 @@ export default class SourceRegistrationManager {
               });
 
               // 結果を確認
-              if (
-                result.status === 'success' &&
-                result.result.status === 'success'
-              ) {
-                success = true;
-              }
+              const checkResult = checkStatus(result);
 
-              resultList.push({ success, filePath });
+              resultList.push({
+                success: checkResult.status == 'success',
+                filePath,
+              });
             } catch (error) {
               console.error(error);
               resultList.push({

@@ -6,6 +6,9 @@ import {
   EXTRACT_TOPIC_AND_SUMMARY_SYSTEM_PROMPT,
   getChecklistExtractionPrompt,
   getGeneralDocumentChecklistPrompt,
+  getTopicExtractionPrompt,
+  getTopicChecklistCreationPrompt,
+  // getChecklistIntegrationPrompt,
   getChecklistCategolizePrompt,
   getDocumentReviewExecutionPrompt,
 } from './prompts';
@@ -23,6 +26,10 @@ export type ClassifyCategoryAgentRuntimeContext = BaseRuntimeContext & {
 
 export type ReviewExecuteAgentRuntimeContext = BaseRuntimeContext & {
   checklistItems: { id: number; content: string }[];
+};
+
+export type TopicChecklistAgentRuntimeContext = BaseRuntimeContext & {
+  topic: { title: string; description: string };
 };
 
 export const summarizeSourceAgent = new Agent({
@@ -60,3 +67,21 @@ export const reviewExecuteAgent = new Agent({
   instructions: getDocumentReviewExecutionPrompt,
   model: getOpenAICompatibleModel,
 });
+
+export const topicExtractionAgent = new Agent({
+  name: 'topicExtractionAgent',
+  instructions: getTopicExtractionPrompt,
+  model: getOpenAICompatibleModel,
+});
+
+export const topicChecklistAgent = new Agent({
+  name: 'topicChecklistAgent',
+  instructions: getTopicChecklistCreationPrompt,
+  model: getOpenAICompatibleModel,
+});
+
+// export const checklistIntegrationAgent = new Agent({
+//   name: 'checklistIntegrationAgent',
+//   instructions: getChecklistIntegrationPrompt,
+//   model: getOpenAICompatibleModel,
+// });

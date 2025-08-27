@@ -13,6 +13,8 @@ import {
   generalDocumentChecklistAgent,
   classifyCategoryAgent,
   reviewExecuteAgent,
+  topicExtractionAgent,
+  topicChecklistAgent,
 } from './agents/workflowAgents';
 import { sourceRegistrationWorkflow } from './workflows/sourceRegistration/sourceRegistration';
 import { checklistExtractionWorkflow } from './workflows/sourceReview/checklistExtraction';
@@ -37,6 +39,8 @@ export const mastra: Mastra = new Mastra({
     generalDocumentChecklistAgent,
     classifyCategoryAgent,
     reviewExecuteAgent,
+    topicExtractionAgent,
+    topicChecklistAgent,
   },
   workflows: {
     sourceRegistrationWorkflow,

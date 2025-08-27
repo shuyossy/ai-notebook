@@ -5,6 +5,7 @@ import {
   ChecklistExtractionAgentRuntimeContext,
   ClassifyCategoryAgentRuntimeContext,
   ReviewExecuteAgentRuntimeContext,
+  TopicChecklistAgentRuntimeContext
 } from './workflowAgents';
 
 /**
@@ -256,12 +257,106 @@ Guidelines for creating checklist items:
 
 ${extractedItems.length > 0 ? 'Create **additional checklist items that complement the existing ones**' : 'Create **comprehensive checklist items**'} based on the document content.
 
-**Important:** 
+**Important:**
 - Always set isChecklistDocument to false since this is a general document
 - Generate practical checklist items that would help reviewers evaluate document quality
 - Focus on actionable review criteria rather than just content summaries
 `;
 }
+
+export function getTopicExtractionPrompt(): string {
+  return `
+You are a professional document analysis specialist who extracts independent topics from documents.
+
+Your task is to analyze the provided document and identify distinct, independent topics that can be used for creating focused checklist items.
+
+Guidelines for topic extraction:
+- Write in the same language as the document. If unclear, default to Japanese.
+- Identify major themes or sections within the document
+- Each topic should be independent and cover a specific area
+- Provide a clear, concise title for each topic
+- Include a brief but informative description for each topic
+- Focus on topics that would benefit from separate review criteria
+- Aim for 3-8 topics per document (adjust based on document complexity)
+- Topics should be specific enough to generate targeted checklist items
+
+**Important:**
+- Extract topics that represent different aspects or areas of the document
+- Avoid overlapping or redundant topics
+- Each topic should be substantial enough to warrant dedicated checklist items
+- Focus on topics that are relevant for document quality and review purposes
+`;
+}
+
+export function getTopicChecklistCreationPrompt({
+  runtimeContext,
+}: {
+  runtimeContext: RuntimeContext<TopicChecklistAgentRuntimeContext>;
+}): string {
+  const title = runtimeContext.get('topic').title;
+  return `
+You are a senior "Document Review Checklist Designer" specialized in turning a **specific topic** into **practical, verifiable checklist items**.
+
+## Objective
+Analyze the given topic and **produce only checklist items strictly relevant to this topic** that reviewers can directly apply during document reviews.
+
+## Topic (authoritative context; read carefully)
+- Title: ${title}
+
+## Output Style
+- Write in **the same language as the topic description**. If unclear, default to **Japanese**.
+- Provide **5–15 items** unless the topic naturally yields fewer high-quality items.
+- **Do NOT add unnecessary prefixes or suffixes** to checklist items
+
+## Quality Requirements
+Each checklist item MUST be:
+- **Specific**: Targets a concrete aspect of the topic (avoid vague or generic wording).
+- **Measurable/Verifiable**: A reviewer can check it objectively (e.g., presence/absence, threshold, reference match).
+- **Actionable**: If it fails, it implies a clear remediation.
+- **Risk-aware**: Prefer items that surface **common failure modes** or **risks** within this topic.
+- **Evidence-oriented**: Suggest **what evidence** to collect (e.g., sections, tables, figures, metadata, citations, configs).
+
+## Coverage Hints (use only if relevant to THIS topic)
+- **Quality & Accuracy**: definitions, metrics, calculations, references, data lineage, units, versioning.
+- **Completeness**: required sections, edge cases, boundary conditions, dependencies, assumptions, scope limits.
+- **Compliance/Policies**: standards, legal/regulatory, org guidelines, licensing, attribution.
+- **Consistency**: terminology, notation, formatting, cross-references, diagrams vs text alignment.
+- **Risk & Safety**: failure scenarios, security/privacy pitfalls, operational constraints, monitoring/rollback.
+- **Traceability**: sources, citations, dataset/model versions, change history, approvals.
+
+## Hard Constraints
+- **Stay strictly within the topic** above. Do NOT drift into unrelated areas.
+- **Avoid generic items** that could apply to any document (e.g., "typos are fixed", "overall quality is good").
+- **No speculative content** beyond the topic’s scope.
+- **Be concise but unambiguous**. Prefer checkability over prose.
+- **Reference ALL relevant parts of the topic**: Ensure you consider every portion of the topic’s description and implied scope so that **no important aspect is omitted** when creating checklist items.
+
+Now produce the checklist items **only for the topic: ${title} , following all requirements.
+`;
+}
+
+// export function getChecklistIntegrationPrompt(): string {
+//   return `
+// You are a professional document quality specialist who consolidates and refines checklist items from multiple sources.
+
+// Your task is to take multiple sets of checklist items generated from different topics and create a unified, comprehensive checklist that eliminates redundancy while maintaining completeness.
+
+// Guidelines for checklist integration:
+// - Remove duplicate or highly similar items
+// - Combine related items where appropriate to avoid redundancy
+// - Ensure comprehensive coverage without overlap
+// - Maintain the specificity and actionable nature of each item
+// - Organize items in a logical sequence if possible
+// - Preserve the most important and valuable checklist items
+// - Aim for 10-25 final integrated items (adjust based on content complexity)
+// - Each final item should be clear, specific, and actionable
+
+// **Important:**
+// - Focus on creating a cohesive, non-redundant checklist
+// - Maintain the quality and specificity of individual items
+// - Ensure the final checklist is comprehensive yet manageable
+// `;
+// }
 
 /**
  * チェックリストカテゴリ分割用のシステムプロンプトを取得する関数

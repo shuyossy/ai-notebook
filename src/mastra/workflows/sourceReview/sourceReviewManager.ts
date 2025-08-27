@@ -10,6 +10,7 @@ import { generateReviewTitle } from './lib';
 import { ReviewHistory } from '../../../db/schema';
 import { mastra } from '../..';
 import { DocumentType } from '../../../renderer/components/review/types';
+import { checkStatus } from '../libs';
 
 /**
  * ソースレビュー処理を管理するクラス
@@ -60,9 +61,6 @@ export default class SourceReviewManager {
         );
       }
 
-      let success = false;
-      let errorMessage;
-
       // Mastraワークフローを実行
       const workflow = mastra.getWorkflow('checklistExtractionWorkflow');
 
@@ -83,27 +81,10 @@ export default class SourceReviewManager {
       });
 
       // 結果を確認
-      switch (runResult.status) {
-        case 'success':
-          if (runResult.result.status === 'success') {
-            success = true;
-          }
-          if (runResult.result.status === 'failed') {
-            success = false;
-            errorMessage = runResult.result.errorMessage;
-          }
-          break;
-        case 'failed':
-          success = false;
-          errorMessage = runResult.error.message;
-          break;
-        default:
-          success = false;
-          errorMessage = 'チェックリスト抽出処理が不明な状態で終了しました';
-      }
+      const checkResult = checkStatus(runResult);
       return {
-        success,
-        error: errorMessage,
+        success: checkResult.status === 'success',
+        error: checkResult.errorMessage,
       };
     } catch (error) {
       const errorMessage =
@@ -136,9 +117,6 @@ export default class SourceReviewManager {
         };
       }
 
-      let success = false;
-      let errorMessage;
-
       // Mastraワークフローを実行
       const workflow = mastra.getWorkflow('reviewExecutionWorkflow');
 
@@ -166,29 +144,11 @@ export default class SourceReviewManager {
           sourceIds,
         },
       });
-
       // 結果を確認
-      switch (result.status) {
-        case 'success':
-          if (result.result.status === 'success') {
-            success = true;
-          }
-          if (result.result.status === 'failed') {
-            success = false;
-            errorMessage = result.result.errorMessage;
-          }
-          break;
-        case 'failed':
-          success = false;
-          errorMessage = result.error.message;
-          break;
-        default:
-          success = false;
-          errorMessage = 'チェックリスト抽出処理が不明な状態で終了しました';
-      }
+      const checkResult = checkStatus(result);
       return {
-        success,
-        error: errorMessage,
+        success: checkResult.status === 'success',
+        error: checkResult.errorMessage,
       };
     } catch (error) {
       const errorMessage =
