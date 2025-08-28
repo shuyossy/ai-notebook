@@ -275,7 +275,6 @@ Guidelines for topic extraction:
 - Identify major themes or sections within the document
 - Each topic should be independent and cover a specific area
 - Provide a clear, concise title for each topic
-- Include a brief but informative description for each topic
 - Focus on topics that would benefit from separate review criteria
 - Aim for 3-8 topics per document (adjust based on document complexity)
 - Topics should be specific enough to generate targeted checklist items

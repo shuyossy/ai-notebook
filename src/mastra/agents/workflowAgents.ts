@@ -29,7 +29,7 @@ export type ReviewExecuteAgentRuntimeContext = BaseRuntimeContext & {
 };
 
 export type TopicChecklistAgentRuntimeContext = BaseRuntimeContext & {
-  topic: { title: string; description: string };
+  topic: { title: string };
 };
 
 export const summarizeSourceAgent = new Agent({

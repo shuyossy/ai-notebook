@@ -41,7 +41,6 @@ const topicExtractionStepOutputSchema = baseStepOutputSchema.extend({
     .array(
       z.object({
         title: z.string(),
-        description: z.string(),
         sourceId: z.number(),
       }),
     )
@@ -282,7 +281,6 @@ const topicExtractionStep = createStep({
     try {
       const allTopics: Array<{
         title: string;
-        description: string;
         sourceId: number;
       }> = [];
 
@@ -305,7 +303,6 @@ const topicExtractionStep = createStep({
               .array(
                 z.object({
                   title: z.string().describe('Topic title'),
-                  description: z.string().describe('Topic description'),
                 }),
               )
               .describe('Extracted topics from the document'),
@@ -347,8 +344,7 @@ const topicExtractionStep = createStep({
 
       await Promise.all(extractionPromises);
       console.log(
-        'トピック抽出完了:\n' +
-          allTopics.map((t) => `${t.title}: ${t.description}`).join('\n'),
+        'トピック抽出完了:\n' + allTopics.map((t) => `${t.title}`).join('\n'),
       );
 
       // エラーがあれば失敗として返す
@@ -394,13 +390,12 @@ const topicChecklistCreationStep = createStep({
   description: 'トピックに基づいてチェックリスト項目を作成するステップ',
   inputSchema: z.object({
     title: z.string(),
-    description: z.string(),
     sourceId: z.number(),
     reviewHistoryId: z.string(),
   }),
   outputSchema: topicChecklistStepOutputSchema,
   execute: async ({ inputData, mastra, bail }) => {
-    const { title, description, sourceId, reviewHistoryId } = inputData;
+    const { title, sourceId, reviewHistoryId } = inputData;
     const sourceRepository = getSourceRepository();
     const reviewRepository = getReviewRepository();
     const errorMessages: string[] = [
@@ -423,7 +418,7 @@ const topicChecklistCreationStep = createStep({
 
       const runtimeContext =
         createRuntimeContext<TopicChecklistAgentRuntimeContext>();
-      runtimeContext.set('topic', { title, description });
+      runtimeContext.set('topic', { title });
 
       const result = await topicChecklistAgent.generate(content, {
         output: outputSchema,
@@ -573,7 +568,6 @@ export const checklistExtractionWorkflow = createWorkflow({
 
           return topicResult.topics.map((topic) => ({
             title: topic.title,
-            description: topic.description,
             sourceId: topic.sourceId,
             reviewHistoryId: initData.reviewHistoryId,
           }));
