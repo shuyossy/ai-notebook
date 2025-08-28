@@ -20,6 +20,7 @@ import {
   FormControlLabel,
   Radio,
   FormLabel,
+  TextField,
 } from '@mui/material';
 import {
   Check as CheckIcon,
@@ -46,6 +47,7 @@ function SourceListModal({
   }>({});
   const [processing, setProcessing] = useState(true);
   const [documentType, setDocumentType] = useState<DocumentType>('checklist');
+  const [checklistRequirements, setChecklistRequirements] = useState('');
 
   // チェック状態の更新
   // ソースの更新状態が変わったときにチェック状態を更新する
@@ -73,6 +75,8 @@ function SourceListModal({
     });
     // ドキュメント種別もリセット
     setDocumentType('checklist');
+    // チェックリスト作成要件もリセット
+    setChecklistRequirements('');
   }, [modalMode, selectedReviewHistoryId]);
 
   // チェックボックスの変更ハンドラ
@@ -148,6 +152,11 @@ function SourceListModal({
         })
         .map((key) => +key),
       modalMode === 'extract' ? documentType : undefined,
+      modalMode === 'extract' &&
+        documentType === 'general' &&
+        checklistRequirements.trim() !== ''
+        ? checklistRequirements.trim()
+        : undefined,
     );
   };
 
@@ -299,27 +308,46 @@ function SourceListModal({
         </Alert>
 
         {modalMode === 'extract' && (
-          <FormControl component="fieldset" sx={{ mb: 2 }}>
-            <FormLabel component="legend">ドキュメント種別</FormLabel>
-            <RadioGroup
-              row
-              value={documentType}
-              onChange={(e) => setDocumentType(e.target.value as DocumentType)}
-            >
-              <FormControlLabel
-                value="checklist"
-                control={<Radio />}
-                label="チェックリストドキュメント（既存項目を抽出）"
+          <>
+            <FormControl component="fieldset" sx={{ mb: 2 }}>
+              <FormLabel component="legend">ドキュメント種別</FormLabel>
+              <RadioGroup
+                row
+                value={documentType}
+                onChange={(e) =>
+                  setDocumentType(e.target.value as DocumentType)
+                }
+              >
+                <FormControlLabel
+                  value="checklist"
+                  control={<Radio />}
+                  label="チェックリストドキュメント（既存項目を抽出）"
+                  disabled={processing}
+                />
+                <FormControlLabel
+                  value="general"
+                  control={<Radio />}
+                  label="一般ドキュメント（新規チェックリスト作成）"
+                  disabled={processing}
+                />
+              </RadioGroup>
+            </FormControl>
+
+            {documentType === 'general' && (
+              <TextField
+                fullWidth
+                multiline
+                rows={5}
+                label="チェックリスト作成要件"
+                placeholder="例：セキュリティ観点での確認項目を重視、品質管理に関するチェック項目を中心に"
+                value={checklistRequirements}
+                onChange={(e) => setChecklistRequirements(e.target.value)}
                 disabled={processing}
+                sx={{ mb: 2 }}
+                helperText="どのような観点でチェックリストを作成したいか具体的に記載してください（任意）"
               />
-              <FormControlLabel
-                value="general"
-                control={<Radio />}
-                label="一般ドキュメント（新規チェックリスト作成）"
-                disabled={processing}
-              />
-            </RadioGroup>
-          </FormControl>
+            )}
+          </>
         )}
 
         <Box sx={{ mb: 2, display: 'flex', justifyContent: 'flex-end' }}>

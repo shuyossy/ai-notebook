@@ -12,6 +12,7 @@ import { baseStepOutputSchema } from '../schema';
 import { stepStatus } from '../types';
 import {
   ChecklistExtractionAgentRuntimeContext,
+  TopicExtractionAgentRuntimeContext,
   TopicChecklistAgentRuntimeContext,
 } from '../../agents/workflowAgents';
 import { createRuntimeContext } from '../../agents/lib';
@@ -28,6 +29,10 @@ const triggerSchema = z.object({
     .describe(
       'ドキュメント種別: checklist=チェックリストドキュメント, general=一般ドキュメント',
     ),
+  checklistRequirements: z
+    .string()
+    .optional()
+    .describe('一般ドキュメント用のチェックリスト作成要件'),
 });
 
 // チェックリストドキュメント用のステップ出力スキーマ
@@ -273,7 +278,7 @@ const topicExtractionStep = createStep({
   execute: async ({ inputData, mastra, bail }) => {
     const sourceRepository = getSourceRepository();
     const reviewRepository = getReviewRepository();
-    const { sourceIds, reviewHistoryId } = inputData;
+    const { sourceIds, reviewHistoryId, checklistRequirements } = inputData;
     const errorMessages: string[] = [
       'チェックリスト作成処理中にエラーが発生しました',
     ];
@@ -307,7 +312,11 @@ const topicExtractionStep = createStep({
               )
               .describe('Extracted topics from the document'),
           });
-          const runtimeContext = createRuntimeContext();
+          const runtimeContext =
+            createRuntimeContext<TopicExtractionAgentRuntimeContext>();
+          if (checklistRequirements) {
+            runtimeContext.set('checklistRequirements', checklistRequirements);
+          }
 
           const extractionResult = await topicExtractionAgent.generate(
             content,
@@ -392,10 +401,12 @@ const topicChecklistCreationStep = createStep({
     title: z.string(),
     sourceId: z.number(),
     reviewHistoryId: z.string(),
+    checklistRequirements: z.string().optional(),
   }),
   outputSchema: topicChecklistStepOutputSchema,
   execute: async ({ inputData, mastra, bail }) => {
-    const { title, sourceId, reviewHistoryId } = inputData;
+    const { title, sourceId, reviewHistoryId, checklistRequirements } =
+      inputData;
     const sourceRepository = getSourceRepository();
     const reviewRepository = getReviewRepository();
     const errorMessages: string[] = [
@@ -419,6 +430,9 @@ const topicChecklistCreationStep = createStep({
       const runtimeContext =
         createRuntimeContext<TopicChecklistAgentRuntimeContext>();
       runtimeContext.set('topic', { title });
+      if (checklistRequirements) {
+        runtimeContext.set('checklistRequirements', checklistRequirements);
+      }
 
       const result = await topicChecklistAgent.generate(content, {
         output: outputSchema,
@@ -570,6 +584,7 @@ export const checklistExtractionWorkflow = createWorkflow({
             title: topic.title,
             sourceId: topic.sourceId,
             reviewHistoryId: initData.reviewHistoryId,
+            checklistRequirements: initData.checklistRequirements,
           }));
         })
         // Step2: 各トピックに対してチェックリスト作成（foreachでループ）

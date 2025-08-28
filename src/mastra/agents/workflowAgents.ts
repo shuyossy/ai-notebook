@@ -28,8 +28,13 @@ export type ReviewExecuteAgentRuntimeContext = BaseRuntimeContext & {
   checklistItems: { id: number; content: string }[];
 };
 
+export type TopicExtractionAgentRuntimeContext = BaseRuntimeContext & {
+  checklistRequirements?: string;
+};
+
 export type TopicChecklistAgentRuntimeContext = BaseRuntimeContext & {
   topic: { title: string };
+  checklistRequirements?: string;
 };
 
 export const summarizeSourceAgent = new Agent({

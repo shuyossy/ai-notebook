@@ -101,6 +101,7 @@ export type IpcRequestPayloadMap = {
     reviewHistoryId: string;
     sourceIds: number[];
     documentType?: DocumentType;
+    checklistRequirements?: string;
   };
   [IpcChannels.REVIEW_UPDATE_CHECKLIST]: {
     reviewHistoryId: string;

@@ -25,7 +25,11 @@ export type DocumentType = 'checklist' | 'general';
 export interface ReviewSourceModalProps {
   open: boolean;
   onClose: () => void;
-  onSubmit: (sourceIds: number[], documentType?: DocumentType) => void;
+  onSubmit: (
+    sourceIds: number[],
+    documentType?: DocumentType,
+    checklistRequirements?: string,
+  ) => void;
   selectedReviewHistoryId: string | null;
   disabled?: boolean;
   modalMode: ModalMode;

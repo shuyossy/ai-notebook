@@ -612,6 +612,7 @@ const setupReviewHandlers = () => {
         reviewHistoryId,
         sourceIds,
         documentType,
+        checklistRequirements,
       }: IpcRequestPayloadMap[typeof IpcChannels.REVIEW_EXTRACT_CHECKLIST_CALL],
     ): Promise<
       IpcResponsePayloadMap[typeof IpcChannels.REVIEW_EXTRACT_CHECKLIST_CALL]
@@ -625,6 +626,7 @@ const setupReviewHandlers = () => {
           sourceIds,
           event,
           documentType,
+          checklistRequirements,
         );
 
         return result;

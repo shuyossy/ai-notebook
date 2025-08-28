@@ -43,6 +43,7 @@ export default class SourceReviewManager {
     reviewHistoryId: string,
     sourceIds: number[],
     documentType: DocumentType = 'checklist',
+    checklistRequirements?: string,
   ): Promise<{ success: boolean; error?: string }> {
     try {
       let reviewHistory: ReviewHistory | null;
@@ -77,6 +78,7 @@ export default class SourceReviewManager {
           reviewHistoryId,
           sourceIds,
           documentType,
+          checklistRequirements,
         },
       });
 
@@ -171,9 +173,10 @@ export default class SourceReviewManager {
     sourceIds: number[],
     event: IpcMainInvokeEvent,
     documentType: DocumentType = 'checklist',
+    checklistRequirements?: string,
   ): IpcResponsePayloadMap[typeof IpcChannels.REVIEW_EXTRACT_CHECKLIST_CALL] {
     try {
-      this.extractChecklist(reviewHistoryId, sourceIds, documentType)
+      this.extractChecklist(reviewHistoryId, sourceIds, documentType, checklistRequirements)
         .then((res) => {
           // 完了イベントを送信
           event.sender.send(IpcChannels.REVIEW_EXTRACT_CHECKLIST_FINISHED, {

@@ -77,7 +77,11 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
 
   // チェックリストの抽出処理
   const handleExtractChecklist = useCallback(
-    async (sourceIds: number[], documentType?: DocumentType) => {
+    async (
+      sourceIds: number[],
+      documentType?: DocumentType,
+      checklistRequirements?: string,
+    ) => {
       if (!selectedReviewHistoryId) return;
 
       try {
@@ -89,6 +93,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
           reviewHistoryId: selectedReviewHistoryId,
           sourceIds,
           documentType,
+          checklistRequirements,
         });
 
         if (!result.success) {
@@ -197,9 +202,17 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
   );
 
   const handleModalSubmit = useCallback(
-    async (sourceIds: number[], documentType?: DocumentType) => {
+    async (
+      sourceIds: number[],
+      documentType?: DocumentType,
+      checklistRequirements?: string,
+    ) => {
       if (modalMode === 'extract') {
-        await handleExtractChecklist(sourceIds, documentType);
+        await handleExtractChecklist(
+          sourceIds,
+          documentType,
+          checklistRequirements,
+        );
       } else if (modalMode === 'review') {
         await handleExecuteReview(sourceIds);
       }
