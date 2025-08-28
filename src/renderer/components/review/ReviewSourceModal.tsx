@@ -339,7 +339,7 @@ function SourceListModal({
                 multiline
                 rows={5}
                 label="チェックリスト作成要件"
-                placeholder="例：セキュリティ観点での確認項目を重視、品質管理に関するチェック項目を中心に"
+                placeholder="例：要件定義書をレビューするためのチェックリストを作成してください"
                 value={checklistRequirements}
                 onChange={(e) => setChecklistRequirements(e.target.value)}
                 disabled={processing}
