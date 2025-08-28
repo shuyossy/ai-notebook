@@ -1,343 +1,490 @@
+diff --git a/CLAUDE.md b/CLAUDE.md
+index cc0ee48b6..0066c7179 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -61,7 +61,9 @@ npm run db:studio
+   - チェックリストをあるドキュメントから抽出して、そのリストを元に別のドキュメントのレビューを実行する機能
+     - サブ機能は以下（Mastraのworkflowを利用して実装）
+       - チェックリスト抽出機能
+-      - （上記で抽出したチェックリストに対して）ドキュメントレビュー実行機能
++        - チェックリストドキュメントからのチェックリスト項目抽出機能
++        - 一般ドキュメントからのチェックリスト項目作成機能
++      - （上記で抽出したチェックリスト項目に対して）ドキュメントレビュー実行機能
+ 
+ ### 技術スタック
+ - **フレームワーク**: Electron(electron-react-boilerplate) + React + TypeScript
+diff --git a/src/main/main.ts b/src/main/main.ts
+index 70b3248fc..5c5b21191 100644
+--- a/src/main/main.ts
++++ b/src/main/main.ts
+@@ -612,6 +612,7 @@ const setupReviewHandlers = () => {
+         reviewHistoryId,
+         sourceIds,
+         documentType,
++        checklistRequirements,
+       }: IpcRequestPayloadMap[typeof IpcChannels.REVIEW_EXTRACT_CHECKLIST_CALL],
+     ): Promise<
+       IpcResponsePayloadMap[typeof IpcChannels.REVIEW_EXTRACT_CHECKLIST_CALL]
+@@ -625,6 +626,7 @@ const setupReviewHandlers = () => {
+           sourceIds,
+           event,
+           documentType,
++          checklistRequirements,
+         );
+ 
+         return result;
+diff --git a/src/main/types/ipc.ts b/src/main/types/ipc.ts
+index cd88b8ef3..b85808772 100644
+--- a/src/main/types/ipc.ts
++++ b/src/main/types/ipc.ts
+@@ -101,6 +101,7 @@ export type IpcRequestPayloadMap = {
+     reviewHistoryId: string;
+     sourceIds: number[];
+     documentType?: DocumentType;
++    checklistRequirements?: string;
+   };
+   [IpcChannels.REVIEW_UPDATE_CHECKLIST]: {
+     reviewHistoryId: string;
+diff --git a/src/mastra/agents/prompts.ts b/src/mastra/agents/prompts.ts
+index 650675245..a2a9dede0 100644
+--- a/src/mastra/agents/prompts.ts
++++ b/src/mastra/agents/prompts.ts
+@@ -5,6 +5,7 @@ import {
+   ChecklistExtractionAgentRuntimeContext,
+   ClassifyCategoryAgentRuntimeContext,
+   ReviewExecuteAgentRuntimeContext,
++  TopicExtractionAgentRuntimeContext,
+   TopicChecklistAgentRuntimeContext,
+ } from './workflowAgents';
+ 
+@@ -264,7 +265,13 @@ ${extractedItems.length > 0 ? 'Create **additional checklist items that compleme
+ `;
+ }
+ 
+-export function getTopicExtractionPrompt(): string {
++export function getTopicExtractionPrompt({
++  runtimeContext,
++}: {
++  runtimeContext?: RuntimeContext<TopicExtractionAgentRuntimeContext>;
++} = {}): string {
++  const checklistRequirements = runtimeContext?.get('checklistRequirements');
++
+   return `
+ You are a professional document analysis specialist who extracts independent topics from documents.
+ 
+@@ -275,16 +282,25 @@ Guidelines for topic extraction:
+ - Identify major themes or sections within the document
+ - Each topic should be independent and cover a specific area
+ - Provide a clear, concise title for each topic
+-- Include a brief but informative description for each topic
+ - Focus on topics that would benefit from separate review criteria
+ - Aim for 3-8 topics per document (adjust based on document complexity)
+ - Topics should be specific enough to generate targeted checklist items
+ 
+-**Important:**
++${
++  checklistRequirements
++    ? `**Special Requirements for Topic Selection:**
++The user has specified the following requirements for checklist creation:
++"${checklistRequirements}"
++
++Please prioritize topics that align with these requirements when extracting topics from the document. Focus on areas that would enable creating checklist items that meet the specified criteria.
++
++`
++    : ''
++}**Important:**
+ - Extract topics that represent different aspects or areas of the document
+ - Avoid overlapping or redundant topics
+ - Each topic should be substantial enough to warrant dedicated checklist items
+-- Focus on topics that are relevant for document quality and review purposes
++- Focus on topics that are relevant for document quality and review purposes${checklistRequirements ? '\\n- Prioritize topics that align with the user-specified requirements above' : ''}
+ `;
+ }
+ 
+@@ -294,6 +310,8 @@ export function getTopicChecklistCreationPrompt({
+   runtimeContext: RuntimeContext<TopicChecklistAgentRuntimeContext>;
+ }): string {
+   const title = runtimeContext.get('topic').title;
++  const checklistRequirements = runtimeContext.get('checklistRequirements');
++
+   return `
+ You are a senior "Document Review Checklist Designer" specialized in turning a **specific topic** into **practical, verifiable checklist items**.
+ 
+@@ -303,7 +321,17 @@ Analyze the given topic and **produce only checklist items strictly relevant to
+ ## Topic (authoritative context; read carefully)
+ - Title: ${title}
+ 
+-## Output Style
++${
++  checklistRequirements
++    ? `## Special Requirements
++The user has specified the following requirements for checklist creation:
++"${checklistRequirements}"
++
++Please ensure that the checklist items you create align with these requirements and prioritize aspects that meet the specified criteria.
++
++`
++    : ''
++}## Output Style
+ - Write in **the same language as the topic description**. If unclear, default to **Japanese**.
+ - Provide **5–15 items** unless the topic naturally yields fewer high-quality items.
+ - **Do NOT add unnecessary prefixes or suffixes** to checklist items
+@@ -315,6 +343,7 @@ Each checklist item MUST be:
+ - **Actionable**: If it fails, it implies a clear remediation.
+ - **Risk-aware**: Prefer items that surface **common failure modes** or **risks** within this topic.
+ - **Evidence-oriented**: Suggest **what evidence** to collect (e.g., sections, tables, figures, metadata, citations, configs).
++${checklistRequirements ? '- **Requirements-aligned**: Prioritize aspects that align with the user-specified requirements above.' : ''}
+ 
+ ## Coverage Hints (use only if relevant to THIS topic)
+ - **Quality & Accuracy**: definitions, metrics, calculations, references, data lineage, units, versioning.
+@@ -327,11 +356,11 @@ Each checklist item MUST be:
+ ## Hard Constraints
+ - **Stay strictly within the topic** above. Do NOT drift into unrelated areas.
+ - **Avoid generic items** that could apply to any document (e.g., "typos are fixed", "overall quality is good").
+-- **No speculative content** beyond the topic’s scope.
++- **No speculative content** beyond the topic's scope.
+ - **Be concise but unambiguous**. Prefer checkability over prose.
+-- **Reference ALL relevant parts of the topic**: Ensure you consider every portion of the topic’s description and implied scope so that **no important aspect is omitted** when creating checklist items.
++- **Reference ALL relevant parts of the topic**: Ensure you consider every portion of the topic's description and implied scope so that **no important aspect is omitted** when creating checklist items.
+ 
+-Now produce the checklist items **only for the topic: ${title} , following all requirements.
++Now produce the checklist items **only for the topic: ${title}**, following all requirements${checklistRequirements ? ' and ensuring alignment with the user-specified requirements' : ''}.
+ `;
+ }
+ 
+diff --git a/src/mastra/agents/workflowAgents.ts b/src/mastra/agents/workflowAgents.ts
+index fdb9ef746..2194e4a26 100644
+--- a/src/mastra/agents/workflowAgents.ts
++++ b/src/mastra/agents/workflowAgents.ts
+@@ -28,8 +28,13 @@ export type ReviewExecuteAgentRuntimeContext = BaseRuntimeContext & {
+   checklistItems: { id: number; content: string }[];
+ };
+ 
++export type TopicExtractionAgentRuntimeContext = BaseRuntimeContext & {
++  checklistRequirements?: string;
++};
++
+ export type TopicChecklistAgentRuntimeContext = BaseRuntimeContext & {
+-  topic: { title: string; description: string };
++  topic: { title: string };
++  checklistRequirements?: string;
+ };
+ 
+ export const summarizeSourceAgent = new Agent({
 diff --git a/src/mastra/workflows/sourceReview/checklistExtraction.ts b/src/mastra/workflows/sourceReview/checklistExtraction.ts
-index 5aa593740..825b6130f 100644
+index 825b6130f..9c195e810 100644
 --- a/src/mastra/workflows/sourceReview/checklistExtraction.ts
 +++ b/src/mastra/workflows/sourceReview/checklistExtraction.ts
-@@ -15,7 +15,6 @@ import {
+@@ -12,6 +12,7 @@ import { baseStepOutputSchema } from '../schema';
+ import { stepStatus } from '../types';
+ import {
+   ChecklistExtractionAgentRuntimeContext,
++  TopicExtractionAgentRuntimeContext,
    TopicChecklistAgentRuntimeContext,
  } from '../../agents/workflowAgents';
  import { createRuntimeContext } from '../../agents/lib';
--import { content } from '../../../../tailwind.config';
+@@ -28,6 +29,10 @@ const triggerSchema = z.object({
+     .describe(
+       'ドキュメント種別: checklist=チェックリストドキュメント, general=一般ドキュメント',
+     ),
++  checklistRequirements: z
++    .string()
++    .optional()
++    .describe('一般ドキュメント用のチェックリスト作成要件'),
+ });
  
- // ワークフローの入力スキーマ
- const triggerSchema = z.object({
-@@ -43,7 +42,7 @@ const topicExtractionStepOutputSchema = baseStepOutputSchema.extend({
+ // チェックリストドキュメント用のステップ出力スキーマ
+@@ -41,7 +46,6 @@ const topicExtractionStepOutputSchema = baseStepOutputSchema.extend({
+     .array(
        z.object({
          title: z.string(),
-         description: z.string(),
--        content: z.string(),
-+        sourceId: z.number(),
+-        description: z.string(),
+         sourceId: z.number(),
        }),
      )
-     .optional(),
-@@ -85,7 +84,7 @@ const checklistDocumentExtractionStep = createStep({
-           source = await sourceRepository.getSourceById(sourceId);
- 
-           if (source === null) {
--            throw new Error(`ソースID ${sourceId} が見つかりません`);
-+            throw new Error(`ドキュメントID ${sourceId} が見つかりません`);
-           }
- 
-           // ファイル内容を抽出
-@@ -274,7 +273,8 @@ const topicExtractionStep = createStep({
-   outputSchema: topicExtractionStepOutputSchema,
+@@ -274,7 +278,7 @@ const topicExtractionStep = createStep({
    execute: async ({ inputData, mastra, bail }) => {
      const sourceRepository = getSourceRepository();
--    const { sourceIds } = inputData;
-+    const reviewRepository = getReviewRepository();
-+    const { sourceIds, reviewHistoryId } = inputData;
+     const reviewRepository = getReviewRepository();
+-    const { sourceIds, reviewHistoryId } = inputData;
++    const { sourceIds, reviewHistoryId, checklistRequirements } = inputData;
      const errorMessages: string[] = [
        'チェックリスト作成処理中にエラーが発生しました',
      ];
-@@ -283,7 +283,7 @@ const topicExtractionStep = createStep({
+@@ -282,7 +286,6 @@ const topicExtractionStep = createStep({
+     try {
        const allTopics: Array<{
          title: string;
-         description: string;
--        content: string;
-+        sourceId: number;
+-        description: string;
+         sourceId: number;
        }> = [];
  
-       // 各ソースからトピックを抽出
-@@ -323,7 +323,7 @@ const topicExtractionStep = createStep({
-           allTopics.push(
-             ...extractionResult.object.topics.map((topic) => ({
-               ...topic,
--              content,
-+              sourceId,
-             })),
-           );
-         } catch (error) {
-@@ -346,6 +346,10 @@ const topicExtractionStep = createStep({
-       });
+@@ -305,12 +308,15 @@ const topicExtractionStep = createStep({
+               .array(
+                 z.object({
+                   title: z.string().describe('Topic title'),
+-                  description: z.string().describe('Topic description'),
+                 }),
+               )
+               .describe('Extracted topics from the document'),
+           });
+-          const runtimeContext = createRuntimeContext();
++          const runtimeContext =
++            createRuntimeContext<TopicExtractionAgentRuntimeContext>();
++          if (checklistRequirements) {
++            runtimeContext.set('checklistRequirements', checklistRequirements);
++          }
+ 
+           const extractionResult = await topicExtractionAgent.generate(
+             content,
+@@ -347,8 +353,7 @@ const topicExtractionStep = createStep({
  
        await Promise.all(extractionPromises);
-+      console.log(
-+        'トピック抽出完了:\n' +
-+          allTopics.map((t) => `${t.title}: ${t.description}`).join('\n'),
-+      );
+       console.log(
+-        'トピック抽出完了:\n' +
+-          allTopics.map((t) => `${t.title}: ${t.description}`).join('\n'),
++        'トピック抽出完了:\n' + allTopics.map((t) => `${t.title}`).join('\n'),
+       );
  
        // エラーがあれば失敗として返す
-       if (errorMessages.length > 1) {
-@@ -362,6 +366,9 @@ const topicExtractionStep = createStep({
-         });
-       }
- 
-+      // 既存のシステム作成チェックリストを削除
-+      await reviewRepository.deleteSystemCreatedChecklists(reviewHistoryId);
-+
-       return {
-         status: 'success' as stepStatus,
-         topics: allTopics,
-@@ -388,17 +395,25 @@ const topicChecklistCreationStep = createStep({
+@@ -394,13 +399,14 @@ const topicChecklistCreationStep = createStep({
+   description: 'トピックに基づいてチェックリスト項目を作成するステップ',
    inputSchema: z.object({
      title: z.string(),
-     description: z.string(),
--    content: z.string(),
-+    sourceId: z.number(),
+-    description: z.string(),
+     sourceId: z.number(),
      reviewHistoryId: z.string(),
++    checklistRequirements: z.string().optional(),
    }),
    outputSchema: topicChecklistStepOutputSchema,
    execute: async ({ inputData, mastra, bail }) => {
--    const { title, description, content, reviewHistoryId } = inputData;
-+    const { title, description, sourceId, reviewHistoryId } = inputData;
-+    const sourceRepository = getSourceRepository();
-+    const reviewRepository = getReviewRepository();
+-    const { title, description, sourceId, reviewHistoryId } = inputData;
++    const { title, sourceId, reviewHistoryId, checklistRequirements } =
++      inputData;
+     const sourceRepository = getSourceRepository();
+     const reviewRepository = getReviewRepository();
      const errorMessages: string[] = [
-       'チェックリスト作成処理中にエラーが発生しました',
-     ];
+@@ -423,7 +429,10 @@ const topicChecklistCreationStep = createStep({
  
-     try {
-+      const source = await sourceRepository.getSourceById(sourceId);
-+      if (source === null) {
-+        throw new Error(`ドキュメントID ${sourceId} が見つかりません`);
+       const runtimeContext =
+         createRuntimeContext<TopicChecklistAgentRuntimeContext>();
+-      runtimeContext.set('topic', { title, description });
++      runtimeContext.set('topic', { title });
++      if (checklistRequirements) {
++        runtimeContext.set('checklistRequirements', checklistRequirements);
 +      }
-+      // ファイル内容を抽出
-+      const { content } = await FileExtractor.extractText(source.path);
-       const topicChecklistAgent = mastra.getAgent('topicChecklistAgent');
-       const outputSchema = z.object({
-         checklistItems: z
-@@ -425,70 +440,8 @@ const topicChecklistCreationStep = createStep({
-         });
-       }
  
--      return {
--        status: 'success' as stepStatus,
--        checklistItems: result.object.checklistItems,
--      };
--    } catch (error) {
--      if (error instanceof Error && error.message) {
--        if (errorMessages.length > 1) {
--          errorMessages.push(''); // エラーメッセージの区切り
--        }
--        errorMessages.push(`トピック「${title}」: ${error.message}`);
--      }
--      return bail({
--        status: 'failed' as stepStatus,
--        errorMessage: errorMessages.join('\n'),
--      });
--    }
--  },
--});
--
--// Step3: チェックリスト統合ステップ
--const checklistIntegrationStep = createStep({
--  id: 'checklistIntegrationStep',
--  description: '各トピックから生成されたチェックリスト項目を統合するステップ',
--  inputSchema: z.object({
--    reviewHistoryId: z.string(),
--    allChecklistItems: z.array(z.string()),
--  }),
--  outputSchema: checklistIntegrationStepOutputSchema,
--  execute: async ({ inputData, mastra, bail }) => {
--    const { reviewHistoryId, allChecklistItems } = inputData;
--    const errorMessages: string[] = [
--      'チェックリスト作成処理中にエラーが発生しました',
--    ];
--
--    try {
--      const reviewRepository = getReviewRepository();
--
--      // 既存のシステム作成チェックリストを削除
--      await reviewRepository.deleteSystemCreatedChecklists(reviewHistoryId);
--
--      // const checklistIntegrationAgent = mastra.getAgent('checklistIntegrationAgent');
--      // const outputSchema = z.object({
--      //   integratedItems: z.array(z.string().describe('Integrated and deduplicated checklist item'))
--      //     .describe('Final integrated checklist items'),
--      // });
--
--      // const allItemsText = allChecklistItems.join('\n- ');
--
--      // const result = await checklistIntegrationAgent.generate(
--      //   allItemsText,
--      //   {
--      //     output: outputSchema,
--      //   },
--      // );
--
--      // if (!result.object.integratedItems || result.object.integratedItems.length === 0) {
--      //   return {
--      //     status: 'failed' as stepStatus,
--      //     errorMessage: 'チェックリスト項目の統合に失敗しました',
--      //   };
--      // }
--
--      // 統合されたチェックリストをDBに保存
--      for (const checklistItem of allChecklistItems) {
-+      // 抽出されたチェックリストをDBに保存
-+      for (const checklistItem of result.object.checklistItems) {
-         await reviewRepository.createChecklist(
-           reviewHistoryId,
-           checklistItem,
-@@ -498,13 +451,14 @@ const checklistIntegrationStep = createStep({
+       const result = await topicChecklistAgent.generate(content, {
+         output: outputSchema,
+@@ -573,9 +582,9 @@ export const checklistExtractionWorkflow = createWorkflow({
  
-       return {
-         status: 'success' as stepStatus,
-+        checklistItems: result.object.checklistItems,
-       };
-     } catch (error) {
-       if (error instanceof Error && error.message) {
-         if (errorMessages.length > 1) {
-           errorMessages.push(''); // エラーメッセージの区切り
-         }
--        errorMessages.push(`${error.message}`);
-+        errorMessages.push(`トピック「${title}」: ${error.message}`);
-       }
-       return bail({
-         status: 'failed' as stepStatus,
-@@ -514,6 +468,76 @@ const checklistIntegrationStep = createStep({
-   },
- });
- 
-+// Step3: チェックリスト統合ステップ
-+// const checklistIntegrationStep = createStep({
-+//   id: 'checklistIntegrationStep',
-+//   description: '各トピックから生成されたチェックリスト項目を統合するステップ',
-+//   inputSchema: z.object({
-+//     reviewHistoryId: z.string(),
-+//     allChecklistItems: z.array(z.string()),
-+//   }),
-+//   outputSchema: checklistIntegrationStepOutputSchema,
-+//   execute: async ({ inputData, mastra, bail }) => {
-+//     const { reviewHistoryId, allChecklistItems } = inputData;
-+//     const errorMessages: string[] = [
-+//       'チェックリスト作成処理中にエラーが発生しました',
-+//     ];
-+
-+//     try {
-+//       const reviewRepository = getReviewRepository();
-+
-+//       // 既存のシステム作成チェックリストを削除
-+//       await reviewRepository.deleteSystemCreatedChecklists(reviewHistoryId);
-+
-+//       // const checklistIntegrationAgent = mastra.getAgent('checklistIntegrationAgent');
-+//       // const outputSchema = z.object({
-+//       //   integratedItems: z.array(z.string().describe('Integrated and deduplicated checklist item'))
-+//       //     .describe('Final integrated checklist items'),
-+//       // });
-+
-+//       // const allItemsText = allChecklistItems.join('\n- ');
-+
-+//       // const result = await checklistIntegrationAgent.generate(
-+//       //   allItemsText,
-+//       //   {
-+//       //     output: outputSchema,
-+//       //   },
-+//       // );
-+
-+//       // if (!result.object.integratedItems || result.object.integratedItems.length === 0) {
-+//       //   return {
-+//       //     status: 'failed' as stepStatus,
-+//       //     errorMessage: 'チェックリスト項目の統合に失敗しました',
-+//       //   };
-+//       // }
-+
-+//       // 統合されたチェックリストをDBに保存
-+//       for (const checklistItem of allChecklistItems) {
-+//         await reviewRepository.createChecklist(
-+//           reviewHistoryId,
-+//           checklistItem,
-+//           'system',
-+//         );
-+//       }
-+
-+//       return {
-+//         status: 'success' as stepStatus,
-+//       };
-+//     } catch (error) {
-+//       if (error instanceof Error && error.message) {
-+//         if (errorMessages.length > 1) {
-+//           errorMessages.push(''); // エラーメッセージの区切り
-+//         }
-+//         errorMessages.push(`${error.message}`);
-+//       }
-+//       return bail({
-+//         status: 'failed' as stepStatus,
-+//         errorMessage: errorMessages.join('\n'),
-+//       });
-+//     }
-+//   },
-+// });
-+
- // === メインワークフロー ===
- 
- export const checklistExtractionWorkflow = createWorkflow({
-@@ -550,33 +574,34 @@ export const checklistExtractionWorkflow = createWorkflow({
            return topicResult.topics.map((topic) => ({
              title: topic.title,
-             description: topic.description,
--            content: topic.content,
-+            sourceId: topic.sourceId,
+-            description: topic.description,
+             sourceId: topic.sourceId,
              reviewHistoryId: initData.reviewHistoryId,
++            checklistRequirements: initData.checklistRequirements,
            }));
          })
          // Step2: 各トピックに対してチェックリスト作成（foreachでループ）
-         .foreach(topicChecklistCreationStep)
--        .map(async ({ getInitData, inputData }) => {
--          const initData = getInitData();
--          const allChecklistItems = inputData
--            .map((i) => {
--              if (i.status !== 'success' || !i.checklistItems) {
--                throw new Error(
--                  i?.errorMessage ||
--                    'トピック別チェックリスト作成に失敗しました',
--                );
--              }
--              return i.checklistItems;
--            })
--            .flat();
--
--          return {
--            reviewHistoryId: initData.reviewHistoryId,
--            allChecklistItems,
--          };
--        })
--        // Step3: チェックリスト統合(保存)
--        .then(checklistIntegrationStep)
-+        // Step2でDB保存を行うため、Step3はコメントアウト
-+        // .map(async ({ getInitData, inputData }) => {
-+        //   const initData = getInitData();
-+        //   const allChecklistItems = inputData
-+        //     .map((i) => {
-+        //       if (i.status !== 'success' || !i.checklistItems) {
-+        //         throw new Error(
-+        //           i?.errorMessage ||
-+        //             'トピック別チェックリスト作成に失敗しました',
-+        //         );
-+        //       }
-+        //       return i.checklistItems;
-+        //     })
-+        //     .flat();
-+
-+        //   return {
-+        //     reviewHistoryId: initData.reviewHistoryId,
-+        //     allChecklistItems,
-+        //   };
-+        // })
-+        // // Step3: チェックリスト統合(保存)
-+        // .then(checklistIntegrationStep)
-         .commit(),
-     ],
-   ])
+diff --git a/src/mastra/workflows/sourceReview/sourceReviewManager.ts b/src/mastra/workflows/sourceReview/sourceReviewManager.ts
+index 953392cbb..79800bd46 100644
+--- a/src/mastra/workflows/sourceReview/sourceReviewManager.ts
++++ b/src/mastra/workflows/sourceReview/sourceReviewManager.ts
+@@ -43,6 +43,7 @@ export default class SourceReviewManager {
+     reviewHistoryId: string,
+     sourceIds: number[],
+     documentType: DocumentType = 'checklist',
++    checklistRequirements?: string,
+   ): Promise<{ success: boolean; error?: string }> {
+     try {
+       let reviewHistory: ReviewHistory | null;
+@@ -77,6 +78,7 @@ export default class SourceReviewManager {
+           reviewHistoryId,
+           sourceIds,
+           documentType,
++          checklistRequirements,
+         },
+       });
+ 
+@@ -171,9 +173,10 @@ export default class SourceReviewManager {
+     sourceIds: number[],
+     event: IpcMainInvokeEvent,
+     documentType: DocumentType = 'checklist',
++    checklistRequirements?: string,
+   ): IpcResponsePayloadMap[typeof IpcChannels.REVIEW_EXTRACT_CHECKLIST_CALL] {
+     try {
+-      this.extractChecklist(reviewHistoryId, sourceIds, documentType)
++      this.extractChecklist(reviewHistoryId, sourceIds, documentType, checklistRequirements)
+         .then((res) => {
+           // 完了イベントを送信
+           event.sender.send(IpcChannels.REVIEW_EXTRACT_CHECKLIST_FINISHED, {
+diff --git a/src/renderer/components/review/ReviewArea.tsx b/src/renderer/components/review/ReviewArea.tsx
+index 3e667af69..56bf1fbde 100644
+--- a/src/renderer/components/review/ReviewArea.tsx
++++ b/src/renderer/components/review/ReviewArea.tsx
+@@ -77,7 +77,11 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
+ 
+   // チェックリストの抽出処理
+   const handleExtractChecklist = useCallback(
+-    async (sourceIds: number[], documentType?: DocumentType) => {
++    async (
++      sourceIds: number[],
++      documentType?: DocumentType,
++      checklistRequirements?: string,
++    ) => {
+       if (!selectedReviewHistoryId) return;
+ 
+       try {
+@@ -89,6 +93,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
+           reviewHistoryId: selectedReviewHistoryId,
+           sourceIds,
+           documentType,
++          checklistRequirements,
+         });
+ 
+         if (!result.success) {
+@@ -197,9 +202,17 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
+   );
+ 
+   const handleModalSubmit = useCallback(
+-    async (sourceIds: number[], documentType?: DocumentType) => {
++    async (
++      sourceIds: number[],
++      documentType?: DocumentType,
++      checklistRequirements?: string,
++    ) => {
+       if (modalMode === 'extract') {
+-        await handleExtractChecklist(sourceIds, documentType);
++        await handleExtractChecklist(
++          sourceIds,
++          documentType,
++          checklistRequirements,
++        );
+       } else if (modalMode === 'review') {
+         await handleExecuteReview(sourceIds);
+       }
 diff --git a/src/renderer/components/review/ReviewSourceModal.tsx b/src/renderer/components/review/ReviewSourceModal.tsx
-index b4160811c..419d0d1d5 100644
+index 419d0d1d5..65ceefc9b 100644
 --- a/src/renderer/components/review/ReviewSourceModal.tsx
 +++ b/src/renderer/components/review/ReviewSourceModal.tsx
-@@ -188,6 +188,8 @@ function SourceListModal({
-           <br />
-           チェックリストは手動で編集・追加・削除が可能です
-           <br />
-+          手動で追加・編集されたチェックリスト以外は、再度チェックリスト抽出を実行すると削除されます
-+          <br />
-           フォルダのパスは設定画面（歯車アイコン）から変更可能です
-         </>
-       );
+@@ -20,6 +20,7 @@ import {
+   FormControlLabel,
+   Radio,
+   FormLabel,
++  TextField,
+ } from '@mui/material';
+ import {
+   Check as CheckIcon,
+@@ -46,6 +47,7 @@ function SourceListModal({
+   }>({});
+   const [processing, setProcessing] = useState(true);
+   const [documentType, setDocumentType] = useState<DocumentType>('checklist');
++  const [checklistRequirements, setChecklistRequirements] = useState('');
+ 
+   // チェック状態の更新
+   // ソースの更新状態が変わったときにチェック状態を更新する
+@@ -73,6 +75,8 @@ function SourceListModal({
+     });
+     // ドキュメント種別もリセット
+     setDocumentType('checklist');
++    // チェックリスト作成要件もリセット
++    setChecklistRequirements('');
+   }, [modalMode, selectedReviewHistoryId]);
+ 
+   // チェックボックスの変更ハンドラ
+@@ -148,6 +152,11 @@ function SourceListModal({
+         })
+         .map((key) => +key),
+       modalMode === 'extract' ? documentType : undefined,
++      modalMode === 'extract' &&
++        documentType === 'general' &&
++        checklistRequirements.trim() !== ''
++        ? checklistRequirements.trim()
++        : undefined,
+     );
+   };
+ 
+@@ -299,27 +308,46 @@ function SourceListModal({
+         </Alert>
+ 
+         {modalMode === 'extract' && (
+-          <FormControl component="fieldset" sx={{ mb: 2 }}>
+-            <FormLabel component="legend">ドキュメント種別</FormLabel>
+-            <RadioGroup
+-              row
+-              value={documentType}
+-              onChange={(e) => setDocumentType(e.target.value as DocumentType)}
+-            >
+-              <FormControlLabel
+-                value="checklist"
+-                control={<Radio />}
+-                label="チェックリストドキュメント（既存項目を抽出）"
+-                disabled={processing}
+-              />
+-              <FormControlLabel
+-                value="general"
+-                control={<Radio />}
+-                label="一般ドキュメント（新規チェックリスト作成）"
++          <>
++            <FormControl component="fieldset" sx={{ mb: 2 }}>
++              <FormLabel component="legend">ドキュメント種別</FormLabel>
++              <RadioGroup
++                row
++                value={documentType}
++                onChange={(e) =>
++                  setDocumentType(e.target.value as DocumentType)
++                }
++              >
++                <FormControlLabel
++                  value="checklist"
++                  control={<Radio />}
++                  label="チェックリストドキュメント（既存項目を抽出）"
++                  disabled={processing}
++                />
++                <FormControlLabel
++                  value="general"
++                  control={<Radio />}
++                  label="一般ドキュメント（新規チェックリスト作成）"
++                  disabled={processing}
++                />
++              </RadioGroup>
++            </FormControl>
++
++            {documentType === 'general' && (
++              <TextField
++                fullWidth
++                multiline
++                rows={5}
++                label="チェックリスト作成要件"
++                placeholder="例：セキュリティ観点での確認項目を重視、品質管理に関するチェック項目を中心に"
++                value={checklistRequirements}
++                onChange={(e) => setChecklistRequirements(e.target.value)}
+                 disabled={processing}
++                sx={{ mb: 2 }}
++                helperText="どのような観点でチェックリストを作成したいか具体的に記載してください（任意）"
+               />
+-            </RadioGroup>
+-          </FormControl>
++            )}
++          </>
+         )}
+ 
+         <Box sx={{ mb: 2, display: 'flex', justifyContent: 'flex-end' }}>
+diff --git a/src/renderer/components/review/types.ts b/src/renderer/components/review/types.ts
+index 6bc69c9e6..55c81e159 100644
+--- a/src/renderer/components/review/types.ts
++++ b/src/renderer/components/review/types.ts
+@@ -25,7 +25,11 @@ export type DocumentType = 'checklist' | 'general';
+ export interface ReviewSourceModalProps {
+   open: boolean;
+   onClose: () => void;
+-  onSubmit: (sourceIds: number[], documentType?: DocumentType) => void;
++  onSubmit: (
++    sourceIds: number[],
++    documentType?: DocumentType,
++    checklistRequirements?: string,
++  ) => void;
+   selectedReviewHistoryId: string | null;
+   disabled?: boolean;
+   modalMode: ModalMode;
