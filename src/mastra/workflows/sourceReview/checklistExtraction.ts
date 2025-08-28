@@ -15,7 +15,6 @@ import {
   TopicChecklistAgentRuntimeContext,
 } from '../../agents/workflowAgents';
 import { createRuntimeContext } from '../../agents/lib';
-import { content } from '../../../../tailwind.config';
 
 // ワークフローの入力スキーマ
 const triggerSchema = z.object({
@@ -43,7 +42,7 @@ const topicExtractionStepOutputSchema = baseStepOutputSchema.extend({
       z.object({
         title: z.string(),
         description: z.string(),
-        content: z.string(),
+        sourceId: z.number(),
       }),
     )
     .optional(),
@@ -85,7 +84,7 @@ const checklistDocumentExtractionStep = createStep({
           source = await sourceRepository.getSourceById(sourceId);
 
           if (source === null) {
-            throw new Error(`ソースID ${sourceId} が見つかりません`);
+            throw new Error(`ドキュメントID ${sourceId} が見つかりません`);
           }
 
           // ファイル内容を抽出
@@ -274,7 +273,8 @@ const topicExtractionStep = createStep({
   outputSchema: topicExtractionStepOutputSchema,
   execute: async ({ inputData, mastra, bail }) => {
     const sourceRepository = getSourceRepository();
-    const { sourceIds } = inputData;
+    const reviewRepository = getReviewRepository();
+    const { sourceIds, reviewHistoryId } = inputData;
     const errorMessages: string[] = [
       'チェックリスト作成処理中にエラーが発生しました',
     ];
@@ -283,7 +283,7 @@ const topicExtractionStep = createStep({
       const allTopics: Array<{
         title: string;
         description: string;
-        content: string;
+        sourceId: number;
       }> = [];
 
       // 各ソースからトピックを抽出
@@ -323,7 +323,7 @@ const topicExtractionStep = createStep({
           allTopics.push(
             ...extractionResult.object.topics.map((topic) => ({
               ...topic,
-              content,
+              sourceId,
             })),
           );
         } catch (error) {
@@ -346,6 +346,10 @@ const topicExtractionStep = createStep({
       });
 
       await Promise.all(extractionPromises);
+      console.log(
+        'トピック抽出完了:\n' +
+          allTopics.map((t) => `${t.title}: ${t.description}`).join('\n'),
+      );
 
       // エラーがあれば失敗として返す
       if (errorMessages.length > 1) {
@@ -361,6 +365,9 @@ const topicExtractionStep = createStep({
           errorMessage: 'トピックが抽出されませんでした',
         });
       }
+
+      // 既存のシステム作成チェックリストを削除
+      await reviewRepository.deleteSystemCreatedChecklists(reviewHistoryId);
 
       return {
         status: 'success' as stepStatus,
@@ -388,17 +395,25 @@ const topicChecklistCreationStep = createStep({
   inputSchema: z.object({
     title: z.string(),
     description: z.string(),
-    content: z.string(),
+    sourceId: z.number(),
     reviewHistoryId: z.string(),
   }),
   outputSchema: topicChecklistStepOutputSchema,
   execute: async ({ inputData, mastra, bail }) => {
-    const { title, description, content, reviewHistoryId } = inputData;
+    const { title, description, sourceId, reviewHistoryId } = inputData;
+    const sourceRepository = getSourceRepository();
+    const reviewRepository = getReviewRepository();
     const errorMessages: string[] = [
       'チェックリスト作成処理中にエラーが発生しました',
     ];
 
     try {
+      const source = await sourceRepository.getSourceById(sourceId);
+      if (source === null) {
+        throw new Error(`ドキュメントID ${sourceId} が見つかりません`);
+      }
+      // ファイル内容を抽出
+      const { content } = await FileExtractor.extractText(source.path);
       const topicChecklistAgent = mastra.getAgent('topicChecklistAgent');
       const outputSchema = z.object({
         checklistItems: z
@@ -425,6 +440,15 @@ const topicChecklistCreationStep = createStep({
         });
       }
 
+      // 抽出されたチェックリストをDBに保存
+      for (const checklistItem of result.object.checklistItems) {
+        await reviewRepository.createChecklist(
+          reviewHistoryId,
+          checklistItem,
+          'system',
+        );
+      }
+
       return {
         status: 'success' as stepStatus,
         checklistItems: result.object.checklistItems,
@@ -445,74 +469,74 @@ const topicChecklistCreationStep = createStep({
 });
 
 // Step3: チェックリスト統合ステップ
-const checklistIntegrationStep = createStep({
-  id: 'checklistIntegrationStep',
-  description: '各トピックから生成されたチェックリスト項目を統合するステップ',
-  inputSchema: z.object({
-    reviewHistoryId: z.string(),
-    allChecklistItems: z.array(z.string()),
-  }),
-  outputSchema: checklistIntegrationStepOutputSchema,
-  execute: async ({ inputData, mastra, bail }) => {
-    const { reviewHistoryId, allChecklistItems } = inputData;
-    const errorMessages: string[] = [
-      'チェックリスト作成処理中にエラーが発生しました',
-    ];
+// const checklistIntegrationStep = createStep({
+//   id: 'checklistIntegrationStep',
+//   description: '各トピックから生成されたチェックリスト項目を統合するステップ',
+//   inputSchema: z.object({
+//     reviewHistoryId: z.string(),
+//     allChecklistItems: z.array(z.string()),
+//   }),
+//   outputSchema: checklistIntegrationStepOutputSchema,
+//   execute: async ({ inputData, mastra, bail }) => {
+//     const { reviewHistoryId, allChecklistItems } = inputData;
+//     const errorMessages: string[] = [
+//       'チェックリスト作成処理中にエラーが発生しました',
+//     ];
 
-    try {
-      const reviewRepository = getReviewRepository();
+//     try {
+//       const reviewRepository = getReviewRepository();
 
-      // 既存のシステム作成チェックリストを削除
-      await reviewRepository.deleteSystemCreatedChecklists(reviewHistoryId);
+//       // 既存のシステム作成チェックリストを削除
+//       await reviewRepository.deleteSystemCreatedChecklists(reviewHistoryId);
 
-      // const checklistIntegrationAgent = mastra.getAgent('checklistIntegrationAgent');
-      // const outputSchema = z.object({
-      //   integratedItems: z.array(z.string().describe('Integrated and deduplicated checklist item'))
-      //     .describe('Final integrated checklist items'),
-      // });
+//       // const checklistIntegrationAgent = mastra.getAgent('checklistIntegrationAgent');
+//       // const outputSchema = z.object({
+//       //   integratedItems: z.array(z.string().describe('Integrated and deduplicated checklist item'))
+//       //     .describe('Final integrated checklist items'),
+//       // });
 
-      // const allItemsText = allChecklistItems.join('\n- ');
+//       // const allItemsText = allChecklistItems.join('\n- ');
 
-      // const result = await checklistIntegrationAgent.generate(
-      //   allItemsText,
-      //   {
-      //     output: outputSchema,
-      //   },
-      // );
+//       // const result = await checklistIntegrationAgent.generate(
+//       //   allItemsText,
+//       //   {
+//       //     output: outputSchema,
+//       //   },
+//       // );
 
-      // if (!result.object.integratedItems || result.object.integratedItems.length === 0) {
-      //   return {
-      //     status: 'failed' as stepStatus,
-      //     errorMessage: 'チェックリスト項目の統合に失敗しました',
-      //   };
-      // }
+//       // if (!result.object.integratedItems || result.object.integratedItems.length === 0) {
+//       //   return {
+//       //     status: 'failed' as stepStatus,
+//       //     errorMessage: 'チェックリスト項目の統合に失敗しました',
+//       //   };
+//       // }
 
-      // 統合されたチェックリストをDBに保存
-      for (const checklistItem of allChecklistItems) {
-        await reviewRepository.createChecklist(
-          reviewHistoryId,
-          checklistItem,
-          'system',
-        );
-      }
+//       // 統合されたチェックリストをDBに保存
+//       for (const checklistItem of allChecklistItems) {
+//         await reviewRepository.createChecklist(
+//           reviewHistoryId,
+//           checklistItem,
+//           'system',
+//         );
+//       }
 
-      return {
-        status: 'success' as stepStatus,
-      };
-    } catch (error) {
-      if (error instanceof Error && error.message) {
-        if (errorMessages.length > 1) {
-          errorMessages.push(''); // エラーメッセージの区切り
-        }
-        errorMessages.push(`${error.message}`);
-      }
-      return bail({
-        status: 'failed' as stepStatus,
-        errorMessage: errorMessages.join('\n'),
-      });
-    }
-  },
-});
+//       return {
+//         status: 'success' as stepStatus,
+//       };
+//     } catch (error) {
+//       if (error instanceof Error && error.message) {
+//         if (errorMessages.length > 1) {
+//           errorMessages.push(''); // エラーメッセージの区切り
+//         }
+//         errorMessages.push(`${error.message}`);
+//       }
+//       return bail({
+//         status: 'failed' as stepStatus,
+//         errorMessage: errorMessages.join('\n'),
+//       });
+//     }
+//   },
+// });
 
 // === メインワークフロー ===
 
@@ -550,33 +574,34 @@ export const checklistExtractionWorkflow = createWorkflow({
           return topicResult.topics.map((topic) => ({
             title: topic.title,
             description: topic.description,
-            content: topic.content,
+            sourceId: topic.sourceId,
             reviewHistoryId: initData.reviewHistoryId,
           }));
         })
         // Step2: 各トピックに対してチェックリスト作成（foreachでループ）
         .foreach(topicChecklistCreationStep)
-        .map(async ({ getInitData, inputData }) => {
-          const initData = getInitData();
-          const allChecklistItems = inputData
-            .map((i) => {
-              if (i.status !== 'success' || !i.checklistItems) {
-                throw new Error(
-                  i?.errorMessage ||
-                    'トピック別チェックリスト作成に失敗しました',
-                );
-              }
-              return i.checklistItems;
-            })
-            .flat();
+        // Step2でDB保存を行うため、Step3はコメントアウト
+        // .map(async ({ getInitData, inputData }) => {
+        //   const initData = getInitData();
+        //   const allChecklistItems = inputData
+        //     .map((i) => {
+        //       if (i.status !== 'success' || !i.checklistItems) {
+        //         throw new Error(
+        //           i?.errorMessage ||
+        //             'トピック別チェックリスト作成に失敗しました',
+        //         );
+        //       }
+        //       return i.checklistItems;
+        //     })
+        //     .flat();
 
-          return {
-            reviewHistoryId: initData.reviewHistoryId,
-            allChecklistItems,
-          };
-        })
-        // Step3: チェックリスト統合(保存)
-        .then(checklistIntegrationStep)
+        //   return {
+        //     reviewHistoryId: initData.reviewHistoryId,
+        //     allChecklistItems,
+        //   };
+        // })
+        // // Step3: チェックリスト統合(保存)
+        // .then(checklistIntegrationStep)
         .commit(),
     ],
   ])
