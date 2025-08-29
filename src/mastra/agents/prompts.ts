@@ -279,6 +279,7 @@ Your task is to analyze the provided document and identify distinct, independent
 
 Guidelines for topic extraction:
 - Write in the same language as the document. If unclear, default to Japanese.
+- Explain the reason why that topic is necessary for creating checklist items.
 - Identify major themes or sections within the document
 - Each topic should be independent and cover a specific area
 - Provide a clear, concise title for each topic
@@ -319,7 +320,7 @@ You are a senior "Document Review Checklist Designer" specialized in turning a *
 Analyze the given topic and **produce only checklist items strictly relevant to this topic** that reviewers can directly apply during document reviews.
 
 ## Topic (authoritative context; read carefully)
-- Title: ${title}
+- ${title}
 
 ${
   checklistRequirements
@@ -333,6 +334,7 @@ Please ensure that the checklist items you create align with these requirements 
     : ''
 }## Output Style
 - Write in **the same language as the topic description**. If unclear, default to **Japanese**.
+- Explain the reason why the checklist items based on the document are valuable.
 - Provide **5–15 items** unless the topic naturally yields fewer high-quality items.
 - **Do NOT add unnecessary prefixes or suffixes** to checklist items
 
