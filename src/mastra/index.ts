@@ -3,7 +3,7 @@
 // @ts-ignore
 import { Mastra } from '@mastra/core';
 // @ts-ignore
-import { createLogger } from '@mastra/core/logger';
+import { ConsoleLogger } from '@mastra/core/logger';
 import { orchestrator } from './agents/orchestrator';
 import { documentExpertAgent } from './agents/toolAgents';
 import {
@@ -24,7 +24,7 @@ import { reviewExecutionWorkflow } from './workflows/sourceReview/reviewExecutio
 const logLevel = process.env.NODE_ENV === 'production' ? 'info' : 'debug';
 
 // ロガーの作成
-const logger = createLogger({
+const logger = new ConsoleLogger({
   name: 'AIKATA',
   level: logLevel,
 });

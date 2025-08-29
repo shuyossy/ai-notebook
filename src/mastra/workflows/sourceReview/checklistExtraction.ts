@@ -16,6 +16,8 @@ import {
   TopicChecklistAgentRuntimeContext,
 } from '../../agents/workflowAgents';
 import { createRuntimeContext } from '../../agents/lib';
+import { title } from 'process';
+import { check } from 'zod/v4';
 
 // ワークフローの入力スキーマ
 const triggerSchema = z.object({
@@ -58,7 +60,7 @@ const topicChecklistStepOutputSchema = baseStepOutputSchema.extend({
 });
 
 // チェックリスト統合の出力スキーマ
-const checklistIntegrationStepOutputSchema = baseStepOutputSchema;
+// const checklistIntegrationStepOutputSchema = baseStepOutputSchema;
 
 // === チェックリストドキュメント用ステップ ===
 
@@ -307,7 +309,12 @@ const topicExtractionStep = createStep({
             topics: z
               .array(
                 z.object({
-                  title: z.string().describe('Topic title'),
+                  topic: z.string().describe('Extracted topic'),
+                  reason: z
+                    .string()
+                    .describe(
+                      'The reason why that topic is necessary for creating checklist items',
+                    ),
                 }),
               )
               .describe('Extracted topics from the document'),
@@ -326,9 +333,16 @@ const topicExtractionStep = createStep({
             },
           );
 
+          mastra
+            .getLogger()
+            .debug(
+              `document(id:${sourceId}) extracted topics for creating checklist:`,
+              JSON.stringify(extractionResult.object.topics, null, 2),
+            );
+
           allTopics.push(
-            ...extractionResult.object.topics.map((topic) => ({
-              ...topic,
+            ...extractionResult.object.topics.map((t) => ({
+              title: t.topic,
               sourceId,
             })),
           );
@@ -352,9 +366,6 @@ const topicExtractionStep = createStep({
       });
 
       await Promise.all(extractionPromises);
-      console.log(
-        'トピック抽出完了:\n' + allTopics.map((t) => `${t.title}`).join('\n'),
-      );
 
       // エラーがあれば失敗として返す
       if (errorMessages.length > 1) {
@@ -423,8 +434,19 @@ const topicChecklistCreationStep = createStep({
       const topicChecklistAgent = mastra.getAgent('topicChecklistAgent');
       const outputSchema = z.object({
         checklistItems: z
-          .array(z.string().describe('Checklist item'))
-          .describe('Generated checklist items for the topic'),
+          .array(
+            z.object({
+              checklistItem: z.string().describe('Checklist item'),
+              reason: z
+                .string()
+                .describe(
+                  'The reason why the checklist items based on the document are valuable',
+                ),
+            }),
+          )
+          .describe(
+            'Generated checklist items for the given topic from the document',
+          ),
       });
 
       const runtimeContext =
@@ -438,6 +460,12 @@ const topicChecklistCreationStep = createStep({
         output: outputSchema,
         runtimeContext,
       });
+      mastra
+        .getLogger()
+        .debug(
+          `document(id:${sourceId}) topic(${title}) generated checklist items:`,
+          JSON.stringify(result.object.checklistItems, null, 2),
+        );
 
       if (
         !result.object.checklistItems ||
@@ -450,10 +478,10 @@ const topicChecklistCreationStep = createStep({
       }
 
       // 抽出されたチェックリストをDBに保存
-      for (const checklistItem of result.object.checklistItems) {
+      for (const c of result.object.checklistItems) {
         await reviewRepository.createChecklist(
           reviewHistoryId,
-          checklistItem,
+          c.checklistItem,
           'system',
         );
       }
