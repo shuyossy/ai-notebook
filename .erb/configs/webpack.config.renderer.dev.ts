@@ -1,5 +1,5 @@
 import 'webpack-dev-server';
-import path from 'path';
+import path, { join } from 'path';
 import fs from 'fs';
 import webpack from 'webpack';
 import HtmlWebpackPlugin from 'html-webpack-plugin';
@@ -7,6 +7,7 @@ import chalk from 'chalk';
 import { merge } from 'webpack-merge';
 import { execSync, spawn } from 'child_process';
 import ReactRefreshWebpackPlugin from '@pmmmwh/react-refresh-webpack-plugin';
+import CopyPlugin from 'copy-webpack-plugin';
 import baseConfig from './webpack.config.base';
 import webpackPaths from './webpack.paths';
 import checkNodeEnv from '../scripts/check-node-env';
@@ -161,6 +162,22 @@ const configuration: webpack.Configuration = {
       env: process.env.NODE_ENV,
       isDevelopment: process.env.NODE_ENV !== 'production',
       nodeModules: webpackPaths.appNodeModulesPath,
+    }),
+
+    new CopyPlugin({
+      patterns: [
+        {
+          from: path.resolve(__dirname, '../../drizzle'),
+          to: path.resolve(__dirname, '../../release/app/drizzle'),
+        },
+        {
+          from: join(
+            path.dirname(require.resolve('pdfjs-dist/package.json')),
+            'legacy/build/pdf.worker.mjs',
+          ),
+          to: 'pdf.worker.mjs', // 出力先 (resources に入る)
+        },
+      ],
     }),
   ],
 

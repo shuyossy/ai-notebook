@@ -2,7 +2,7 @@
  * Build config for electron renderer process
  */
 
-import path from 'path';
+import path, { join } from 'path';
 import webpack from 'webpack';
 import HtmlWebpackPlugin from 'html-webpack-plugin';
 import MiniCssExtractPlugin from 'mini-css-extract-plugin';
@@ -14,6 +14,7 @@ import baseConfig from './webpack.config.base';
 import webpackPaths from './webpack.paths';
 import checkNodeEnv from '../scripts/check-node-env';
 import deleteSourceMaps from '../scripts/delete-source-maps';
+import CopyPlugin from 'copy-webpack-plugin';
 
 checkNodeEnv('production');
 deleteSourceMaps();
@@ -146,6 +147,22 @@ const configuration: webpack.Configuration = {
 
     new webpack.DefinePlugin({
       'process.type': '"renderer"',
+    }),
+
+    new CopyPlugin({
+      patterns: [
+        {
+          from: path.resolve(__dirname, '../../drizzle'),
+          to: path.resolve(__dirname, '../../release/app/drizzle'),
+        },
+        {
+          from: join(
+            path.dirname(require.resolve('pdfjs-dist/package.json')),
+            'legacy/build/pdf.worker.mjs',
+          ),
+          to: 'pdf.worker.mjs', // 出力先 (resources に入る)
+        },
+      ],
     }),
   ],
 };
