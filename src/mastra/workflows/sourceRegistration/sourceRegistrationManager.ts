@@ -164,7 +164,6 @@ export default class SourceRegistrationManager {
               });
 
               // 結果を確認
-              console.log('apply checkStatus', JSON.stringify(result));
               const checkResult = checkStatus(result);
 
               resultList.push({

@@ -102,7 +102,7 @@ function ReviewSourceModal({
       if (!result.canceled && result.filePaths.length > 0) {
         const newFiles: UploadFile[] = result.filePaths.map(
           (filePath: string) => {
-            const fileName = filePath.split('/').pop() || filePath;
+            const fileName = filePath.split(/[/\\]/).pop() || filePath;
             const fileExtension =
               fileName.split('.').pop()?.toLowerCase() || '';
             const mimeType = getMimeTypeFromExtension(fileExtension);
