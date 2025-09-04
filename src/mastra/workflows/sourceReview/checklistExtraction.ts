@@ -3,10 +3,8 @@ import { APICallError, NoObjectGeneratedError } from 'ai';
 import { createStep, createWorkflow } from '@mastra/core/workflows';
 import { MastraError } from '@mastra/core/error';
 import { z } from 'zod';
-import path from 'path';
 import { getReviewRepository } from '../../../db/repository/reviewRepository';
 import { getSourceRepository } from '../../../db/repository/sourceRepository';
-import { Source } from '../../../db/schema';
 import FileExtractor from '../../../main/utils/fileExtractor';
 import { baseStepOutputSchema } from '../schema';
 import { stepStatus } from '../types';
@@ -16,13 +14,24 @@ import {
   TopicChecklistAgentRuntimeContext,
 } from '../../agents/workflowAgents';
 import { createRuntimeContext } from '../../agents/lib';
+import { UploadFile } from '../../../renderer/components/review/types';
 
 // ワークフローの入力スキーマ
 const triggerSchema = z.object({
   reviewHistoryId: z.string().describe('レビュー履歴ID'),
-  sourceIds: z
-    .array(z.number())
-    .describe('チェックリストを抽出するソースのIDリスト'),
+  files: z
+    .array(
+      z.object({
+        id: z.string(),
+        name: z.string(),
+        path: z.string(),
+        type: z.string(),
+        pdfProcessMode: z.enum(['text', 'image']).optional(),
+        pdfImageMode: z.enum(['merged', 'pages']).optional(),
+        imageData: z.array(z.string()).optional(),
+      }),
+    )
+    .describe('アップロードファイルのリスト'),
   documentType: z
     .enum(['checklist', 'general'])
     .default('checklist')
@@ -46,7 +55,8 @@ const topicExtractionStepOutputSchema = baseStepOutputSchema.extend({
     .array(
       z.object({
         title: z.string(),
-        sourceId: z.number(),
+        file: triggerSchema.shape.files.element,
+        content: z.string().optional(),
       }),
     )
     .optional(),
@@ -72,7 +82,7 @@ const checklistDocumentExtractionStep = createStep({
     const reviewRepository = getReviewRepository();
     const sourceRepository = getSourceRepository();
     // トリガーから入力を取得
-    const { reviewHistoryId, sourceIds, documentType } = inputData;
+    const { reviewHistoryId, files } = inputData;
     const errorMessages: string[] = [
       'チェックリスト抽出処理中に以下エラーが発生しました',
     ];
@@ -81,19 +91,9 @@ const checklistDocumentExtractionStep = createStep({
       // 既存のシステム作成チェックリストを削除
       await reviewRepository.deleteSystemCreatedChecklists(reviewHistoryId);
 
-      // 各ソースを並行して処理
-      const extractionPromises = sourceIds.map(async (sourceId) => {
-        let source: Source | null = null;
+      // 各ファイルを並行して処理
+      const extractionPromises = files.map(async (file: UploadFile) => {
         try {
-          source = await sourceRepository.getSourceById(sourceId);
-
-          if (source === null) {
-            throw new Error(`ドキュメントID ${sourceId} が見つかりません`);
-          }
-
-          // ファイル内容を抽出
-          const { content } = await FileExtractor.extractText(source.path);
-
           const checklistExtractionAgent = mastra.getAgent(
             'checklistExtractionAgent',
           );
@@ -109,6 +109,60 @@ const checklistDocumentExtractionStep = createStep({
           // これまでに抽出したチェックリスト項目を蓄積する配列
           const accumulated: string[] = [];
 
+          let message;
+
+          // PDFで画像として処理する場合
+          if (
+            file.type === 'application/pdf' &&
+            file.pdfProcessMode === 'image' &&
+            file.imageData &&
+            file.imageData.length > 0
+          ) {
+            if (file.imageData.length > 1) {
+              // ページ別画像モード: すべてのページを含むメッセージを作成
+              const imageMessage = {
+                role: 'user' as const,
+                content: [
+                  {
+                    type: 'text' as const,
+                    text: `Please extract checklist items from this document: ${file.name} (All ${file.imageData.length} pages)`,
+                  },
+                  // すべてのページ画像を含める
+                  ...file.imageData.map((imageData) => ({
+                    type: 'image' as const,
+                    image: imageData,
+                    mimeType: 'image/png',
+                  })),
+                ],
+              };
+
+              message = imageMessage;
+            } else {
+              // 統合画像モード: 単一メッセージ
+              const imageMessage = {
+                role: 'user' as const,
+                content: [
+                  {
+                    type: 'text' as const,
+                    text: `Please extract checklist items from this document: ${file.name}`,
+                  },
+                  {
+                    type: 'image' as const,
+                    image: file.imageData[0],
+                    mimeType: 'image/png',
+                  },
+                ],
+              };
+
+              message = imageMessage;
+            }
+            // 画像化PDF以外はテキスト抽出処理
+          } else {
+            // テキスト抽出処理
+            const { content } = await FileExtractor.extractText(file.path);
+            message = content;
+          }
+
           // 最大試行回数
           const MAX_ATTEMPTS = 5;
           let attempts = 0;
@@ -120,7 +174,7 @@ const checklistDocumentExtractionStep = createStep({
             // これまでに抽出したチェックリスト項目
             runtimeContext.set('extractedItems', accumulated);
             const extractionResult = await checklistExtractionAgent.generate(
-              content,
+              message,
               {
                 output: outputSchema,
                 runtimeContext,
@@ -182,9 +236,10 @@ const checklistDocumentExtractionStep = createStep({
             }
 
             // 抽出されたチェックリストから新規のものを蓄積
-            const newChecklists = extractionResult.object.newChecklists.filter(
-              (item) => !accumulated.includes(item),
-            );
+            const newChecklists =
+              extractionResult.object.newChecklists?.filter(
+                (item: string) => !accumulated.includes(item),
+              ) || [];
             accumulated.push(...newChecklists);
 
             // 抽出されたチェックリストをDBに保存
@@ -229,11 +284,7 @@ const checklistDocumentExtractionStep = createStep({
           } else {
             errorDetail = JSON.stringify(error);
           }
-          if (source) {
-            errorMessage += `- ${path.basename(source.path)}のチェックリスト抽出でエラー: ${errorDetail}`;
-          } else {
-            errorMessage += `- チェックリスト抽出処理でエラーが発生しました: ${errorDetail}`;
-          }
+          errorMessage += `- ${file.name}のチェックリスト抽出でエラー: ${errorDetail}`;
           errorMessages.push(errorMessage);
         }
       });
@@ -276,9 +327,8 @@ const topicExtractionStep = createStep({
   inputSchema: triggerSchema,
   outputSchema: topicExtractionStepOutputSchema,
   execute: async ({ inputData, mastra, bail }) => {
-    const sourceRepository = getSourceRepository();
     const reviewRepository = getReviewRepository();
-    const { sourceIds, reviewHistoryId, checklistRequirements } = inputData;
+    const { files, reviewHistoryId, checklistRequirements } = inputData;
     const errorMessages: string[] = [
       'チェックリスト作成処理中にエラーが発生しました',
     ];
@@ -286,21 +336,65 @@ const topicExtractionStep = createStep({
     try {
       const allTopics: Array<{
         title: string;
-        sourceId: number;
+        file: z.infer<typeof triggerSchema.shape.files.element>;
+        content?: string;
       }> = [];
 
-      // 各ソースからトピックを抽出
-      const extractionPromises = sourceIds.map(async (sourceId) => {
-        let source: Source | null = null;
+      // 各ファイルからトピックを抽出
+      const extractionPromises = files.map(async (file: UploadFile) => {
         try {
-          source = await sourceRepository.getSourceById(sourceId);
+          let message;
+          let outputContent: string | undefined = undefined;
 
-          if (source === null) {
-            throw new Error(`ソースID ${sourceId} が見つかりません`);
+          // PDFで画像として処理する場合
+          if (
+            file.type === 'application/pdf' &&
+            file.pdfProcessMode === 'image' &&
+            file.imageData &&
+            file.imageData.length > 0
+          ) {
+            if (file.imageData.length > 1) {
+              // ページ別画像モード: すべてのページを含むメッセージを作成
+              const imageMessage = {
+                role: 'user' as const,
+                content: [
+                  {
+                    type: 'text' as const,
+                    text: `Please extract topics from this document: ${file.name} (All ${file.imageData.length} pages)`,
+                  },
+                  // すべてのページ画像を含める
+                  ...file.imageData.map((imageData) => ({
+                    type: 'image' as const,
+                    image: imageData,
+                    mimeType: 'image/png',
+                  })),
+                ],
+              };
+              message = imageMessage;
+            } else {
+              // 統合画像モード: 単一メッセージ
+              const imageMessage = {
+                role: 'user' as const,
+                content: [
+                  {
+                    type: 'text' as const,
+                    text: `Please extract topics from this document: ${file.name}`,
+                  },
+                  {
+                    type: 'image' as const,
+                    image: file.imageData[0],
+                    mimeType: 'image/png',
+                  },
+                ],
+              };
+              message = imageMessage;
+            }
+          } else {
+            // テキスト抽出処理
+            const { content } = await FileExtractor.extractText(file.path);
+            message = content;
+            outputContent = content;
           }
-
-          // ファイル内容を抽出
-          const { content } = await FileExtractor.extractText(source.path);
 
           const topicExtractionAgent = mastra.getAgent('topicExtractionAgent');
           const outputSchema = z.object({
@@ -324,7 +418,7 @@ const topicExtractionStep = createStep({
           }
 
           const extractionResult = await topicExtractionAgent.generate(
-            content,
+            message,
             {
               output: outputSchema,
               runtimeContext,
@@ -334,14 +428,15 @@ const topicExtractionStep = createStep({
           mastra
             .getLogger()
             .debug(
-              `document(id:${sourceId}) extracted topics for creating checklist:`,
+              `document(${file.name}) extracted topics for creating checklist:`,
               JSON.stringify(extractionResult.object.topics, null, 2),
             );
 
           allTopics.push(
             ...extractionResult.object.topics.map((t) => ({
               title: t.topic,
-              sourceId,
+              file,
+              content: outputContent,
             })),
           );
         } catch (error) {
@@ -351,15 +446,9 @@ const topicExtractionStep = createStep({
           } else {
             errorDetail = JSON.stringify(error);
           }
-          if (source) {
-            errorMessages.push(
-              `- ${path.basename(source.path)}のトピック抽出でエラー: ${errorDetail}`,
-            );
-          } else {
-            errorMessages.push(
-              `- トピック抽出処理でエラーが発生しました: ${errorDetail}`,
-            );
-          }
+          errorMessages.push(
+            `- ${file.name}のトピック抽出でエラー: ${errorDetail}`,
+          );
         }
       });
 
@@ -408,27 +497,71 @@ const topicChecklistCreationStep = createStep({
   description: 'トピックに基づいてチェックリスト項目を作成するステップ',
   inputSchema: z.object({
     title: z.string(),
-    sourceId: z.number(),
+    file: triggerSchema.shape.files.element,
+    content: z.string().optional(),
     reviewHistoryId: z.string(),
     checklistRequirements: z.string().optional(),
   }),
   outputSchema: topicChecklistStepOutputSchema,
   execute: async ({ inputData, mastra, bail }) => {
-    const { title, sourceId, reviewHistoryId, checklistRequirements } =
+    const { title, file, content, reviewHistoryId, checklistRequirements } =
       inputData;
-    const sourceRepository = getSourceRepository();
     const reviewRepository = getReviewRepository();
     const errorMessages: string[] = [
       'チェックリスト作成処理中にエラーが発生しました',
     ];
 
     try {
-      const source = await sourceRepository.getSourceById(sourceId);
-      if (source === null) {
-        throw new Error(`ドキュメントID ${sourceId} が見つかりません`);
+      let message;
+
+      // PDFで画像として処理する場合
+      if (
+        file.type === 'application/pdf' &&
+        file.pdfProcessMode === 'image' &&
+        file.imageData &&
+        file.imageData.length > 0
+      ) {
+        if (file.imageData.length > 1) {
+          // ページ別画像モードの場合、すべてのページを統合したメッセージを作成
+          // (このステップでは特定のトピックに基づいてチェックリスト作成するため、全ページを含める)
+          const imageMessage = {
+            role: 'user' as const,
+            content: [
+              {
+                type: 'text' as const,
+                text: `Please create checklist items from this document: ${file.name} (All ${file.imageData.length} pages) for topic: ${title}`,
+              },
+              // すべてのページ画像を含める
+              ...file.imageData.map((imageData) => ({
+                type: 'image' as const,
+                image: imageData,
+                mimeType: 'image/png',
+              })),
+            ],
+          };
+          message = imageMessage;
+        } else {
+          // 統合画像モード: 単一メッセージ
+          const imageMessage = {
+            role: 'user' as const,
+            content: [
+              {
+                type: 'text' as const,
+                text: `Please create checklist items from this document: ${file.name}`,
+              },
+              {
+                type: 'image' as const,
+                image: file.imageData[0],
+                mimeType: 'image/png',
+              },
+            ],
+          };
+          message = imageMessage;
+        }
+      } else {
+        // テキスト抽出処理
+        message = content!;
       }
-      // ファイル内容を抽出
-      const { content } = await FileExtractor.extractText(source.path);
       const topicChecklistAgent = mastra.getAgent('topicChecklistAgent');
       const outputSchema = z.object({
         checklistItems: z
@@ -454,14 +587,14 @@ const topicChecklistCreationStep = createStep({
         runtimeContext.set('checklistRequirements', checklistRequirements);
       }
 
-      const result = await topicChecklistAgent.generate(content, {
+      const result = await topicChecklistAgent.generate(message, {
         output: outputSchema,
         runtimeContext,
       });
       mastra
         .getLogger()
         .debug(
-          `document(id:${sourceId}) topic(${title}) generated checklist items:`,
+          `document(${file.name}) topic(${title}) generated checklist items:`,
           JSON.stringify(result.object.checklistItems, null, 2),
         );
 
@@ -486,7 +619,9 @@ const topicChecklistCreationStep = createStep({
 
       return {
         status: 'success' as stepStatus,
-        checklistItems: result.object.checklistItems,
+        checklistItems: result.object.checklistItems.map(
+          (item) => item.checklistItem,
+        ),
       };
     } catch (error) {
       if (error instanceof Error && error.message) {
@@ -600,6 +735,7 @@ export const checklistExtractionWorkflow = createWorkflow({
           const topicResult = getStepResult(topicExtractionStep);
           const initData = getInitData();
 
+          // 前ステップでエラーの場合はbailで早期終了させているため、ここに来るのは成功時のみの想定
           if (topicResult?.status !== 'success' || !topicResult.topics) {
             throw new Error(
               topicResult?.errorMessage || 'トピック抽出に失敗しました',
@@ -608,7 +744,8 @@ export const checklistExtractionWorkflow = createWorkflow({
 
           return topicResult.topics.map((topic) => ({
             title: topic.title,
-            sourceId: topic.sourceId,
+            file: topic.file,
+            content: topic.content,
             reviewHistoryId: initData.reviewHistoryId,
             checklistRequirements: initData.checklistRequirements,
           }));

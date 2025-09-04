@@ -55,12 +55,12 @@ export type ReviewEvaluation = 'A' | 'B' | 'C' | '-';
 export type ReviewChecklistCreatedBy = 'user' | 'system';
 
 // 最終的に画面に表示するチェックリストの型
-export type ReviewChecklistResult = {
+export type ReviewChecklistResultDisplay = {
   id: number; // チェックリストのID
   content: string;
   sourceEvaluations?: {
-    sourceId: number;
-    sourceFileName: string;
+    fileId: string;
+    fileName: string;
     evaluation?: ReviewEvaluation;
     comment?: string;
   }[];

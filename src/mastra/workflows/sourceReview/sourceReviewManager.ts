@@ -9,7 +9,10 @@ import {
 import { generateReviewTitle } from './lib';
 import { ReviewHistory } from '../../../db/schema';
 import { mastra } from '../..';
-import { DocumentType } from '../../../renderer/components/review/types';
+import {
+  DocumentType,
+  UploadFile,
+} from '../../../renderer/components/review/types';
 import { checkStatus } from '../libs';
 
 /**
@@ -20,8 +23,6 @@ export default class SourceReviewManager {
   private static instance: SourceReviewManager | null = null;
 
   private reviewRepository = getReviewRepository();
-
-  private sourceRepository = getSourceRepository();
 
   /**
    * シングルトンインスタンスを取得
@@ -34,14 +35,14 @@ export default class SourceReviewManager {
   }
 
   /**
-   * チェックリスト抽出処理を実行
+   * アップロードファイルからチェックリスト抽出処理を実行
    * @param reviewHistoryId レビュー履歴ID（新規の場合は生成）
-   * @param sourceIds ソースIDの配列
+   * @param files アップロードファイルの配列
    * @returns 処理結果
    */
   public async extractChecklist(
     reviewHistoryId: string,
-    sourceIds: number[],
+    files: UploadFile[],
     documentType: DocumentType = 'checklist',
     checklistRequirements?: string,
   ): Promise<{ success: boolean; error?: string }> {
@@ -76,7 +77,7 @@ export default class SourceReviewManager {
       const runResult = await run.start({
         inputData: {
           reviewHistoryId,
-          sourceIds,
+          files,
           documentType,
           checklistRequirements,
         },
@@ -99,14 +100,14 @@ export default class SourceReviewManager {
   }
 
   /**
-   * レビュー実行処理を実行
+   * アップロードファイルからレビュー実行処理を実行
    * @param reviewHistoryId レビュー履歴ID
-   * @param sourceIds ソースIDの配列
+   * @param files アップロードファイルの配列
    * @returns 処理結果
    */
   public async executeReview(
     reviewHistoryId: string,
-    sourceIds: number[],
+    files: UploadFile[],
   ): Promise<{ success: boolean; error?: string }> {
     try {
       // レビュー履歴の存在確認
@@ -130,9 +131,8 @@ export default class SourceReviewManager {
       }
 
       // タイトルの変更
-      // 全てのソースを取得
-      const sources = await this.sourceRepository.getSourcesByIds(sourceIds);
-      const reviewTitle = generateReviewTitle(sources.map((s) => s.title));
+      const fileNames = files.map((f) => f.name.replace(/\.[^/.]+$/, '')); // 拡張子を除いたファイル名
+      const reviewTitle = generateReviewTitle(fileNames);
       // レビュー履歴のタイトルを更新
       await this.reviewRepository.updateReviewHistoryTitle(
         reviewHistory.id,
@@ -143,7 +143,7 @@ export default class SourceReviewManager {
       const result = await run.start({
         inputData: {
           reviewHistoryId,
-          sourceIds,
+          files,
         },
       });
       // 結果を確認
@@ -170,13 +170,18 @@ export default class SourceReviewManager {
    */
   public extractChecklistWithNotification(
     reviewHistoryId: string,
-    sourceIds: number[],
+    files: UploadFile[],
     event: IpcMainInvokeEvent,
     documentType: DocumentType = 'checklist',
     checklistRequirements?: string,
   ): IpcResponsePayloadMap[typeof IpcChannels.REVIEW_EXTRACT_CHECKLIST_CALL] {
     try {
-      this.extractChecklist(reviewHistoryId, sourceIds, documentType, checklistRequirements)
+      this.extractChecklist(
+        reviewHistoryId,
+        files,
+        documentType,
+        checklistRequirements,
+      )
         .then((res) => {
           // 完了イベントを送信
           event.sender.send(IpcChannels.REVIEW_EXTRACT_CHECKLIST_FINISHED, {
@@ -225,11 +230,11 @@ export default class SourceReviewManager {
    */
   public executeReviewWithNotification(
     reviewHistoryId: string,
-    sourceIds: number[],
+    files: UploadFile[],
     event: IpcMainInvokeEvent,
   ): IpcResponsePayloadMap[typeof IpcChannels.REVIEW_EXECUTE_CALL] {
     try {
-      this.executeReview(reviewHistoryId, sourceIds)
+      this.executeReview(reviewHistoryId, files)
         .then((res) => {
           // 完了イベントを送信
           event.sender.send(IpcChannels.REVIEW_EXECUTE_FINISHED, {

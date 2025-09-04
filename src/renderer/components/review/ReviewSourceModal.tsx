@@ -5,35 +5,43 @@ import {
   Box,
   Typography,
   Button,
-  TableContainer,
-  Table,
-  TableHead,
-  TableRow,
-  TableCell,
-  TableBody,
   Paper,
-  Tooltip,
-  Chip,
-  Checkbox,
   FormControl,
   RadioGroup,
   FormControlLabel,
   Radio,
   FormLabel,
   TextField,
+  List,
+  ListItem,
+  ListItemText,
+  IconButton,
+  Tooltip,
+  CircularProgress,
 } from '@mui/material';
 import {
-  Check as CheckIcon,
-  Error as ErrorIcon,
-  Sync as SyncIcon,
-  HourglassEmpty as ProcessingIcon,
-  Help as UnknownIcon,
+  CloudUpload as UploadIcon,
+  Delete as DeleteIcon,
+  Image as ImageIcon,
+  Description as TextIcon,
+  Help as HelpIcon,
+  ViewAgenda as MergedIcon,
+  ViewStream as PagesIcon,
 } from '@mui/icons-material';
+import { createHash } from 'crypto';
 
-import { Source } from '../../../db/schema';
-import { ReviewSourceModalProps, DocumentType } from './types';
+import {
+  ReviewSourceModalProps,
+  DocumentType,
+  UploadFile,
+  PdfProcessMode,
+  PdfImageMode,
+} from './types';
 
-function SourceListModal({
+import { combineImages, convertPdfBytesToImages } from '../../utils/pdfUtils';
+import { file } from 'zod/v4';
+
+function ReviewSourceModal({
   open,
   onClose,
   onSubmit,
@@ -41,151 +49,208 @@ function SourceListModal({
   disabled,
   modalMode,
 }: ReviewSourceModalProps): React.ReactElement {
-  const [sources, setSources] = useState<Source[]>([]);
-  const [checkedSources, setCheckedSources] = useState<{
-    [key: number]: boolean;
-  }>({});
-  const [processing, setProcessing] = useState(true);
+  const [uploadedFiles, setUploadedFiles] = useState<UploadFile[]>([]);
+  const [processing, setProcessing] = useState(false); // ★ 送信処理やPDF変換の進行中フラグ
   const [documentType, setDocumentType] = useState<DocumentType>('checklist');
   const [checklistRequirements, setChecklistRequirements] = useState('');
+  const [error, setError] = useState<string | null>(null); // ★ エラー表示用
 
-  // チェック状態の更新
-  // ソースの更新状態が変わったときにチェック状態を更新する
-  // 元のチェック状態とマージする
+  // modalMode, selectedReviewHistoryIdが変わったときに初期化
   useEffect(() => {
-    const newCheckedSources: { [key: number]: boolean } = {};
-    sources.forEach((source) => {
-      newCheckedSources[source.id] =
-        source.status === 'completed'
-          ? checkedSources[source.id] || false
-          : false;
-    });
-    setCheckedSources(newCheckedSources);
-    // eslint-disable-next-line
-  }, [sources]);
-
-  // modalMode, selectedReviewHistoryIdが変わったときにチェック状態を初期化する
-  // checkedSourceを全てfalseにする
-  useEffect(() => {
-    setCheckedSources((prev) => {
-      Object.keys(prev).forEach((key) => {
-        prev[+key] = false;
-      });
-      return { ...prev };
-    });
-    // ドキュメント種別もリセット
+    setUploadedFiles([]);
     setDocumentType('checklist');
-    // チェックリスト作成要件もリセット
     setChecklistRequirements('');
+    setError(null);
   }, [modalMode, selectedReviewHistoryId]);
 
-  // チェックボックスの変更ハンドラ
-  const handleSourceCheckChange = async (sourceId: number) => {
-    setCheckedSources((prev) => ({
-      ...prev,
-      [sourceId]: !prev[sourceId],
-    }));
+  const getMimeTypeFromExtension = (extension: string): string => {
+    const mimeTypes: { [key: string]: string } = {
+      pdf: 'application/pdf',
+      doc: 'application/msword',
+      docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      xls: 'application/vnd.ms-excel',
+      xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      ppt: 'application/vnd.ms-powerpoint',
+      pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      txt: 'text/plain',
+    };
+    return mimeTypes[extension] || 'application/octet-stream';
   };
 
-  // 全選択/全解除の切り替えハンドラ
-  const handleSelectAllChange = () => {
-    const targetSources = sources.filter(
-      (source) => source.status === 'completed',
-    );
-    if (targetSources.length === 0) return;
-    const targetCheckedSources = targetSources.reduce(
-      (acc, source) => {
-        acc[source.id] = checkedSources[source.id] || false;
-        return acc;
-      },
-      {} as { [key: number]: boolean },
-    );
-    const someUnchecked = Object.values(targetCheckedSources).some(
-      (checked) => !checked,
-    );
-    const newCheckedState = { ...checkedSources };
+  const handleFileUpload = async () => {
+    try {
+      const result = await window.electron.fs.showOpenDialog({
+        title: 'ドキュメントファイルを選択',
+        filters: [
+          {
+            name: 'ドキュメントファイル',
+            extensions: [
+              'pdf',
+              'doc',
+              'docx',
+              'xls',
+              'xlsx',
+              'ppt',
+              'pptx',
+              'txt',
+            ],
+          },
+        ],
+        properties: ['openFile', 'multiSelections'],
+      });
 
-    // 一つでもチェックが外れているものがあれば全選択、すべてチェック済みなら全解除
-    const newValue = someUnchecked;
+      if (!result.canceled && result.filePaths.length > 0) {
+        const newFiles: UploadFile[] = result.filePaths.map(
+          (filePath: string) => {
+            const fileName = filePath.split('/').pop() || filePath;
+            const fileExtension =
+              fileName.split('.').pop()?.toLowerCase() || '';
+            const mimeType = getMimeTypeFromExtension(fileExtension);
 
-    // すべてのソースのチェック状態を更新
-    targetSources.forEach((source) => {
-      newCheckedState[source.id] = newValue;
-    });
-    setCheckedSources(newCheckedState);
-  };
-
-  // ソースデータの定期更新（processingステータスがある場合のみ）
-  useEffect(() => {
-    const fetchSources = async () => {
-      try {
-        const response = await window.electron.source.getSources();
-        const responseSources: Source[] = response.sources || [];
-        setSources(responseSources);
-        const newProcessing = responseSources.some(
-          (s: Source) => s.status === 'idle' || s.status === 'processing',
+            return {
+              id: filePath,
+              name: fileName,
+              path: filePath,
+              type: mimeType,
+              // ★ 画像化は最終決定時だけ行うので、ここでは mode だけ持つ
+              pdfProcessMode:
+                mimeType === 'application/pdf' ? 'text' : undefined,
+              pdfImageMode: 'merged', // デフォルトは統合画像
+            };
+          },
         );
-        setProcessing(newProcessing);
-      } catch (error) {
-        console.error('ドキュメントデータの取得に失敗しました:', error);
+
+        setUploadedFiles((prev) => [...prev, ...newFiles]);
       }
-    };
+    } catch (e) {
+      console.error('ファイル選択エラー:', e);
+      setError('ファイル選択に失敗しました。もう一度お試しください。');
+    }
+  };
 
-    // 初回データ取得
-    fetchSources();
+  const handleFileDelete = (fileId: string) => {
+    setUploadedFiles((prev) => prev.filter((file) => file.id !== fileId));
+  };
 
-    const intervalId = setInterval(fetchSources, 5000);
-
-    return () => {
-      if (intervalId) {
-        clearInterval(intervalId);
-      }
-    };
-  }, []);
-
-  const handleClick = () => {
-    if (disabled) return;
-    onSubmit(
-      Object.keys(checkedSources)
-        .filter((key) => {
-          return checkedSources[+key];
-        })
-        .map((key) => +key),
-      modalMode === 'extract' ? documentType : undefined,
-      modalMode === 'extract' &&
-        documentType === 'general' &&
-        checklistRequirements.trim() !== ''
-        ? checklistRequirements.trim()
-        : undefined,
+  // ★ ここでは「モード切替」だけ。実際のPDF→画像変換は送信確定時にまとめて行う
+  const handlePdfProcessModeChange = (fileId: string, mode: PdfProcessMode) => {
+    setUploadedFiles((prev) =>
+      prev.map((file) =>
+        file.id === fileId
+          ? { ...file, pdfProcessMode: mode, imageData: undefined }
+          : file,
+      ),
     );
+  };
+
+  // PDF画像化モードを変更するハンドラー
+  const handlePdfImageModeChange = (fileId: string, mode: PdfImageMode) => {
+    setUploadedFiles((prev) =>
+      prev.map((file) =>
+        file.id === fileId
+          ? { ...file, pdfImageMode: mode, imageData: undefined }
+          : file,
+      ),
+    );
+  };
+
+  // デバッグ専用：DataURLを即ダウンロード
+  // 本番環境ではコメントアウトすること
+  const __dbgDownload = (dataUrl: string, name = 'converted.png') => {
+    const a = document.createElement('a');
+    a.href = dataUrl;
+    a.download = name;
+    a.click();
+  };
+
+  // ★ 送信確定時にだけ、必要なPDFをMain経由で読み→Rendererで画像化→連結
+  const handleSubmit = async () => {
+    if (disabled || processing || uploadedFiles.length === 0) return;
+
+    setError(null);
+    setProcessing(true);
+
+    try {
+      const filesReady = [];
+      for (const f of uploadedFiles) {
+        if (f.type === 'application/pdf' && f.pdfProcessMode === 'image') {
+          // Mainから安全にPDFバイト列を取得（file:// fetch を使わない）
+          const data = await window.electron.fs.readFile(f.path);
+
+          // ブラウザ側で pdf.js にレンダリングさせて PNG を得る
+          const imagePages = await convertPdfBytesToImages(data, {
+            scale: 2.0,
+          });
+
+          if (f.pdfImageMode === 'pages') {
+            // ページ別画像モード: 各ページを個別に保存
+            // デバッグ用：各ページを個別にダウンロード
+            imagePages.forEach((pageImage, index) => {
+              // ←ここで即保存（デバッグ用）
+              // 本番はコメントアウトすること
+              __dbgDownload(
+                pageImage,
+                `${f.name.replace(/\.[^.]+$/, '')}_page_${index + 1}.png`,
+              );
+            });
+
+            filesReady.push({ ...f, imageData: imagePages });
+          } else {
+            // 統合画像モード（デフォルト）: 1つの縦長PNGに連結
+            const combined = await combineImages(imagePages);
+
+            // ←ここで即保存（デバッグ用）
+            // 本番はコメントアウトすること
+            __dbgDownload(
+              combined,
+              f.name.replace(/\.[^.]+$/, '') + '_combined.png',
+            );
+
+            filesReady.push({ ...f, imageData: [combined] });
+          }
+        } else {
+          filesReady.push(f);
+        }
+      }
+
+      // 呼び出し元に最終決定のファイルリストを渡す（必要ならこの先でMainに送る）
+      onSubmit(
+        filesReady,
+        modalMode === 'extract' ? documentType : undefined,
+        modalMode === 'extract' &&
+          documentType === 'general' &&
+          checklistRequirements.trim() !== ''
+          ? checklistRequirements.trim()
+          : undefined,
+      );
+    } catch (e) {
+      console.error('送信処理中に失敗:', e);
+      setError(
+        '送信時の処理に失敗しました。PDFが壊れていないか、またはPDFが非常に大きすぎないかをご確認ください。',
+      );
+    } finally {
+      setProcessing(false);
+    }
   };
 
   const getButtonText = () => {
-    if (modalMode === 'review') {
-      return 'ドキュメントレビュー実行';
-    }
-    if (modalMode === 'extract') {
-      return 'チェックリスト抽出';
-    }
+    if (modalMode === 'review') return 'ドキュメントレビュー実行';
+    if (modalMode === 'extract') return 'チェックリスト抽出';
     return null;
   };
 
   const getTitle = () => {
-    if (modalMode === 'review') {
-      return 'ドキュメントレビュー対象ドキュメント選択';
-    }
-    if (modalMode === 'extract') {
-      return 'チェックリスト抽出対象ドキュメント選択';
-    }
-    return 'ソース選択';
+    if (modalMode === 'review') return 'レビュー対象ファイルのアップロード';
+    if (modalMode === 'extract')
+      return 'チェックリスト抽出対象ファイルのアップロード';
+    return 'ファイルアップロード';
   };
 
-  // アラート表示の内容
   const getAlertMessage = () => {
     if (modalMode === 'extract') {
-      const baseMessage = (
+      return (
         <>
-          設定されたフォルダ内のドキュメントを一覧表示しています
+          ファイルを選択してチェックリスト抽出を実行できます
           <br />
           {documentType === 'checklist'
             ? '選択されたチェックリストドキュメントから、AIが既存のチェック項目を抽出できます'
@@ -193,93 +258,22 @@ function SourceListModal({
           <br />
           ※
           <br />
-          フォルダの内容が更新された場合はドキュメント一覧画面（添付アイコン）からファイル同期を実行してください
-          <br />
           チェックリストは手動で編集・追加・削除が可能です
           <br />
           手動で追加・編集されたチェックリスト以外は、再度チェックリスト抽出を実行すると削除されます
-          <br />
-          フォルダのパスは設定画面（歯車アイコン）から変更可能です
         </>
       );
-      return baseMessage;
     }
     if (modalMode === 'review') {
       return (
         <>
-          設定されたフォルダ内のドキュメントを一覧表示しています
+          レビュー対象ファイルを選択してください
           <br />
           選択されたドキュメントに対して、AIがチェックリストに基づいてレビューを行います
-          <br />
-          ※
-          <br />
-          フォルダの内容が更新された場合はドキュメント一覧画面（添付アイコン）からファイル同期を実行してください
-          <br />
-          フォルダのパスは設定画面（歯車アイコン）から変更可能です
         </>
       );
     }
     return null;
-  };
-
-  const getStatusIcon = (status: Source['status'], error?: Source['error']) => {
-    switch (status) {
-      case 'completed':
-        return (
-          <Chip
-            icon={<CheckIcon />}
-            label="完了"
-            color="success"
-            size="small"
-            variant="outlined"
-          />
-        );
-      case 'failed':
-        return (
-          <Tooltip
-            data-testid="sourcelistmodal-error-tooltip"
-            title={error ?? '不明なエラー'}
-          >
-            <Chip
-              icon={<ErrorIcon />}
-              label="エラー"
-              color="error"
-              size="small"
-              variant="outlined"
-            />
-          </Tooltip>
-        );
-      case 'processing':
-        return (
-          <Chip
-            icon={<ProcessingIcon />}
-            label="処理中"
-            color="primary"
-            size="small"
-            variant="outlined"
-          />
-        );
-      case 'idle':
-        return (
-          <Chip
-            icon={<SyncIcon />}
-            label="待機中"
-            color="default"
-            size="small"
-            variant="outlined"
-          />
-        );
-      default:
-        return (
-          <Chip
-            icon={<UnknownIcon />}
-            label="不明"
-            color="default"
-            size="small"
-            variant="outlined"
-          />
-        );
-    }
   };
 
   return (
@@ -303,9 +297,16 @@ function SourceListModal({
         <Typography variant="h6" component="h2" gutterBottom>
           {getTitle()}
         </Typography>
+
         <Alert severity="info" sx={{ whiteSpace: 'pre-line', mb: 2 }}>
           {getAlertMessage()}
         </Alert>
+
+        {error && (
+          <Alert severity="error" sx={{ mb: 2 }}>
+            {error}
+          </Alert>
+        )}
 
         {modalMode === 'extract' && (
           <>
@@ -350,78 +351,160 @@ function SourceListModal({
           </>
         )}
 
-        <Box sx={{ mb: 2, display: 'flex', justifyContent: 'flex-end' }}>
-          <Tooltip title="ソース登録ディレクトリ内のファイル内容と同期します">
-            <Button
-              variant="contained"
-              onClick={handleClick}
-              disabled={
-                processing ||
-                disabled ||
-                Object.keys(checkedSources).length === 0
-              }
-              startIcon={<SyncIcon />}
-            >
-              {processing ? 'ドキュメント初期化処理中...' : getButtonText()}
-            </Button>
-          </Tooltip>
+        <Box sx={{ mb: 2 }}>
+          <Button
+            variant="contained"
+            onClick={handleFileUpload}
+            startIcon={<UploadIcon />}
+            disabled={processing}
+          >
+            ファイル選択ダイアログ
+          </Button>
         </Box>
 
-        <TableContainer component={Paper}>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell padding="checkbox">
-                  <Checkbox
-                    indeterminate={
-                      Object.values(checkedSources).some(
-                        (checked) => checked,
-                      ) &&
-                      Object.values(checkedSources).some((checked) => !checked)
-                    }
-                    checked={
-                      Object.values(checkedSources).length > 0 &&
-                      Object.values(checkedSources).every((checked) => checked)
-                    }
-                    onChange={handleSelectAllChange}
-                    disabled={processing}
-                  />
-                </TableCell>
-                <TableCell>ファイルパス</TableCell>
-                <TableCell>タイトル（生成）</TableCell>
-                <TableCell>フォルダ同期処理ステータス</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {sources.map((source) => (
-                <TableRow
-                  key={source.id}
-                  sx={{
-                    '&:last-child td, &:last-child th': { border: 0 },
-                    backgroundColor:
-                      source.status === 'failed' ? 'error.lighter' : 'inherit',
-                  }}
+        {uploadedFiles.length > 0 && (
+          <Paper sx={{ mb: 2, p: 2 }}>
+            <Typography variant="subtitle2" gutterBottom>
+              選択済みファイル ({uploadedFiles.length}件)
+            </Typography>
+            <List dense>
+              {uploadedFiles.map((file) => (
+                <ListItem
+                  key={file.id}
+                  secondaryAction={
+                    <IconButton
+                      edge="end"
+                      onClick={() => handleFileDelete(file.id)}
+                      disabled={processing}
+                    >
+                      <DeleteIcon />
+                    </IconButton>
+                  }
                 >
-                  <TableCell padding="checkbox">
-                    <Checkbox
-                      checked={checkedSources[source.id] || false}
-                      onChange={() => handleSourceCheckChange(source.id)}
-                      disabled={processing || source.status !== 'completed'}
-                    />
-                  </TableCell>
-                  <TableCell>{source.path}</TableCell>
-                  <TableCell>{source.title}</TableCell>
-                  <TableCell>
-                    {getStatusIcon(source.status, source.error)}
-                  </TableCell>
-                </TableRow>
+                  <ListItemText
+                    primary={file.name}
+                    secondary={file.type === 'application/pdf' ? 'PDF' : ''}
+                  />
+                  {file.type === 'application/pdf' && (
+                    <Box sx={{ mr: 2 }}>
+                      <FormControl size="small">
+                        <RadioGroup
+                          row
+                          value={file.pdfProcessMode}
+                          onChange={(e) =>
+                            handlePdfProcessModeChange(
+                              file.id,
+                              e.target.value as PdfProcessMode,
+                            )
+                          }
+                        >
+                          <FormControlLabel
+                            value="text"
+                            control={<Radio size="small" />}
+                            label={
+                              <Box
+                                sx={{ display: 'flex', alignItems: 'center' }}
+                              >
+                                <TextIcon fontSize="small" sx={{ mr: 0.5 }} />
+                                テキスト
+                              </Box>
+                            }
+                          />
+                          <FormControlLabel
+                            value="image"
+                            control={<Radio size="small" />}
+                            label={
+                              <Box
+                                sx={{ display: 'flex', alignItems: 'center' }}
+                              >
+                                <ImageIcon fontSize="small" sx={{ mr: 0.5 }} />
+                                画像
+                                <Tooltip title="図形オブジェクトが多いPDFは画像化で精度が上がる場合があります">
+                                  <HelpIcon
+                                    fontSize="small"
+                                    sx={{ ml: 0.5, color: 'text.secondary' }}
+                                  />
+                                </Tooltip>
+                              </Box>
+                            }
+                          />
+                        </RadioGroup>
+                      </FormControl>
+                      {file.pdfProcessMode === 'image' && (
+                        <FormControl size="small" sx={{ ml: 1 }}>
+                          <RadioGroup
+                            row
+                            value={file.pdfImageMode}
+                            onChange={(e) =>
+                              handlePdfImageModeChange(
+                                file.id,
+                                e.target.value as PdfImageMode,
+                              )
+                            }
+                          >
+                            <FormControlLabel
+                              value="merged"
+                              control={<Radio size="small" />}
+                              label={
+                                <Box
+                                  sx={{ display: 'flex', alignItems: 'center' }}
+                                >
+                                  <MergedIcon
+                                    fontSize="small"
+                                    sx={{ mr: 0.5 }}
+                                  />
+                                  統合画像
+                                </Box>
+                              }
+                            />
+                            <FormControlLabel
+                              value="pages"
+                              control={<Radio size="small" />}
+                              label={
+                                <Box
+                                  sx={{ display: 'flex', alignItems: 'center' }}
+                                >
+                                  <PagesIcon
+                                    fontSize="small"
+                                    sx={{ mr: 0.5 }}
+                                  />
+                                  ページ別画像
+                                  <Tooltip title="ページ数が多い場合はページごとに画像化することを検討してください">
+                                    <HelpIcon
+                                      fontSize="small"
+                                      sx={{ ml: 0.5, color: 'text.secondary' }}
+                                    />
+                                  </Tooltip>
+                                </Box>
+                              }
+                            />
+                          </RadioGroup>
+                        </FormControl>
+                      )}
+                    </Box>
+                  )}
+                </ListItem>
               ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
+            </List>
+          </Paper>
+        )}
+
+        <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
+          <Button variant="outlined" onClick={onClose} disabled={processing}>
+            キャンセル
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleSubmit}
+            disabled={processing || disabled || uploadedFiles.length === 0}
+            startIcon={processing ? <CircularProgress size={20} /> : null}
+          >
+            {processing ? '処理中...' : getButtonText()}
+          </Button>
+        </Box>
       </Box>
     </Modal>
   );
 }
 
-export default React.memo(SourceListModal);
+export default React.memo(ReviewSourceModal);

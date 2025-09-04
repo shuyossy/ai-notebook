@@ -1,5 +1,6 @@
 import { ReviewHistory } from '../../db/schema';
 import { IpcChannels, IpcEventPayload } from '../../main/types/ipc';
+import { UploadFile } from '../components/review/types';
 
 // IPC通信を使用してメインプロセスとやり取りするレビュー機能用のサービス
 export const reviewService = {
@@ -67,12 +68,12 @@ export const reviewService = {
    */
   callChecklistExtraction: async (
     reviewHistoryId: string,
-    sourceIds: number[],
+    files: UploadFile[],
   ) => {
     try {
       const result = await window.electron.review.extractChecklist({
         reviewHistoryId,
-        sourceIds,
+        files,
       });
       if (!result.success) {
         throw new Error(result.error || '不明なエラー');
@@ -85,7 +86,11 @@ export const reviewService = {
   },
 
   subscribeChecklistExtractionFinished: (
-    callback: (payload: IpcEventPayload<typeof IpcChannels.REVIEW_EXTRACT_CHECKLIST_FINISHED>) => void,
+    callback: (
+      payload: IpcEventPayload<
+        typeof IpcChannels.REVIEW_EXTRACT_CHECKLIST_FINISHED
+      >,
+    ) => void,
   ) => {
     return window.electron.review.onExtractChecklistFinished((payload) => {
       callback(payload);
@@ -93,7 +98,9 @@ export const reviewService = {
   },
 
   subscribeReviewExecutionFinished: (
-    callback: (payload: IpcEventPayload<typeof IpcChannels.REVIEW_EXECUTE_FINISHED>) => void,
+    callback: (
+      payload: IpcEventPayload<typeof IpcChannels.REVIEW_EXECUTE_FINISHED>,
+    ) => void,
   ) => {
     return window.electron.review.onExecuteReviewFinished((payload) => {
       callback(payload);

@@ -3,17 +3,16 @@ import path from 'path';
 import type {
   ReviewHistory,
   ReviewChecklist,
-  ReviewChecklistSource,
+  ReviewChecklistResult as DBReviewChecklistResult,
 } from '../schema';
 import {
   reviewHistories,
   reviewChecklists,
-  reviewChecklistSources,
-  sources,
+  reviewChecklistResults,
 } from '../schema';
 import getDb from '..';
 import type {
-  ReviewChecklistResult,
+  ReviewChecklistResultDisplay,
   ReviewEvaluation,
   ReviewChecklistCreatedBy,
 } from '../../main/types';
@@ -45,19 +44,22 @@ export interface ReviewRepository {
   upsertReviewResult(
     results: {
       reviewChecklistId: number;
-      sourceId: number;
       evaluation: ReviewEvaluation;
       comment: string;
+      fileId: string;
+      fileName: string;
     }[],
-  ): Promise<ReviewChecklistSource[]>;
-  getReviewResults(reviewChecklistId: number): Promise<ReviewChecklistSource[]>;
+  ): Promise<DBReviewChecklistResult[]>;
+  getReviewResults(
+    reviewChecklistId: number,
+  ): Promise<DBReviewChecklistResult[]>;
   deleteReviewResults(
     reviewChecklistId: number,
     sourceId: number,
   ): Promise<void>;
   getReviewChecklistResults(
     reviewHistoryId: string,
-  ): Promise<ReviewChecklistResult[]>;
+  ): Promise<ReviewChecklistResultDisplay[]>;
   deleteAllReviewResults(reviewHistoryId: string): Promise<void>;
 }
 
@@ -246,22 +248,23 @@ class DrizzleReviewRepository implements ReviewRepository {
   async upsertReviewResult(
     results: {
       reviewChecklistId: number;
-      sourceId: number;
       evaluation: ReviewEvaluation;
       comment: string;
+      fileId: string;
+      fileName: string;
     }[],
-  ): Promise<ReviewChecklistSource[]> {
+  ): Promise<DBReviewChecklistResult[]> {
     try {
       const db = await getDb();
-      const upsertedResults: ReviewChecklistSource[] = [];
+      const upsertedResults: DBReviewChecklistResult[] = [];
       for (const result of results) {
         const [upserted] = await db
-          .insert(reviewChecklistSources)
+          .insert(reviewChecklistResults)
           .values(result)
           .onConflictDoUpdate({
             target: [
-              reviewChecklistSources.reviewChecklistId,
-              reviewChecklistSources.sourceId,
+              reviewChecklistResults.reviewChecklistId,
+              reviewChecklistResults.fileId,
             ],
             set: {
               evaluation: result.evaluation,
@@ -283,13 +286,13 @@ class DrizzleReviewRepository implements ReviewRepository {
   /** レビュー結果一覧を取得 */
   async getReviewResults(
     reviewChecklistId: number,
-  ): Promise<ReviewChecklistSource[]> {
+  ): Promise<DBReviewChecklistResult[]> {
     try {
       const db = await getDb();
       return await db
         .select()
-        .from(reviewChecklistSources)
-        .where(eq(reviewChecklistSources.reviewChecklistId, reviewChecklistId));
+        .from(reviewChecklistResults)
+        .where(eq(reviewChecklistResults.reviewChecklistId, reviewChecklistId));
     } catch (err) {
       throw new RepositoryError(
         `レビュー結果の取得に失敗しました: ${(err as Error).message}`,
@@ -306,11 +309,11 @@ class DrizzleReviewRepository implements ReviewRepository {
     try {
       const db = await getDb();
       await db
-        .delete(reviewChecklistSources)
+        .delete(reviewChecklistResults)
         .where(
           and(
-            eq(reviewChecklistSources.reviewChecklistId, reviewChecklistId),
-            eq(reviewChecklistSources.sourceId, sourceId),
+            eq(reviewChecklistResults.reviewChecklistId, reviewChecklistId),
+            eq(reviewChecklistResults.fileId, sourceId.toString()),
           ),
         );
     } catch (err) {
@@ -324,28 +327,27 @@ class DrizzleReviewRepository implements ReviewRepository {
   /** チェックリスト結果を取得してグルーピング */
   async getReviewChecklistResults(
     reviewHistoryId: string,
-  ): Promise<ReviewChecklistResult[]> {
+  ): Promise<ReviewChecklistResultDisplay[]> {
     try {
       const db = await getDb();
       const rows = await db
         .select({
           checklistId: reviewChecklists.id,
           content: reviewChecklists.content,
-          sourceId: reviewChecklistSources.sourceId,
-          sourcePath: sources.path,
-          evaluation: reviewChecklistSources.evaluation,
-          comment: reviewChecklistSources.comment,
+          fileId: reviewChecklistResults.fileId,
+          fileName: reviewChecklistResults.fileName,
+          evaluation: reviewChecklistResults.evaluation,
+          comment: reviewChecklistResults.comment,
         })
         .from(reviewChecklists)
         .leftJoin(
-          reviewChecklistSources,
-          eq(reviewChecklistSources.reviewChecklistId, reviewChecklists.id),
+          reviewChecklistResults,
+          eq(reviewChecklistResults.reviewChecklistId, reviewChecklists.id),
         )
-        .leftJoin(sources, eq(reviewChecklistSources.sourceId, sources.id))
         .where(eq(reviewChecklists.reviewHistoryId, reviewHistoryId))
         .orderBy(reviewChecklists.createdAt);
 
-      const map = new Map<number, ReviewChecklistResult>();
+      const map = new Map<number, ReviewChecklistResultDisplay>();
       for (const row of rows) {
         let group = map.get(row.checklistId);
         if (!group) {
@@ -356,10 +358,10 @@ class DrizzleReviewRepository implements ReviewRepository {
           };
           map.set(row.checklistId, group);
         }
-        if (row.sourceId !== null) {
+        if (row.fileId !== null && row.fileName !== null) {
           group.sourceEvaluations!.push({
-            sourceId: row.sourceId,
-            sourceFileName: row.sourcePath ? path.basename(row.sourcePath) : '',
+            fileId: row.fileId,
+            fileName: row.fileName,
             evaluation: row.evaluation as ReviewEvaluation,
             comment: row.comment ?? undefined,
           });
@@ -388,8 +390,8 @@ class DrizzleReviewRepository implements ReviewRepository {
 
       for (const { id } of checklists) {
         await db
-          .delete(reviewChecklistSources)
-          .where(eq(reviewChecklistSources.reviewChecklistId, id));
+          .delete(reviewChecklistResults)
+          .where(eq(reviewChecklistResults.reviewChecklistId, id));
       }
     } catch (err) {
       throw new RepositoryError(

@@ -10,7 +10,14 @@
  */
 import path from 'path';
 import fs from 'fs/promises';
-import { app, BrowserWindow, shell, ipcMain, crashReporter } from 'electron';
+import {
+  app,
+  BrowserWindow,
+  shell,
+  ipcMain,
+  crashReporter,
+  dialog,
+} from 'electron';
 import { autoUpdater } from 'electron-updater';
 import log from 'electron-log';
 import { createDataStream, APICallError } from 'ai';
@@ -450,6 +457,43 @@ const setupFsHandlers = () => {
       }
     },
   );
+
+  ipcMain.handle(
+    IpcChannels.FS_SHOW_OPEN_DIALOG,
+    async (
+      _,
+      options: {
+        title: string;
+        filters?: { name: string; extensions: string[] }[];
+        properties?: (
+          | 'openFile'
+          | 'openDirectory'
+          | 'multiSelections'
+          | 'showHiddenFiles'
+          | 'createDirectory'
+          | 'promptToCreate'
+          | 'noResolveAliases'
+          | 'treatPackageAsDirectory'
+          | 'dontAddToRecent'
+        )[];
+      },
+    ) => {
+      const result = await dialog.showOpenDialog(options);
+      return result;
+    },
+  );
+  ipcMain.handle(
+    IpcChannels.FS_READ_FILE,
+    async (_, filePath: string): Promise<Uint8Array> => {
+      try {
+        const data = await fs.readFile(filePath);
+        return new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+      } catch (error) {
+        console.error('ファイルの読み込み中にエラーが発生:', error);
+        throw error;
+      }
+    },
+  );
 };
 
 const setupSourceHandlers = () => {
@@ -610,7 +654,7 @@ const setupReviewHandlers = () => {
       event,
       {
         reviewHistoryId,
-        sourceIds,
+        files,
         documentType,
         checklistRequirements,
       }: IpcRequestPayloadMap[typeof IpcChannels.REVIEW_EXTRACT_CHECKLIST_CALL],
@@ -623,7 +667,7 @@ const setupReviewHandlers = () => {
         // 非同期でチェックリスト抽出処理を実行
         const result = manager.extractChecklistWithNotification(
           reviewHistoryId,
-          sourceIds,
+          files,
           event,
           documentType,
           checklistRequirements,
@@ -676,7 +720,7 @@ const setupReviewHandlers = () => {
       event,
       {
         reviewHistoryId,
-        sourceIds,
+        files,
       }: IpcRequestPayloadMap[typeof IpcChannels.REVIEW_EXECUTE_CALL],
     ): Promise<
       IpcResponsePayloadMap[typeof IpcChannels.REVIEW_EXECUTE_CALL]
@@ -685,11 +729,7 @@ const setupReviewHandlers = () => {
         const manager = SourceReviewManager.getInstance();
 
         // 非同期でレビュー実行処理を実行
-        manager.executeReviewWithNotification(
-          reviewHistoryId,
-          sourceIds,
-          event,
-        );
+        manager.executeReviewWithNotification(reviewHistoryId, files, event);
 
         return { success: true };
       } catch (error) {

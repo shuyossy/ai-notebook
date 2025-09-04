@@ -85,17 +85,16 @@ export const reviewChecklists = sqliteTable('review_checklists', {
     .$onUpdate(() => sql`(current_timestamp)`),
 });
 
-// レビューチェックリストとソースの中間テーブル
-export const reviewChecklistSources = sqliteTable(
-  'review_checklist_sources',
+// レビューチェックリスト結果テーブル（1つのチェックリストに対して複数のファイル結果を保存）
+export const reviewChecklistResults = sqliteTable(
+  'review_checklist_results',
   {
     reviewChecklistId: integer('review_checklist_id')
       .notNull()
       .references(() => reviewChecklists.id, { onDelete: 'cascade' }),
-    sourceId: integer('source_id')
-      .notNull()
-      .references(() => sources.id, { onDelete: 'cascade' }),
-    evaluation: text('evaluation'), // A, B, C評価
+    fileId: text('file_id').notNull(), // アップロードファイルのID
+    fileName: text('file_name').notNull(), // ファイル名
+    evaluation: text('evaluation').notNull(), // A, B, C, - 評価
     comment: text('comment'), // レビューコメント
     createdAt: text('created_at')
       .notNull()
@@ -105,7 +104,7 @@ export const reviewChecklistSources = sqliteTable(
       .default(sql`(current_timestamp)`)
       .$onUpdate(() => sql`(current_timestamp)`),
   },
-  (t) => [primaryKey({ columns: [t.reviewChecklistId, t.sourceId] })],
+  (t) => [primaryKey({ columns: [t.reviewChecklistId, t.fileId] })],
 );
 
 // 型定義
@@ -117,6 +116,6 @@ export type ReviewHistory = typeof reviewHistories.$inferSelect;
 export type InsertReviewHistory = typeof reviewHistories.$inferInsert;
 export type ReviewChecklist = typeof reviewChecklists.$inferSelect;
 export type InsertReviewChecklist = typeof reviewChecklists.$inferInsert;
-export type ReviewChecklistSource = typeof reviewChecklistSources.$inferSelect;
-export type InsertReviewChecklistSource =
-  typeof reviewChecklistSources.$inferInsert;
+export type ReviewChecklistResult = typeof reviewChecklistResults.$inferSelect;
+export type InsertReviewChecklistResult =
+  typeof reviewChecklistResults.$inferInsert;

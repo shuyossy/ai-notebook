@@ -37,6 +37,16 @@ const electronHandler = {
     access: async (path: string): Promise<boolean> => {
       return ipcRenderer.invoke(IpcChannels.FS_CHECK_PATH_EXISTS, path);
     },
+    showOpenDialog: async (options: {
+      title: string;
+      filters?: { name: string; extensions: string[] }[];
+      properties?: string[];
+    }) => {
+      return ipcRenderer.invoke(IpcChannels.FS_SHOW_OPEN_DIALOG, options);
+    },
+    readFile: async (filePath: string): Promise<Uint8Array> => {
+      return ipcRenderer.invoke(IpcChannels.FS_READ_FILE, filePath);
+    },
   },
   store: {
     get: async (

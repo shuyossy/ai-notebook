@@ -10,12 +10,12 @@ import {
 import CheckBoxIcon from '@mui/icons-material/CheckBox';
 import RateReviewIcon from '@mui/icons-material/RateReview';
 import { v4 as uuid } from 'uuid';
-import { ReviewAreaProps, ModalMode, DocumentType } from './types';
+import { ReviewAreaProps, ModalMode, DocumentType, UploadFile } from './types';
 import ReviewChecklistSection from './ReviewChecklistSection';
 import ReviewSourceModal from './ReviewSourceModal';
 import {
   ReviewChecklistEdit,
-  ReviewChecklistResult,
+  ReviewChecklistResultDisplay,
 } from '../../../main/types';
 import AlertManager, { AlertMessage } from '../common/AlertMessage';
 import { reviewService } from '../../services/reviewService';
@@ -23,7 +23,7 @@ import { reviewService } from '../../services/reviewService';
 const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
   // 状態管理
   const [checklistResults, setChecklistResults] = useState<
-    ReviewChecklistResult[]
+    ReviewChecklistResultDisplay[]
   >([]);
   // チェックリスト更新処理中であるかどうか
   const [isSaving, setIsSaving] = useState(false);
@@ -78,7 +78,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
   // チェックリストの抽出処理
   const handleExtractChecklist = useCallback(
     async (
-      sourceIds: number[],
+      files: UploadFile[],
       documentType?: DocumentType,
       checklistRequirements?: string,
     ) => {
@@ -91,7 +91,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
         // チェックリスト抽出処理を開始
         const result = await window.electron.review.extractChecklist({
           reviewHistoryId: selectedReviewHistoryId,
-          sourceIds,
+          files,
           documentType,
           checklistRequirements,
         });
@@ -143,7 +143,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
 
   // レビュー実行処理
   const handleExecuteReview = useCallback(
-    async (sourceIds: number[]) => {
+    async (files: UploadFile[]) => {
       if (!selectedReviewHistoryId) return;
 
       try {
@@ -153,7 +153,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
         // レビュー実行処理を開始
         const result = await window.electron.review.execute({
           reviewHistoryId: selectedReviewHistoryId,
-          sourceIds,
+          files,
         });
 
         if (!result.success) {
@@ -203,18 +203,18 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
 
   const handleModalSubmit = useCallback(
     async (
-      sourceIds: number[],
+      files: UploadFile[],
       documentType?: DocumentType,
       checklistRequirements?: string,
     ) => {
       if (modalMode === 'extract') {
         await handleExtractChecklist(
-          sourceIds,
+          files,
           documentType,
           checklistRequirements,
         );
       } else if (modalMode === 'review') {
-        await handleExecuteReview(sourceIds);
+        await handleExecuteReview(files);
       }
     },
     [modalMode, handleExtractChecklist, handleExecuteReview],

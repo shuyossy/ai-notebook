@@ -42,7 +42,7 @@ const ReviewChecklistSection: React.FC<ReviewChecklistSectionProps> = ({
   const [editingContent, setEditingContent] = useState('');
   const [isAddingNew, setIsAddingNew] = useState(false);
   const [newContent, setNewContent] = useState('');
-  const [sortBy, setSortBy] = useState<number | null>(null);
+  const [sortBy, setSortBy] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
   // --- ハンドラ ---
@@ -72,24 +72,24 @@ const ReviewChecklistSection: React.FC<ReviewChecklistSectionProps> = ({
     setIsAddingNew(false);
     setNewContent('');
   };
-  const handleSort = (sourceId: number) => {
-    if (sortBy === sourceId) {
+  const handleSort = (fileId: string) => {
+    if (sortBy === fileId) {
       setSortDirection((prev) => (prev === 'desc' ? 'asc' : 'desc'));
     } else {
-      setSortBy(sourceId);
+      setSortBy(fileId);
       setSortDirection('desc');
     }
   };
 
-  // --- ユニークソース抽出 ---
+  // --- ユニークファイル抽出 ---
   const uniqueSources = useMemo(() => {
-    const map = new Map<number, { id: number; fileName: string }>();
+    const map = new Map<string, { id: string; fileName: string }>();
     checklistResults.forEach((cl) => {
       cl.sourceEvaluations?.forEach((ev) => {
-        if (!map.has(ev.sourceId)) {
-          map.set(ev.sourceId, {
-            id: ev.sourceId,
-            fileName: ev.sourceFileName,
+        if (!map.has(ev.fileId)) {
+          map.set(ev.fileId, {
+            id: ev.fileId,
+            fileName: ev.fileName,
           });
         }
       });
@@ -108,12 +108,12 @@ const ReviewChecklistSection: React.FC<ReviewChecklistSectionProps> = ({
     const order = sortDirection === 'desc' ? descOrder : ascOrder;
 
     return [...checklistResults].sort((a, b) => {
-      // 対象ソースの評価を取得。未評価は '-' 扱い
+      // 対象ファイルの評価を取得。未評価は '-' 扱い
       const aEv =
-        a.sourceEvaluations?.find((ev) => ev.sourceId === sortBy)?.evaluation ??
+        a.sourceEvaluations?.find((ev) => ev.fileId === sortBy)?.evaluation ??
         '-';
       const bEv =
-        b.sourceEvaluations?.find((ev) => ev.sourceId === sortBy)?.evaluation ??
+        b.sourceEvaluations?.find((ev) => ev.fileId === sortBy)?.evaluation ??
         '-';
 
       // 配列のインデックスで比較
@@ -186,7 +186,7 @@ const ReviewChecklistSection: React.FC<ReviewChecklistSectionProps> = ({
       {/* 評価列 */}
       {uniqueSources.map((src) => {
         const ev = checklist.sourceEvaluations?.find(
-          (x) => x.sourceId === src.id,
+          (x) => x.fileId === src.id,
         );
         return (
           <TableCell

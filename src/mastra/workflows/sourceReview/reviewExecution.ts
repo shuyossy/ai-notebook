@@ -2,9 +2,7 @@ import { APICallError, NoObjectGeneratedError } from 'ai';
 import { createWorkflow, createStep } from '@mastra/core/workflows';
 import { MastraError } from '@mastra/core/error';
 import { z } from 'zod';
-import path from 'path';
 import { getReviewRepository } from '../../../db/repository/reviewRepository';
-import { getSourceRepository } from '../../../db/repository/sourceRepository';
 import FileExtractor from '../../../main/utils/fileExtractor';
 import type { ReviewEvaluation } from '../../../main/types';
 import { baseStepOutputSchema } from '../schema';
@@ -41,7 +39,19 @@ const classifyChecklistsByCategoryOutputSchema = baseStepOutputSchema.extend({
 // ワークフローの入力スキーマ
 const triggerSchema = z.object({
   reviewHistoryId: z.string().describe('レビュー履歴ID'),
-  sourceIds: z.array(z.number()).describe('レビュー対象ソースのIDリスト'),
+  files: z
+    .array(
+      z.object({
+        id: z.string(),
+        name: z.string(),
+        path: z.string(),
+        type: z.string(),
+        pdfProcessMode: z.enum(['text', 'image']).optional(),
+        pdfImageMode: z.enum(['merged', 'pages']).optional(),
+        imageData: z.array(z.string()).optional(),
+      }),
+    )
+    .describe('アップロードファイルのリスト'),
 });
 
 // ステップ1: チェックリストをカテゴリごとに分類
@@ -203,8 +213,8 @@ const reviewExecutionStep = createStep({
   inputSchema: classifyChecklistsByCategoryOutputSchema,
   outputSchema: baseStepOutputSchema,
   execute: async ({ inputData, getInitData, mastra }) => {
-    // レビュー対象のソースID
-    const { sourceIds } = getInitData() as z.infer<typeof triggerSchema>;
+    // レビュー対象のファイル
+    const { files } = getInitData() as z.infer<typeof triggerSchema>;
     // ステップ1からの入力を取得
     const { categories } = inputData;
 
@@ -218,7 +228,6 @@ const reviewExecutionStep = createStep({
 
     // リポジトリを取得
     const reviewRepository = getReviewRepository();
-    const sourceRepository = getSourceRepository();
 
     // チェックリストを全量チェックできなかったドキュメントを格納
     // key: ファイル名, value: エラー内容
@@ -227,15 +236,59 @@ const reviewExecutionStep = createStep({
     try {
       const reviewAgent = mastra.getAgent('reviewExecuteAgent');
 
-      // 各カテゴリ、ソースごとにレビューを実行
+      // 各カテゴリ、ファイルごとにレビューを実行
       for (const category of categories!) {
-        for (const sourceId of sourceIds) {
-          // ソースの内容を取得
-          const source = await sourceRepository.getSourceById(sourceId);
-          if (!source) {
-            throw new Error(`ソースID ${sourceId} が見つかりません`);
+        for (const file of files) {
+          // ファイルの内容を取得（画像またはテキスト）
+          let message;
+
+          if (
+            file.type === 'application/pdf' &&
+            file.pdfProcessMode === 'image' &&
+            file.imageData &&
+            file.imageData.length > 0
+          ) {
+            if (file.imageData.length > 1) {
+              // ページ別画像モード: すべてのページを含むメッセージを作成
+              const imageMessage = {
+                role: 'user' as const,
+                content: [
+                  {
+                    type: 'text' as const,
+                    text: `Please review this document against the provided checklist items: ${file.name} (All ${file.imageData.length} pages)`,
+                  },
+                  // すべてのページ画像を含める
+                  ...file.imageData.map((imageData) => ({
+                    type: 'image' as const,
+                    image: imageData,
+                    mimeType: 'image/png',
+                  })),
+                ],
+              };
+              message = imageMessage;
+            } else {
+              // 統合画像モード: 単一メッセージ
+              const imageMessage = {
+                role: 'user' as const,
+                content: [
+                  {
+                    type: 'text' as const,
+                    text: `Please review this document against the provided checklist items: ${file.name}`,
+                  },
+                  {
+                    type: 'image' as const,
+                    image: file.imageData[0],
+                    mimeType: 'image/png',
+                  },
+                ],
+              };
+              message = imageMessage;
+            }
+          } else {
+            // テキスト抽出
+            const { content } = await FileExtractor.extractText(file.path);
+            message = content;
           }
-          const { content } = await FileExtractor.extractText(source.path);
           // レビューを実行(各カテゴリ内のチェックリストは一括でレビュー)
           // レビュー結果に含まれなかったチェックリストは再度レビューを実行する（最大試行回数は3回）
           const maxAttempts = 3;
@@ -256,7 +309,7 @@ const reviewExecutionStep = createStep({
                 createRuntimeContext<ReviewExecuteAgentRuntimeContext>();
               runtimeContext.set('checklistItems', reviewTargetChecklists);
               // レビューエージェントを使用してレビューを実行
-              const reviewResult = await reviewAgent.generate(content, {
+              const reviewResult = await reviewAgent.generate(message, {
                 output: outputSchema,
                 runtimeContext,
               });
@@ -267,17 +320,22 @@ const reviewExecutionStep = createStep({
                 throw new Error(reason);
               }
               // レビュー結果をDBに保存
-              await reviewRepository.upsertReviewResult(
-                reviewResult.object.map((result) => ({
-                  reviewChecklistId: result.checklistId,
-                  sourceId,
-                  evaluation: result.evaluation as ReviewEvaluation,
-                  comment: result.comment,
-                })),
-              );
+              if (reviewResult.object && Array.isArray(reviewResult.object)) {
+                await reviewRepository.upsertReviewResult(
+                  reviewResult.object.map((result) => ({
+                    reviewChecklistId: result.checklistId,
+                    evaluation: result.evaluation as ReviewEvaluation,
+                    comment: result.comment,
+                    fileId: file.id,
+                    fileName: file.name,
+                  })),
+                );
+              }
               // レビュー結果に含まれなかったチェックリストを抽出
               const reviewedChecklistIds = new Set(
-                reviewResult.object.map((result) => result.checklistId),
+                reviewResult.object && Array.isArray(reviewResult.object)
+                  ? reviewResult.object.map((result) => result.checklistId)
+                  : [],
               );
               reviewTargetChecklists = reviewTargetChecklists.filter(
                 (checklist) => !reviewedChecklistIds.has(checklist.id),
@@ -309,21 +367,21 @@ const reviewExecutionStep = createStep({
                 errorDetail = JSON.stringify(error);
               }
               // レビューに失敗したチェックリストを記録
-              if (!errorDocuments.has(path.basename(source.path))) {
-                errorDocuments.set(path.basename(source.path), []);
+              if (!errorDocuments.has(file.name)) {
+                errorDocuments.set(file.name, []);
               }
-              errorDocuments.get(path.basename(source.path))!.push(errorDetail);
+              errorDocuments.get(file.name)!.push(errorDetail);
             } finally {
               attempt += 1;
             }
           }
           if (attempt >= maxAttempts) {
             // 最大試行回数に達した場合、レビューに失敗したドキュメントを記録
-            if (!errorDocuments.has(path.basename(source.path))) {
-              errorDocuments.set(path.basename(source.path), []);
+            if (!errorDocuments.has(file.name)) {
+              errorDocuments.set(file.name, []);
             }
             errorDocuments
-              .get(path.basename(source.path))!
+              .get(file.name)!
               .push(
                 `全てのチェックリストに対してレビューを完了することができませんでした`,
               );

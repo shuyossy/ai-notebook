@@ -21,6 +21,13 @@ export function checkStatus(result: WorkflowResult<any, any>): {
     };
   }
 
+  // ネストワークフロー使ってない場合
+  if (!result.result || !Array.isArray(result.result)) {
+    const value = result.result as z.infer<typeof baseStepOutputSchema>;
+    return value;
+  }
+
+  // ネストワークフローを使っている場合
   // Object.valuesでオブジェクトの値だけを配列として取り出す
   const values = Object.values(result.result);
 

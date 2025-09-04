@@ -2,11 +2,14 @@ import type {
   ChatMessage,
   ChatRoom,
   SettingsSavingStatus,
-  ReviewChecklistResult,
+  ReviewChecklistResultDisplay,
   ReviewChecklistEdit,
 } from '.';
 import type { Source, ReviewHistory } from '../../db/schema';
-import type { DocumentType } from '../../renderer/components/review/types';
+import type {
+  DocumentType,
+  UploadFile,
+} from '../../renderer/components/review/types';
 
 /**
  * IPC通信で使用するチャネル名の定義
@@ -43,6 +46,8 @@ export const IpcChannels = {
 
   // ファイルシステム関連
   FS_CHECK_PATH_EXISTS: 'fs-check-path-exists',
+  FS_SHOW_OPEN_DIALOG: 'fs-show-open-dialog',
+  FS_READ_FILE: 'fs-read-file',
 
   // ドキュメントレビュー関連
   REVIEW_GET_HISTORIES: 'review-get-histories', // ドキュメント履歴切り替え時やチェックリスト抽出・ドキュメントレビュー時のポーリング処理にて呼び出される
@@ -68,6 +73,12 @@ export type IpcRequestPayloadMap = {
 
   // ファイルシステム関連
   [IpcChannels.FS_CHECK_PATH_EXISTS]: string;
+  [IpcChannels.FS_SHOW_OPEN_DIALOG]: {
+    title: string;
+    filters?: { name: string; extensions: string[] }[];
+    properties?: string[];
+  };
+  [IpcChannels.FS_READ_FILE]: string; // file path
 
   // ストア関連
   [IpcChannels.GET_STORE_VALUE]: string;
@@ -99,7 +110,7 @@ export type IpcRequestPayloadMap = {
   [IpcChannels.REVIEW_DELETE_HISTORY]: string; // review history id
   [IpcChannels.REVIEW_EXTRACT_CHECKLIST_CALL]: {
     reviewHistoryId: string;
-    sourceIds: number[];
+    files: UploadFile[];
     documentType?: DocumentType;
     checklistRequirements?: string;
   };
@@ -109,7 +120,7 @@ export type IpcRequestPayloadMap = {
   };
   [IpcChannels.REVIEW_EXECUTE_CALL]: {
     reviewHistoryId: string;
-    sourceIds: number[];
+    files: UploadFile[];
   };
 };
 
@@ -121,6 +132,11 @@ export type IpcResponsePayloadMap = {
 
   // ファイルシステム関連
   [IpcChannels.FS_CHECK_PATH_EXISTS]: boolean;
+  [IpcChannels.FS_SHOW_OPEN_DIALOG]: {
+    filePaths: string[];
+    canceled: boolean;
+  };
+  [IpcChannels.FS_READ_FILE]: Uint8Array; // ファイルのバイナリデータ
 
   // ストア関連
   [IpcChannels.GET_STORE_VALUE]: unknown;
@@ -155,7 +171,7 @@ export type IpcResponsePayloadMap = {
   };
   [IpcChannels.REVIEW_GET_HISTORY_DETAIL]: {
     success: boolean;
-    checklistResults?: ReviewChecklistResult[];
+    checklistResults?: ReviewChecklistResultDisplay[];
     error?: string;
   };
   [IpcChannels.REVIEW_DELETE_HISTORY]: { success: boolean; error?: string };
