@@ -39,7 +39,10 @@ import {
 } from './types';
 
 import { combineImages, convertPdfBytesToImages } from '../../utils/pdfUtils';
-import { file } from 'zod/v4';
+import { reviewService } from '../../services/reviewService';
+
+const defaultCommentFormat =
+  '【評価理由・根拠】\n（具体的な理由と根拠を記載）\n\n【改善提案】\n（改善のための具体的な提案を記載）';
 
 function ReviewSourceModal({
   open,
@@ -54,21 +57,41 @@ function ReviewSourceModal({
   const [documentType, setDocumentType] = useState<DocumentType>('checklist');
   const [checklistRequirements, setChecklistRequirements] = useState('');
   const [additionalInstructions, setAdditionalInstructions] = useState('');
-  const [commentFormat, setCommentFormat] = useState(
-    '【評価理由・根拠】\n（具体的な理由と根拠を記載）\n\n【改善提案】\n（改善のための具体的な提案を記載）',
-  );
+  const [commentFormat, setCommentFormat] = useState(defaultCommentFormat);
   const [error, setError] = useState<string | null>(null); // ★ エラー表示用
 
-  // modalMode, selectedReviewHistoryIdが変わったときに初期化
+  // modalMode, selectedReviewHistoryIdが変わったときに初期化し、保存された値を取得
   useEffect(() => {
-    setUploadedFiles([]);
-    setDocumentType('checklist');
-    setChecklistRequirements('');
-    setAdditionalInstructions('');
-    setCommentFormat(
-      '【評価理由・根拠】\n（具体的な理由と根拠を記載）\n\n【改善提案】\n（改善のための具体的な提案を記載）',
-    );
-    setError(null);
+    const loadSavedData = async () => {
+      setUploadedFiles([]);
+      setDocumentType('checklist');
+      setChecklistRequirements('');
+      setError(null);
+
+      // レビューモードの場合、保存された追加指示とコメントフォーマットを取得
+      if (modalMode === 'review' && selectedReviewHistoryId) {
+        try {
+          const result = await reviewService.getReviewHistoryDetail(
+            selectedReviewHistoryId,
+          );
+
+          // 保存された値がある場合はそれを使用、なければデフォルト値を使用
+          setAdditionalInstructions(result.additionalInstructions || '');
+          setCommentFormat(result.commentFormat || defaultCommentFormat);
+        } catch (error) {
+          console.error('保存されたレビュー設定の取得に失敗:', error);
+          // エラーが発生した場合はデフォルト値を使用
+          setAdditionalInstructions('');
+          setCommentFormat(defaultCommentFormat);
+        }
+      } else {
+        // 抽出モードの場合はデフォルト値をセット
+        setAdditionalInstructions('');
+        setCommentFormat(defaultCommentFormat);
+      }
+    };
+
+    loadSavedData();
   }, [modalMode, selectedReviewHistoryId]);
 
   const getMimeTypeFromExtension = (extension: string): string => {
@@ -164,12 +187,12 @@ function ReviewSourceModal({
 
   // デバッグ専用：DataURLを即ダウンロード
   // 本番環境ではコメントアウトすること
-  const __dbgDownload = (dataUrl: string, name = 'converted.png') => {
-    const a = document.createElement('a');
-    a.href = dataUrl;
-    a.download = name;
-    a.click();
-  };
+  // const __dbgDownload = (dataUrl: string, name = 'converted.png') => {
+  //   const a = document.createElement('a');
+  //   a.href = dataUrl;
+  //   a.download = name;
+  //   a.click();
+  // };
 
   // ★ 送信確定時にだけ、必要なPDFをMain経由で読み→Rendererで画像化→連結
   const handleSubmit = async () => {
@@ -193,18 +216,18 @@ function ReviewSourceModal({
           if (f.pdfImageMode === 'pages') {
             // ページ別画像モード: 各ページを個別に保存
             // デバッグ用：各ページを個別にダウンロード
-            imagePages.forEach((pageImage, index) => {
-              // ←ここで即保存（デバッグ用）
-              // 本番はコメントアウトすること
-              // __dbgDownload(
-              //   pageImage,
-              //   `${f.name.replace(/\.[^.]+$/, '')}_page_${index + 1}.png`,
-              // );
-            });
+            // imagePages.forEach((_pageImage, _index) => {
+            //   // ←ここで即保存（デバッグ用）
+            //   // 本番はコメントアウトすること
+            //   __dbgDownload(
+            //     pageImage,
+            //     `${f.name.replace(/\.[^.]+$/, '')}_page_${index + 1}.png`,
+            //   );
+            // });
 
             filesReady.push({ ...f, imageData: imagePages });
           } else {
-            // 統合画像モード（デフォルト）: 1つの縦長PNGに連結
+            // 統合画像モード（デフォルト): 1つの縦長PNGに連結
             const combined = await combineImages(imagePages);
 
             // ←ここで即保存（デバッグ用）

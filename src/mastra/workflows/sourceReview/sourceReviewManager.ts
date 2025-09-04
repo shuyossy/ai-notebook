@@ -135,10 +135,15 @@ export default class SourceReviewManager {
       // タイトルの変更
       const fileNames = files.map((f) => f.name.replace(/\.[^/.]+$/, '')); // 拡張子を除いたファイル名
       const reviewTitle = generateReviewTitle(fileNames);
-      // レビュー履歴のタイトルを更新
+      // レビュー履歴のタイトルと追加データを更新
       await this.reviewRepository.updateReviewHistoryTitle(
         reviewHistory.id,
         reviewTitle,
+      );
+      await this.reviewRepository.updateReviewHistoryAdditionalData(
+        reviewHistory.id,
+        additionalInstructions,
+        commentFormat,
       );
 
       const run = workflow.createRun();

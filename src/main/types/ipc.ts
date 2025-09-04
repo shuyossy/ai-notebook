@@ -174,6 +174,8 @@ export type IpcResponsePayloadMap = {
   [IpcChannels.REVIEW_GET_HISTORY_DETAIL]: {
     success: boolean;
     checklistResults?: ReviewChecklistResultDisplay[];
+    additionalInstructions?: string;
+    commentFormat?: string;
     error?: string;
   };
   [IpcChannels.REVIEW_DELETE_HISTORY]: { success: boolean; error?: string };

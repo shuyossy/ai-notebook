@@ -59,6 +59,8 @@ export const reviewHistories = sqliteTable('review_histories', {
     .primaryKey()
     .$default(() => uuidv4()), // 汎用チャット機能のコードを活用できるように、MastraのThreadと同じく主キーは文字列とする
   title: text('title').notNull(), // ソースのtitleを/区切りで結合
+  additionalInstructions: text('additional_instructions'), // レビューの追加指示
+  commentFormat: text('comment_format'), // レビューのコメントフォーマット
   createdAt: text('created_at')
     .notNull()
     .default(sql`(current_timestamp)`),

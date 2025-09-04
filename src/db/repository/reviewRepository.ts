@@ -27,6 +27,11 @@ export interface ReviewRepository {
   getReviewHistory(id: string): Promise<ReviewHistory | null>;
   getAllReviewHistories(): Promise<ReviewHistory[]>;
   updateReviewHistoryTitle(id: string, title: string): Promise<void>;
+  updateReviewHistoryAdditionalData(
+    id: string,
+    additionalInstructions?: string,
+    commentFormat?: string,
+  ): Promise<void>;
   deleteReviewHistory(id: string): Promise<void>;
 
   // チェックリスト
@@ -133,6 +138,29 @@ class DrizzleReviewRepository implements ReviewRepository {
     } catch (err) {
       throw new RepositoryError(
         `レビュー履歴の更新に失敗しました: ${(err as Error).message}`,
+        err as Error,
+      );
+    }
+  }
+
+  /** レビュー履歴の追加データを更新 */
+  async updateReviewHistoryAdditionalData(
+    id: string,
+    additionalInstructions?: string,
+    commentFormat?: string,
+  ): Promise<void> {
+    try {
+      const db = await getDb();
+      await db
+        .update(reviewHistories)
+        .set({
+          additionalInstructions,
+          commentFormat,
+        })
+        .where(eq(reviewHistories.id, id));
+    } catch (err) {
+      throw new RepositoryError(
+        `レビュー履歴の追加データ更新に失敗しました: ${(err as Error).message}`,
         err as Error,
       );
     }

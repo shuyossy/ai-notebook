@@ -53,6 +53,8 @@ export const reviewService = {
       }
       return {
         checklists: result.checklistResults || [],
+        additionalInstructions: result.additionalInstructions,
+        commentFormat: result.commentFormat,
       };
     } catch (error) {
       console.error('チェックリストの取得に失敗しました:', error);

@@ -45,6 +45,7 @@ import { resolveHtmlPath } from './utils/util';
 import { ReviewService } from './service/reviewService';
 import { SettingsService } from './service/settingsService';
 import { ChatService } from './service/chatService';
+import { getReviewRepository } from '../db/repository/reviewRepository';
 import { mastra } from '../mastra';
 import { judgeFinishReason } from '../mastra/agents/lib';
 
@@ -607,12 +608,17 @@ const setupReviewHandlers = () => {
       IpcResponsePayloadMap[typeof IpcChannels.REVIEW_GET_HISTORY_DETAIL]
     > => {
       try {
+        const repository = getReviewRepository();
+        const reviewHistory = await repository.getReviewHistory(historyId);
         const checklistResults =
           await reviewService.getReviewHistoryDetail(historyId);
 
         return {
           success: true,
           checklistResults,
+          additionalInstructions:
+            reviewHistory?.additionalInstructions || undefined,
+          commentFormat: reviewHistory?.commentFormat || undefined,
         };
       } catch (error) {
         console.error('チェックリストの取得中にエラーが発生:', error);
@@ -731,7 +737,13 @@ const setupReviewHandlers = () => {
         const manager = SourceReviewManager.getInstance();
 
         // 非同期でレビュー実行処理を実行
-        manager.executeReviewWithNotification(reviewHistoryId, files, event, additionalInstructions, commentFormat);
+        manager.executeReviewWithNotification(
+          reviewHistoryId,
+          files,
+          event,
+          additionalInstructions,
+          commentFormat,
+        );
 
         return { success: true };
       } catch (error) {

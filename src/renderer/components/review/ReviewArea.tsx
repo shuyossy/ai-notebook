@@ -145,8 +145,8 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
   const handleExecuteReview = useCallback(
     async (
       files: UploadFile[],
-      additionalInstructions?: string,
-      commentFormat?: string,
+      reviewAdditionalInstructions?: string,
+      reviewCommentFormat?: string,
     ) => {
       if (!selectedReviewHistoryId) return;
 
@@ -158,8 +158,8 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
         const result = await window.electron.review.execute({
           reviewHistoryId: selectedReviewHistoryId,
           files,
-          additionalInstructions,
-          commentFormat,
+          additionalInstructions: reviewAdditionalInstructions,
+          commentFormat: reviewCommentFormat,
         });
 
         if (!result.success) {
@@ -212,8 +212,8 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
       files: UploadFile[],
       documentType?: DocumentType,
       checklistRequirements?: string,
-      additionalInstructions?: string,
-      commentFormat?: string,
+      modalAdditionalInstructions?: string,
+      modalCommentFormat?: string,
     ) => {
       if (modalMode === 'extract') {
         await handleExtractChecklist(
@@ -222,7 +222,11 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
           checklistRequirements,
         );
       } else if (modalMode === 'review') {
-        await handleExecuteReview(files, additionalInstructions, commentFormat);
+        await handleExecuteReview(
+          files,
+          modalAdditionalInstructions,
+          modalCommentFormat,
+        );
       }
     },
     [modalMode, handleExtractChecklist, handleExecuteReview],

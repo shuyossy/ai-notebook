@@ -48,9 +48,10 @@ type Result = z.infer<typeof baseStepOutputSchema>;
  * 検出時はエラー配列に (path, message) を格納。
  * 参照循環も安全に処理。
  */
-export function checkStatuses(
-  input: unknown
-): { allPassed: boolean; errors: Array<{ path: string; message: string }> } {
+export function checkStatuses(input: unknown): {
+  allPassed: boolean;
+  errors: Array<{ path: string; message: string }>;
+} {
   const errors: Array<{ path: string; message: string }> = [];
   const seen = new WeakSet<object>();
 
@@ -65,9 +66,7 @@ export function checkStatuses(
 
   const pushError = (path: (string | number)[], msg?: unknown) => {
     const message =
-      typeof msg === 'string' && msg.trim().length > 0
-        ? msg
-        : 'Unknown error';
+      typeof msg === 'string' && msg.trim().length > 0 ? msg : 'Unknown error';
     errors.push({ path: toPath(path), message });
   };
 
