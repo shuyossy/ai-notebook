@@ -10,6 +10,8 @@ import {
   Settings as SettingsIcon,
   AttachFile as AttachFileIcon,
 } from '@mui/icons-material';
+import { useLocation } from 'react-router-dom';
+import { ROUTES } from '../../../main/types';
 
 interface SidebarFooterProps {
   onSettingsClick: () => void;
@@ -27,6 +29,9 @@ function SidebarFooter({
   sourceStatus,
   settingsHasError,
 }: SidebarFooterProps) {
+  const location = useLocation();
+  const isReviewMode = location.pathname.startsWith(ROUTES.REVIEW);
+
   const getBadgeContent = () => {
     if (sourceStatus.processing) {
       return (
@@ -45,27 +50,34 @@ function SidebarFooter({
 
   return (
     <Box sx={{ p: 1, borderTop: 1, borderColor: 'divider' }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-        <Tooltip title="登録ドキュメント一覧">
-          <Badge
-            badgeContent={getBadgeContent()}
-            overlap="circular"
-            color={sourceStatus.processing ? 'default' : 'primary'}
-            sx={{
-              '& .MuiBadge-badge': {
-                minWidth: '17px',
-                height: '17px',
-              },
-            }}
-          >
-            <IconButton
-              data-testid="document-list-button"
-              onClick={onOpenSourceList}
+      <Box
+        sx={{
+          display: 'flex',
+          justifyContent: isReviewMode ? 'flex-end' : 'space-between',
+        }}
+      >
+        {!isReviewMode && (
+          <Tooltip title="登録ドキュメント一覧">
+            <Badge
+              badgeContent={getBadgeContent()}
+              overlap="circular"
+              color={sourceStatus.processing ? 'default' : 'primary'}
+              sx={{
+                '& .MuiBadge-badge': {
+                  minWidth: '17px',
+                  height: '17px',
+                },
+              }}
             >
-              <AttachFileIcon />
-            </IconButton>
-          </Badge>
-        </Tooltip>
+              <IconButton
+                data-testid="document-list-button"
+                onClick={onOpenSourceList}
+              >
+                <AttachFileIcon />
+              </IconButton>
+            </Badge>
+          </Tooltip>
+        )}
         <Tooltip title="設定">
           <Badge
             badgeContent="!"
