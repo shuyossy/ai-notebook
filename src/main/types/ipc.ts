@@ -121,6 +121,8 @@ export type IpcRequestPayloadMap = {
   [IpcChannels.REVIEW_EXECUTE_CALL]: {
     reviewHistoryId: string;
     files: UploadFile[];
+    additionalInstructions?: string;
+    commentFormat?: string;
   };
 };
 

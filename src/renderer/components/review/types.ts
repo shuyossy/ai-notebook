@@ -46,6 +46,8 @@ export interface ReviewSourceModalProps {
     files: UploadFile[],
     documentType?: DocumentType,
     checklistRequirements?: string,
+    additionalInstructions?: string,
+    commentFormat?: string,
   ) => void;
   selectedReviewHistoryId: string | null;
   disabled?: boolean;

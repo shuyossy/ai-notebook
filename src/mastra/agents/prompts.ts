@@ -422,10 +422,26 @@ export function getDocumentReviewExecutionPrompt({
   runtimeContext: RuntimeContext<ReviewExecuteAgentRuntimeContext>;
 }): string {
   const checklists = runtimeContext.get('checklistItems');
+  const additionalInstructions = runtimeContext.get('additionalInstructions');
+  const commentFormat = runtimeContext.get('commentFormat');
+
   // Build a human-readable list of checklist items
   const formattedList = checklists
     .map((item) => `ID: ${item.id} - ${item.content}`)
     .join('\n');
+
+  // デフォルトのフォーマット
+  const defaultFormat = `【評価理由・根拠】
+   Provide the reasoning and evidence here (cite specific sections or examples in the document).
+
+   【改善提案】
+   Provide actionable suggestions here (how to better satisfy the criterion).`;
+
+  const actualFormat =
+    commentFormat && commentFormat.trim() !== ''
+      ? commentFormat
+      : defaultFormat;
+
   return `You are a professional document reviewer. Your job is to evaluate the user-provided document against a set of checklist items.
 
 Checklist items:
@@ -439,17 +455,20 @@ Instructions:
    - –: Not Applicable / Cannot Evaluate — outside the scope or cannot be assessed.
 2. For each item, write a comment in Japanese following this exact structure:
 
-   【評価理由・根拠】
-   Provide the reasoning and evidence here (cite specific sections or examples in the document).
-
-   【改善提案】
-   Provide actionable suggestions here (how to better satisfy the criterion).
+${actualFormat}
 
 3. In your comments, be sure to:
    a) Cite specific parts of the document as evidence.
    b) Separate discussions by section if some parts meet the item and others do not.
    c) Cover every relevant occurrence—do not offer only a general summary.
 4. Do not omit any checklist item; review the entire document against each criterion before finalizing your evaluation.
-
+${
+  additionalInstructions && additionalInstructions.trim() !== ''
+    ? `
+Special Instructions:
+${additionalInstructions}
+`
+    : ``
+}
 Please ensure clarity, conciseness, and a professional tone.`;
 }

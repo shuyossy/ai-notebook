@@ -52,6 +52,14 @@ const triggerSchema = z.object({
       }),
     )
     .describe('アップロードファイルのリスト'),
+  additionalInstructions: z
+    .string()
+    .optional()
+    .describe('レビューに対する追加指示'),
+  commentFormat: z
+    .string()
+    .optional()
+    .describe('レビューコメントのフォーマット'),
 });
 
 // ステップ1: チェックリストをカテゴリごとに分類
@@ -214,7 +222,8 @@ const reviewExecutionStep = createStep({
   outputSchema: baseStepOutputSchema,
   execute: async ({ inputData, getInitData, mastra }) => {
     // レビュー対象のファイル
-    const { files } = getInitData() as z.infer<typeof triggerSchema>;
+    const { files, additionalInstructions, commentFormat } =
+      getInitData() as z.infer<typeof triggerSchema>;
     // ステップ1からの入力を取得
     const { categories } = inputData;
 
@@ -286,7 +295,9 @@ const reviewExecutionStep = createStep({
             }
           } else {
             // テキスト抽出
-            const { content } = await FileExtractor.extractText(file.path, { useCache: false });
+            const { content } = await FileExtractor.extractText(file.path, {
+              useCache: false,
+            });
             message = content;
           }
           // レビューを実行(各カテゴリ内のチェックリストは一括でレビュー)
@@ -308,6 +319,11 @@ const reviewExecutionStep = createStep({
               const runtimeContext =
                 createRuntimeContext<ReviewExecuteAgentRuntimeContext>();
               runtimeContext.set('checklistItems', reviewTargetChecklists);
+              runtimeContext.set(
+                'additionalInstructions',
+                additionalInstructions,
+              );
+              runtimeContext.set('commentFormat', commentFormat);
               // レビューエージェントを使用してレビューを実行
               const reviewResult = await reviewAgent.generate(message, {
                 output: outputSchema,

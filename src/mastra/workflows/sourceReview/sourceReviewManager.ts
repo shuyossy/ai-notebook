@@ -108,6 +108,8 @@ export default class SourceReviewManager {
   public async executeReview(
     reviewHistoryId: string,
     files: UploadFile[],
+    additionalInstructions?: string,
+    commentFormat?: string,
   ): Promise<{ success: boolean; error?: string }> {
     try {
       // レビュー履歴の存在確認
@@ -144,6 +146,8 @@ export default class SourceReviewManager {
         inputData: {
           reviewHistoryId,
           files,
+          additionalInstructions,
+          commentFormat,
         },
       });
       // 結果を確認
@@ -232,9 +236,16 @@ export default class SourceReviewManager {
     reviewHistoryId: string,
     files: UploadFile[],
     event: IpcMainInvokeEvent,
+    additionalInstructions?: string,
+    commentFormat?: string,
   ): IpcResponsePayloadMap[typeof IpcChannels.REVIEW_EXECUTE_CALL] {
     try {
-      this.executeReview(reviewHistoryId, files)
+      this.executeReview(
+        reviewHistoryId,
+        files,
+        additionalInstructions,
+        commentFormat,
+      )
         .then((res) => {
           // 完了イベントを送信
           event.sender.send(IpcChannels.REVIEW_EXECUTE_FINISHED, {

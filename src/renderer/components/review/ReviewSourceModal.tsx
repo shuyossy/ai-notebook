@@ -53,6 +53,10 @@ function ReviewSourceModal({
   const [processing, setProcessing] = useState(false); // ★ 送信処理やPDF変換の進行中フラグ
   const [documentType, setDocumentType] = useState<DocumentType>('checklist');
   const [checklistRequirements, setChecklistRequirements] = useState('');
+  const [additionalInstructions, setAdditionalInstructions] = useState('');
+  const [commentFormat, setCommentFormat] = useState(
+    '【評価理由・根拠】\n（具体的な理由と根拠を記載）\n\n【改善提案】\n（改善のための具体的な提案を記載）',
+  );
   const [error, setError] = useState<string | null>(null); // ★ エラー表示用
 
   // modalMode, selectedReviewHistoryIdが変わったときに初期化
@@ -60,6 +64,10 @@ function ReviewSourceModal({
     setUploadedFiles([]);
     setDocumentType('checklist');
     setChecklistRequirements('');
+    setAdditionalInstructions('');
+    setCommentFormat(
+      '【評価理由・根拠】\n（具体的な理由と根拠を記載）\n\n【改善提案】\n（改善のための具体的な提案を記載）',
+    );
     setError(null);
   }, [modalMode, selectedReviewHistoryId]);
 
@@ -222,6 +230,12 @@ function ReviewSourceModal({
           checklistRequirements.trim() !== ''
           ? checklistRequirements.trim()
           : undefined,
+        modalMode === 'review' && additionalInstructions.trim() !== ''
+          ? additionalInstructions.trim()
+          : undefined,
+        modalMode === 'review' && commentFormat.trim() !== ''
+          ? commentFormat.trim()
+          : undefined,
       );
     } catch (e) {
       console.error('送信処理中に失敗:', e);
@@ -348,6 +362,35 @@ function ReviewSourceModal({
                 helperText="どのような観点でチェックリストを作成したいか具体的に記載してください（任意）"
               />
             )}
+          </>
+        )}
+
+        {modalMode === 'review' && (
+          <>
+            <TextField
+              fullWidth
+              multiline
+              rows={3}
+              label="追加指示"
+              placeholder="例：特に技術的な観点から厳しくレビューしてください"
+              value={additionalInstructions}
+              onChange={(e) => setAdditionalInstructions(e.target.value)}
+              disabled={processing}
+              sx={{ mb: 2 }}
+              helperText="AIに対してレビューの進め方の追加指示がある場合は記載してください（任意）"
+            />
+
+            <TextField
+              fullWidth
+              multiline
+              rows={4}
+              label="コメントフォーマット"
+              value={commentFormat}
+              onChange={(e) => setCommentFormat(e.target.value)}
+              disabled={processing}
+              sx={{ mb: 2 }}
+              helperText="AIがレビューコメントを記載する際のフォーマットを指定してください"
+            />
           </>
         )}
 

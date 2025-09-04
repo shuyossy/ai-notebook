@@ -26,6 +26,8 @@ export type ClassifyCategoryAgentRuntimeContext = BaseRuntimeContext & {
 
 export type ReviewExecuteAgentRuntimeContext = BaseRuntimeContext & {
   checklistItems: { id: number; content: string }[];
+  additionalInstructions?: string;
+  commentFormat?: string;
 };
 
 export type TopicExtractionAgentRuntimeContext = BaseRuntimeContext & {

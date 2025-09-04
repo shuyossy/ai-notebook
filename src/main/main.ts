@@ -721,6 +721,8 @@ const setupReviewHandlers = () => {
       {
         reviewHistoryId,
         files,
+        additionalInstructions,
+        commentFormat,
       }: IpcRequestPayloadMap[typeof IpcChannels.REVIEW_EXECUTE_CALL],
     ): Promise<
       IpcResponsePayloadMap[typeof IpcChannels.REVIEW_EXECUTE_CALL]
@@ -729,7 +731,7 @@ const setupReviewHandlers = () => {
         const manager = SourceReviewManager.getInstance();
 
         // 非同期でレビュー実行処理を実行
-        manager.executeReviewWithNotification(reviewHistoryId, files, event);
+        manager.executeReviewWithNotification(reviewHistoryId, files, event, additionalInstructions, commentFormat);
 
         return { success: true };
       } catch (error) {
