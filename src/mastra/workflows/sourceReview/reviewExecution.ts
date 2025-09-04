@@ -15,9 +15,9 @@ import {
 import { createRuntimeContext, judgeFinishReason } from '../../agents/lib';
 
 // 一つのカテゴリに含めるチェックリストの最大数
-const MAX_CHECKLISTS_PER_CATEGORY = 7;
+const MAX_CHECKLISTS_PER_CATEGORY = 3;
 // 分割カテゴリの最大数
-const MAX_CATEGORIES = 10;
+const MAX_CATEGORIES = 20;
 
 // カテゴリ分類ステップの出力スキーマ
 const classifyChecklistsByCategoryOutputSchema = baseStepOutputSchema.extend({
@@ -299,10 +299,10 @@ const reviewExecutionStep = createStep({
               const outputSchema = z.array(
                 z.object({
                   checklistId: z.number(),
+                  comment: z.string().describe('evaluation comment'),
                   evaluation: z
                     .enum(['A', 'B', 'C', '-'])
                     .describe('evaluation'),
-                  comment: z.string().describe('evaluation comment'),
                 }),
               );
               const runtimeContext =
