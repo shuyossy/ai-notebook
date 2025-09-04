@@ -188,10 +188,10 @@ function ReviewSourceModal({
             imagePages.forEach((pageImage, index) => {
               // ←ここで即保存（デバッグ用）
               // 本番はコメントアウトすること
-              __dbgDownload(
-                pageImage,
-                `${f.name.replace(/\.[^.]+$/, '')}_page_${index + 1}.png`,
-              );
+              // __dbgDownload(
+              //   pageImage,
+              //   `${f.name.replace(/\.[^.]+$/, '')}_page_${index + 1}.png`,
+              // );
             });
 
             filesReady.push({ ...f, imageData: imagePages });
@@ -201,10 +201,10 @@ function ReviewSourceModal({
 
             // ←ここで即保存（デバッグ用）
             // 本番はコメントアウトすること
-            __dbgDownload(
-              combined,
-              f.name.replace(/\.[^.]+$/, '') + '_combined.png',
-            );
+            // __dbgDownload(
+            //   combined,
+            //   f.name.replace(/\.[^.]+$/, '') + '_combined.png',
+            // );
 
             filesReady.push({ ...f, imageData: [combined] });
           }
