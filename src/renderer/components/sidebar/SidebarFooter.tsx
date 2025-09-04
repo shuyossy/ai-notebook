@@ -57,7 +57,7 @@ function SidebarFooter({
         }}
       >
         {!isReviewMode && (
-          <Tooltip title="登録ドキュメント一覧">
+          <Tooltip title="ドキュメント一覧">
             <Badge
               badgeContent={getBadgeContent()}
               overlap="circular"
