@@ -21,8 +21,14 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import SaveIcon from '@mui/icons-material/Save';
 import CancelIcon from '@mui/icons-material/Cancel';
+import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import { ReviewChecklistSectionProps } from './types';
 import { ReviewEvaluation } from '../../../main/types';
+import {
+  convertReviewResultsToCSV,
+  downloadCSV,
+  generateCSVFilename,
+} from '../../utils/csvUtils';
 
 // 評価ごとの色マッピング
 const evaluationColors: Record<ReviewEvaluation, string> = {
@@ -79,6 +85,13 @@ const ReviewChecklistSection: React.FC<ReviewChecklistSectionProps> = ({
       setSortBy(fileId);
       setSortDirection('desc');
     }
+  };
+
+  // CSV出力ハンドラ
+  const handleExportCSV = () => {
+    const csvContent = convertReviewResultsToCSV(checklistResults);
+    const filename = generateCSVFilename();
+    downloadCSV(csvContent, filename);
   };
 
   // --- ユニークファイル抽出 ---
@@ -300,7 +313,15 @@ const ReviewChecklistSection: React.FC<ReviewChecklistSectionProps> = ({
     <Box
       sx={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}
     >
-      <Stack direction="row" justifyContent="flex-end" mb={2}>
+      <Stack direction="row" justifyContent="flex-end" spacing={1} mb={2}>
+        <Button
+          variant="outlined"
+          startIcon={<FileDownloadIcon />}
+          onClick={handleExportCSV}
+          disabled={isLoading || checklistResults.length === 0}
+        >
+          CSV出力
+        </Button>
         <Button
           variant="outlined"
           startIcon={<AddIcon />}
