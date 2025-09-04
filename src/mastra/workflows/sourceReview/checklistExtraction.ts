@@ -159,7 +159,7 @@ const checklistDocumentExtractionStep = createStep({
             // 画像化PDF以外はテキスト抽出処理
           } else {
             // テキスト抽出処理
-            const { content } = await FileExtractor.extractText(file.path);
+            const { content } = await FileExtractor.extractText(file.path, { useCache: false });
             message = content;
           }
 
@@ -391,7 +391,7 @@ const topicExtractionStep = createStep({
             }
           } else {
             // テキスト抽出処理
-            const { content } = await FileExtractor.extractText(file.path);
+            const { content } = await FileExtractor.extractText(file.path, { useCache: false });
             message = content;
             outputContent = content;
           }

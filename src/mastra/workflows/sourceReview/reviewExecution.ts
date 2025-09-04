@@ -286,7 +286,7 @@ const reviewExecutionStep = createStep({
             }
           } else {
             // テキスト抽出
-            const { content } = await FileExtractor.extractText(file.path);
+            const { content } = await FileExtractor.extractText(file.path, { useCache: false });
             message = content;
           }
           // レビューを実行(各カテゴリ内のチェックリストは一括でレビュー)

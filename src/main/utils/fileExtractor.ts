@@ -18,7 +18,6 @@ import canvas from '@napi-rs/canvas';
 (globalThis as any).ImageData = canvas.ImageData;
 (globalThis as any).Path2D = canvas.Path2D;
 
-
 const execFileP = promisify(execFile);
 
 /** キャッシュ対象となるファイルの拡張子 */
@@ -147,8 +146,12 @@ export default class FileExtractor {
   /**
    * ファイルパスを受け取り、そのテキストとメタデータを返す
    */
-  public static async extractText(filePath: string): Promise<ExtractionResult> {
+  public static async extractText(
+    filePath: string,
+    options?: { useCache?: boolean },
+  ): Promise<ExtractionResult> {
     const extension = path.extname(filePath).toLowerCase();
+    const useCache = options?.useCache ?? true;
 
     // if (!this.SUPPORTED_EXTENSIONS.includes(extension)) {
     //   throw this.createError(
@@ -163,8 +166,8 @@ export default class FileExtractor {
       const stats = await fs.stat(filePath);
       let content: string;
 
-      // キャッシュ対象の場合、キャッシュをチェック
-      if (this.isCacheTarget(filePath)) {
+      // キャッシュ対象かつキャッシュ使用が有効の場合、キャッシュをチェック
+      if (useCache && this.isCacheTarget(filePath)) {
         const cachedContent = await this.tryReadCache(filePath);
         if (cachedContent) {
           content = cachedContent;
