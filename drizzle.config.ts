@@ -1,6 +1,6 @@
 import type { Config } from 'drizzle-kit';
 import 'dotenv/config';
-import { toAbsoluteFileURL } from './src/main/utils/util';
+import { toAbsoluteFileURL } from './src/main/lib/util';
 
 if (!process.env.DATABASE_DIR) {
   throw new Error('DATABASE_DIR環境変数が設定されていません');

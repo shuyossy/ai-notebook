@@ -13,7 +13,7 @@ import {
   DocumentType,
   UploadFile,
 } from '../../../renderer/components/review/types';
-import { checkStatus } from '../libs';
+import { checkWorkflowResult } from '../../lib/workflowUtils';
 
 /**
  * ソースレビュー処理を管理するクラス
@@ -84,7 +84,7 @@ export default class SourceReviewManager {
       });
 
       // 結果を確認
-      const checkResult = checkStatus(runResult);
+      const checkResult = checkWorkflowResult(runResult);
       return {
         success: checkResult.status === 'success',
         error: checkResult.errorMessage,
@@ -156,7 +156,7 @@ export default class SourceReviewManager {
         },
       });
       // 結果を確認
-      const checkResult = checkStatus(result);
+      const checkResult = checkWorkflowResult(result);
       return {
         success: checkResult.status === 'success',
         error: checkResult.errorMessage,

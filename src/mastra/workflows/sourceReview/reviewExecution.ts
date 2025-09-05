@@ -3,7 +3,7 @@ import { createWorkflow, createStep } from '@mastra/core/workflows';
 import { MastraError } from '@mastra/core/error';
 import { z } from 'zod';
 import { getReviewRepository } from '../../../db/repository/reviewRepository';
-import FileExtractor from '../../../main/utils/fileExtractor';
+import FileExtractor from '../../../main/lib/fileExtractor';
 import type { ReviewEvaluation } from '../../../main/types';
 import { baseStepOutputSchema } from '../schema';
 import { stepStatus } from '../types';

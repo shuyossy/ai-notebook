@@ -41,7 +41,7 @@ import getDb from '../db';
 import SourceRegistrationManager from '../mastra/workflows/sourceRegistration/sourceRegistrationManager';
 import SourceReviewManager from '../mastra/workflows/sourceReview/sourceReviewManager';
 import MenuBuilder from './menu';
-import { resolveHtmlPath } from './utils/util';
+import { resolveHtmlPath } from './lib/util';
 import { ReviewService } from './service/reviewService';
 import { SettingsService } from './service/settingsService';
 import { ChatService } from './service/chatService';

@@ -28,7 +28,7 @@ import {
   convertReviewResultsToCSV,
   downloadCSV,
   generateCSVFilename,
-} from '../../utils/csvUtils';
+} from '../../lib/csvUtils';
 
 // 評価ごとの色マッピング
 const evaluationColors: Record<ReviewEvaluation, string> = {

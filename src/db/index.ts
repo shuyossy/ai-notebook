@@ -4,7 +4,7 @@ import { drizzle, type LibSQLDatabase } from 'drizzle-orm/libsql';
 import { migrate } from 'drizzle-orm/libsql/migrator';
 import * as schema from './schema';
 import { getStore } from '../main/store';
-import { toAbsoluteFileURL } from '../main/utils/util';
+import { toAbsoluteFileURL } from '../main/lib/util';
 
 // データベースの型定義
 type Database = LibSQLDatabase<typeof schema>;

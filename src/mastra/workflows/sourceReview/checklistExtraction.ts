@@ -5,7 +5,7 @@ import { MastraError } from '@mastra/core/error';
 import { z } from 'zod';
 import { getReviewRepository } from '../../../db/repository/reviewRepository';
 import { getSourceRepository } from '../../../db/repository/sourceRepository';
-import FileExtractor from '../../../main/utils/fileExtractor';
+import FileExtractor from '../../../main/lib/fileExtractor';
 import { baseStepOutputSchema } from '../schema';
 import { stepStatus } from '../types';
 import {

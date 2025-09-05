@@ -38,7 +38,7 @@ import {
   PdfImageMode,
 } from './types';
 
-import { combineImages, convertPdfBytesToImages } from '../../utils/pdfUtils';
+import { combineImages, convertPdfBytesToImages } from '../../lib/pdfUtils';
 import { reviewService } from '../../services/reviewService';
 
 const defaultCommentFormat =

@@ -1,9 +1,9 @@
 import { WorkflowResult } from '@mastra/core';
-import { baseStepOutputSchema } from './schema';
+import { baseStepOutputSchema } from '../workflows/schema';
 import { z } from 'zod';
 
 // workflowの結果を確認するための関数
-export function checkStatus(result: WorkflowResult<any, any>): {
+export function checkWorkflowResult(result: WorkflowResult<any, any>): {
   status: 'success' | 'failed' | 'suspended';
   errorMessage?: string;
 } {

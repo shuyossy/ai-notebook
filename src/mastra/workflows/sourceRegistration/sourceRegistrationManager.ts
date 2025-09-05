@@ -1,10 +1,10 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { getStore } from '../../../main/store';
-import FileExtractor from '../../../main/utils/fileExtractor';
+import FileExtractor from '../../../main/lib/fileExtractor';
 import { mastra } from '../..';
 import { getSourceRepository } from '../../../db/repository/sourceRepository';
-import { checkStatus } from '../libs';
+import { checkWorkflowResult } from '../../lib/workflowUtils';
 
 /**
  * フォルダ内の全てのファイルを登録するワークフロー
@@ -164,7 +164,7 @@ export default class SourceRegistrationManager {
               });
 
               // 結果を確認
-              const checkResult = checkStatus(result);
+              const checkResult = checkWorkflowResult(result);
 
               resultList.push({
                 success: checkResult.status == 'success',

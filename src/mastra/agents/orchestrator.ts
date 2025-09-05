@@ -5,7 +5,7 @@ import { LibSQLStore } from '@mastra/libsql';
 import { getStore } from '../../main/store';
 import { getOrchestratorSystemPrompt } from './prompts';
 import { getOpenAICompatibleModel } from './model/openAICompatible';
-import { isPathExists, toAbsoluteFileURL } from '../../main/utils/util';
+import { isPathExists, toAbsoluteFileURL } from '../../main/lib/util';
 import { CustomToolCallFilter } from '../memory/filter/customToolCallFilter';
 import { BaseRuntimeContext } from './types';
 import type { AgentToolStatus } from '../../main/types';
