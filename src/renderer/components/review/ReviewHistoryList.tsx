@@ -18,7 +18,7 @@ import { MoreVert as MoreIcon } from '@mui/icons-material';
 import AddCircleOutlineOutlinedIcon from '@mui/icons-material/AddCircleOutlineOutlined';
 import { v4 as uuidv4 } from 'uuid';
 import type { ReviewHistory } from '../../../db/schema';
-import { reviewService } from '../../services/reviewService';
+import { reviewService } from '../../service/reviewService';
 
 interface ReviewHistoryListProps {
   selectedReviewHistoryId?: string | null;

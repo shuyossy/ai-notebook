@@ -5,7 +5,7 @@ import { v4 as uuid } from 'uuid';
 import useSettingsStatus from '../../hooks/useSettingsStatus';
 import MessageList from './MessageList';
 import MessageInput, { Attachment } from './MessageInput';
-import { chatService } from '../../services/chatService';
+import { chatService } from '../../service/chatService';
 import { ChatMessage } from '../../../main/types';
 import AlertManager, { AlertMessage } from '../common/AlertMessage';
 import { IpcRequestPayload, IpcChannels } from '../../../main/types/ipc';

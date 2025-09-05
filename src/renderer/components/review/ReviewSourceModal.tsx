@@ -39,7 +39,7 @@ import {
 } from './types';
 
 import { combineImages, convertPdfBytesToImages } from '../../lib/pdfUtils';
-import { reviewService } from '../../services/reviewService';
+import { reviewService } from '../../service/reviewService';
 
 const defaultCommentFormat =
   '【評価理由・根拠】\n（具体的な理由と根拠を記載）\n\n【改善提案】\n（改善のための具体的な提案を記載）';

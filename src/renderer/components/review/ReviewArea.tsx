@@ -18,7 +18,7 @@ import {
   ReviewChecklistResultDisplay,
 } from '../../../main/types';
 import AlertManager, { AlertMessage } from '../common/AlertMessage';
-import { reviewService } from '../../services/reviewService';
+import { reviewService } from '../../service/reviewService';
 
 const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
   // 状態管理
