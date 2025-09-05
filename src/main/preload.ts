@@ -6,7 +6,7 @@ import {
   IpcResponsePayload,
   IpcEventPayload,
   IpcRequestPayload,
-} from './types/ipc';
+} from '@/types/ipc';
 
 export type Channels = (typeof IpcChannels)[keyof typeof IpcChannels];
 

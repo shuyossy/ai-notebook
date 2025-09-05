@@ -28,15 +28,14 @@ import {
   ViewAgenda as MergedIcon,
   ViewStream as PagesIcon,
 } from '@mui/icons-material';
-import { createHash } from 'crypto';
-
 import {
-  ReviewSourceModalProps,
   DocumentType,
   UploadFile,
   PdfProcessMode,
   PdfImageMode,
-} from './types';
+} from '@/types';
+
+import { ReviewSourceModalProps } from './types';
 
 import { combineImages, convertPdfBytesToImages } from '../../lib/pdfUtils';
 import { reviewService } from '../../service/reviewService';
@@ -78,8 +77,8 @@ function ReviewSourceModal({
           // 保存された値がある場合はそれを使用、なければデフォルト値を使用
           setAdditionalInstructions(result.additionalInstructions || '');
           setCommentFormat(result.commentFormat || defaultCommentFormat);
-        } catch (error) {
-          console.error('保存されたレビュー設定の取得に失敗:', error);
+        } catch (err) {
+          console.error('保存されたレビュー設定の取得に失敗:', err);
           // エラーが発生した場合はデフォルト値を使用
           setAdditionalInstructions('');
           setCommentFormat(defaultCommentFormat);

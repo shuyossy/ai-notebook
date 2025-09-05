@@ -11,10 +11,10 @@ import {
 } from '@testing-library/react';
 import '@testing-library/jest-dom';
 
-import SourceListModal from '../../renderer/components/common/SourceListModal';
-import type { Source } from '../../db/schema';
-import { ProcessStatus } from '../../main/types';
-import { createMockElectronWithOptions } from '../../__tests__/test-utils/mockElectronHandler';
+import SourceListModal from '@/renderer/components/common/SourceListModal';
+import type { Source } from '@/db/schema';
+import { ProcessStatus } from '@/types';
+import { createMockElectronWithOptions } from '@/__tests__/test-utils/mockElectronHandler';
 
 // テスト用のモックデータ
 const mockSources: Source[] = [

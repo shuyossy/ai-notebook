@@ -1,3 +1,4 @@
+// @ts-ignore
 import { WorkflowResult } from '@mastra/core';
 import { baseStepOutputSchema } from '../workflows/schema';
 import { z } from 'zod';

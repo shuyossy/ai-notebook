@@ -1,7 +1,8 @@
+// @ts-ignore
 import { RuntimeContext } from '@mastra/core/runtime-context';
 import { FinishReason } from 'ai';
 import { BaseRuntimeContext } from './types';
-import { getStore } from '../../main/store';
+import { getStore } from '@/main/store';
 
 // BaseRuntimeConotextに値を入れた上で、指定したRuntimeContextを返す関数
 export function createRuntimeContext<T extends BaseRuntimeContext>() {

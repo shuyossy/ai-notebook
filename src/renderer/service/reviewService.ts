@@ -1,6 +1,5 @@
 import { ReviewHistory } from '../../db/schema';
-import { IpcChannels, IpcEventPayload } from '../../main/types/ipc';
-import { UploadFile } from '../components/review/types';
+import { IpcChannels, IpcEventPayload, UploadFile } from '@/types';
 
 // IPC通信を使用してメインプロセスとやり取りするレビュー機能用のサービス
 export const reviewService = {

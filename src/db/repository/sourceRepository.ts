@@ -2,7 +2,7 @@ import { eq, inArray, and } from 'drizzle-orm';
 import getDb from '..';
 import type { Source, InsertSource, InsertTopic } from '../schema';
 import { sources, topics } from '../schema';
-import { ProcessStatus } from '../../main/types';
+import { ProcessStatus } from '@/types';
 
 export interface SourceRepository {
   /**

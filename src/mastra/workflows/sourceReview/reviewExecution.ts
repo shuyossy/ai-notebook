@@ -1,10 +1,12 @@
 import { APICallError, NoObjectGeneratedError } from 'ai';
+// @ts-ignore
 import { createWorkflow, createStep } from '@mastra/core/workflows';
+// @ts-ignore
 import { MastraError } from '@mastra/core/error';
 import { z } from 'zod';
-import { getReviewRepository } from '../../../db/repository/reviewRepository';
-import FileExtractor from '../../../main/lib/fileExtractor';
-import type { ReviewEvaluation } from '../../../main/types';
+import { getReviewRepository } from '@/db/repository/reviewRepository';
+import FileExtractor from '@/main/lib/fileExtractor';
+import type { ReviewEvaluation } from '@/types';
 import { baseStepOutputSchema } from '../schema';
 import { stepStatus } from '../types';
 import { splitChecklistEquallyByMaxSize } from './lib';

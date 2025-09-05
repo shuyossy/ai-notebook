@@ -1,3 +1,4 @@
+// @ts-ignore
 import { RuntimeContext } from '@mastra/core/runtime-context';
 import { OrchestratorRuntimeContext } from './orchestrator';
 import { DocumentExpertAgentRuntimeContext } from './toolAgents';

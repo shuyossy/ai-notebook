@@ -8,14 +8,14 @@ import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import { v4 as uuidv4 } from 'uuid';
 
-import Sidebar from '../../renderer/components/sidebar/Sidebar';
-import type { ChatRoom, ProcessStatus } from '../../main/types';
-import type { Source } from '../../db/schema';
-import { StoreSchema as Settings } from '../../main/store';
-import { createMockElectronWithOptions } from '../../__tests__/test-utils/mockElectronHandler';
-import ChatRoomList from '../../renderer/components/chat/ChatRoomList';
-import ReviewHistoryList from '../../renderer/components/review/ReviewHistoryList';
-import { ROUTES } from '../../main/types';
+import Sidebar from '@/renderer/components/sidebar/Sidebar';
+import type { ChatRoom, ProcessStatus } from '@/types';
+import type { Source } from '@/db/schema';
+import { StoreSchema as Settings } from '@/main/store';
+import { createMockElectronWithOptions } from '@/__tests__/test-utils/mockElectronHandler';
+import ChatRoomList from '@/renderer/components/chat/ChatRoomList';
+import ReviewHistoryList from '@/renderer/components/review/ReviewHistoryList';
+import { ROUTES } from '@/types';
 
 // uuidv4をモック化
 jest.mock('uuid', () => ({

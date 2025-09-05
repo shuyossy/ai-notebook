@@ -22,8 +22,8 @@ import EditIcon from '@mui/icons-material/Edit';
 import SaveIcon from '@mui/icons-material/Save';
 import CancelIcon from '@mui/icons-material/Cancel';
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
+import { ReviewEvaluation } from '@/types';
 import { ReviewChecklistSectionProps } from './types';
-import { ReviewEvaluation } from '../../../main/types';
 import {
   convertReviewResultsToCSV,
   downloadCSV,

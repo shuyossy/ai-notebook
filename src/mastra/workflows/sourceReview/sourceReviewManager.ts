@@ -1,18 +1,17 @@
 import { IpcMainInvokeEvent } from 'electron';
-import { getReviewRepository } from '../../../db/repository/reviewRepository';
-import { getSourceRepository } from '../../../db/repository/sourceRepository';
+import { getReviewRepository } from '@/db/repository/reviewRepository';
 import {
   IpcChannels,
   IpcEventPayloadMap,
   IpcResponsePayloadMap,
-} from '../../../main/types/ipc';
+} from '@/types/ipc';
 import { generateReviewTitle } from './lib';
-import { ReviewHistory } from '../../../db/schema';
+import { ReviewHistory } from '@/db/schema';
 import { mastra } from '../..';
 import {
   DocumentType,
   UploadFile,
-} from '../../../renderer/components/review/types';
+} from '@/types';
 import { checkWorkflowResult } from '../../lib/workflowUtils';
 
 /**

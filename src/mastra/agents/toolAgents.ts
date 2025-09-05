@@ -1,4 +1,5 @@
 // toolで利用するエージェントをまとめたクラス
+// @ts-ignore
 import { Agent } from '@mastra/core/agent';
 import { getOpenAICompatibleModel } from './model/openAICompatible';
 // eslint-disable-next-line import/no-cycle

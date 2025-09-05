@@ -1,6 +1,6 @@
-import { getReviewRepository } from '../../db/repository/reviewRepository';
-import { ReviewChecklistEdit } from '../types';
-import { generateReviewTitle } from '../../mastra/workflows/sourceReview/lib';
+import { getReviewRepository } from '@/db/repository/reviewRepository';
+import { ReviewChecklistEdit } from '@/types';
+import { generateReviewTitle } from '@/mastra/workflows/sourceReview/lib';
 
 export class ReviewService {
   private repository = getReviewRepository();

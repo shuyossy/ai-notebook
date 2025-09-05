@@ -2,7 +2,9 @@
 // toolの呼び出し履歴は除外せず、toolの呼び出し結果については特定の文言に置き換える
 // https://github.com/mastra-ai/mastra/blob/%40mastra/core%400.8.3/packages/memory/src/processors/tool-call-filter.ts
 
+// @ts-ignore
 import type { CoreMessage } from '@mastra/core';
+// @ts-ignore
 import { MemoryProcessor } from '@mastra/core';
 
 /**

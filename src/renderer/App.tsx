@@ -13,7 +13,7 @@ import ChatArea from './components/chat/ChatArea';
 import ReviewArea from './components/review/ReviewArea';
 import SnackbarNotification from './components/common/SnackbarNotification';
 import { sourceService } from './service/sourceService';
-import { ROUTES } from '../main/types';
+import { ROUTES } from '../types';
 import ChatRoomList from './components/chat/ChatRoomList';
 import ReviewHistoryList from './components/review/ReviewHistoryList';
 

@@ -3,6 +3,7 @@
  * RedmineクライアントとRedmine操作用のツール群を提供
  */
 
+// @ts-ignore
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import {

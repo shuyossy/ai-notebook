@@ -11,7 +11,7 @@ import {
   AttachFile as AttachFileIcon,
 } from '@mui/icons-material';
 import { useLocation } from 'react-router-dom';
-import { ROUTES } from '../../../main/types';
+import { ROUTES } from '@/types';
 
 interface SidebarFooterProps {
   onSettingsClick: () => void;

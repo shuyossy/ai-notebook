@@ -1,7 +1,8 @@
+// @ts-ignore
 import { MCPClient, LogMessage } from '@mastra/mcp';
 import { writeFileSync } from 'fs';
 import { z } from 'zod';
-import { McpSchema } from '../../../main/types/schema';
+import { McpSchema } from '@/types';
 
 const LOG_FILE_PATH = './mcp.log';
 

@@ -5,7 +5,7 @@ import {
   SettingsSchema,
   type ValidationState,
   type ValidationError,
-} from '../../main/types/settingsSchema';
+} from '@/types';
 import { useElectronStore } from './useElectronStore';
 import { useSettingsZustandStore } from '../stores/settingsZustandStore';
 

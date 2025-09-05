@@ -1,5 +1,24 @@
 import { z } from 'zod';
-import { McpSchema } from './schema';
+import { AgentToolStatus } from "./chat";
+
+// 設定状態管理用の型定義
+export type SettingsSavingState = 'saving' | 'done' | 'error';
+
+export type SettingsSavingMessage = {
+  id: string;
+  type: 'info' | 'warning' | 'error';
+  content: string;
+};
+
+/**
+ * エージェントのブート状態を表す型
+ */
+export type SettingsSavingStatus = {
+  state: SettingsSavingState;
+  messages: SettingsSavingMessage[];
+  tools: AgentToolStatus;
+};
+
 
 /**
  * パスの存在確認を行う関数
@@ -13,6 +32,27 @@ export const checkPathExists = async (path: string): Promise<boolean> => {
     return false;
   }
 };
+
+// StdioServerParameters(Mastraで設定されているMCPサーバ設定)のZodスキーマ定義
+// eslint-disable-next-line
+export const McpSchema = z.record(
+  z.union([
+    z.object({
+      command: z.string(),
+      args: z.array(z.string()).optional(),
+      env: z.record(z.string()).optional(),
+      cwd: z.string().optional(),
+    }),
+    z.object({
+      url: z
+        .string()
+        .url()
+        .transform((s) => new URL(s)),
+    }),
+  ]),
+);
+
+export type McpSchemaType = z.infer<typeof McpSchema>;
 
 /**
  * データベース設定のスキーマ

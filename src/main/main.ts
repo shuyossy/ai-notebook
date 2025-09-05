@@ -30,12 +30,12 @@ import {
 // @ts-ignore
 import { MastraError } from '@mastra/core/error';
 import { getStore } from './store';
-import type { Source } from '../db/schema';
+import type { Source } from '@/db/schema';
 import {
   IpcChannels,
   IpcResponsePayloadMap,
   IpcRequestPayloadMap,
-} from './types/ipc';
+} from '@/types/ipc';
 import { sources } from '../db/schema';
 import getDb from '../db';
 import SourceRegistrationManager from '../mastra/workflows/sourceRegistration/sourceRegistrationManager';

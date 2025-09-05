@@ -1,15 +1,17 @@
 import type {
   ChatMessage,
   ChatRoom,
-  SettingsSavingStatus,
-  ReviewChecklistResultDisplay,
-  ReviewChecklistEdit,
-} from '.';
-import type { Source, ReviewHistory } from '../../db/schema';
+} from './chat';
 import type {
   DocumentType,
   UploadFile,
-} from '../../renderer/components/review/types';
+  ReviewChecklistResultDisplay,
+  ReviewChecklistEdit,
+} from './review';
+import type {
+  SettingsSavingStatus,
+} from './setting';
+import type { Source, ReviewHistory } from '@/db/schema';
 
 /**
  * IPC通信で使用するチャネル名の定義

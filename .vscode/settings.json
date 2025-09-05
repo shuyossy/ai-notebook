@@ -32,4 +32,14 @@
     "type": "on-demand",
     "coverage": true
   },
+
+  // プロジェクト同梱のTSを使う（tsconfigに従わせるための安定策）
+  "typescript.tsdk": "node_modules/typescript/lib",
+
+  // プロジェクト全体の診断を有効化（未オープンのファイルも対象）
+  // 新しめの VSCode/TS: こちら
+  "typescript.tsserver.enableProjectDiagnostics": true,
+
+  // 古い VSCode/TS の互換（どちらか片方だけでもOK）
+  "typescript.tsserver.experimental.enableProjectDiagnostics": true
 }

@@ -1,11 +1,13 @@
 /* eslint-disable prefer-template */
 import { APICallError, NoObjectGeneratedError } from 'ai';
+// @ts-ignore
 import { createStep, createWorkflow } from '@mastra/core/workflows';
+// @ts-ignore
 import { MastraError } from '@mastra/core/error';
 import { z } from 'zod';
-import { getReviewRepository } from '../../../db/repository/reviewRepository';
-import { getSourceRepository } from '../../../db/repository/sourceRepository';
-import FileExtractor from '../../../main/lib/fileExtractor';
+import { getReviewRepository } from '@/db/repository/reviewRepository';
+import { getSourceRepository } from '@/db/repository/sourceRepository';
+import FileExtractor from '@/main/lib/fileExtractor';
 import { baseStepOutputSchema } from '../schema';
 import { stepStatus } from '../types';
 import {
@@ -14,7 +16,7 @@ import {
   TopicChecklistAgentRuntimeContext,
 } from '../../agents/workflowAgents';
 import { createRuntimeContext } from '../../agents/lib';
-import { UploadFile } from '../../../renderer/components/review/types';
+import { UploadFile } from '@/types';
 
 // ワークフローの入力スキーマ
 const triggerSchema = z.object({

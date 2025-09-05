@@ -1,20 +1,22 @@
+// @ts-ignore
 import { ToolsetsInput } from '@mastra/core/agent';
+// @ts-ignore
 import { RuntimeContext } from '@mastra/core/runtime-context';
 import { z } from 'zod';
 import { v4 as uuid } from 'uuid';
-import { McpSchema } from '../types/schema';
+import { McpSchema } from '@/types';
 import {
   SettingsSavingStatus,
   SettingsSavingMessage,
   AgentToolStatus,
-} from '../types';
+} from '@/types';
 import { getStore } from '../store';
-import { InitializeToolsConfig, initializeTools } from '../../mastra/tools';
-import { RedmineBaseInfo } from '../../mastra/tools/redmine';
-import { initializeMCPClient } from '../../mastra/tools/mcp';
-import { OrchestratorRuntimeContext } from '../../mastra/agents/orchestrator';
-import { getSourceRepository } from '../../db/repository/sourceRepository';
-import { createRuntimeContext } from '../../mastra/agents/lib';
+import { InitializeToolsConfig, initializeTools } from '@/mastra/tools';
+import { RedmineBaseInfo } from '@/mastra/tools/redmine';
+import { initializeMCPClient } from '@/mastra/tools/mcp';
+import { OrchestratorRuntimeContext } from '@/mastra/agents/orchestrator';
+import { getSourceRepository } from '@/db/repository/sourceRepository';
+import { createRuntimeContext } from '@/mastra/agents/lib';
 
 export class SettingsService {
   private sourceRepository = getSourceRepository();

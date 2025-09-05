@@ -15,7 +15,7 @@ import type {
   ReviewChecklistResultDisplay,
   ReviewEvaluation,
   ReviewChecklistCreatedBy,
-} from '../../main/types';
+} from '@/types';
 import { RepositoryError } from './repositoryError';
 
 /**

@@ -7,7 +7,7 @@ import {
 } from 'drizzle-orm/sqlite-core';
 import { sql } from 'drizzle-orm';
 import { v4 as uuidv4 } from 'uuid';
-import type { ProcessStatus } from '../main/types';
+import type { ProcessStatus } from '@/types';
 
 /**
  * SQLiteのカスタム型定義

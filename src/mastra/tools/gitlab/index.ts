@@ -3,7 +3,7 @@
  * GitLabクライアントとGitLab操作用のツール群を提供
  */
 import { GitLabClient, createGitLabClient } from './gitlabClient';
-import { GitLabSchema } from '../../../main/types/settingsSchema';
+import { GitLabSchema } from '@/types';
 import { createRepositoryTools } from './repositoryTools';
 import { createMergeRequestTools } from './mergeRequestTools';
 

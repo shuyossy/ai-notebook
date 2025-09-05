@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { SettingsSavingStatus, MakeOptional } from '../../main/types';
+import type { SettingsSavingStatus, MakeOptional } from '@/types';
 
 type SettingsStore = {
   // エージェントが更新されたかどうかを保持するフラグ

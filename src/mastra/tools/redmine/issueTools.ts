@@ -4,6 +4,7 @@
  */
 
 import { z } from 'zod';
+// @ts-ignore
 import { createTool } from '@mastra/core/tools';
 import { RedmineClient } from './redmineClient';
 import { createBaseToolResponseSchema, RunToolStatus } from '../types';

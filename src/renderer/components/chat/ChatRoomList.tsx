@@ -17,7 +17,7 @@ import {
 import { MoreVert as MoreIcon } from '@mui/icons-material';
 import AddCircleOutlineOutlinedIcon from '@mui/icons-material/AddCircleOutlineOutlined';
 import { v4 as uuidv4 } from 'uuid';
-import type { ChatRoom } from '../../../main/types';
+import type { ChatRoom } from '@/types';
 import { chatService } from '../../service/chatService';
 
 interface ChatRoomListProps {

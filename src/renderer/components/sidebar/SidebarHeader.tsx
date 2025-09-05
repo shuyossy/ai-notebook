@@ -12,7 +12,7 @@ import {
 import ChatOutlinedIcon from '@mui/icons-material/ChatOutlined';
 import ChecklistOutlinedIcon from '@mui/icons-material/ChecklistOutlined';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { ROUTES } from '../../../main/types';
+import { ROUTES } from '@/types';
 import useSettingsStatus from '../../hooks/useSettingsStatus';
 
 interface SidebarHeaderProps {}

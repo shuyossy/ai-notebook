@@ -10,13 +10,16 @@ import {
 import CheckBoxIcon from '@mui/icons-material/CheckBox';
 import RateReviewIcon from '@mui/icons-material/RateReview';
 import { v4 as uuid } from 'uuid';
-import { ReviewAreaProps, ModalMode, DocumentType, UploadFile } from './types';
-import ReviewChecklistSection from './ReviewChecklistSection';
-import ReviewSourceModal from './ReviewSourceModal';
 import {
   ReviewChecklistEdit,
   ReviewChecklistResultDisplay,
-} from '../../../main/types';
+  ModalMode,
+  DocumentType,
+  UploadFile,
+} from '@/types';
+import { ReviewAreaProps } from './types';
+import ReviewChecklistSection from './ReviewChecklistSection';
+import ReviewSourceModal from './ReviewSourceModal';
 import AlertManager, { AlertMessage } from '../common/AlertMessage';
 import { reviewService } from '../../service/reviewService';
 

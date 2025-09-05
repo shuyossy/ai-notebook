@@ -1,6 +1,7 @@
+// @ts-ignore
 import { ToolsInput } from '@mastra/core/agent';
 import { z } from 'zod';
-import { McpSchema } from '../../main/types/schema';
+import { McpSchema } from '@/types';
 import { documentQueryTool } from './sourcesTools';
 import type { RedmineBaseInfo } from './redmine/types';
 import { createRedmineClient, setupRedmineTools } from './redmine';

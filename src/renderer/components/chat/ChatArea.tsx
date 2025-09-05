@@ -2,13 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { useChat } from '@ai-sdk/react';
 import { Box, Divider, Typography } from '@mui/material';
 import { v4 as uuid } from 'uuid';
+import { ChatMessage } from '@/types';
+import { IpcRequestPayload, IpcChannels } from '@/types/ipc';
 import useSettingsStatus from '../../hooks/useSettingsStatus';
 import MessageList from './MessageList';
 import MessageInput, { Attachment } from './MessageInput';
 import { chatService } from '../../service/chatService';
-import { ChatMessage } from '../../../main/types';
 import AlertManager, { AlertMessage } from '../common/AlertMessage';
-import { IpcRequestPayload, IpcChannels } from '../../../main/types/ipc';
 
 // ai-sdk提供のcreateDataStreamResponseを使ってストリーミングレスポンスを取得する場合の関数
 // なぜか適切なヘッダが付与されないので、利用しない

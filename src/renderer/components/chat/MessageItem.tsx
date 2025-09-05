@@ -32,7 +32,7 @@ import {
 import { ContentCopy as CopyIcon } from '@mui/icons-material';
 // @ts-ignore
 import type { Components } from 'react-markdown';
-import type { ChatMessage } from '../../../main/types';
+import type { ChatMessage } from '@/types';
 import { TOOL_NAME_DISPLAY_MAP } from '../../../mastra/tools/toolDisplayConfig';
 
 // ─────────────── Mermaid 図レンダラー ───────────────

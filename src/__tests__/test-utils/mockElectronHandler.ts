@@ -1,7 +1,7 @@
-import type { ElectronHandler } from '../../main/preload';
-import type { StoreSchema as Settings } from '../../main/store';
-import type { Source } from '../../db/schema';
-import type { ChatRoom, SettingsSavingStatus } from '../../main/types';
+import type { ElectronHandler } from '@/main/preload';
+import type { StoreSchema as Settings } from '@/main/store';
+import type { Source } from '@/db/schema';
+import type { ChatRoom, SettingsSavingStatus } from '@/types';
 
 /**
  * Mockメソッドの型を定義

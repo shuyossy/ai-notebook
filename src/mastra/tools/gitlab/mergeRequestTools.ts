@@ -3,6 +3,7 @@
  * マージリクエスト一覧取得、詳細取得、コメント投稿・削除などの操作を提供
  */
 
+// @ts-ignore
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { GitLabClient } from './gitlabClient';

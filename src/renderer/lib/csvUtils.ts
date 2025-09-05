@@ -1,4 +1,4 @@
-import { ReviewChecklistResultDisplay } from '../../main/types';
+import { ReviewChecklistResultDisplay } from '@/types';
 
 /**
  * CSV用文字列のエスケープ処理

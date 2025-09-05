@@ -15,8 +15,8 @@ import {
 } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
-import type { ChatRoom, ChatMessage } from '../../main/types';
-import ChatArea from '../../renderer/components/chat/ChatArea';
+import type { ChatRoom, ChatMessage } from '@/types';
+import ChatArea from '@/renderer/components/chat/ChatArea';
 import { createMockElectronWithOptions } from '../test-utils/mockElectronHandler';
 
 // File APIのモック

@@ -1,5 +1,4 @@
-import { ChatMessage, ChatRoom } from '../../main/types';
-import { IpcChannels, IpcEventPayload } from '../../main/types/ipc';
+import { ChatMessage, ChatRoom, IpcChannels, IpcEventPayload } from '@/types';
 
 // IPC通信を使用してメインプロセスのAIエージェントへメッセージを送信するためのチャットサービス
 export const chatService = {

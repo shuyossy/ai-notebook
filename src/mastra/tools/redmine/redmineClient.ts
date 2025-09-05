@@ -5,7 +5,7 @@
 
 import { z } from 'zod';
 import { RedmineProject, RedmineBaseInfo } from './types';
-import { RedmineSchema } from '../../../main/types/settingsSchema';
+import { RedmineSchema } from '@/types';
 
 /**
  * Redmineクライアント設定のインターフェース

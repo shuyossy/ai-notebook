@@ -1,4 +1,5 @@
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
+// @ts-ignore
 import { RuntimeContext } from '@mastra/core/runtime-context';
 import type { BaseRuntimeContext } from '../types';
 

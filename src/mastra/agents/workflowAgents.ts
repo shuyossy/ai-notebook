@@ -1,4 +1,5 @@
 // workflowで利用するエージェントをまとめたクラス
+// @ts-ignore
 import { Agent } from '@mastra/core/agent';
 // eslint-disable-next-line import/no-cycle
 import {
