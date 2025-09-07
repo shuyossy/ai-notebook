@@ -77,7 +77,7 @@ const schema = {
     properties: {
       serverConfigText: {
         type: 'string',
-        default: '{}',
+        default: '',
       },
     },
     required: [],

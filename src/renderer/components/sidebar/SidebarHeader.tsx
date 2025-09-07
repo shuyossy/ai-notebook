@@ -13,7 +13,7 @@ import ChatOutlinedIcon from '@mui/icons-material/ChatOutlined';
 import ChecklistOutlinedIcon from '@mui/icons-material/ChecklistOutlined';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ROUTES } from '@/types';
-import useSettingsStatus from '../../hooks/useSettingsStatus';
+import { useAgentStatusStore } from '../../stores/agentStatusStore';
 
 interface SidebarHeaderProps {}
 
@@ -27,7 +27,7 @@ const FEATURES = [
 ] as const;
 
 const SidebarHeader: React.FC<SidebarHeaderProps> = () => {
-  const { status } = useSettingsStatus();
+  const { status } = useAgentStatusStore();
   const navigate = useNavigate();
   const location = useLocation();
 

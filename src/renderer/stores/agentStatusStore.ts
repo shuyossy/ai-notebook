@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import type { SettingsSavingStatus, MakeOptional } from '@/types';
 import { SettingsApi } from '../service/settingsApi';
 
-type SettingsStore = {
+type AgentStatusStore = {
   // エージェントが更新されたかどうかを保持するフラグ
   updatedFlg: boolean;
   setUpdatedFlg: (updatedFlg: boolean) => void;
@@ -11,7 +11,7 @@ type SettingsStore = {
   closeMessage: (messageId: string) => Promise<void>;
 };
 
-export const useSettingsZustandStore = create<SettingsStore>((set) => ({
+export const useAgentStatusStore = create<AgentStatusStore>((set) => ({
   updatedFlg: false,
   setUpdatedFlg: (updatedFlg: boolean) => {
     set({ updatedFlg });
@@ -23,13 +23,15 @@ export const useSettingsZustandStore = create<SettingsStore>((set) => ({
   closeMessage: async (messageId: string) => {
     const settingsApi = SettingsApi.getInstance();
     await settingsApi.removeMessage(messageId, {
-      showAlert: true,
-      throwError: true,
+      showAlert: false,
+      throwError: false,
+      printErrorLog: true,
     });
     // メッセージ削除後に最新のステータスを取得して更新
     const newStatus = await settingsApi.getStatus({
-      showAlert: true,
-      throwError: true,
+      showAlert: false,
+      throwError: false,
+      printErrorLog: true,
     });
     if (newStatus) {
       set({ status: newStatus });

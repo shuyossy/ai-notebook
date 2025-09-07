@@ -7,7 +7,7 @@ import {
   type ValidationError,
 } from '@/types';
 import { useElectronStore } from './useElectronStore';
-import { useSettingsZustandStore } from '../stores/settingsZustandStore';
+import { useAgentStatusStore } from '../stores/agentStatusStore';
 
 /**
  * 設定値の型安全な管理と検証を行うフック
@@ -73,7 +73,7 @@ const useSettingsStore = () => {
     api: { key: '', url: '', model: '' },
     redmine: { endpoint: '', apiKey: '' },
     gitlab: { endpoint: '', apiKey: '' },
-    mcp: { serverConfig: '{}' },
+    mcp: { serverConfig: '' },
     systemPrompt: { content: '' },
   });
 
@@ -101,7 +101,7 @@ const useSettingsStore = () => {
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { setUpdatedFlg } = useSettingsZustandStore();
+  const { setUpdatedFlg } = useAgentStatusStore();
 
   /**
    * バリデーションエラーの種類を判定

@@ -169,7 +169,6 @@ const initializeSettings = async (): Promise<void> => {
   } catch (err) {
     logger.error(err, '設定の初期化に失敗しました');
     const error = normalizeUnknownError(err);
-    throw error;
   }
 };
 

@@ -75,13 +75,15 @@ export const initializeTools = async (
         apiUrl: config.redmineTool.endpoint,
       });
 
-      // 基本情報の取得
-      const redmineInfo = await client.getBaseInfo();
       // 作成したクライアントを使ってツールを初期化
       const redmineTools = await setupRedmineTools(client);
+
+      // 基本情報の取得
+      const redmineInfo = await client.getBaseInfo();
       tools = { ...tools, ...redmineTools };
       result.redmineTool = { success: true, redmineInfo };
     } catch (err) {
+      console.error(err);
       logger.error(err, 'Redmineツールの初期化に失敗しました');
       const error = normalizeUnknownError(err);
       result.redmineTool = {

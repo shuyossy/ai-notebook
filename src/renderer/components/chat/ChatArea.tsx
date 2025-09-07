@@ -5,7 +5,7 @@ import { v4 as uuid } from 'uuid';
 import { ChatMessage } from '@/types';
 import { IpcRequestPayload, IpcChannels } from '@/types/ipc';
 import { useAlertStore } from '@/renderer/stores/alertStore';
-import useSettingsStatus from '../../hooks/useSettingsStatus';
+import { useAgentStatusStore } from '../../stores/agentStatusStore';
 import MessageList from './MessageList';
 import MessageInput, { Attachment } from './MessageInput';
 import { ChatApi } from '../../service/chatApi';
@@ -140,7 +140,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
   const [initialMessages, setInitialMessages] = useState<ChatMessage[]>([]);
   const [editMessageId, setEditMessageId] = useState<string>('');
   const [editMessageContent, setEditMessageContent] = useState<string>('');
-  const { status: settingsStatus } = useSettingsStatus();
+  const { status: agentStatus } = useAgentStatusStore();
   const [isEditHistory, setIsEditHistory] = useState(false);
   /* ---------- 添付画像 ---------- */
   const [attachments, setAttachments] = useState<Attachment[]>([]);
@@ -148,7 +148,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
   const [input, setInput] = useState<string>('');
   const addAlert = useAlertStore((state) => state.addAlert);
 
-  const isAgentInitializing = settingsStatus.state === 'saving';
+  const isAgentInitializing = agentStatus.state === 'saving';
 
   // メッセージ履歴を取得
   const fetchMessages = async (roomId: string) => {

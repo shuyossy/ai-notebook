@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { MemoryRouter as Router, Routes, Route } from 'react-router-dom';
 import {
   ThemeProvider,
@@ -6,7 +6,7 @@ import {
   CssBaseline,
   Box,
   Alert,
-  Stack, // ← 追加：縦並び用
+  Stack,
 } from '@mui/material';
 import './App.css';
 import Sidebar from './components/sidebar/Sidebar';
@@ -17,6 +17,8 @@ import { useAlertStore } from './stores/alertStore';
 import { ROUTES } from '../types';
 import ChatRoomList from './components/chat/ChatRoomList';
 import ReviewHistoryList from './components/review/ReviewHistoryList';
+import { useAgentStatusStore } from './stores/agentStatusStore';
+import { SettingsApi } from './service/settingsApi';
 
 // テーマの設定
 const theme = createTheme({
@@ -66,6 +68,35 @@ function App() {
   const alerts = useAlertStore((state) => state.alerts);
   const addAlert = useAlertStore((state) => state.addAlert);
   const removeAlert = useAlertStore((state) => state.removeAlert);
+  const {
+    status: agentStatus,
+    setStatus,
+    closeMessage,
+  } = useAgentStatusStore();
+
+  // エージェント起動状態を確認（rendererとMainの初期化処理にラグ(Mainの初期化が完了していない場合がある)があるElectron固有の処理）
+  // 初回fetch+初期化が完了したらpushすれば良さそうだが、、、とりあえずポーリングで対応
+  const fetchAgentStatus = useCallback(async () => {
+    const settingsApi = SettingsApi.getInstance();
+    const data = await settingsApi.getStatus({
+      showAlert: false,
+      throwError: false,
+    });
+    console.log('Agent Status:', data);
+    if (data) {
+      setStatus(data);
+    }
+  }, [setStatus]);
+
+  // ポーリング処理
+  useEffect(() => {
+    // 初回実行
+    fetchAgentStatus();
+
+    // 以降5秒ごとにポーリング
+    const intervalId = setInterval(fetchAgentStatus, 5000);
+    return () => clearInterval(intervalId);
+  }, [fetchAgentStatus]);
 
   // ソース再読み込みハンドラ
   const handleReloadSources = async () => {
@@ -150,7 +181,7 @@ function App() {
             </Routes>
 
             {/* 中央オーバーレイのエラーメッセージ表示 */}
-            {alerts.length > 0 && (
+            {(alerts.length > 0 || agentStatus.messages.length > 0) && (
               <Box
                 // ★ main(Box)の「中」で中央に重ねる
                 sx={{
@@ -167,14 +198,24 @@ function App() {
                 }}
               >
                 <Stack spacing={1} sx={{ pointerEvents: 'auto' }}>
+                  {agentStatus.messages?.map((message) => (
+                    <Alert
+                      key={message.id}
+                      severity={message.type}
+                      sx={{ whiteSpace: 'pre-line', boxShadow: 3 }}
+                      onClose={() => closeMessage(message.id)}
+                    >
+                      {message.content}
+                    </Alert>
+                  ))}
                   {alerts.map((error) => (
                     <Alert
                       key={error.id}
                       severity={error.severity}
                       onClose={() => removeAlert(error.id)}
                       sx={{
-                        whiteSpace: 'pre-line', // 改行を表現
-                        boxShadow: 3, // ちょい浮かせる
+                        whiteSpace: 'pre-line',
+                        boxShadow: 3,
                       }}
                     >
                       {error.message}
