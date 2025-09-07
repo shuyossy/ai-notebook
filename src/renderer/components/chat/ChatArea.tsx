@@ -88,7 +88,11 @@ const customFetch: typeof fetch = async (input, init) => {
           unsubscribe();
           controller.close();
         });
-        window.electron.chat.sendMessage({ roomId, messages });
+        chatApi.sendMessage(roomId!, messages, {
+          showAlert: true,
+          throwError: false,
+          printErrorLog: true,
+        });
       },
       cancel() {
         unsubscribe();

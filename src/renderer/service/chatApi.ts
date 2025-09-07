@@ -23,6 +23,11 @@ export interface IChatApi {
     title: string,
     options?: ApiServiceDefaultOptions,
   ): Promise<void>;
+  sendMessage(
+    roomId: string,
+    messages: ChatMessage[],
+    options?: ApiServiceDefaultOptions,
+  ): void;
 }
 
 // IPC通信を使用してメインプロセスのAIエージェントへメッセージを送信するためのチャットサービス
@@ -111,8 +116,13 @@ export class ChatApi implements IChatApi {
     };
   }
 
-  public async abortChatRequest(roomId: string, options?: ApiServiceDefaultOptions): Promise<void> {
-    const result = await window.electron.chat.requestAbort({ threadId: roomId });
+  public async abortChatRequest(
+    roomId: string,
+    options?: ApiServiceDefaultOptions,
+  ): Promise<void> {
+    const result = await window.electron.chat.requestAbort({
+      threadId: roomId,
+    });
     getData(result, options);
   }
 
@@ -131,5 +141,15 @@ export class ChatApi implements IChatApi {
   ): Promise<void> {
     const result = await window.electron.chat.createThread({ roomId, title });
     getData(result, options);
+  }
+
+  public async sendMessage(
+    roomId: string,
+    messages: ChatMessage[],
+    options?: ApiServiceDefaultOptions,
+  ): Promise<void> {
+    const result = await window.electron.chat.sendMessage({ roomId, messages });
+    getData(result, options);
+    console.log('Message sent via IPC:', { roomId, messages });
   }
 }

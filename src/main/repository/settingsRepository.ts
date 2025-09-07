@@ -34,7 +34,7 @@ class ElectronStoreSettingsRepository implements ISettingsRepository {
 
   async getSettings(): Promise<Settings> {
     try {
-      const settings = SettingsSchema.parse(this.store.store);
+      const settings = await SettingsSchema.parseAsync(this.store.store);
       return settings;
     } catch (err) {
       if (err instanceof z.ZodError) {

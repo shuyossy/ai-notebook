@@ -1,6 +1,5 @@
 import { z } from 'zod';
 import { AgentToolStatus } from "./chat";
-import { FsApi } from "@/renderer/service/fsApi";
 
 // 設定状態管理用の型定義
 export type SettingsSavingState = 'saving' | 'done' | 'error';
@@ -27,11 +26,16 @@ export type SettingsSavingStatus = {
  * @returns パスが存在する場合はtrue、存在しない場合はfalse
  */
 export const checkPathExists = async (path: string): Promise<boolean> => {
+  // 画面上でのみ厳密にチェックする
+  // 設定値を直接変更してエラーになる場合は、画面上にエラー文言を表示するため問題ない
   try {
-    const fsApi = FsApi.getInstance();
-    const result = await fsApi.access(path, { showAlert: false, throwError: true, printErrorLog: true });
-    return result === true;
-  } catch {
+    if (process && process.type !== 'renderer') return true;
+  } catch(error) {
+  }
+  try {
+    const result = await window.electron.fs.access(path);
+    return result.success === true && result.data === true;
+  } catch (error) {
     return false;
   }
 };

@@ -21,7 +21,7 @@ function Sidebar({ onReloadSources, children = null }: SidebarProps) {
 
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
 
-  const { addAlert } = useAlertStore((state) => ({ addAlert: state.addAlert }));
+  const addAlert = useAlertStore((state) => state.addAlert);
 
   const onSettingsUpdated = useCallback(() => {
     // 設定更新完了時の処理

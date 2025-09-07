@@ -55,7 +55,7 @@ export class ChatService implements IChatService {
   }
 
   private async getMemory(): Promise<MastraMemory> {
-    const memory = await mastra.getMemory();
+    const memory = await mastra.getAgent('orchestrator').getMemory();
     if (!memory) {
       throw internalError({
         expose: true,

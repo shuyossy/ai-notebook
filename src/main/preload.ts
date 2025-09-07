@@ -12,11 +12,9 @@ import {
   IpcNameMap,
 } from '@/types';
 import { normalizeUnkhownIpcError, toPayload } from './lib/error';
-import { getMainLogger } from './lib/logger';
+import { getRendererLogger } from '@/renderer/lib/logger';
 
 export type Channels = (typeof IpcChannels)[keyof typeof IpcChannels];
-
-const logger = getMainLogger();
 
 /** C の引数を「undefined のときは引数なし、そうでなければ 1 引数」にする補助型 */
 type ArgOf<C extends RequestChannel> = IpcRequestPayloadMap[C] extends undefined
@@ -34,6 +32,7 @@ export async function invokeIpc<C extends RequestChannel & ResponseChannel>(
   channel: C,
   ...args: ArgOf<C> | []
 ): Promise<IpcResponsePayloadMap[C]> {
+  const logger = getRendererLogger();
   try {
     const res = await ipcRenderer.invoke(channel, ...(args as any[]));
 
