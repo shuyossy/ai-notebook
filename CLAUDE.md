@@ -183,24 +183,9 @@ ElectronのIPCを使用してフロントエンド・バックエンド間の通
 ## 現在実施中のタスク
 大規模リファクタリング
 - エラー処理の改善
-  - Main側：完了
+  - Main側
     - `src/mian/lib/error.ts`でAppError例外の導入
     - IPCハンドラのエラーやレスポンスについて、`src/main/preload.ts`にて一元的に管理するラッパを導入
-  Renderer側：一部未済
+  Renderer側
     - 元々`src/renderer/service/~Service.ts`というモジュールにて外部IPC通信を管理していたが、このファイルを全て削除
     - 新規に`src/renderer/service/~Api.ts`というモジュールを作成し、外部通信IFを提供する
-
-
-### 依頼タスク
-- rendererのリファクタリング
-  - 現在、renderer側で完成している部分は以下です。これらを参考に残りのリファクタリングを完成させてください。
-    - `src/renderer/components/chat/ChatArea.tsx`
-    - `src/renderer/components/chat/ChatRoomList.tsx`
-    - `src/renderer/components/review/ReviewArea.tsx`
-    - `src/renderer/lib/apiUtils.ts`
-    - `src/renderer/service/chatApi.ts`
-    - `src/renderer/service/reviewApi.ts`
-  - リファクタリング方針
-    - window.~で直接IPC通信を発行するのではなく、`src/renderer/service/~Api.ts`（外部通信IF）を経由させる
-    - renderer配下の全てのコードについて、既存の`src/renderer/service/~Service.ts`を呼び出し部について全てあげ出し（tsエラーの一覧を調べるのが簡単か？）、上記外部通信IFを適切に呼び出す
-    - Main側コード、テストコードでも型エラーが出ているが、ここについては対応不要（ただし、renderer側全ての型エラーに対応すること）

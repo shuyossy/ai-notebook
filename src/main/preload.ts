@@ -45,7 +45,7 @@ export async function invokeIpc<C extends RequestChannel & ResponseChannel>(
     return { success: true, data: res } as IpcResponsePayloadMap[C];
   } catch (err: unknown) {
     const error = normalizeUnkhownIpcError(err, IpcNameMap[channel]);
-    logger.error(`IPC ${channel} error:`, error);
+    logger.error(error, `IPC ${channel} error`);
     return {
       success: false,
       error: toPayload(error),

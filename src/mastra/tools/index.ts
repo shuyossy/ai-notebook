@@ -55,7 +55,7 @@ export const initializeTools = async (
       tools.documentQueryTool = documentQueryTool;
       result.documentTool = { success: true };
     } catch (err) {
-      logger.error('ドキュメントツールの初期化に失敗しました', err);
+      logger.error(err, 'ドキュメントツールの初期化に失敗しました');
       const error = normalizeUnknownError(err);
       result.documentTool = {
         success: false,
@@ -82,7 +82,7 @@ export const initializeTools = async (
       tools = { ...tools, ...redmineTools };
       result.redmineTool = { success: true, redmineInfo };
     } catch (err) {
-      logger.error('Redmineツールの初期化に失敗しました', err);
+      logger.error(err, 'Redmineツールの初期化に失敗しました');
       const error = normalizeUnknownError(err);
       result.redmineTool = {
         success: false,
@@ -104,7 +104,7 @@ export const initializeTools = async (
       tools = { ...tools, ...gitlabTools };
       result.gitlabTool = { success: true };
     } catch (err) {
-      logger.error('GitLabツールの初期化に失敗しました', err);
+      logger.error(err, 'GitLabツールの初期化に失敗しました');
       const error = normalizeUnknownError(err);
       result.gitlabTool = {
         success: false,

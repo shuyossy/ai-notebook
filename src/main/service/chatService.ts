@@ -220,7 +220,7 @@ export class ChatService implements IChatService {
       },
       onError: (error) => {
         // エラーが発生したときの処理
-        logger.error('テキスト生成中にエラーが発生', error);
+        logger.error(error, 'テキスト生成中にエラーが発生');
         // エラー時もAbortControllerを削除
         this.deleteAbortController(userId, threadId);
         let errorDetail = '不明なエラー';

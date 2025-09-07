@@ -85,7 +85,7 @@ export const initializeMCPClient = async ({
       logPath: LOG_FILE_PATH,
     };
   } catch (error) {
-    systemLogger.error('MCPクライアントの初期化に失敗しました', error);
+    systemLogger.error(error, 'MCPクライアントの初期化に失敗しました');
     return {
       success: false,
       logPath: LOG_FILE_PATH,

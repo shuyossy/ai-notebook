@@ -164,7 +164,7 @@ export default class SourceRegistrationManager {
               filePath,
             });
           } catch (error) {
-            logger.error('ドキュメント登録用ワークフロー実行中にエラー', error);
+            logger.error(error, 'ドキュメント登録用ワークフロー実行中にエラー');
             resultList.push({
               success: false,
               filePath,
@@ -207,8 +207,7 @@ export default class SourceRegistrationManager {
       return nested.flat();
     } catch (error) {
       logger.error(
-        'ドキュメント登録用ディレクトリの読み込みに失敗しました',
-        error,
+        error, 'ドキュメント登録用ディレクトリの読み込みに失敗しました'
       );
       throw internalError({
         expose: true,

@@ -86,7 +86,7 @@ const initializeSettings = async (): Promise<void> => {
     // 設定の初期化
     await settingsService.initializeSettings();
   } catch (err) {
-    logger.error('設定の初期化に失敗しました:', err);
+    logger.error(err, '設定の初期化に失敗しました');
     const error = normalizeUnknownError(err);
     throw error;
   }
