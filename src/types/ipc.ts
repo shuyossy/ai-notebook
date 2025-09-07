@@ -1,7 +1,9 @@
+import { OpenDialogOptions } from 'electron';
 import type {
   ChatMessage,
   ChatRoom,
 } from './chat';
+import { AppErrorPayload } from './error';
 import type {
   DocumentType,
   UploadFile,
@@ -12,6 +14,18 @@ import type {
   SettingsSavingStatus,
 } from './setting';
 import type { Source, ReviewHistory } from '@/db/schema';
+
+type IpcSuccess<T> = {
+  success: true;
+  data?: T;
+};
+
+type IpcError = {
+  success: false;
+  error: AppErrorPayload;
+};
+
+export type IpcResult<T = never> = IpcSuccess<T> | IpcError;
 
 /**
  * IPC通信で使用するチャネル名の定義
@@ -70,16 +84,13 @@ export type IpcChannel = (typeof IpcChannels)[keyof typeof IpcChannels];
  */
 export type IpcRequestPayloadMap = {
   // Mastra関連
+  [IpcChannels.GET_SETTINGS_STATUS]: undefined;
   [IpcChannels.REINITIALIZE_SETTINGS]: undefined;
   [IpcChannels.REMOVE_SETTINGS_MESSAGE]: string; // message id
 
   // ファイルシステム関連
   [IpcChannels.FS_CHECK_PATH_EXISTS]: string;
-  [IpcChannels.FS_SHOW_OPEN_DIALOG]: {
-    title: string;
-    filters?: { name: string; extensions: string[] }[];
-    properties?: string[];
-  };
+  [IpcChannels.FS_SHOW_OPEN_DIALOG]: OpenDialogOptions;
   [IpcChannels.FS_READ_FILE]: string; // file path
 
   // ストア関連
@@ -130,69 +141,47 @@ export type IpcRequestPayloadMap = {
 
 export type IpcResponsePayloadMap = {
   // Mastra関連
-  [IpcChannels.GET_SETTINGS_STATUS]: SettingsSavingStatus;
-  [IpcChannels.REINITIALIZE_SETTINGS]: { success: boolean; error?: string };
-  [IpcChannels.REMOVE_SETTINGS_MESSAGE]: { success: boolean; error?: string };
+  [IpcChannels.GET_SETTINGS_STATUS]: IpcResult<SettingsSavingStatus>;
+  [IpcChannels.REINITIALIZE_SETTINGS]: IpcResult;
+  [IpcChannels.REMOVE_SETTINGS_MESSAGE]: IpcResult;
 
   // ファイルシステム関連
-  [IpcChannels.FS_CHECK_PATH_EXISTS]: boolean;
-  [IpcChannels.FS_SHOW_OPEN_DIALOG]: {
+  [IpcChannels.FS_CHECK_PATH_EXISTS]: IpcResult<boolean>;
+  [IpcChannels.FS_SHOW_OPEN_DIALOG]: IpcResult<{
     filePaths: string[];
     canceled: boolean;
-  };
-  [IpcChannels.FS_READ_FILE]: Uint8Array; // ファイルのバイナリデータ
+  }>;
+  [IpcChannels.FS_READ_FILE]: IpcResult<Uint8Array>; // ファイルのバイナリデータ
 
   // ストア関連
-  [IpcChannels.GET_STORE_VALUE]: unknown;
-  [IpcChannels.SET_STORE_VALUE]: boolean;
+  [IpcChannels.GET_STORE_VALUE]: IpcResult<unknown>;
+  [IpcChannels.SET_STORE_VALUE]: IpcResult<boolean>;
 
   // ソース関連
-  [IpcChannels.SOURCE_GET_ALL]: {
-    success: boolean;
-    sources?: Source[];
-    error?: string;
-  };
-  [IpcChannels.SOURCE_RELOAD]: { success: boolean; message?: string };
-  [IpcChannels.SOURCE_UPDATE_ENABLED]: { success: boolean; error?: string };
+  [IpcChannels.SOURCE_GET_ALL]: IpcResult<Source[]>;
+  [IpcChannels.SOURCE_RELOAD]: IpcResult<{ message?: string }>;
+  [IpcChannels.SOURCE_UPDATE_ENABLED]: IpcResult;
 
   // チャット関連
-  [IpcChannels.CHAT_SEND_MESSAGE]: { success: boolean; error?: string };
-  [IpcChannels.CHAT_GET_ROOMS]: ChatRoom[];
-  [IpcChannels.CHAT_GET_MESSAGES]: ChatMessage[];
-  [IpcChannels.CHAT_DELETE_ROOM]: { success: boolean; error?: string };
-  [IpcChannels.CHAT_CREATE_THREAD]: { success: boolean; error?: string };
-  [IpcChannels.CHAT_ABORT_REQUEST]: { success: boolean; error?: string };
-  [IpcChannels.CHAT_DELETE_MESSAGES_BEFORE_SPECIFIC_ID]: {
-    success: boolean;
-    error?: string;
-  };
+  [IpcChannels.CHAT_SEND_MESSAGE]: IpcResult;
+  [IpcChannels.CHAT_GET_ROOMS]: IpcResult<ChatRoom[]>;
+  [IpcChannels.CHAT_GET_MESSAGES]: IpcResult<ChatMessage[]>;
+  [IpcChannels.CHAT_DELETE_ROOM]: IpcResult;
+  [IpcChannels.CHAT_CREATE_THREAD]: IpcResult;
+  [IpcChannels.CHAT_ABORT_REQUEST]: IpcResult;
+  [IpcChannels.CHAT_DELETE_MESSAGES_BEFORE_SPECIFIC_ID]: IpcResult;
 
   // ドキュメントレビュー関連
-  [IpcChannels.REVIEW_GET_HISTORIES]: {
-    success: boolean;
-    histories?: ReviewHistory[];
-    error?: string;
-  };
-  [IpcChannels.REVIEW_GET_HISTORY_DETAIL]: {
-    success: boolean;
+  [IpcChannels.REVIEW_GET_HISTORIES]: IpcResult<ReviewHistory[]>;
+  [IpcChannels.REVIEW_GET_HISTORY_DETAIL]: IpcResult<{
     checklistResults?: ReviewChecklistResultDisplay[];
     additionalInstructions?: string;
     commentFormat?: string;
-    error?: string;
-  };
-  [IpcChannels.REVIEW_DELETE_HISTORY]: { success: boolean; error?: string };
-  [IpcChannels.REVIEW_EXTRACT_CHECKLIST_CALL]: {
-    success: boolean;
-    error?: string;
-  };
-  [IpcChannels.REVIEW_UPDATE_CHECKLIST]: {
-    success: boolean;
-    error?: string;
-  };
-  [IpcChannels.REVIEW_EXECUTE_CALL]: {
-    success: boolean;
-    error?: string;
-  };
+  }>;
+  [IpcChannels.REVIEW_DELETE_HISTORY]: IpcResult;
+  [IpcChannels.REVIEW_EXTRACT_CHECKLIST_CALL]: IpcResult
+  [IpcChannels.REVIEW_UPDATE_CHECKLIST]: IpcResult;
+  [IpcChannels.REVIEW_EXECUTE_CALL]: IpcResult;
 };
 
 export type IpcEventPayloadMap = {
@@ -220,3 +209,47 @@ export type IpcResponsePayload<T extends keyof IpcResponsePayloadMap> =
 
 export type IpcEventPayload<T extends keyof IpcEventPayloadMap> =
   IpcEventPayloadMap[T];
+
+export type RequestChannel = keyof IpcRequestPayloadMap;
+export type ResponseChannel = keyof IpcResponsePayloadMap;
+export type EventChannel = keyof IpcEventPayloadMap;
+
+// チャネル名と処理内容のマッピング（ログ出力やエラー処理などで使用）
+export const IpcNameMap = {
+  // Mastra関連
+  [IpcChannels.GET_SETTINGS_STATUS]: '設定情報の取得',
+  [IpcChannels.REINITIALIZE_SETTINGS]: '設定情報の更新',
+  [IpcChannels.REMOVE_SETTINGS_MESSAGE]: '設定更新メッセージの削除',
+
+  // ファイルシステム関連
+  [IpcChannels.FS_CHECK_PATH_EXISTS]: 'ファイルパスの存在確認',
+  [IpcChannels.FS_SHOW_OPEN_DIALOG]: 'ファイルダイアログ表示',
+  [IpcChannels.FS_READ_FILE]: 'ファイル読み込み',
+
+  // ストア関連
+  [IpcChannels.GET_STORE_VALUE]: '設定情報の取得',
+  [IpcChannels.SET_STORE_VALUE]: '設定情報の設定',
+
+  // ソース関連
+  [IpcChannels.SOURCE_GET_ALL]: 'ドキュメント情報の取得',
+  [IpcChannels.SOURCE_RELOAD]: 'ドキュメント情報の再読み込み',
+  [IpcChannels.SOURCE_UPDATE_ENABLED]: 'ドキュメントの有効/無効更新',
+
+  // チャット関連
+  [IpcChannels.CHAT_SEND_MESSAGE]: 'チャット内容送信',
+  [IpcChannels.CHAT_GET_ROOMS]: 'チャット履歴一覧取得',
+  [IpcChannels.CHAT_GET_MESSAGES]: 'チャット履歴取得',
+  [IpcChannels.CHAT_DELETE_ROOM]: 'チャットルーム削除',
+  [IpcChannels.CHAT_CREATE_THREAD]: 'チャットルーム作成',
+  [IpcChannels.CHAT_ABORT_REQUEST]: 'チャット中断',
+  [IpcChannels.CHAT_DELETE_MESSAGES_BEFORE_SPECIFIC_ID]:
+    'チャットメッセージ削除',
+
+  // ドキュメントレビュー関連
+  [IpcChannels.REVIEW_GET_HISTORIES]: 'レビュー結果一覧の取得',
+  [IpcChannels.REVIEW_GET_HISTORY_DETAIL]: 'レビュー結果詳細の取得',
+  [IpcChannels.REVIEW_DELETE_HISTORY]: 'レビュー結果の削除',
+  [IpcChannels.REVIEW_EXTRACT_CHECKLIST_CALL]: 'チェックリストの抽出',
+  [IpcChannels.REVIEW_UPDATE_CHECKLIST]: 'チェックリストの更新',
+  [IpcChannels.REVIEW_EXECUTE_CALL]: 'ドキュメントレビューの実行',
+}

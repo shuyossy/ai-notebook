@@ -4,7 +4,7 @@ import { createWorkflow, createStep } from '@mastra/core/workflows';
 // @ts-ignore
 import { MastraError } from '@mastra/core/error';
 import { z } from 'zod';
-import { getReviewRepository } from '@/db/repository/reviewRepository';
+import { getReviewRepository } from '@/main/repository/reviewRepository';
 import FileExtractor from '@/main/lib/fileExtractor';
 import type { ReviewEvaluation } from '@/types';
 import { baseStepOutputSchema } from '../schema';
@@ -14,7 +14,7 @@ import {
   ClassifyCategoryAgentRuntimeContext,
   ReviewExecuteAgentRuntimeContext,
 } from '../../agents/workflowAgents';
-import { createRuntimeContext, judgeFinishReason } from '../../agents/lib';
+import { createRuntimeContext, judgeFinishReason } from '../../lib/agentUtils';
 
 // 一つのカテゴリに含めるチェックリストの最大数
 const MAX_CHECKLISTS_PER_CATEGORY = 3;
@@ -105,7 +105,7 @@ const classifyChecklistsByCategoryStep = createStep({
           .describe('Classified categories'),
       });
       const runtimeContext =
-        createRuntimeContext<ClassifyCategoryAgentRuntimeContext>();
+        await createRuntimeContext<ClassifyCategoryAgentRuntimeContext>();
       runtimeContext.set(
         'maxChecklistsPerCategory',
         MAX_CHECKLISTS_PER_CATEGORY,
@@ -319,7 +319,7 @@ const reviewExecutionStep = createStep({
                 }),
               );
               const runtimeContext =
-                createRuntimeContext<ReviewExecuteAgentRuntimeContext>();
+                await createRuntimeContext<ReviewExecuteAgentRuntimeContext>();
               runtimeContext.set('checklistItems', reviewTargetChecklists);
               runtimeContext.set(
                 'additionalInstructions',

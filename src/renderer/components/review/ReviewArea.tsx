@@ -9,7 +9,6 @@ import {
 } from '@mui/material';
 import CheckBoxIcon from '@mui/icons-material/CheckBox';
 import RateReviewIcon from '@mui/icons-material/RateReview';
-import { v4 as uuid } from 'uuid';
 import {
   ReviewChecklistEdit,
   ReviewChecklistResultDisplay,
@@ -20,8 +19,11 @@ import {
 import { ReviewAreaProps } from './types';
 import ReviewChecklistSection from './ReviewChecklistSection';
 import ReviewSourceModal from './ReviewSourceModal';
-import AlertManager, { AlertMessage } from '../common/AlertMessage';
-import { reviewService } from '../../service/reviewService';
+import { ReviewApi } from '../../service/reviewApi';
+import { useAlertStore } from '../../stores/alertStore';
+
+const defaultCommentFormat =
+  '【評価理由・根拠】\n（具体的な理由と根拠を記載）\n\n【改善提案】\n（改善のための具体的な提案を記載）';
 
 const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
   // 状態管理
@@ -33,33 +35,24 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
   const [isExtracting, setIsExtracting] = useState(false);
   const [isReviewing, setIsReviewing] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [additionalAlerts, setAdditionalAlerts] = useState<AlertMessage[]>([]);
   const [modalMode, setModalMode] = useState<ModalMode | null>(null);
+  const [additionalInstructions, setAdditionalInstructions] = useState('');
+  const [commentFormat, setCommentFormat] = useState(defaultCommentFormat);
 
-  // メッセージアラートが閉じられる際の挙動
-  const closeAdditionalAlerts = (id: string) => {
-    setAdditionalAlerts((prev) => prev.filter((alert) => alert.id !== id));
-  };
+  const addAlert = useAlertStore((state) => state.addAlert);
 
-  // チェックリスト取得
+  // チェック履歴取得
   const fetchChecklistResults = useCallback(async () => {
     if (!selectedReviewHistoryId) return;
+    const reviewApi = ReviewApi.getInstance();
 
-    try {
-      const result = await reviewService.getReviewHistoryDetail(
-        selectedReviewHistoryId,
-      );
-      setChecklistResults(result.checklists || []);
-    } catch (error) {
-      setAdditionalAlerts((prev) => [
-        ...prev,
-        {
-          id: uuid(),
-          type: 'error',
-          content: `チェックリストの取得中にエラーが発生しました: ${(error as Error).message}`,
-        },
-      ]);
-    }
+    const result = await reviewApi.getReviewHistoryDetail(
+      selectedReviewHistoryId,
+      { throwError: false, showAlert: true, printErrorLog: true },
+    );
+    setChecklistResults(result?.checklists || []);
+    setAdditionalInstructions(result?.additionalInstructions || '');
+    setCommentFormat(result?.commentFormat || defaultCommentFormat);
   }, [selectedReviewHistoryId]);
 
   // 選択中の履歴が変更されたら、チェックリスト取得のポーリングを開始
@@ -87,127 +80,99 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
     ) => {
       if (!selectedReviewHistoryId) return;
 
+      const reviewApi = ReviewApi.getInstance();
+
       try {
         setIsExtracting(true);
         setIsModalOpen(false);
 
         // チェックリスト抽出処理を開始
-        const result = await window.electron.review.extractChecklist({
-          reviewHistoryId: selectedReviewHistoryId,
+        await reviewApi.extractChecklist(
+          selectedReviewHistoryId,
           files,
           documentType,
           checklistRequirements,
-        });
-
-        if (!result.success) {
-          throw new Error(result.error);
-        }
+          { throwError: true, showAlert: false, printErrorLog: false },
+        );
 
         // 抽出完了イベントの購読を開始
-        const unsubscribe = reviewService.subscribeChecklistExtractionFinished(
-          (payload) => {
+        const unsubscribe = reviewApi.subscribeChecklistExtractionFinished(
+          (payload: { success: boolean; error?: string }) => {
             if (payload.success) {
-              setAdditionalAlerts((prev) => [
-                ...prev,
-                {
-                  id: uuid(),
-                  type: 'success',
-                  content: 'チェックリストの抽出が完了しました',
-                },
-              ]);
+              addAlert({
+                message: 'チェックリストの抽出が完了しました',
+                severity: 'success',
+              });
             } else {
-              setAdditionalAlerts((prev) => [
-                ...prev,
-                {
-                  id: uuid(),
-                  type: 'error',
-                  content: `チェックリストの抽出に失敗しました: ${payload.error}`,
-                },
-              ]);
+              addAlert({
+                message: `チェックリストの抽出に失敗しました\n${payload.error}`,
+                severity: 'error',
+              });
             }
             setIsExtracting(false);
             unsubscribe();
           },
         );
       } catch (error) {
-        setAdditionalAlerts((prev) => [
-          ...prev,
-          {
-            id: uuid(),
-            type: 'error',
-            content: `チェックリストの抽出処理実行時にエラーが発生しました: ${(error as Error).message}`,
-          },
-        ]);
+        console.error(error);
+        addAlert({
+          message: `${(error as Error).message}`,
+          severity: 'error',
+        });
         setIsExtracting(false);
       }
     },
-    [selectedReviewHistoryId],
+    [selectedReviewHistoryId, addAlert],
   );
 
   // レビュー実行処理
   const handleExecuteReview = useCallback(
-    async (
-      files: UploadFile[],
-      reviewAdditionalInstructions?: string,
-      reviewCommentFormat?: string,
-    ) => {
+    async (files: UploadFile[]) => {
       if (!selectedReviewHistoryId) return;
+
+      const reviewApi = ReviewApi.getInstance();
 
       try {
         setIsReviewing(true);
         setIsModalOpen(false);
 
         // レビュー実行処理を開始
-        const result = await window.electron.review.execute({
-          reviewHistoryId: selectedReviewHistoryId,
+        const result = await reviewApi.executeReview(
+          selectedReviewHistoryId,
           files,
-          additionalInstructions: reviewAdditionalInstructions,
-          commentFormat: reviewCommentFormat,
-        });
-
-        if (!result.success) {
-          throw new Error(result.error);
-        }
+          additionalInstructions || additionalInstructions,
+          commentFormat || commentFormat,
+          { throwError: true, showAlert: false, printErrorLog: false },
+        );
 
         // レビュー完了イベントの購読を開始
-        const unsubscribe = reviewService.subscribeReviewExecutionFinished(
+        const unsubscribe = reviewApi.subscribeReviewExtractionFinished(
           (payload) => {
             if (payload.success) {
-              setAdditionalAlerts((prev) => [
-                ...prev,
-                {
-                  id: uuid(),
-                  type: 'success',
-                  content: 'レビューが完了しました',
-                },
-              ]);
+              addAlert({
+                message: 'レビューが完了しました',
+                severity: 'success',
+              });
             } else {
-              setAdditionalAlerts((prev) => [
-                ...prev,
-                {
-                  id: uuid(),
-                  type: 'error',
-                  content: `レビューに失敗しました: ${payload.error}`,
-                },
-              ]);
+              addAlert({
+                message: `レビューに失敗しました\n${payload.error}`,
+                severity: 'error',
+              });
             }
             setIsReviewing(false);
             unsubscribe();
           },
         );
       } catch (error) {
-        setAdditionalAlerts((prev) => [
-          ...prev,
-          {
-            id: uuid(),
-            type: 'error',
-            content: `レビュー処理実行時にエラーが発生しました: ${(error as Error).message}`,
-          },
-        ]);
+        console.error(error);
+        addAlert({
+          message: `レビュー実行の呼び出しに失敗しました\n${(error as Error).message}`,
+          severity: 'error',
+        });
         setIsReviewing(false);
       }
     },
-    [selectedReviewHistoryId],
+    [selectedReviewHistoryId, addAlert, additionalInstructions, commentFormat],
   );
 
   const handleModalSubmit = useCallback(
@@ -225,11 +190,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
           checklistRequirements,
         );
       } else if (modalMode === 'review') {
-        await handleExecuteReview(
-          files,
-          modalAdditionalInstructions,
-          modalCommentFormat,
-        );
+        await handleExecuteReview(files);
       }
     },
     [modalMode, handleExtractChecklist, handleExecuteReview],
@@ -239,38 +200,14 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
   const handleSaveChecklist = async (checklists: ReviewChecklistEdit[]) => {
     if (!selectedReviewHistoryId) return;
 
-    try {
-      setIsSaving(true);
-      const result = await window.electron.review.updateChecklist({
-        reviewHistoryId: selectedReviewHistoryId,
-        checklistEdits: checklists,
-      });
-
-      if (result.success) {
-        setAdditionalAlerts((prev) => [
-          ...prev,
-          {
-            id: uuid(),
-            type: 'success',
-            content: 'チェックリストが更新されました',
-          },
-        ]);
-        await fetchChecklistResults();
-      } else {
-        throw new Error(result.error);
-      }
-    } catch (error) {
-      setAdditionalAlerts((prev) => [
-        ...prev,
-        {
-          id: uuid(),
-          type: 'error',
-          content: `チェックリストの更新中にエラーが発生しました: ${(error as Error).message}`,
-        },
-      ]);
-    } finally {
-      setIsSaving(false);
-    }
+    setIsSaving(true);
+    const reviewApi = ReviewApi.getInstance();
+    await reviewApi.updateChecklist(selectedReviewHistoryId, checklists, {
+      throwError: false,
+      showAlert: true,
+      printErrorLog: true,
+    });
+    setIsSaving(false);
   };
 
   return (
@@ -289,11 +226,6 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
         overflow: 'hidden',
       }}
     >
-      {/* アラートメッセージ */}
-      <AlertManager
-        additionalAlerts={additionalAlerts}
-        closeAdditionalAlerts={closeAdditionalAlerts}
-      />
       {selectedReviewHistoryId && (
         <>
           {/* ヘッダー部分 */}
@@ -377,6 +309,10 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
             selectedReviewHistoryId={selectedReviewHistoryId || null}
             disabled={isSaving || isExtracting || isReviewing}
             modalMode={modalMode!}
+            additionalInstructions={additionalInstructions}
+            setAdditionalInstructions={setAdditionalInstructions}
+            commentFormat={commentFormat}
+            setCommentFormat={setCommentFormat}
           />
         </>
       )}

@@ -6,6 +6,7 @@
 import { z } from 'zod';
 import { RedmineProject, RedmineBaseInfo } from './types';
 import { RedmineSchema } from '@/types';
+import { internalError } from '@/main/lib/error';
 
 /**
  * Redmineクライアント設定のインターフェース
@@ -393,8 +394,11 @@ export class RedmineClient {
       await this.request('issues.json?limit=1', 'GET');
       return true;
     } catch (error) {
-      console.error('Redmine API疎通確認に失敗:', error);
-      throw error;
+      throw internalError({
+        expose: true,
+        messageCode: 'REDMINE_API_CONNECTION_ERROR',
+        cause: error,
+      });
     }
   }
 }
@@ -408,13 +412,11 @@ export const createRedmineClient = (
   config: RedmineClientConfig,
 ): RedmineClient => {
   // settingsSchemaによる設定値の検証
-  const validationResult = RedmineSchema.safeParse({
+  RedmineSchema.parse({
     endpoint: config.apiUrl,
     apiKey: config.apiKey,
   });
-  if (!validationResult.success) {
-    throw new Error(`Redmine設定が不正です: ${validationResult.error.message}`);
-  }
+
   return new RedmineClient(config);
 };
 

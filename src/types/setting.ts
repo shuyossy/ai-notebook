@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { AgentToolStatus } from "./chat";
+import { FsApi } from "@/renderer/service/fsApi";
 
 // 設定状態管理用の型定義
 export type SettingsSavingState = 'saving' | 'done' | 'error';
@@ -27,7 +28,9 @@ export type SettingsSavingStatus = {
  */
 export const checkPathExists = async (path: string): Promise<boolean> => {
   try {
-    return await window.electron.fs.access(path);
+    const fsApi = FsApi.getInstance();
+    const result = await fsApi.access(path, { showAlert: false, throwError: true, printErrorLog: true });
+    return result === true;
   } catch {
     return false;
   }
@@ -124,18 +127,21 @@ export const SystemPromptSchema = z.object({
  * MCP設定のスキーマ
  */
 export const McpStoreSchema = z.object({
-  serverConfigText: z
+  serverConfig: z
     .string()
-    .min(1, { message: 'MCPサーバー設定は必須です' })
+    .optional()
     .transform((str, ctx) => {
       try {
+        if (!str || str.trim() === '') {
+          return undefined;
+        }
         const json = JSON.parse(str);
         const result = McpSchema.safeParse(json);
         if (!result.success) {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
             message:
-              'MCP設定形式が不正です: ' +
+              'MCP設定形式が不正です\n' +
               result.error.errors.map((err) => err.message).join(', '),
           });
           return z.NEVER;
@@ -148,7 +154,7 @@ export const McpStoreSchema = z.object({
         });
         return z.NEVER;
       }
-    }),
+    }).optional(),
 });
 
 /**
@@ -163,6 +169,8 @@ export const SettingsSchema = z.object({
   mcp: McpStoreSchema,
   systemPrompt: SystemPromptSchema,
 });
+
+export type Settings = z.infer<typeof SettingsSchema>;
 
 export type ValidationError = {
   message: string;

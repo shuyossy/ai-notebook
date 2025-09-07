@@ -5,8 +5,8 @@ import { createStep, createWorkflow } from '@mastra/core/workflows';
 // @ts-ignore
 import { MastraError } from '@mastra/core/error';
 import { z } from 'zod';
-import { getReviewRepository } from '@/db/repository/reviewRepository';
-import { getSourceRepository } from '@/db/repository/sourceRepository';
+import { getReviewRepository } from '@/main/repository/reviewRepository';
+import { getSourceRepository } from '@/main/repository/sourceRepository';
 import FileExtractor from '@/main/lib/fileExtractor';
 import { baseStepOutputSchema } from '../schema';
 import { stepStatus } from '../types';
@@ -15,7 +15,7 @@ import {
   TopicExtractionAgentRuntimeContext,
   TopicChecklistAgentRuntimeContext,
 } from '../../agents/workflowAgents';
-import { createRuntimeContext } from '../../agents/lib';
+import { createRuntimeContext } from '../../lib/agentUtils';
 import { UploadFile } from '@/types';
 
 // ワークフローの入力スキーマ
@@ -174,7 +174,7 @@ const checklistDocumentExtractionStep = createStep({
           while (attempts < MAX_ATTEMPTS) {
             let isCompleted = true;
             const runtimeContext =
-              createRuntimeContext<ChecklistExtractionAgentRuntimeContext>();
+              await createRuntimeContext<ChecklistExtractionAgentRuntimeContext>();
             // これまでに抽出したチェックリスト項目
             runtimeContext.set('extractedItems', accumulated);
             const extractionResult = await checklistExtractionAgent.generate(
@@ -418,7 +418,7 @@ const topicExtractionStep = createStep({
               .describe('Extracted topics from the document'),
           });
           const runtimeContext =
-            createRuntimeContext<TopicExtractionAgentRuntimeContext>();
+            await createRuntimeContext<TopicExtractionAgentRuntimeContext>();
           if (checklistRequirements) {
             runtimeContext.set('checklistRequirements', checklistRequirements);
           }
@@ -587,7 +587,7 @@ const topicChecklistCreationStep = createStep({
       });
 
       const runtimeContext =
-        createRuntimeContext<TopicChecklistAgentRuntimeContext>();
+        await createRuntimeContext<TopicChecklistAgentRuntimeContext>();
       runtimeContext.set('topic', { title });
       if (checklistRequirements) {
         runtimeContext.set('checklistRequirements', checklistRequirements);

@@ -1,33 +1,33 @@
 import { eq, and } from 'drizzle-orm';
-import path from 'path';
 import type {
   ReviewHistory,
   ReviewChecklist,
   ReviewChecklistResult as DBReviewChecklistResult,
-} from '../schema';
+} from '../../db/schema';
 import {
   reviewHistories,
   reviewChecklists,
   reviewChecklistResults,
-} from '../schema';
-import getDb from '..';
+} from '../../db/schema';
+import getDb from '../../db';
 import type {
   ReviewChecklistResultDisplay,
   ReviewEvaluation,
   ReviewChecklistCreatedBy,
 } from '@/types';
-import { RepositoryError } from './repositoryError';
+import { AppError } from '@/main/lib/error';
+import { repositoryError } from './error';
 
 /**
  * ドキュメントレビューで利用するDBアクセス用のインターフェース
  */
-export interface ReviewRepository {
+export interface IReviewRepository {
   // レビュー履歴
   createReviewHistory(title: string, id?: string): Promise<ReviewHistory>;
   getReviewHistory(id: string): Promise<ReviewHistory | null>;
   getAllReviewHistories(): Promise<ReviewHistory[]>;
   updateReviewHistoryTitle(id: string, title: string): Promise<void>;
-  updateReviewHistoryAdditionalData(
+  updateReviewHistoryAdditionalInstructionsAndCommentFormat(
     id: string,
     additionalInstructions?: string,
     commentFormat?: string,
@@ -68,12 +68,12 @@ export interface ReviewRepository {
   deleteAllReviewResults(reviewHistoryId: string): Promise<void>;
 }
 
-let reviewRepository: ReviewRepository | null = null;
+let reviewRepository: IReviewRepository | null = null;
 
 /**
  * Drizzle ORM を使用したレビューリポジトリの実装
  */
-class DrizzleReviewRepository implements ReviewRepository {
+class DrizzleReviewRepository implements IReviewRepository {
   /** レビュー履歴を作成 */
   async createReviewHistory(
     title: string,
@@ -87,10 +87,7 @@ class DrizzleReviewRepository implements ReviewRepository {
         .returning();
       return history;
     } catch (err) {
-      throw new RepositoryError(
-        `レビュー履歴の作成に失敗しました: ${(err as Error).message}`,
-        err as Error,
-      );
+      throw repositoryError('レビュー結果の作成に失敗しました', err);
     }
   }
 
@@ -104,10 +101,7 @@ class DrizzleReviewRepository implements ReviewRepository {
         .where(eq(reviewHistories.id, id));
       return history || null;
     } catch (err) {
-      throw new RepositoryError(
-        `レビュー履歴の取得に失敗しました: ${(err as Error).message}`,
-        err as Error,
-      );
+      throw repositoryError('レビュー結果の取得に失敗しました', err);
     }
   }
 
@@ -120,10 +114,7 @@ class DrizzleReviewRepository implements ReviewRepository {
         .from(reviewHistories)
         .orderBy(reviewHistories.updatedAt);
     } catch (err) {
-      throw new RepositoryError(
-        `レビュー履歴一覧の取得に失敗しました: ${(err as Error).message}`,
-        err as Error,
-      );
+      throw repositoryError('レビュー結果の取得に失敗しました', err);
     }
   }
 
@@ -136,15 +127,12 @@ class DrizzleReviewRepository implements ReviewRepository {
         .set({ title })
         .where(eq(reviewHistories.id, id));
     } catch (err) {
-      throw new RepositoryError(
-        `レビュー履歴の更新に失敗しました: ${(err as Error).message}`,
-        err as Error,
-      );
+      throw repositoryError('レビュー結果の更新に失敗しました', err);
     }
   }
 
-  /** レビュー履歴の追加データを更新 */
-  async updateReviewHistoryAdditionalData(
+  /** レビューの追加指示とフォーマットを更新 */
+  async updateReviewHistoryAdditionalInstructionsAndCommentFormat(
     id: string,
     additionalInstructions?: string,
     commentFormat?: string,
@@ -159,9 +147,9 @@ class DrizzleReviewRepository implements ReviewRepository {
         })
         .where(eq(reviewHistories.id, id));
     } catch (err) {
-      throw new RepositoryError(
-        `レビュー履歴の追加データ更新に失敗しました: ${(err as Error).message}`,
-        err as Error,
+      throw repositoryError(
+        'レビューの追加指示・フォーマットの更新に失敗しました',
+        err,
       );
     }
   }
@@ -172,10 +160,7 @@ class DrizzleReviewRepository implements ReviewRepository {
       const db = await getDb();
       await db.delete(reviewHistories).where(eq(reviewHistories.id, id));
     } catch (err) {
-      throw new RepositoryError(
-        `レビュー履歴の削除に失敗しました: ${(err as Error).message}`,
-        err as Error,
-      );
+      throw repositoryError('レビュー結果の削除に失敗しました', err);
     }
   }
 
@@ -193,10 +178,7 @@ class DrizzleReviewRepository implements ReviewRepository {
         .returning();
       return checklist;
     } catch (err) {
-      throw new RepositoryError(
-        `チェックリストの作成に失敗しました: ${(err as Error).message}`,
-        err as Error,
-      );
+      throw repositoryError('チェックリストの作成に失敗しました', err);
     }
   }
 
@@ -210,10 +192,7 @@ class DrizzleReviewRepository implements ReviewRepository {
         .where(eq(reviewChecklists.reviewHistoryId, reviewHistoryId))
         .orderBy(reviewChecklists.updatedAt);
     } catch (err) {
-      throw new RepositoryError(
-        `チェックリストの取得に失敗しました: ${(err as Error).message}`,
-        err as Error,
-      );
+      throw repositoryError('チェックリスト一覧の取得に失敗しました', err);
     }
   }
 
@@ -227,15 +206,12 @@ class DrizzleReviewRepository implements ReviewRepository {
         .where(eq(reviewChecklists.id, id))
         .returning();
       if (!checklist) {
-        throw new RepositoryError(`チェックリストID ${id} が見つかりません`);
+        throw new Error('指定されたチェックリストが存在しません');
       }
       return checklist;
     } catch (err) {
-      if (err instanceof RepositoryError) throw err;
-      throw new RepositoryError(
-        `チェックリストの更新に失敗しました: ${(err as Error).message}`,
-        err as Error,
-      );
+      if (err instanceof AppError) throw err;
+      throw repositoryError('チェックリストの更新に失敗しました', err);
     }
   }
 
@@ -245,10 +221,7 @@ class DrizzleReviewRepository implements ReviewRepository {
       const db = await getDb();
       await db.delete(reviewChecklists).where(eq(reviewChecklists.id, id));
     } catch (err) {
-      throw new RepositoryError(
-        `チェックリストの削除に失敗しました: ${(err as Error).message}`,
-        err as Error,
-      );
+      throw repositoryError('チェックリストの削除に失敗しました', err);
     }
   }
 
@@ -265,10 +238,7 @@ class DrizzleReviewRepository implements ReviewRepository {
           ),
         );
     } catch (err) {
-      throw new RepositoryError(
-        `システム作成チェックリストの削除に失敗しました: ${(err as Error).message}`,
-        err as Error,
-      );
+      throw repositoryError('チェックリストの削除に失敗しました', err);
     }
   }
 
@@ -304,10 +274,7 @@ class DrizzleReviewRepository implements ReviewRepository {
       }
       return upsertedResults;
     } catch (err) {
-      throw new RepositoryError(
-        `レビュー結果の作成に失敗しました: ${(err as Error).message}`,
-        err as Error,
-      );
+      throw repositoryError('レビュー結果の保存に失敗しました', err);
     }
   }
 
@@ -322,10 +289,7 @@ class DrizzleReviewRepository implements ReviewRepository {
         .from(reviewChecklistResults)
         .where(eq(reviewChecklistResults.reviewChecklistId, reviewChecklistId));
     } catch (err) {
-      throw new RepositoryError(
-        `レビュー結果の取得に失敗しました: ${(err as Error).message}`,
-        err as Error,
-      );
+      throw repositoryError('レビュー結果一覧の取得に失敗しました', err);
     }
   }
 
@@ -345,10 +309,7 @@ class DrizzleReviewRepository implements ReviewRepository {
           ),
         );
     } catch (err) {
-      throw new RepositoryError(
-        `レビュー結果の削除に失敗しました: ${(err as Error).message}`,
-        err as Error,
-      );
+      throw repositoryError('レビュー結果の削除に失敗しました', err);
     }
   }
 
@@ -397,10 +358,7 @@ class DrizzleReviewRepository implements ReviewRepository {
       }
       return Array.from(map.values());
     } catch (err) {
-      throw new RepositoryError(
-        `チェックリスト結果の取得に失敗しました: ${(err as Error).message}`,
-        err as Error,
-      );
+      throw repositoryError('レビュー結果の取得に失敗しました', err);
     }
   }
 
@@ -422,10 +380,7 @@ class DrizzleReviewRepository implements ReviewRepository {
           .where(eq(reviewChecklistResults.reviewChecklistId, id));
       }
     } catch (err) {
-      throw new RepositoryError(
-        `レビュー結果の全削除に失敗しました: ${(err as Error).message}`,
-        err as Error,
-      );
+      throw repositoryError('レビュー結果の削除に失敗しました', err);
     }
   }
 }
@@ -434,7 +389,7 @@ class DrizzleReviewRepository implements ReviewRepository {
  * ドキュメントレビュー用のリポジトリを取得
  * @returns ReviewRepositoryのインスタンス
  */
-export function getReviewRepository(): ReviewRepository {
+export function getReviewRepository(): IReviewRepository {
   if (!reviewRepository) {
     reviewRepository = new DrizzleReviewRepository();
   }

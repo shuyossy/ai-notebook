@@ -8,7 +8,7 @@ export interface StoreSchema {
     dir: string;
   };
   source: {
-    registerDir: string;
+    registerDir?: string;
   };
   api: {
     key: string;
@@ -16,18 +16,18 @@ export interface StoreSchema {
     model: string;
   };
   redmine: {
-    endpoint: string;
-    apiKey: string;
+    endpoint?: string;
+    apiKey?: string;
   };
   gitlab: {
-    endpoint: string;
-    apiKey: string;
+    endpoint?: string;
+    apiKey?: string;
   };
   mcp: {
-    serverConfigText: string;
+    serverConfig?: string;
   };
   systemPrompt: {
-    content: string;
+    content?: string;
   };
 }
 
@@ -87,7 +87,6 @@ const schema = {
     properties: {
       content: {
         type: 'string',
-        default: '',
       },
     },
     required: [],
@@ -130,7 +129,7 @@ const defaults: StoreSchema = {
     dir: './default_data_dir',
   },
   source: {
-    registerDir: '',
+    registerDir: undefined,
   },
   api: {
     key: '',
@@ -138,18 +137,18 @@ const defaults: StoreSchema = {
     model: '',
   },
   redmine: {
-    endpoint: '',
-    apiKey: '',
+    endpoint: undefined,
+    apiKey: undefined,
   },
   gitlab: {
-    endpoint: '',
-    apiKey: '',
+    endpoint: undefined,
+    apiKey: undefined,
   },
   mcp: {
-    serverConfigText: '{}',
+    serverConfig: undefined,
   },
   systemPrompt: {
-    content: '',
+    content: undefined,
   },
 };
 

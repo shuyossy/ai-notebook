@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { ElectronStoreApi } from '../service/electronStoreApi';
 
 /**
  * Electronのストア操作の結果型
@@ -6,7 +7,6 @@ import { useState, useEffect } from 'react';
 export type StoreHookResult<T> = {
   value: T;
   loading: boolean;
-  error: string | null;
   setValue: (value: T) => Promise<void>;
 };
 
@@ -20,7 +20,6 @@ export function useElectronStore<T extends Record<string, unknown>>(
 ): StoreHookResult<T> {
   const [value, setValue] = useState<T>({} as T);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
   // 値の取得
   useEffect(() => {
@@ -28,11 +27,15 @@ export function useElectronStore<T extends Record<string, unknown>>(
 
     const fetchValue = async () => {
       try {
-        const storedValue = await window.electron.store.get(key);
+        const storeApi = ElectronStoreApi.getInstance();
+        const storedValue = await storeApi.get(key, {
+          showAlert: false,
+          throwError: true,
+          printErrorLog: false,
+        });
         if (storedValue !== undefined) {
           setValue(storedValue as T);
         }
-        setError(null);
         // 成功時はポーリングを停止
         if (intervalId) {
           clearInterval(intervalId);
@@ -41,8 +44,7 @@ export function useElectronStore<T extends Record<string, unknown>>(
       } catch (err) {
         const message =
           err instanceof Error ? err.message : '不明なエラーが発生しました';
-        setError(`値の取得に失敗しました: ${message}`);
-        console.error(`Failed to get value for key "${key}":`, err);
+        console.error(`Failed to get value from electron-store for key "${key}":`, err);
         // 失敗時はポーリングを継続（既に設定済みの場合は何もしない）
         if (!intervalId) {
           intervalId = setInterval(fetchValue, 5000);
@@ -66,19 +68,22 @@ export function useElectronStore<T extends Record<string, unknown>>(
   // 値の設定
   const setStoreValue = async (newValue: T) => {
     try {
-      await window.electron.store.set(key, newValue);
+      const storeApi = ElectronStoreApi.getInstance();
+      await storeApi.set({ key, value: newValue }, {
+        showAlert: false,
+        throwError: true,
+        printErrorLog: false,
+      });
       setValue(newValue);
-      setError(null);
     } catch (err) {
       const message =
         err instanceof Error ? err.message : '不明なエラーが発生しました';
-      setError(`値の保存に失敗しました: ${message}`);
       console.error(`Failed to set value for key "${key}":`, err);
       throw err;
     }
   };
 
-  return { value, loading, error, setValue: setStoreValue };
+  return { value, loading, setValue: setStoreValue };
 }
 
 export default useElectronStore;

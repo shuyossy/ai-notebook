@@ -18,7 +18,7 @@ import { MoreVert as MoreIcon } from '@mui/icons-material';
 import AddCircleOutlineOutlinedIcon from '@mui/icons-material/AddCircleOutlineOutlined';
 import { v4 as uuidv4 } from 'uuid';
 import type { ChatRoom } from '@/types';
-import { chatService } from '../../service/chatService';
+import { ChatApi } from '../../service/chatApi';
 
 interface ChatRoomListProps {
   selectedRoomId?: string | null;
@@ -38,16 +38,22 @@ function ChatRoomList({
   // チャットルーム一覧を取得
   const fetchChatRooms = useCallback(async () => {
     try {
-      const rooms = await chatService.getChatRooms();
+      const chatApi = ChatApi.getInstance();
+      const rooms = await chatApi.getChatRooms({
+        throwError: true,
+        showAlert: false,
+        printErrorLog: true,
+      });
       // updatedAtで降順ソート
-      const sortedRooms = [...rooms].sort(
-        (a, b) =>
-          new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
-      );
+      const sortedRooms = rooms
+        ? [...rooms!].sort(
+            (a, b) =>
+              new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+          )
+        : [];
       setChatRooms(sortedRooms);
       setLoading(false);
     } catch (error) {
-      console.error(error);
       setLoading(true);
     }
   }, []);
@@ -76,20 +82,20 @@ function ChatRoomList({
   const handleDeleteRoom = async () => {
     if (!activeRoomId) return;
 
-    try {
-      await chatService.deleteChatRoom(activeRoomId);
-      // 削除したルームが選択中だった場合は選択を解除
-      if (selectedRoomId === activeRoomId) {
-        onRoomSelect('');
-      }
-
-      // 一覧を再取得して最新状態を反映
-      fetchChatRooms();
-    } catch (error) {
-      console.error(error);
-    } finally {
-      handleMenuClose();
+    const chatApi = ChatApi.getInstance();
+    await chatApi.deleteChatRoom(activeRoomId, {
+      showAlert: true,
+      throwError: false,
+      printErrorLog: true,
+    });
+    // 削除したルームが選択中だった場合は選択を解除
+    if (selectedRoomId === activeRoomId) {
+      onRoomSelect('');
     }
+
+    // 一覧を再取得して最新状態を反映
+    fetchChatRooms();
+    handleMenuClose();
   };
 
   // チャットルーム一覧の更新をトリガーする関数

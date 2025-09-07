@@ -10,7 +10,7 @@ import getDb from '@/db/index';
 import FileExtractor from '@/main/lib/fileExtractor';
 import { createBaseToolResponseSchema, RunToolStatus } from './types';
 import { DocumentExpertAgentRuntimeContext } from '../agents/toolAgents';
-import { createRuntimeContext, judgeFinishReason } from '../agents/lib';
+import { createRuntimeContext, judgeFinishReason } from '../lib/agentUtils';
 
 /**
  * ソース一覧表示ツール
@@ -163,7 +163,7 @@ export const documentQueryTool = createTool({
             const documentExpertAgent = mastra.getAgent('documentExpertAgent');
 
             const runtimeContext =
-              createRuntimeContext<DocumentExpertAgentRuntimeContext>();
+              await createRuntimeContext<DocumentExpertAgentRuntimeContext>();
 
             runtimeContext.set('documentContent', content);
 

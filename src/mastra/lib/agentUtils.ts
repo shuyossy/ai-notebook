@@ -1,18 +1,19 @@
 // @ts-ignore
 import { RuntimeContext } from '@mastra/core/runtime-context';
 import { FinishReason } from 'ai';
-import { BaseRuntimeContext } from './types';
-import { getStore } from '@/main/store';
+import { getSettingsRepository } from '@/main/repository/settingsRepository';
+import { BaseRuntimeContext } from '../agents/types';
 
 // BaseRuntimeConotextに値を入れた上で、指定したRuntimeContextを返す関数
-export function createRuntimeContext<T extends BaseRuntimeContext>() {
-  const store = getStore();
+export async function createRuntimeContext<T extends BaseRuntimeContext>() {
   const runtimeContext = new RuntimeContext<T>();
+  const settingsRepository = getSettingsRepository();
+  const store = await settingsRepository.getSettings();
   // @ts-ignore
   runtimeContext.set('model', {
-    key: store.get('api').key,
-    url: store.get('api').url,
-    modelName: store.get('api').model,
+    key: store.api.key,
+    url: store.api.url,
+    modelName: store.api.model,
   });
   return runtimeContext;
 }

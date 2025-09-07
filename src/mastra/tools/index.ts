@@ -6,6 +6,8 @@ import { documentQueryTool } from './sourcesTools';
 import type { RedmineBaseInfo } from './redmine/types';
 import { createRedmineClient, setupRedmineTools } from './redmine';
 import { setupGitLabTools } from './gitlab';
+import { getMainLogger } from '@/main/lib/logger';
+import { normalizeUnknownError } from '@/main/lib/error';
 
 export type InitializeToolsConfig = {
   documentTool?: boolean;
@@ -40,6 +42,8 @@ type InitializeToolsResult = {
   toolsInput: ToolsInput;
 };
 
+const logger = getMainLogger();
+
 // ツールを初期化/更新する関数
 export const initializeTools = async (
   config: InitializeToolsConfig,
@@ -50,10 +54,12 @@ export const initializeTools = async (
     try {
       tools.documentQueryTool = documentQueryTool;
       result.documentTool = { success: true };
-    } catch (error) {
+    } catch (err) {
+      logger.error('ドキュメントツールの初期化に失敗しました', err);
+      const error = normalizeUnknownError(err);
       result.documentTool = {
         success: false,
-        error: error instanceof Error ? error.message : JSON.stringify(error),
+        error: error.message,
       };
     }
   }
@@ -75,10 +81,12 @@ export const initializeTools = async (
       const redmineTools = await setupRedmineTools(client);
       tools = { ...tools, ...redmineTools };
       result.redmineTool = { success: true, redmineInfo };
-    } catch (error) {
+    } catch (err) {
+      logger.error('Redmineツールの初期化に失敗しました', err);
+      const error = normalizeUnknownError(err);
       result.redmineTool = {
         success: false,
-        error: error instanceof Error ? error.message : JSON.stringify(error),
+        error: error.message,
       };
     }
   }
@@ -95,10 +103,12 @@ export const initializeTools = async (
       });
       tools = { ...tools, ...gitlabTools };
       result.gitlabTool = { success: true };
-    } catch (error) {
+    } catch (err) {
+      logger.error('GitLabツールの初期化に失敗しました', err);
+      const error = normalizeUnknownError(err);
       result.gitlabTool = {
         success: false,
-        error: error instanceof Error ? error.message : JSON.stringify(error),
+        error: error.message,
       };
     }
   }

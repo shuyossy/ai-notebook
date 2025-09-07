@@ -34,14 +34,11 @@ import {
   PdfProcessMode,
   PdfImageMode,
 } from '@/types';
-
+import { useAlertStore } from '@/renderer/stores/alertStore';
 import { ReviewSourceModalProps } from './types';
+import { FsApi } from '../../service/fsApi';
 
 import { combineImages, convertPdfBytesToImages } from '../../lib/pdfUtils';
-import { reviewService } from '../../service/reviewService';
-
-const defaultCommentFormat =
-  '【評価理由・根拠】\n（具体的な理由と根拠を記載）\n\n【改善提案】\n（改善のための具体的な提案を記載）';
 
 function ReviewSourceModal({
   open,
@@ -50,14 +47,17 @@ function ReviewSourceModal({
   selectedReviewHistoryId,
   disabled,
   modalMode,
+  additionalInstructions,
+  setAdditionalInstructions,
+  commentFormat,
+  setCommentFormat,
 }: ReviewSourceModalProps): React.ReactElement {
   const [uploadedFiles, setUploadedFiles] = useState<UploadFile[]>([]);
   const [processing, setProcessing] = useState(false); // ★ 送信処理やPDF変換の進行中フラグ
   const [documentType, setDocumentType] = useState<DocumentType>('checklist');
   const [checklistRequirements, setChecklistRequirements] = useState('');
-  const [additionalInstructions, setAdditionalInstructions] = useState('');
-  const [commentFormat, setCommentFormat] = useState(defaultCommentFormat);
-  const [error, setError] = useState<string | null>(null); // ★ エラー表示用
+
+  const addAlert = useAlertStore((state) => state.addAlert);
 
   // modalMode, selectedReviewHistoryIdが変わったときに初期化し、保存された値を取得
   useEffect(() => {
@@ -65,29 +65,6 @@ function ReviewSourceModal({
       setUploadedFiles([]);
       setDocumentType('checklist');
       setChecklistRequirements('');
-      setError(null);
-
-      // レビューモードの場合、保存された追加指示とコメントフォーマットを取得
-      if (modalMode === 'review' && selectedReviewHistoryId) {
-        try {
-          const result = await reviewService.getReviewHistoryDetail(
-            selectedReviewHistoryId,
-          );
-
-          // 保存された値がある場合はそれを使用、なければデフォルト値を使用
-          setAdditionalInstructions(result.additionalInstructions || '');
-          setCommentFormat(result.commentFormat || defaultCommentFormat);
-        } catch (err) {
-          console.error('保存されたレビュー設定の取得に失敗:', err);
-          // エラーが発生した場合はデフォルト値を使用
-          setAdditionalInstructions('');
-          setCommentFormat(defaultCommentFormat);
-        }
-      } else {
-        // 抽出モードの場合はデフォルト値をセット
-        setAdditionalInstructions('');
-        setCommentFormat(defaultCommentFormat);
-      }
     };
 
     loadSavedData();
@@ -109,27 +86,35 @@ function ReviewSourceModal({
 
   const handleFileUpload = async () => {
     try {
-      const result = await window.electron.fs.showOpenDialog({
-        title: 'ドキュメントファイルを選択',
-        filters: [
-          {
-            name: 'ドキュメントファイル',
-            extensions: [
-              'pdf',
-              'doc',
-              'docx',
-              'xls',
-              'xlsx',
-              'ppt',
-              'pptx',
-              'txt',
-            ],
-          },
-        ],
-        properties: ['openFile', 'multiSelections'],
-      });
+      const fsApi = FsApi.getInstance();
+      const result = await fsApi.showOpenDialog(
+        {
+          title: 'ドキュメントファイルを選択',
+          filters: [
+            {
+              name: 'ドキュメントファイル',
+              extensions: [
+                'pdf',
+                'doc',
+                'docx',
+                'xls',
+                'xlsx',
+                'ppt',
+                'pptx',
+                'txt',
+              ],
+            },
+          ],
+          properties: ['openFile', 'multiSelections'],
+        },
+        {
+          showAlert: true,
+          throwError: true,
+          printErrorLog: false,
+        },
+      );
 
-      if (!result.canceled && result.filePaths.length > 0) {
+      if (result && !result.canceled && result.filePaths.length > 0) {
         const newFiles: UploadFile[] = result.filePaths.map(
           (filePath: string) => {
             const fileName = filePath.split(/[/\\]/).pop() || filePath;
@@ -154,7 +139,10 @@ function ReviewSourceModal({
       }
     } catch (e) {
       console.error('ファイル選択エラー:', e);
-      setError('ファイル選択に失敗しました。もう一度お試しください。');
+      addAlert({
+        message: 'ファイル選択に失敗しました。もう一度お試しください。',
+        severity: 'error',
+      });
     }
   };
 
@@ -197,7 +185,6 @@ function ReviewSourceModal({
   const handleSubmit = async () => {
     if (disabled || processing || uploadedFiles.length === 0) return;
 
-    setError(null);
     setProcessing(true);
 
     try {
@@ -205,10 +192,15 @@ function ReviewSourceModal({
       for (const f of uploadedFiles) {
         if (f.type === 'application/pdf' && f.pdfProcessMode === 'image') {
           // Mainから安全にPDFバイト列を取得（file:// fetch を使わない）
-          const data = await window.electron.fs.readFile(f.path);
+          const fsApi = FsApi.getInstance();
+          const data = await fsApi.readFile(f.path, {
+            showAlert: false,
+            throwError: true,
+            printErrorLog: false,
+          });
 
           // ブラウザ側で pdf.js にレンダリングさせて PNG を得る
-          const imagePages = await convertPdfBytesToImages(data, {
+          const imagePages = await convertPdfBytesToImages(data!, {
             scale: 2.0,
           });
 
@@ -261,9 +253,10 @@ function ReviewSourceModal({
       );
     } catch (e) {
       console.error('送信処理中に失敗:', e);
-      setError(
-        '送信時の処理に失敗しました。PDFが壊れていないか、またはPDFが非常に大きすぎないかをご確認ください。',
-      );
+      addAlert({
+        message: 'ファイルの送信処理に失敗しました。もう一度お試しください。',
+        severity: 'error',
+      });
     } finally {
       setProcessing(false);
     }
@@ -337,12 +330,6 @@ function ReviewSourceModal({
         <Alert severity="info" sx={{ whiteSpace: 'pre-line', mb: 2 }}>
           {getAlertMessage()}
         </Alert>
-
-        {error && (
-          <Alert severity="error" sx={{ mb: 2 }}>
-            {error}
-          </Alert>
-        )}
 
         {modalMode === 'extract' && (
           <>

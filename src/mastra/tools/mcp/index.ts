@@ -3,8 +3,11 @@ import { MCPClient, LogMessage } from '@mastra/mcp';
 import { writeFileSync } from 'fs';
 import { z } from 'zod';
 import { McpSchema } from '@/types';
+import { getMainLogger } from '@/main/lib/logger';
 
 const LOG_FILE_PATH = './mcp.log';
+
+const systemLogger = getMainLogger();
 
 /**
  * ログメッセージをフォーマットする
@@ -82,7 +85,7 @@ export const initializeMCPClient = async ({
       logPath: LOG_FILE_PATH,
     };
   } catch (error) {
-    console.error('MCPClientの初期化に失敗しました:', error);
+    systemLogger.error('MCPクライアントの初期化に失敗しました', error);
     return {
       success: false,
       logPath: LOG_FILE_PATH,

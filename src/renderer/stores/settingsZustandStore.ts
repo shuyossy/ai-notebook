@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { SettingsSavingStatus, MakeOptional } from '@/types';
+import { SettingsApi } from '../service/settingsApi';
 
 type SettingsStore = {
   // エージェントが更新されたかどうかを保持するフラグ
@@ -20,9 +21,18 @@ export const useSettingsZustandStore = create<SettingsStore>((set) => ({
     set({ status });
   },
   closeMessage: async (messageId: string) => {
-    await window.electron.settings.removeMessage(messageId);
+    const settingsApi = SettingsApi.getInstance();
+    await settingsApi.removeMessage(messageId, {
+      showAlert: true,
+      throwError: true,
+    });
     // メッセージ削除後に最新のステータスを取得して更新
-    const newStatus = await window.electron.settings.getStatus();
-    set({ status: newStatus });
+    const newStatus = await settingsApi.getStatus({
+      showAlert: true,
+      throwError: true,
+    });
+    if (newStatus) {
+      set({ status: newStatus });
+    }
   },
 }));

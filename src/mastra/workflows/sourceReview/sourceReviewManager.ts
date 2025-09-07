@@ -1,24 +1,24 @@
 import { IpcMainInvokeEvent } from 'electron';
-import { getReviewRepository } from '@/db/repository/reviewRepository';
+import { getReviewRepository } from '@/main/repository/reviewRepository';
 import {
   IpcChannels,
   IpcEventPayloadMap,
-  IpcResponsePayloadMap,
 } from '@/types/ipc';
 import { generateReviewTitle } from './lib';
 import { ReviewHistory } from '@/db/schema';
 import { mastra } from '../..';
-import {
-  DocumentType,
-  UploadFile,
-} from '@/types';
+import { DocumentType, UploadFile } from '@/types';
 import { checkWorkflowResult } from '../../lib/workflowUtils';
+import { internalError } from '@/main/lib/error';
+import { getMainLogger } from '@/main/lib/logger';
+
+
+const logger = getMainLogger();
 
 /**
  * ソースレビュー処理を管理するクラス
  */
 export default class SourceReviewManager {
-  // eslint-disable-next-line
   private static instance: SourceReviewManager | null = null;
 
   private reviewRepository = getReviewRepository();
@@ -66,10 +66,10 @@ export default class SourceReviewManager {
       const workflow = mastra.getWorkflow('checklistExtractionWorkflow');
 
       if (!workflow) {
-        return {
-          success: false,
-          error: 'チェックリスト抽出ワークフローが見つかりません',
-        };
+        logger.error('レビュー実行ワークフローが見つかりません');
+        throw internalError({
+          expose: false,
+        })
       }
 
       const run = workflow.createRun();
@@ -125,10 +125,10 @@ export default class SourceReviewManager {
       const workflow = mastra.getWorkflow('reviewExecutionWorkflow');
 
       if (!workflow) {
-        return {
-          success: false,
-          error: 'レビュー実行ワークフローが見つかりません',
-        };
+        logger.error('レビュー実行ワークフローが見つかりません');
+        throw internalError({
+          expose: false,
+        })
       }
 
       // タイトルの変更
@@ -138,11 +138,6 @@ export default class SourceReviewManager {
       await this.reviewRepository.updateReviewHistoryTitle(
         reviewHistory.id,
         reviewTitle,
-      );
-      await this.reviewRepository.updateReviewHistoryAdditionalData(
-        reviewHistory.id,
-        additionalInstructions,
-        commentFormat,
       );
 
       const run = workflow.createRun();
@@ -182,7 +177,7 @@ export default class SourceReviewManager {
     event: IpcMainInvokeEvent,
     documentType: DocumentType = 'checklist',
     checklistRequirements?: string,
-  ): IpcResponsePayloadMap[typeof IpcChannels.REVIEW_EXTRACT_CHECKLIST_CALL] {
+  ): {success: boolean; error?: string} {
     try {
       this.extractChecklist(
         reviewHistoryId,
@@ -242,7 +237,7 @@ export default class SourceReviewManager {
     event: IpcMainInvokeEvent,
     additionalInstructions?: string,
     commentFormat?: string,
-  ): IpcResponsePayloadMap[typeof IpcChannels.REVIEW_EXECUTE_CALL] {
+  ): {success: boolean; error?: string} {
     try {
       this.executeReview(
         reviewHistoryId,

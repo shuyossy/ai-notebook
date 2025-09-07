@@ -1,5 +1,6 @@
 import { useCallback, useEffect } from 'react';
 import { useSettingsZustandStore } from '../stores/settingsZustandStore';
+import { SettingsApi } from '../service/settingsApi';
 
 const useSettingsStatus = () => {
   const { status, setStatus, closeMessage, updatedFlg, setUpdatedFlg } =
@@ -10,12 +11,18 @@ const useSettingsStatus = () => {
     let intervalId: ReturnType<typeof setInterval>;
 
     const pollStatus = async () => {
-      const agentStatus = await window.electron.settings.getStatus();
-      setStatus(agentStatus);
+      const settingsApi = SettingsApi.getInstance();
+      const agentStatus = await settingsApi.getStatus({
+        showAlert: false,
+        throwError: false,
+      });
+      if (agentStatus) {
+        setStatus(agentStatus);
 
-      if (agentStatus.state !== 'saving') {
-        clearInterval(intervalId);
-        setUpdatedFlg(false);
+        if (agentStatus.state !== 'saving') {
+          clearInterval(intervalId);
+          setUpdatedFlg(false);
+        }
       }
     };
 

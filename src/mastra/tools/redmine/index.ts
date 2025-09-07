@@ -92,12 +92,7 @@ export const setupRedmineTools = async (
   }
 
   // API疎通確認
-  try {
-    await client.testConnection();
-    // eslint-disable-next-line
-  } catch (error: any) {
-    throw new Error(`Redmine APIへの接続確認に失敗しました`);
-  }
+  await client.testConnection();
 
   // Redmine操作ツール一式を作成
   return createRedmineTools(client);

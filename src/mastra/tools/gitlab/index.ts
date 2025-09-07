@@ -37,25 +37,16 @@ export const createGitLabTools = (config: { host: string; token: string }) => {
 export const setupGitLabTools = (config: { host: string; token: string }) => {
   return (async () => {
     // settingsSchemaによる設定値の検証
-    const validationResult = GitLabSchema.safeParse({
+    GitLabSchema.parse({
       endpoint: config.host,
       apiKey: config.token,
     });
-    if (!validationResult.success) {
-      throw new Error(
-        `GitLab設定が不正です: ${validationResult.error.message}`,
-      );
-    }
 
     // GitLabクライアントを作成
     const client = createGitLabClient(config);
 
-    // API疎通確認
-    try {
-      await client.testConnection();
-    } catch (error: any) {
-      throw new Error(`GitLab APIへの接続確認に失敗しました: ${error.message}`);
-    }
+    // API接続確認
+    await client.testConnection();
 
     // GitLab操作ツール一式を作成
     return createGitLabTools(config);

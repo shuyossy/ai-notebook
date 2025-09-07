@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import {
-  AlertColor,
   Alert,
   Modal,
   Box,
@@ -24,8 +23,10 @@ import {
   HourglassEmpty as ProcessingIcon,
   Help as UnknownIcon,
 } from '@mui/icons-material';
+import { useAlertStore } from '@/renderer/stores/alertStore';
 
 import { Source } from '../../../db/schema';
+import { SourceApi } from '../../service/sourceApi';
 
 interface SourceListModalProps {
   open: boolean;
@@ -36,7 +37,6 @@ interface SourceListModalProps {
     processing: boolean;
     enabledCount: number;
   }) => void;
-  showSnackbar: (message: string, severity: AlertColor) => void;
 }
 
 function SourceListModal({
@@ -45,7 +45,6 @@ function SourceListModal({
   onClose,
   onReloadSources,
   onStatusUpdate,
-  showSnackbar,
 }: SourceListModalProps): React.ReactElement {
   const [sources, setSources] = useState<Source[]>([]);
   const [checkedSources, setCheckedSources] = useState<{
@@ -54,6 +53,8 @@ function SourceListModal({
   const [updatingSources, setUpdatingSources] = useState<Set<number>>(
     new Set(),
   );
+
+  const addAlert = useAlertStore((state) => state.addAlert);
 
   // チェック状態の更新
   useEffect(() => {
@@ -85,24 +86,17 @@ function SourceListModal({
     setUpdatingSources((prev) => new Set(prev).add(sourceId));
 
     try {
-      const { success, error } =
-        await window.electron.source.updateSourceEnabled(
-          sourceId,
-          newCheckedState[sourceId],
-        );
-      if (!success) {
-        showSnackbar(
-          `${sources.find((s) => s.id === sourceId)?.path}の有効化/無効化に失敗しました: ${error}`,
-          'error',
-        );
-        // チェック状態を元に戻す
-        setCheckedSources((prev) => ({
-          ...prev,
-          [sourceId]: !newCheckedState[sourceId],
-        }));
-      }
+      const sourceApi = SourceApi.getInstance();
+      await sourceApi.updateSourceEnabled(sourceId, newCheckedState[sourceId], {
+        showAlert: true,
+        throwError: true,
+      });
     } catch (err) {
-      console.error('ドキュメントの有効化/無効化に失敗しました:', err);
+      // チェック状態を元に戻す
+      setCheckedSources((prev) => ({
+        ...prev,
+        [sourceId]: !newCheckedState[sourceId],
+      }));
     } finally {
       // 更新中状態から削除
       setUpdatingSources((prev) => {
@@ -152,29 +146,19 @@ function SourceListModal({
     // 各ソースの状態を更新
     targetSources.forEach(async (source) => {
       try {
-        const { success, error } =
-          await window.electron.source.updateSourceEnabled(source.id, newValue);
-        if (!success) {
-          showSnackbar(
-            `${source.path}の有効化/無効化に失敗しました: ${error}`,
-            'error',
-          );
-          // チェック状態を元に戻す
-          setCheckedSources((prev) => ({
-            ...prev,
-            [source.id]: !newValue,
-          }));
-        }
-
-        // 完了したソースを更新中状態から削除
-        setUpdatingSources((prev) => {
-          const next = new Set(prev);
-          next.delete(source.id);
-          return next;
+        const sourceApi = SourceApi.getInstance();
+        await sourceApi.updateSourceEnabled(source.id, newValue, {
+          showAlert: true,
+          throwError: true,
         });
-      } catch (err) {
-        console.error('ドキュメントの有効化/無効化に失敗しました:', err);
-        // エラー時もソースを更新中状態から削除
+      } catch (error) {
+        // チェック状態を元に戻す
+        setCheckedSources((prev) => ({
+          ...prev,
+          [source.id]: !newValue,
+        }));
+      } finally {
+        // 完了したソースを更新中状態から削除
         setUpdatingSources((prev) => {
           const next = new Set(prev);
           next.delete(source.id);
@@ -188,19 +172,26 @@ function SourceListModal({
   useEffect(() => {
     const fetchSources = async () => {
       try {
-        const response = await window.electron.source.getSources();
-        const responseSources: Source[] = response.sources || [];
-        setSources(responseSources);
-        const newProcessing = responseSources.some(
+        const sourceApi = SourceApi.getInstance();
+        const responseSources = await sourceApi.getSources({
+          showAlert: false,
+          throwError: false,
+        });
+        const sourceList = responseSources || [];
+        setSources(sourceList);
+        const newProcessing = sourceList.some(
           (s: Source) => s.status === 'idle' || s.status === 'processing',
         );
         // 状態更新
-        const enabledCount = responseSources.filter(
+        const enabledCount = sourceList.filter(
           (s: Source) => s.isEnabled === 1 && s.status === 'completed',
         ).length;
         onStatusUpdate({ processing: newProcessing, enabledCount });
       } catch (error) {
-        console.error('ドキュメントデータの取得に失敗しました:', error);
+        addAlert({
+          message: `ソース一覧の取得に失敗しました\n${(error as Error).message}`,
+          severity: 'error',
+        });
       }
     };
     // 初回データ取得
@@ -213,7 +204,7 @@ function SourceListModal({
         clearInterval(intervalId);
       }
     };
-  }, [open, checkedSources, onStatusUpdate]);
+  }, [open, checkedSources, onStatusUpdate, addAlert]);
 
   const handleReloadClick = () => {
     onReloadSources();

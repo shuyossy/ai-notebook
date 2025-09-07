@@ -220,15 +220,15 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
               label="MCPサーバー設定（JSON）"
               multiline
               rows={4}
-              value={settings.mcp.serverConfigText}
+              value={settings.mcp.serverConfig}
               disabled={loading || saving}
               onChange={(e) => {
-                handleChange('mcp', 'serverConfigText', e.target.value);
+                handleChange('mcp', 'serverConfig', e.target.value);
               }}
               margin="normal"
               variant="outlined"
-              error={!!validationErrors.mcp?.serverConfigText}
-              helperText={validationErrors.mcp?.serverConfigText?.message}
+              error={!!validationErrors.mcp?.serverConfig}
+              helperText={validationErrors.mcp?.serverConfig?.message}
             />
             <Typography variant="caption" color="textSecondary" sx={{ mt: 1 }}>
               設定例:

@@ -5,14 +5,14 @@ import {
   createTheme,
   CssBaseline,
   Box,
-  AlertColor,
+  Alert,
 } from '@mui/material';
 import './App.css';
 import Sidebar from './components/sidebar/Sidebar';
 import ChatArea from './components/chat/ChatArea';
 import ReviewArea from './components/review/ReviewArea';
-import SnackbarNotification from './components/common/SnackbarNotification';
-import { sourceService } from './service/sourceService';
+import { SourceApi } from './service/sourceApi';
+import { useAlertStore } from './stores/alertStore';
 import { ROUTES } from '../types';
 import ChatRoomList from './components/chat/ChatRoomList';
 import ReviewHistoryList from './components/review/ReviewHistoryList';
@@ -62,51 +62,29 @@ function App() {
   const [selectedReviewHistoryId, setSelectedReviewHistoryId] = useState<
     string | null
   >(null);
-  const [snackbar, setSnackbar] = useState<{
-    open: boolean;
-    message: string;
-    severity: AlertColor;
-  }>({
-    open: false,
-    message: '',
-    severity: 'info',
-  });
-
-  // スナックバー表示ヘルパー
-  const showSnackbar = (message: string, severity: AlertColor) => {
-    setSnackbar({
-      open: true,
-      message,
-      severity,
-    });
-  };
+  const alerts = useAlertStore((state) => state.alerts);
+  const addAlert = useAlertStore((state) => state.addAlert);
+  const removeAlert = useAlertStore((state) => state.removeAlert);
 
   // ソース再読み込みハンドラ
   const handleReloadSources = async () => {
+    const sourceApi = SourceApi.getInstance();
     try {
-      const result = await sourceService.reloadSources();
-      if (result.success) {
-        showSnackbar(
-          result.message || 'ソースの再読み込みが完了しました',
-          'success',
-        );
-      } else {
-        showSnackbar(
-          result.message || 'ソースの再読み込みに失敗しました',
-          'error',
-        );
-      }
+      await sourceApi.reloadSources({
+        showAlert: false,
+        throwError: true,
+        printErrorLog: true,
+      });
+      addAlert({
+        message: 'ソースの再読み込みが完了しました',
+        severity: 'success',
+      });
     } catch (error) {
-      showSnackbar(
-        `ソースの再読み込みに失敗しました: ${(error as Error).message}`,
-        'error',
-      );
+      addAlert({
+        message: `${(error as Error).message}`,
+        severity: 'error',
+      });
     }
-  };
-
-  // スナックバーを閉じる
-  const handleCloseSnackbar = () => {
-    setSnackbar((prev) => ({ ...prev, open: false }));
   };
 
   return (
@@ -120,10 +98,7 @@ function App() {
           }}
         >
           {/* サイドバー */}
-          <Sidebar
-            onReloadSources={handleReloadSources}
-            showSnackbar={showSnackbar}
-          >
+          <Sidebar onReloadSources={handleReloadSources}>
             <Routes>
               <Route
                 path={ROUTES.CHAT}
@@ -160,13 +135,34 @@ function App() {
             />
           </Routes>
 
-          {/* 通知 */}
-          <SnackbarNotification
-            open={snackbar.open}
-            message={snackbar.message}
-            severity={snackbar.severity}
-            onClose={handleCloseSnackbar}
-          />
+          {/* エラーメッセージ表示 */}
+          {alerts.length > 0 && (
+            <Box
+              sx={{
+                position: 'fixed',
+                top: 20,
+                left: '50%',
+                transform: 'translateX(-50%)',
+                width: 'fit-content',
+                maxWidth: '80%',
+                zIndex: 1300,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 1,
+              }}
+            >
+              {alerts.map((error) => (
+                <Alert
+                  key={error.id}
+                  severity={error.severity}
+                  onClose={() => removeAlert(error.id)}
+                  sx={{ whiteSpace: 'pre-line' }}
+                >
+                  {error.message}
+                </Alert>
+              ))}
+            </Box>
+          )}
         </Box>
       </Router>
     </ThemeProvider>

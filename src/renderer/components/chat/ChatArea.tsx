@@ -4,11 +4,11 @@ import { Box, Divider, Typography } from '@mui/material';
 import { v4 as uuid } from 'uuid';
 import { ChatMessage } from '@/types';
 import { IpcRequestPayload, IpcChannels } from '@/types/ipc';
+import { useAlertStore } from '@/renderer/stores/alertStore';
 import useSettingsStatus from '../../hooks/useSettingsStatus';
 import MessageList from './MessageList';
 import MessageInput, { Attachment } from './MessageInput';
-import { chatService } from '../../service/chatService';
-import AlertManager, { AlertMessage } from '../common/AlertMessage';
+import { ChatApi } from '../../service/chatApi';
 
 // ai-sdk提供のcreateDataStreamResponseを使ってストリーミングレスポンスを取得する場合の関数
 // なぜか適切なヘッダが付与されないので、利用しない
@@ -60,10 +60,11 @@ const customFetch: typeof fetch = async (input, init) => {
   if (typeof input === 'string' && input === '/api/chat') {
     let unsubscribe: () => void;
     const encoder = new TextEncoder();
+    const chatApi = ChatApi.getInstance();
 
     const stream = new ReadableStream({
       start(controller) {
-        unsubscribe = chatService.streamResponse({
+        unsubscribe = chatApi.streamResponse({
           onMessage(raw) {
             controller.enqueue(encoder.encode(raw));
           },
@@ -79,8 +80,11 @@ const customFetch: typeof fetch = async (input, init) => {
           init!.body as string,
         ) as IpcRequestPayload<typeof IpcChannels.CHAT_SEND_MESSAGE>;
         init?.signal?.addEventListener('abort', () => {
-          console.log('Abort signal received, from threadId: ', roomId);
-          window.electron.chat.requestAbort(roomId);
+          chatApi.abortChatRequest(roomId, {
+            showAlert: false,
+            throwError: true,
+            printErrorLog: true,
+          });
           unsubscribe();
           controller.close();
         });
@@ -129,8 +133,6 @@ const fileToDataURL = (file: File): Promise<string> =>
 const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
   const [loading, setLoading] = useState(false);
   const [initialMessages, setInitialMessages] = useState<ChatMessage[]>([]);
-  // useChatからのエラーを表示するための状態
-  const [additionalAlerts, setAdditionalAlerts] = useState<AlertMessage[]>([]);
   const [editMessageId, setEditMessageId] = useState<string>('');
   const [editMessageContent, setEditMessageContent] = useState<string>('');
   const { status: settingsStatus } = useSettingsStatus();
@@ -139,17 +141,21 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   // メッセージ入力状態
   const [input, setInput] = useState<string>('');
+  const addAlert = useAlertStore((state) => state.addAlert);
 
   const isAgentInitializing = settingsStatus.state === 'saving';
 
   // メッセージ履歴を取得
   const fetchMessages = async (roomId: string) => {
+    const chatApi = ChatApi.getInstance();
     setLoading(true);
     try {
-      const chatMessages = await chatService.getChatMessages(roomId);
-      setInitialMessages(chatMessages);
-    } catch (error) {
-      console.error('チャットメッセージの取得に失敗しました:', error);
+      const chatMessages = await chatApi.getChatMessages(roomId, {
+        showAlert: true,
+        throwError: true,
+        printErrorLog: true,
+      });
+      setInitialMessages(chatMessages || []);
     } finally {
       setLoading(false);
     }
@@ -182,9 +188,9 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
 
       // 初回メッセージ送信時にスレッドを作成
       // titleについてはここで、指定してもmemoryのオプションでgenerateTitleをtrueにしていた場合、「New Thread 2025-04-27T08:20:05.694Z」のようなタイトルが自動生成されてしまう
-      if (selectedRoomId && request.messages.length === 1) {
-        chatService.createThread(selectedRoomId, '');
-      }
+      // if (selectedRoomId && request.messages.length === 1) {
+      //   chatApi.createThread(selectedRoomId, '', { showAlert: true });
+      // }
 
       // Return the structured body for your API route
       return {
@@ -200,21 +206,12 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
   // useChatのエラーをアラートとして表示
   useEffect(() => {
     if (error) {
-      setAdditionalAlerts((prev) => [
-        ...prev,
-        {
-          id: uuid(),
-          type: 'error',
-          content: error.message,
-        },
-      ]);
+      addAlert({
+        message: error.message,
+        severity: 'error',
+      });
     }
-  }, [error]);
-
-  // メッセージアラートが閉じられる際の挙動
-  const closeAdditionalAlerts = (id: string) => {
-    setAdditionalAlerts((prev) => prev.filter((alert) => alert.id !== id));
-  };
+  }, [error, addAlert]);
 
   const handleEditStart = (messageId: string) => {
     setEditMessageId(messageId);
@@ -335,10 +332,6 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
         overflow: 'hidden',
       }}
     >
-      <AlertManager
-        additionalAlerts={additionalAlerts}
-        closeAdditionalAlerts={closeAdditionalAlerts}
-      />
       {selectedRoomId ? (
         <>
           {/* メッセージリスト */}

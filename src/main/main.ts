@@ -20,8 +20,6 @@ import {
 } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import log from 'electron-log';
-import { createDataStream, APICallError } from 'ai';
-import { eq } from 'drizzle-orm';
 import {
   ReadableStream,
   WritableStream,
@@ -29,6 +27,7 @@ import {
 } from 'node:stream/web';
 // @ts-ignore
 import { MastraError } from '@mastra/core/error';
+import { APICallError } from 'ai';
 import { getStore } from './store';
 import type { Source } from '@/db/schema';
 import {
@@ -45,9 +44,12 @@ import { resolveHtmlPath } from './lib/util';
 import { ReviewService } from './service/reviewService';
 import { SettingsService } from './service/settingsService';
 import { ChatService } from './service/chatService';
-import { getReviewRepository } from '../db/repository/reviewRepository';
+import { getReviewRepository } from './repository/reviewRepository';
 import { mastra } from '../mastra';
-import { judgeFinishReason } from '../mastra/agents/lib';
+import { getMainLogger } from './lib/logger';
+import { AppError, internalError, normalizeUnknownError } from './lib/error';
+import { formatMessage } from './lib/messages';
+import { SourceService } from './service/sourceService';
 
 class AppUpdater {
   constructor() {
@@ -66,20 +68,15 @@ class AppUpdater {
 // ユーザは利用者のみなのでIDは固定
 const userId = 'user';
 
-const settingsService = new SettingsService();
+const settingsService = SettingsService.getInstance();
 
-const mastraMemory = mastra.getAgent('orchestrator').getMemory();
-// @ts-ignore
-let chatService: ChatService;
+const chatService = ChatService.getInstance();
 
-const reviewService = new ReviewService();
+const reviewService = ReviewService.getInstance();
 
-mastraMemory.then((memory) => {
-  if (!memory) {
-    throw new Error('メモリが初期化されていません');
-  }
-  chatService = new ChatService(memory);
-});
+const sourceService = SourceService.getInstance();
+
+const logger = getMainLogger();
 
 /**
  * 設定の初期化を行う関数
@@ -88,9 +85,10 @@ const initializeSettings = async (): Promise<void> => {
   try {
     // 設定の初期化
     await settingsService.initializeSettings();
-    console.log('設定の初期化が完了しました');
-  } catch (error) {
-    console.error('設定の初期化に失敗しました:', error);
+  } catch (err) {
+    logger.error('設定の初期化に失敗しました:', err);
+    const error = normalizeUnknownError(err);
+    throw error;
   }
 };
 
@@ -99,7 +97,7 @@ const setupStoreHandlers = () => {
     IpcChannels.GET_STORE_VALUE,
     async (
       _,
-      key: string,
+      key: IpcRequestPayloadMap[typeof IpcChannels.GET_STORE_VALUE],
     ): Promise<IpcResponsePayloadMap[typeof IpcChannels.GET_STORE_VALUE]> => {
       const store = getStore();
       return store.get(key);
@@ -110,17 +108,11 @@ const setupStoreHandlers = () => {
     IpcChannels.SET_STORE_VALUE,
     async (
       _,
-      key: string,
-      value: unknown,
+      { key, value }: IpcRequestPayloadMap[typeof IpcChannels.SET_STORE_VALUE],
     ): Promise<IpcResponsePayloadMap[typeof IpcChannels.SET_STORE_VALUE]> => {
-      try {
-        const store = getStore();
-        store.set(key, value);
-        return true;
-      } catch (error) {
-        console.error('設定の保存中にエラーが発生:', error);
-        return false;
-      }
+      const store = getStore();
+      store.set(key, value);
+      return { success: true };
     },
   );
 };
@@ -131,8 +123,9 @@ const setupStoreHandlers = () => {
 // 設定状態取得ハンドラ
 ipcMain.handle(
   IpcChannels.GET_SETTINGS_STATUS,
-  (): IpcResponsePayloadMap[typeof IpcChannels.GET_SETTINGS_STATUS] =>
-    settingsService.getStatus(),
+  (): IpcResponsePayloadMap[typeof IpcChannels.GET_SETTINGS_STATUS] => {
+    return { success: true, data: settingsService.getStatus() };
+  },
 );
 
 // メッセージ削除ハンドラ
@@ -140,18 +133,10 @@ ipcMain.handle(
   IpcChannels.REMOVE_SETTINGS_MESSAGE,
   (
     _,
-    messageId: string,
+    messageId: IpcRequestPayloadMap[typeof IpcChannels.REMOVE_SETTINGS_MESSAGE],
   ): IpcResponsePayloadMap[typeof IpcChannels.REMOVE_SETTINGS_MESSAGE] => {
-    let success = false;
-    let error: string | undefined;
-    try {
-      settingsService.removeMessage(messageId);
-      success = true;
-    } catch (err) {
-      success = false;
-      error = (err as Error).message;
-    }
-    return { success, error };
+    settingsService.removeMessage(messageId);
+    return { success: true };
   },
 );
 
@@ -161,16 +146,8 @@ ipcMain.handle(
   async (): Promise<
     IpcResponsePayloadMap[typeof IpcChannels.REINITIALIZE_SETTINGS]
   > => {
-    try {
-      // 設定変更時はツールを初期化
-      await settingsService.initializeSettings();
-      return { success: true };
-    } catch (error) {
-      return {
-        success: false,
-        error: (error as Error).message,
-      };
-    }
+    await settingsService.initializeSettings();
+    return { success: true };
   },
 );
 
@@ -181,24 +158,12 @@ const setupChatHandlers = () => {
     IpcChannels.CHAT_ABORT_REQUEST,
     async (
       _,
-      threadId,
+      { threadId }: IpcRequestPayloadMap[typeof IpcChannels.CHAT_ABORT_REQUEST],
     ): Promise<
       IpcResponsePayloadMap[typeof IpcChannels.CHAT_ABORT_REQUEST]
     > => {
-      let success = false;
-      let error: string | undefined;
-      try {
-        const controller = chatService.getOrCreateAbortController(threadId);
-        controller.abort();
-        chatService.deleteAbortController(threadId);
-        console.log(`Thread ${threadId} の生成を中断しました`);
-        success = true;
-      } catch (err) {
-        console.error('スレッドの中断中にエラーが発生:', err);
-        success = false;
-        error = (err as Error).message;
-      }
-      return { success, error };
+      chatService.abortGeneration(userId, threadId);
+      return { success: true };
     },
   );
 
@@ -214,17 +179,8 @@ const setupChatHandlers = () => {
     ): Promise<
       IpcResponsePayloadMap[typeof IpcChannels.CHAT_DELETE_MESSAGES_BEFORE_SPECIFIC_ID]
     > => {
-      try {
-        const memory = mastra.getAgent('orchestrator').getMemory();
-        if (!memory) {
-          throw new Error('メモリインスタンスが初期化されていません');
-        }
-        chatService.deleteMessagesBeforeSpecificId(threadId, messageId);
-        return { success: true };
-      } catch (error) {
-        console.error('メッセージ履歴削除中にエラーが発生:', error);
-        return { success: false, error: (error as Error).message };
-      }
+      chatService.deleteMessagesBeforeSpecificId(threadId, messageId);
+      return { success: true };
     },
   );
 
@@ -239,118 +195,7 @@ const setupChatHandlers = () => {
       }: IpcRequestPayloadMap[typeof IpcChannels.CHAT_SEND_MESSAGE],
     ): Promise<IpcResponsePayloadMap[typeof IpcChannels.CHAT_SEND_MESSAGE]> => {
       try {
-        // 新しいAbortControllerを作成
-        const controller = chatService.getOrCreateAbortController(roomId);
-
-        const orchestratorAgent = mastra.getAgent('orchestrator');
-
-        // runtimeContextを作成
-        const runtimeContext = await settingsService.getRuntimeContext();
-
-        // 利用ツールの取得
-        const toolsets = await settingsService.getToolsets();
-
-        // メッセージをストリーミングで送信
-        // const stream = await orchestratorAgent.stream(content, {
-        //   resourceId: 'user', // 固定のリソースID
-        //   toolCallStreaming: true,
-        //   instructions: await getOrchestratorSystemPrompt(
-        //     mastraStatus.tools ?? {
-        //       redmine: false,
-        //       gitlab: false,
-        //       mcp: false,
-        //     },
-        //   ),
-        //   threadId: roomId, // チャットルームIDをスレッドIDとして使用
-        //   maxSteps: 30, // ツールの利用上限
-        //   onFinish: () => {
-        //     // ストリーミングが完了したときの処理
-        //     // フロントエンドに完了通知を送信
-        //     event.sender.send(IpcChannels.CHAT_COMPLETE);
-        //   },
-        // });
-
-        // // DataStreamを生成
-        // const dataStream = createDataStream({
-        //   execute(writer) {
-        //     stream.mergeIntoDataStream(writer);
-        //   },
-        //   onError(error) {
-        //     // エラーが発生したときの処理
-        //     console.error('ストリーミング中にエラーが発生:', error);
-        //     if (error == null) return 'unknown error';
-        //     if (typeof error === 'string') return error;
-        //     if (error instanceof Error) return error.message;
-        //     return JSON.stringify(error);
-        //   },
-        // });
-
-        // DataStreamを生成
-        const dataStream = createDataStream({
-          async execute(writer) {
-            // ストリーミングの開始を通知（このデータは利用されない、あくまで通知するためだけ）
-            writer.writeMessageAnnotation({
-              type: 'status',
-              value: 'processing',
-            });
-            // streaming falseの場合のメッセージ送信処理
-            const res = await orchestratorAgent.generate(messages, {
-              runtimeContext,
-              toolsets,
-              resourceId: 'user', // 固定のリソースID
-              threadId: roomId, // チャットルームIDをスレッドIDとして使用
-              maxSteps: 30, // ツールの利用上限
-              abortSignal: controller.signal, // 中断シグナルを設定
-              onStepFinish: (stepResult) => {
-                // https://ai-sdk.dev/docs/ai-sdk-ui/stream-protocol
-                // 上記を参考にai-sdkのストリームプロトコルに従ってメッセージを送信
-                writer.write(`0:${JSON.stringify(stepResult.text)}\n`);
-                stepResult.toolCalls.forEach((toolCall) => {
-                  writer.write(`9:${JSON.stringify(toolCall)}\n`);
-                });
-                stepResult.toolResults.forEach((toolResult) => {
-                  writer.write(`a:${JSON.stringify(toolResult)}\n`);
-                });
-                writer.write(
-                  `e:${JSON.stringify({ finishReason: stepResult.finishReason, ...stepResult.usage })}\n`,
-                );
-              },
-            });
-            const { success, reason } = judgeFinishReason(res.finishReason);
-            if (!success) {
-              // 正常終了でない場合はエラーを投げる
-              throw new Error(reason);
-            }
-            writer.write(
-              `d:${JSON.stringify({ finishReason: res.finishReason, ...res.usage })}\n`,
-            );
-            event.sender.send(IpcChannels.CHAT_COMPLETE);
-            // 処理が完了したらAbortControllerを削除
-            chatService.deleteAbortController(roomId);
-          },
-          onError(error) {
-            // エラーが発生したときの処理
-            console.error('テキスト生成中にエラーが発生:', error);
-            // エラー時もAbortControllerを削除
-            chatService.deleteAbortController(roomId);
-            let errorDetail: string;
-            if (
-              error instanceof MastraError &&
-              APICallError.isInstance(error.cause)
-            ) {
-              // APIコールエラーの場合はresponseBodyの内容を取得
-              errorDetail = error.cause.message;
-              if (error.cause.responseBody) {
-                errorDetail += `:\n${error.cause.responseBody}`;
-              }
-            } else if (error instanceof Error) {
-              errorDetail = error.message;
-            } else {
-              errorDetail = JSON.stringify(error);
-            }
-            return `テキスト生成中にエラーが発生しました:\n${errorDetail}`;
-          },
-        });
+        await chatService.generate(userId, roomId, messages, event);
 
         // テキストストリームを処理
         // @ts-ignore
@@ -361,14 +206,35 @@ const setupChatHandlers = () => {
 
         return { success: true };
       } catch (error) {
-        console.error('メッセージ送信中にエラーが発生:', error);
+        let errorDetail = '不明なエラー';
         // エラー時もAbortControllerを削除
-        chatService.deleteAbortController(roomId);
+        chatService.deleteAbortController(userId, roomId);
+        if (
+          error instanceof MastraError &&
+          APICallError.isInstance(error.cause)
+        ) {
+          errorDetail = error.cause.message;
+        } else if (error instanceof AppError) {
+          event.sender.send(IpcChannels.CHAT_ERROR, {
+            message: error.message,
+          });
+          event.sender.send(IpcChannels.CHAT_COMPLETE);
+          throw error;
+        }
+        const errorMessage = formatMessage('CHAT_GENERATE_ERROR', {
+          detail: errorDetail,
+        });
         event.sender.send(IpcChannels.CHAT_ERROR, {
-          message: `${(error as Error).message}`,
+          message: errorMessage,
         });
         event.sender.send(IpcChannels.CHAT_COMPLETE);
-        return { success: false, error: (error as Error).message };
+
+        throw internalError({
+          expose: true,
+          messageCode: 'CHAT_GENERATE_ERROR',
+          messageParams: { detail: errorDetail },
+          cause: error,
+        });
       }
     },
   );
@@ -379,13 +245,8 @@ const setupChatHandlers = () => {
     async (): Promise<
       IpcResponsePayloadMap[typeof IpcChannels.CHAT_GET_ROOMS]
     > => {
-      try {
-        const threads = await chatService.getThreadList(userId);
-        return threads;
-      } catch (error) {
-        console.error('チャットルーム一覧の取得中にエラーが発生:', error);
-        return [];
-      }
+      const threads = await chatService.getThreadList(userId);
+      return { success: true, data: threads };
     },
   );
 
@@ -394,14 +255,10 @@ const setupChatHandlers = () => {
     IpcChannels.CHAT_GET_MESSAGES,
     async (
       _,
-      threadId: string,
+      threadId: IpcRequestPayloadMap[typeof IpcChannels.CHAT_GET_MESSAGES],
     ): Promise<IpcResponsePayloadMap[typeof IpcChannels.CHAT_GET_MESSAGES]> => {
-      try {
-        return chatService.getThreadMessages(threadId);
-      } catch (error) {
-        console.error('チャットメッセージの取得中にエラーが発生:', error);
-        return [];
-      }
+      const messages = await chatService.getThreadMessages(threadId);
+      return { success: true, data: messages };
     },
   );
 
@@ -410,16 +267,10 @@ const setupChatHandlers = () => {
     IpcChannels.CHAT_DELETE_ROOM,
     async (
       _,
-      threadId: string,
+      threadId: IpcRequestPayloadMap[typeof IpcChannels.CHAT_DELETE_ROOM],
     ): Promise<IpcResponsePayloadMap[typeof IpcChannels.CHAT_DELETE_ROOM]> => {
-      try {
-        await chatService.deleteThread(threadId);
-
-        return { success: true };
-      } catch (error) {
-        console.error('チャットルームの削除中にエラーが発生:', error);
-        return { success: false, error: (error as Error).message };
-      }
+      await chatService.deleteThread(userId, threadId);
+      return { success: true };
     },
   );
 
@@ -432,14 +283,8 @@ const setupChatHandlers = () => {
     ): Promise<
       IpcResponsePayloadMap[typeof IpcChannels.CHAT_CREATE_THREAD]
     > => {
-      try {
-        await chatService.createThread(roomId, title, userId);
-
-        return { success: true };
-      } catch (error) {
-        console.error('チャットルームの作成中にエラーが発生:', error);
-        return { success: false, error: (error as Error).message };
-      }
+      await chatService.createThread(roomId, title, userId);
+      return { success: true };
     },
   );
 };
@@ -449,12 +294,17 @@ const setupChatHandlers = () => {
 const setupFsHandlers = () => {
   ipcMain.handle(
     IpcChannels.FS_CHECK_PATH_EXISTS,
-    async (_, filePath: string): Promise<boolean> => {
+    async (
+      _,
+      filePath: IpcRequestPayloadMap[typeof IpcChannels.FS_CHECK_PATH_EXISTS],
+    ): Promise<
+      IpcResponsePayloadMap[typeof IpcChannels.FS_CHECK_PATH_EXISTS]
+    > => {
       try {
         await fs.access(filePath);
-        return true;
+        return { success: true, data: true };
       } catch {
-        return false;
+        return { success: true, data: false };
       }
     },
   );
@@ -463,36 +313,27 @@ const setupFsHandlers = () => {
     IpcChannels.FS_SHOW_OPEN_DIALOG,
     async (
       _,
-      options: {
-        title: string;
-        filters?: { name: string; extensions: string[] }[];
-        properties?: (
-          | 'openFile'
-          | 'openDirectory'
-          | 'multiSelections'
-          | 'showHiddenFiles'
-          | 'createDirectory'
-          | 'promptToCreate'
-          | 'noResolveAliases'
-          | 'treatPackageAsDirectory'
-          | 'dontAddToRecent'
-        )[];
-      },
-    ) => {
+      options: IpcRequestPayloadMap[typeof IpcChannels.FS_SHOW_OPEN_DIALOG],
+    ): Promise<
+      IpcResponsePayloadMap[typeof IpcChannels.FS_SHOW_OPEN_DIALOG]
+    > => {
       const result = await dialog.showOpenDialog(options);
-      return result;
+      return { success: true, data: result };
     },
   );
   ipcMain.handle(
     IpcChannels.FS_READ_FILE,
-    async (_, filePath: string): Promise<Uint8Array> => {
-      try {
-        const data = await fs.readFile(filePath);
-        return new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
-      } catch (error) {
-        console.error('ファイルの読み込み中にエラーが発生:', error);
-        throw error;
-      }
+    async (
+      _,
+      filePath: IpcRequestPayloadMap[typeof IpcChannels.FS_READ_FILE],
+    ): Promise<IpcResponsePayloadMap[typeof IpcChannels.FS_READ_FILE]> => {
+      const data = await fs.readFile(filePath);
+      const result = new Uint8Array(
+        data.buffer,
+        data.byteOffset,
+        data.byteLength,
+      );
+      return { success: true, data: result };
     },
   );
 };
@@ -504,17 +345,12 @@ const setupSourceHandlers = () => {
     async (): Promise<
       IpcResponsePayloadMap[typeof IpcChannels.SOURCE_RELOAD]
     > => {
-      try {
-        const registrationManager = SourceRegistrationManager.getInstance();
-        await registrationManager.registerAllFiles();
-        return { success: true, message: 'ソースの再読み込みが完了しました' };
-      } catch (error) {
-        console.error('ソースの再読み込み中にエラーが発生:', error);
-        return {
-          success: false,
-          message: `エラーが発生しました: ${(error as Error).message}`,
-        };
-      }
+      const registrationManager = SourceRegistrationManager.getInstance();
+      await registrationManager.registerAllFiles();
+      return {
+        success: true,
+        data: { message: 'ドキュメントの再読み込みが完了しました' },
+      };
     },
   );
 
@@ -524,26 +360,15 @@ const setupSourceHandlers = () => {
     async (): Promise<
       IpcResponsePayloadMap[typeof IpcChannels.SOURCE_GET_ALL]
     > => {
-      try {
-        const db = await getDb();
-        const sourcesList = await db.select().from(sources);
-        return {
-          success: true,
-          sources: sourcesList.map((source: Source) => ({
-            ...source,
-            // ISO 8601形式の日時文字列をDateオブジェクトに変換してから文字列に戻す
-            // これにより、フロントエンドで一貫した日時表示が可能になる
-            createdAt: new Date(source.createdAt).toISOString(),
-            updatedAt: new Date(source.updatedAt).toISOString(),
-          })),
-        };
-      } catch (error) {
-        console.error('ソース一覧の取得中にエラーが発生:', error);
-        return {
-          success: false,
-          error: (error as Error).message,
-        };
-      }
+      const allSources = await sourceService.getAllSources();
+      const data = allSources.map((source: Source) => ({
+        ...source,
+        // ISO 8601形式の日時文字列をDateオブジェクトに変換してから文字列に戻す
+        // これにより、フロントエンドで一貫した日時表示が可能になる
+        createdAt: new Date(source.createdAt).toISOString(),
+        updatedAt: new Date(source.updatedAt).toISOString(),
+      }));
+      return { success: true, data };
     },
   );
 
@@ -556,20 +381,8 @@ const setupSourceHandlers = () => {
     ): Promise<
       IpcResponsePayloadMap[typeof IpcChannels.SOURCE_UPDATE_ENABLED]
     > => {
-      try {
-        const db = await getDb();
-        await db
-          .update(sources)
-          .set({ isEnabled })
-          .where(eq(sources.id, sourceId));
-        return { success: true };
-      } catch (error) {
-        console.error('ソースの有効/無効状態の更新中にエラーが発生:', error);
-        return {
-          success: false,
-          error: (error as Error).message,
-        };
-      }
+      await sourceService.updateSourceEnabled(sourceId, isEnabled);
+      return { success: true };
     },
   );
 };
@@ -581,20 +394,8 @@ const setupReviewHandlers = () => {
     async (): Promise<
       IpcResponsePayloadMap[typeof IpcChannels.REVIEW_GET_HISTORIES]
     > => {
-      try {
-        const histories = await reviewService.getReviewHistories();
-
-        return {
-          success: true,
-          histories,
-        };
-      } catch (error) {
-        console.error('レビュー履歴の取得中にエラーが発生:', error);
-        return {
-          success: false,
-          error: (error as Error).message,
-        };
-      }
+      const histories = await reviewService.getReviewHistories();
+      return { success: true, data: histories };
     },
   );
 
@@ -607,26 +408,8 @@ const setupReviewHandlers = () => {
     ): Promise<
       IpcResponsePayloadMap[typeof IpcChannels.REVIEW_GET_HISTORY_DETAIL]
     > => {
-      try {
-        const repository = getReviewRepository();
-        const reviewHistory = await repository.getReviewHistory(historyId);
-        const checklistResults =
-          await reviewService.getReviewHistoryDetail(historyId);
-
-        return {
-          success: true,
-          checklistResults,
-          additionalInstructions:
-            reviewHistory?.additionalInstructions || undefined,
-          commentFormat: reviewHistory?.commentFormat || undefined,
-        };
-      } catch (error) {
-        console.error('チェックリストの取得中にエラーが発生:', error);
-        return {
-          success: false,
-          error: (error as Error).message,
-        };
-      }
+      const detail = await reviewService.getReviewHistoryDetail(historyId);
+      return { success: true, data: detail };
     },
   );
 
@@ -639,17 +422,8 @@ const setupReviewHandlers = () => {
     ): Promise<
       IpcResponsePayloadMap[typeof IpcChannels.REVIEW_DELETE_HISTORY]
     > => {
-      try {
-        await reviewService.deleteReviewHistory(historyId);
-
-        return { success: true };
-      } catch (error) {
-        console.error('レビュー履歴の削除中にエラーが発生:', error);
-        return {
-          success: false,
-          error: (error as Error).message,
-        };
-      }
+      await reviewService.deleteReviewHistory(historyId);
+      return { success: true };
     },
   );
 
@@ -667,26 +441,21 @@ const setupReviewHandlers = () => {
     ): Promise<
       IpcResponsePayloadMap[typeof IpcChannels.REVIEW_EXTRACT_CHECKLIST_CALL]
     > => {
-      try {
-        const manager = SourceReviewManager.getInstance();
-
-        // 非同期でチェックリスト抽出処理を実行
-        const result = manager.extractChecklistWithNotification(
-          reviewHistoryId,
-          files,
-          event,
-          documentType,
-          checklistRequirements,
-        );
-
-        return result;
-      } catch (error) {
-        console.error('チェックリスト抽出処理開始時にエラーが発生:', error);
+      const manager = SourceReviewManager.getInstance();
+      const result = manager.extractChecklistWithNotification(
+        reviewHistoryId,
+        files,
+        event,
+        documentType,
+        checklistRequirements,
+      );
+      if (!result.success) {
         return {
           success: false,
-          error: (error as Error).message,
+          error: { message: result.error!, code: 'INTERNAL' },
         };
       }
+      return { success: true };
     },
   );
 
@@ -702,20 +471,8 @@ const setupReviewHandlers = () => {
     ): Promise<
       IpcResponsePayloadMap[typeof IpcChannels.REVIEW_UPDATE_CHECKLIST]
     > => {
-      try {
-        const result = await reviewService.updateChecklists(
-          reviewHistoryId,
-          checklistEdits,
-        );
-
-        return result;
-      } catch (error) {
-        console.error('チェックリストの更新中にエラーが発生:', error);
-        return {
-          success: false,
-          error: (error as Error).message,
-        };
-      }
+      await reviewService.updateChecklists(reviewHistoryId, checklistEdits);
+      return { success: true };
     },
   );
 
@@ -733,40 +490,45 @@ const setupReviewHandlers = () => {
     ): Promise<
       IpcResponsePayloadMap[typeof IpcChannels.REVIEW_EXECUTE_CALL]
     > => {
-      try {
-        const manager = SourceReviewManager.getInstance();
+      reviewService.updateReviewHistoryAdditionalInstructionsAndCommentFormat(
+        reviewHistoryId,
+        additionalInstructions,
+        commentFormat,
+      );
+      const manager = SourceReviewManager.getInstance();
 
-        // 非同期でレビュー実行処理を実行
-        manager.executeReviewWithNotification(
-          reviewHistoryId,
-          files,
-          event,
-          additionalInstructions,
-          commentFormat,
-        );
+      // 非同期でレビュー実行処理を実行
+      const result = manager.executeReviewWithNotification(
+        reviewHistoryId,
+        files,
+        event,
+        additionalInstructions,
+        commentFormat,
+      );
 
-        return { success: true };
-      } catch (error) {
-        console.error('レビュー実行処理開始中にエラーが発生:', error);
+      if (!result.success) {
         return {
           success: false,
-          error: (error as Error).message,
+          error: { message: result.error!, code: 'INTERNAL' },
         };
       }
+
+      return { success: true };
     },
   );
 };
 
 // ソース登録処理の実行
 const initializeSourceRegistration = async () => {
-  console.log('ソースファイルの初期登録を開始します...');
+  logger.debug('ドキュメントの初期登録を開始します');
   const registrationManager = SourceRegistrationManager.getInstance();
 
   // 処理中のソースを削除
+  logger.debug('処理中及び失敗しているドキュメントの実行履歴をクリアしています');
   await registrationManager.clearProcessingSources();
-  console.log('処理中のソースを削除しました');
 
   // ソース登録を実行
+  logger.debug('ドキュメントの登録を実行しています');
   await registrationManager.registerAllFiles();
   console.log('ソースファイルの初期登録が完了しました');
 };

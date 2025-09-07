@@ -18,7 +18,7 @@ import { MoreVert as MoreIcon } from '@mui/icons-material';
 import AddCircleOutlineOutlinedIcon from '@mui/icons-material/AddCircleOutlineOutlined';
 import { v4 as uuidv4 } from 'uuid';
 import type { ReviewHistory } from '../../../db/schema';
-import { reviewService } from '../../service/reviewService';
+import { ReviewApi } from '../../service/reviewApi';
 
 interface ReviewHistoryListProps {
   selectedReviewHistoryId?: string | null;
@@ -38,13 +38,20 @@ function ReviewHistoryList({
   // レビュー履歴一覧を取得
   const fetchReviewHistories = useCallback(async () => {
     try {
-      const histories = await reviewService.getHistories();
-      // updatedAtで降順ソート
-      const sortedHistories = [...histories].sort(
-        (a, b) =>
-          new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
-      );
-      setReviewHistories(sortedHistories);
+      const reviewApi = ReviewApi.getInstance();
+      const histories = await reviewApi.getHistories({
+        showAlert: false,
+        throwError: true,
+        printErrorLog: false,
+      });
+      if (histories && histories.length > 0) {
+        // updatedAtで降順ソート
+        const sortedHistories = [...histories].sort(
+          (a, b) =>
+            new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+        );
+        setReviewHistories(sortedHistories);
+      }
       setLoading(false);
     } catch (error) {
       console.error(error);
@@ -77,7 +84,12 @@ function ReviewHistoryList({
     if (!activeReviewId) return;
 
     try {
-      await reviewService.deleteHistory(activeReviewId);
+      const reviewApi = ReviewApi.getInstance();
+      await reviewApi.deleteHistory(activeReviewId, {
+        showAlert: true,
+        throwError: true,
+        printErrorLog: false,
+      });
       // 削除した履歴が選択中だった場合は選択を解除
       if (selectedReviewHistoryId === activeReviewId) {
         onReviewHistorySelect(null);

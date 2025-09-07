@@ -1,5 +1,6 @@
 import React, { useState, useCallback } from 'react';
-import { Box, AlertColor } from '@mui/material';
+import { Box } from '@mui/material';
+import { useAlertStore } from '@/renderer/stores/alertStore';
 import SourceListModal from '../common/SourceListModal';
 import SettingsModal from '../common/SettingsModal';
 import SidebarHeader from './SidebarHeader';
@@ -7,15 +8,10 @@ import SidebarFooter from './SidebarFooter';
 
 interface SidebarProps {
   onReloadSources: () => void;
-  showSnackbar: (message: string, severity: AlertColor) => void;
   children?: React.ReactNode;
 }
 
-function Sidebar({
-  onReloadSources,
-  showSnackbar,
-  children = null,
-}: SidebarProps) {
+function Sidebar({ onReloadSources, children = null }: SidebarProps) {
   const [isSourceListOpen, setIsSourceListOpen] = useState(false);
   const [settingsHasError, setSettingsHasError] = useState(false);
   const [sourceStatus, setSourceStatus] = useState<{
@@ -25,10 +21,12 @@ function Sidebar({
 
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
 
+  const { addAlert } = useAlertStore((state) => ({ addAlert: state.addAlert }));
+
   const onSettingsUpdated = useCallback(() => {
     // 設定更新完了時の処理
-    showSnackbar('設定を更新しました', 'success');
-  }, [showSnackbar]);
+    addAlert({ message: '設定を更新しました', severity: 'success' });
+  }, [addAlert]);
 
   // 設定モーダルを開く
   const handleSettingsClick = () => {
@@ -81,7 +79,6 @@ function Sidebar({
         onClose={() => setIsSourceListOpen(false)}
         onReloadSources={onReloadSources}
         onStatusUpdate={setSourceStatus}
-        showSnackbar={showSnackbar}
       />
 
       {/* 設定モーダル */}

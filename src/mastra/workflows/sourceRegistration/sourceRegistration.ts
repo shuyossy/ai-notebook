@@ -7,8 +7,8 @@ import { MastraError } from '@mastra/core/error';
 import { z } from 'zod';
 import { stepStatus } from '../types';
 import { baseStepOutputSchema } from '../schema';
-import { getSourceRepository } from '../../../db/repository/sourceRepository';
-import { createRuntimeContext, judgeFinishReason } from '../../agents/lib';
+import { getSourceRepository } from '../../../main/repository/sourceRepository';
+import { createRuntimeContext, judgeFinishReason } from '../../lib/agentUtils';
 
 const triggerSchema = z.object({
   filePath: z.string().describe('登録するソースのファイルパス'),
@@ -60,7 +60,7 @@ const analyzeSourceStep = createStep({
       });
 
       const analysisResult = await summarizeSourceAgent.generate(content, {
-        runtimeContext: createRuntimeContext(),
+        runtimeContext: await createRuntimeContext(),
         output: outputSchema,
       });
 
@@ -155,7 +155,7 @@ const extractTopicAndSummaryStep = createStep({
       });
 
       const analysisResult = await summarizeTopicAgent.generate(content, {
-        runtimeContext: createRuntimeContext(),
+        runtimeContext: await createRuntimeContext(),
         output: outputSchema,
       });
       const { success, reason } = judgeFinishReason(

@@ -105,15 +105,20 @@ ElectronのIPCを使用してフロントエンド・バックエンド間の通
 - 環境変数とランタイム設定の分離
 
 ### その他代表的なフォルダ・ファイル
-- `src/main/types`：アプリで利用する型・zodスキーマの定義
-  - `index.ts`：アプリ全体で利用する型定義
-  - `ipc.ts`：Electron IPC通信で利用する型定義
+- `src/types`：アプリで利用する型・zodスキーマの定義
+  - `src/types/index.ts`：アプリ全体で利用する型定義のエントリーポイント（ただし、個別の機能等で型を定義する場合は各機能ディレクトリに作成しているので別途参照が必要）
+  - `src/types/ipc.ts`：Electron IPC通信で利用する型定義
+- `src/db`: データベース定義（スキーマやDB接続情報）
+- `src/repository`: データアクセス層
 - `src/main`: Electronのメインプロセス関連のコード
   - `src/main.ts`: Electronのメインプロセスのエントリポイント、IPC通信のハンドラの具体的な処理の定義やアプリケーションの初期化処理などを含む
-  - `src/main/preload`: ElectronのPreloadスクリプト、レンダラープロセスに公開するハンドラを定義
+  - `src/main/preload.ts`: ElectronのPreloadスクリプト、レンダラープロセスに公開するハンドラを定義(rendererとの境界にあたるため、ここで一元的にエラーハンドリングを実施している)
   - `src/main/store.ts`: electron-storeを利用してアプリケーションの設定や状態の保存・取得を行う、ここではstoreの初期化や設定の定義を行う
-  - `src/main/utils`: メインプロセスで利用するユーティリティ関数
-    - `src/main/utils/fileExtractor.ts`: 登録されたソースのテキスト情報を抽出する関数
+  - `src/main/lib`: メインプロセスで利用するライブラリ群
+    - `src/main/lib/logger.ts`: アプリ内で利用するロガーを提供
+    - `src/mian/lib/error.ts`: アプリで利用するエラー定義
+    - `src/main/lib/message.ts`: アプリ内で利用するメッセージテンプレートを解決し、メッセージを提供する関数を提供（メッセージテンプレートはこちら`src/messages/ja/template.ts`）
+    - `src/main/lib/utils/fileExtractor.ts`: 登録されたソースのテキスト情報を抽出する関数
 - `src/renderer/components`：Reactコンポーネント
   - `src/renderer/components/chat`: チャット機能のコンポーネント
   - `src/renderer/components/review`: レビュー機能のコンポーネント
@@ -121,7 +126,7 @@ ElectronのIPCを使用してフロントエンド・バックエンド間の通
   - `src/renderer/components/common`: アプリ共通のコンポーネント
   - `src/renderer/components/sidebar`: サイドバー共通のコンポーネント
   - `src/renderer/hooks`: フック定義をまとめたディレクトリ
-  - `src/renderer/service`: フロントエンドから利用するサービス定義をまとめたディレクトリ
+  - `src/renderer/service`: フロントエンドから利用するサービス層で、外部アクセスロジックもここで管理する(~Api.ts)
   - `src/renderer/stores`: zustandで管理するstate定義
 - `src/mastra`: Mastraを利用したAI関連のコード
   - `src/mastra/agents/prompt.ts`: Mastraのエージェントのプロンプト定義を一箇所に集約（エージェントやワークフロー内で利用するプロンプトを定義）
@@ -153,3 +158,49 @@ ElectronのIPCを使用してフロントエンド・バックエンド間の通
   - テストの説明は、何をテストしているのか、どのような条件でテストが行われるのかを明確に記述すること
 - テストの書き方で不明点があれば次のディレクトリ配下のテストコードを参考にすること
   - src/__tests__/integration
+
+## 実装上の注意
+- Mastraについては実装する際はまずMCPでドキュメントや実装例を参考にしてから正確な情報やベストプラクティスに基づいてコーディングすること
+- Mastra workflowの作成時は既存のスタイルを踏襲すること
+- プロジェクト全体を把握して、全ての実装が必要箇所を正しく洗い出してから実装すること
+- 既存資源（型情報やコンポーネントなど）を積極的に活用して効率的に実装すること
+  - 既存のコードの修正は真に必要な場合に限ること
+- UIは実際に市場に投入できるくらいレベルの高いUIにすること
+- TypeScriptを利用して型安全なコードにすること
+- プロンプトは英語で記載すること
+  - プロンプトの内容は経験豊富なプロンプトエンジニアとしてベストプラクティスに基づいて実装すること
+  - 一般的で自然な英語表現にすること
+- コードのコメントは日本語で記載すること
+- Reactライブラリが使えるのであれば積極的に利用すること
+    - 特にUIについてはMUIを第一優先に使い、カスタマイズしたい場合はshadcn/uiを利用すること
+    - ライブラリを追加する際は安定稼働バージョンを採用すること
+- eslintについては単純なフォーマットエラーの場合は対応する必要はない
+- IDEからエラー内容を読み取り、必要があれば確り対応すること
+- `src/main/preload.ts`にてエラーを一元管理しているため、IPCハンドラ内のサービスロジックにおいては基本的にはエラーをtry-catchしてハンドリングする必要はない
+  - ただし、ユーザにエラーメッセージを通知する必要がある場合は適切なエラーハンドリングの下、`src/mian/lib/error.ts`にて提供されているAppErrorをthrowすること
+- テストについては指示されない限り、実行も修正もしなくてよい
+
+## 現在実施中のタスク
+大規模リファクタリング
+- エラー処理の改善
+  - Main側：完了
+    - `src/mian/lib/error.ts`でAppError例外の導入
+    - IPCハンドラのエラーやレスポンスについて、`src/main/preload.ts`にて一元的に管理するラッパを導入
+  Renderer側：一部未済
+    - 元々`src/renderer/service/~Service.ts`というモジュールにて外部IPC通信を管理していたが、このファイルを全て削除
+    - 新規に`src/renderer/service/~Api.ts`というモジュールを作成し、外部通信IFを提供する
+
+
+### 依頼タスク
+- rendererのリファクタリング
+  - 現在、renderer側で完成している部分は以下です。これらを参考に残りのリファクタリングを完成させてください。
+    - `src/renderer/components/chat/ChatArea.tsx`
+    - `src/renderer/components/chat/ChatRoomList.tsx`
+    - `src/renderer/components/review/ReviewArea.tsx`
+    - `src/renderer/lib/apiUtils.ts`
+    - `src/renderer/service/chatApi.ts`
+    - `src/renderer/service/reviewApi.ts`
+  - リファクタリング方針
+    - window.~で直接IPC通信を発行するのではなく、`src/renderer/service/~Api.ts`（外部通信IF）を経由させる
+    - renderer配下の全てのコードについて、既存の`src/renderer/service/~Service.ts`を呼び出し部について全てあげ出し（tsエラーの一覧を調べるのが簡単か？）、上記外部通信IFを適切に呼び出す
+    - Main側コード、テストコードでも型エラーが出ているが、ここについては対応不要（ただし、renderer側全ての型エラーに対応すること）

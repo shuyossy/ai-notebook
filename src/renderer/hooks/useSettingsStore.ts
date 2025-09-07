@@ -73,7 +73,7 @@ const useSettingsStore = () => {
     api: { key: '', url: '', model: '' },
     redmine: { endpoint: '', apiKey: '' },
     gitlab: { endpoint: '', apiKey: '' },
-    mcp: { serverConfigText: '{}' },
+    mcp: { serverConfig: '{}' },
     systemPrompt: { content: '' },
   });
 
@@ -84,7 +84,7 @@ const useSettingsStore = () => {
   //   api: { key: '', url: '', model: '' },
   //   redmine: { endpoint: '', apiKey: '' },
   //   gitlab: { endpoint: '', apiKey: '' },
-  //   mcp: { serverConfigText: '{}' },
+  //   mcp: { serverConfig: '{}' },
   //   systemPrompt: { content: '' },
   // });
 
@@ -173,9 +173,7 @@ const useSettingsStore = () => {
         redmine: redmineStore ?? { endpoint: '', apiKey: '' },
         gitlab: gitlabStore ?? { endpoint: '', apiKey: '' },
         mcp: {
-          serverConfigText: mcpStore.serverConfigText ?? {
-            serverConfigText: '{}',
-          },
+          serverConfig: mcpStore.serverConfig ?? '{}',
         },
         systemPrompt: systemPromptStore ?? { content: '' },
       };

@@ -13,12 +13,16 @@ import type { TextItem } from 'pdfjs-dist/types/src/display/api';
 // その際、動的にrequire("@napi-rs/canvas")が実行されるが、本番環境だとモジュールが見つけられないエラーになる
 // releaseディレクトリに@napi-rs/canvasを追加して解決を試みたが、それでも同様にモジュールが見つけられないエラーが発生するため、予め@napi-rs/canvasを呼び出してpolyfillを実行しておく
 import canvas from '@napi-rs/canvas';
+import { getMainLogger } from './logger';
+import { internalError } from './error';
 
 (globalThis as any).DOMMatrix = canvas.DOMMatrix;
 (globalThis as any).ImageData = canvas.ImageData;
 (globalThis as any).Path2D = canvas.Path2D;
 
 const execFileP = promisify(execFile);
+
+const logger = getMainLogger();
 
 /** キャッシュ対象となるファイルの拡張子 */
 const CACHE_TARGET_EXTENSIONS = [
@@ -40,13 +44,6 @@ export interface ExtractionResult {
     size: number;
     path: string;
   };
-}
-
-/** ファイル抽出エラーの型定義 */
-interface FileExtractionError extends Error {
-  code: string;
-  filePath: string;
-  fileType: string;
 }
 
 /** 多様なファイル形式からテキストを抽出するユーティリティクラス */
@@ -78,8 +75,13 @@ export default class FileExtractor {
    * 指定されたファイルがキャッシュ対象かどうかを判定
    */
   public static isCacheTarget(filePath: string): boolean {
-    const ext = path.extname(filePath).toLowerCase();
-    return CACHE_TARGET_EXTENSIONS.includes(ext);
+    try {
+      const ext = path.extname(filePath).toLowerCase();
+      return CACHE_TARGET_EXTENSIONS.includes(ext);
+    } catch(error) {
+      logger.error('ファイルの拡張子の取得に失敗しました:', error);
+      return false;
+    }
   }
 
   /**
@@ -90,8 +92,10 @@ export default class FileExtractor {
       const cachePath = this.getCacheFilePath(filePath);
       await fs.unlink(cachePath);
     } catch (error) {
+      // キャッシュが削除できない場合は大きな問題にならないのでエラーは握りつぶす
+      // ファイルが存在するが、取り出せない場合(≠ENOENT)はログに出す
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-        console.error('キャッシュの削除に失敗しました:', error);
+        logger.error('キャッシュの削除に失敗しました:', error);
       }
     }
   }
@@ -105,8 +109,10 @@ export default class FileExtractor {
       const content = await fs.readFile(cachePath, 'utf-8');
       return content;
     } catch (error) {
+      // ファイルが存在しない場合は null を返す
+      // ファイルが存在するが、取り出せない場合(≠ENOENT)はログに出す
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-        console.error('キャッシュの読み込みに失敗しました:', error);
+        logger.error('キャッシュの読み込みに失敗しました:', filePath, error);
       }
       return null;
     }
@@ -123,7 +129,8 @@ export default class FileExtractor {
       const cachePath = this.getCacheFilePath(filePath);
       await fs.writeFile(cachePath, content, 'utf-8');
     } catch (error) {
-      console.error('キャッシュの保存に失敗しました:', error);
+      // キャッシュが保存できない場合は大きな問題にならないのでエラーは握りつぶす
+      logger.error('キャッシュの保存に失敗しました:', error);
     }
   }
 
@@ -190,12 +197,13 @@ export default class FileExtractor {
         },
       };
     } catch (error) {
-      throw this.createError(
-        'extraction_failed',
-        `${filePath} のテキスト抽出に失敗しました: ${(error as Error).message}`,
-        filePath,
-        extension,
-      );
+      logger.error('ファイルのテキスト抽出に失敗しました:', filePath, error);
+      throw internalError({
+        expose: true,
+        messageCode: 'FILE_TEXT_EXTRACTION_ERROR',
+        messageParams: { path: filePath },
+        cause: error,
+      });
     }
   }
 
@@ -229,12 +237,13 @@ export default class FileExtractor {
     try {
       return await fs.readFile(filePath, 'utf-8');
     } catch (error) {
-      throw this.createError(
-        'txt_extraction_failed',
-        `テキストファイルの読み込みに失敗しました: ${(error as Error).message}`,
-        filePath,
-        '.txt',
-      );
+      logger.error('テキストファイルの読み込みに失敗しました:', filePath, error);
+      throw internalError({
+        expose: true,
+        messageCode: 'FILE_TEXT_EXTRACTION_ERROR',
+        messageParams: { path: filePath },
+        cause: error,
+      });
     }
   }
 
@@ -448,23 +457,5 @@ try {
 
     await pdf.destroy();
     return result.trim();
-  }
-
-  /* ------------------------------------------------------------------ */
-  /*  共通エラーヘルパ                                                  */
-  /* ------------------------------------------------------------------ */
-
-  private static createError(
-    code: string,
-    message: string,
-    filePath: string,
-    fileType: string,
-  ): FileExtractionError {
-    const err = new Error(message) as FileExtractionError;
-    err.code = code;
-    err.filePath = filePath;
-    err.fileType = fileType;
-    err.name = 'FileExtractionError';
-    return err;
   }
 }

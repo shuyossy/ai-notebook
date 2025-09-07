@@ -12,6 +12,7 @@ import {
   MergeRequestDiscussions,
   MergeRequestNotes,
 } from '@gitbeaker/rest';
+import { internalError } from '@/main/lib/error';
 
 /**
  * GitLabクライアント設定のインターフェース
@@ -120,8 +121,11 @@ export class GitLabClient {
       await gitlab.Users.showCurrentUser();
       return true;
     } catch (error) {
-      console.error('GitLab API疎通確認に失敗:', error);
-      throw new Error('GitLab APIへの接続に失敗しました');
+      throw internalError({
+        expose: true,
+        messageCode: 'GITLAB_API_CONNECTION_ERROR',
+        cause: error,
+      });
     }
   }
 }

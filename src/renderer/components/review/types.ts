@@ -33,6 +33,10 @@ export interface ReviewSourceModalProps {
   selectedReviewHistoryId: string | null;
   disabled?: boolean;
   modalMode: ModalMode;
+  additionalInstructions: string;
+  setAdditionalInstructions: (instructions: string) => void;
+  commentFormat: string;
+  setCommentFormat: (format: string) => void;
 }
 
 // ソースファイルセレクタのProps型
