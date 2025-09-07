@@ -13,7 +13,12 @@ export interface IReviewApi {
     historyId: string,
     options?: ApiServiceDefaultOptions,
   ): Promise<{
-    checklists?: ReviewChecklistResultDisplay[];
+    checklistResults?: ReviewChecklistResultDisplay[];
+  } | null>;
+  getReviewInstruction(
+    historyId: string,
+    options?: ApiServiceDefaultOptions,
+  ): Promise<{
     additionalInstructions?: string;
     commentFormat?: string;
   } | null>;
@@ -78,11 +83,21 @@ export class ReviewApi implements IReviewApi {
     historyId: string,
     options?: ApiServiceDefaultOptions,
   ): Promise<{
-    checklists?: ReviewChecklistResultDisplay[];
+    checklistResults?: ReviewChecklistResultDisplay[];
+  } | null> {
+    const result = await window.electron.review.getHistoryDetail(historyId);
+    const data = getData(result, options);
+    return data;
+  }
+
+  public async getReviewInstruction(
+    historyId: string,
+    options?: ApiServiceDefaultOptions,
+  ): Promise<{
     additionalInstructions?: string;
     commentFormat?: string;
   } | null> {
-    const result = await window.electron.review.getHistoryDetail(historyId);
+    const result = await window.electron.review.getHistoryInstruction(historyId);
     const data = getData(result, options);
     return data;
   }

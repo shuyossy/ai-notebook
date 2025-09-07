@@ -145,6 +145,9 @@ const electronHandler = {
     /** 履歴詳細 */
     getHistoryDetail: (historyId: string) =>
       invokeIpc(IpcChannels.REVIEW_GET_HISTORY_DETAIL, historyId),
+    /** 履歴の追加指示とコメントフォーマット取得 */
+    getHistoryInstruction: (historyId: string) =>
+      invokeIpc(IpcChannels.REVIEW_GET_HISTORY_INSTRUCTION, historyId),
     /** 履歴削除 */
     deleteHistory: (historyId: string) =>
       invokeIpc(IpcChannels.REVIEW_DELETE_HISTORY, historyId),

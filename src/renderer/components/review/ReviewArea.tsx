@@ -50,9 +50,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
       selectedReviewHistoryId,
       { throwError: false, showAlert: true, printErrorLog: true },
     );
-    setChecklistResults(result?.checklists || []);
-    setAdditionalInstructions(result?.additionalInstructions || '');
-    setCommentFormat(result?.commentFormat || defaultCommentFormat);
+    setChecklistResults(result?.checklistResults || []);
   }, [selectedReviewHistoryId]);
 
   // 選択中の履歴が変更されたら、チェックリスト取得のポーリングを開始
@@ -61,6 +59,22 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
 
     // チェックリストの初期取得
     fetchChecklistResults();
+
+    // 追加指示とコメントフォーマットの取得
+    const reviewApi = ReviewApi.getInstance();
+    reviewApi
+      .getReviewInstruction(selectedReviewHistoryId, {
+        throwError: true,
+        showAlert: true,
+        printErrorLog: true,
+      })
+      .then((result) => {
+        setAdditionalInstructions(result?.additionalInstructions || '');
+        setCommentFormat(result?.commentFormat || defaultCommentFormat);
+      })
+      .catch((error) => {
+        console.error(error);
+      });
 
     // ポーリングの開始
     const timer = setInterval(fetchChecklistResults, 5000);

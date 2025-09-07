@@ -374,6 +374,12 @@ const setupReviewHandlers = () => {
     return detail;
   });
 
+  // レビュー指示の取得ハンドラ
+  handleIpc(IpcChannels.REVIEW_GET_HISTORY_INSTRUCTION, async (historyId) => {
+    const instruction = await reviewService.getReviewInstruction(historyId);
+    return instruction;
+  });
+
   // レビュー履歴の削除ハンドラ
   handleIpc(IpcChannels.REVIEW_DELETE_HISTORY, async (historyId) => {
     await reviewService.deleteReviewHistory(historyId);
@@ -423,7 +429,7 @@ const setupReviewHandlers = () => {
       { reviewHistoryId, files, additionalInstructions, commentFormat },
       { event },
     ) => {
-      reviewService.updateReviewHistoryAdditionalInstructionsAndCommentFormat(
+      reviewService.updateReviewInstruction(
         reviewHistoryId,
         additionalInstructions,
         commentFormat,

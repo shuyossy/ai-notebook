@@ -7,15 +7,17 @@ export interface IReviewService {
   getReviewHistories(): Promise<ReviewHistory[]>;
   getReviewHistoryDetail(reviewHistoryId: string): Promise<{
     checklistResults: ReviewChecklistResultDisplay[];
-    additionalInstructions: string | undefined;
-    commentFormat: string | undefined;
+  }>;
+  getReviewInstruction(reviewHistoryId: string): Promise<{
+    additionalInstructions?: string;
+    commentFormat?: string;
   }>;
   deleteReviewHistory(reviewHistoryId: string): Promise<void>;
   updateChecklists(
     reviewHistoryId: string,
     checklistEdits: ReviewChecklistEdit[],
   ): Promise<void>;
-  updateReviewHistoryAdditionalInstructionsAndCommentFormat(
+  updateReviewInstruction(
     reviewHistoryId: string,
     additionalInstructions: string | undefined,
     commentFormat: string | undefined,
@@ -49,12 +51,20 @@ export class ReviewService implements IReviewService {
   public async getReviewHistoryDetail(reviewHistoryId: string) {
     const checklistResults =
       await this.repository.getReviewChecklistResults(reviewHistoryId);
-    const reviewHistory =
-      await this.repository.getReviewHistory(reviewHistoryId);
     return {
       checklistResults: checklistResults,
-      additionalInstructions:
-        reviewHistory?.additionalInstructions || undefined,
+    };
+  }
+
+  /**
+   * レビュー履歴の追加指示とコメントフォーマットを取得
+   */
+  public async getReviewInstruction(reviewHistoryId: string) {
+    const reviewHistory = await this.repository.getReviewHistory(
+      reviewHistoryId,
+    );
+    return {
+      additionalInstructions: reviewHistory?.additionalInstructions || undefined,
       commentFormat: reviewHistory?.commentFormat || undefined,
     };
   }
@@ -107,7 +117,7 @@ export class ReviewService implements IReviewService {
   /**
    * レビュー履歴の追加指示とコメントフォーマットを更新
    */
-  public async updateReviewHistoryAdditionalInstructionsAndCommentFormat(
+  public async updateReviewInstruction(
     reviewHistoryId: string,
     additionalInstructions: string | undefined,
     commentFormat: string | undefined,
