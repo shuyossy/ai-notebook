@@ -17,6 +17,7 @@ import {
   ipcMain,
   crashReporter,
   dialog,
+  IpcMainInvokeEvent,
 } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import log from 'electron-log';
@@ -34,9 +35,11 @@ import {
   IpcChannels,
   IpcResponsePayloadMap,
   IpcRequestPayloadMap,
+  IpcResult,
+  RequestChannel,
+  IpcChannel,
+  IpcNameMap,
 } from '@/types/ipc';
-import { sources } from '../db/schema';
-import getDb from '../db';
 import SourceRegistrationManager from '../mastra/workflows/sourceRegistration/sourceRegistrationManager';
 import SourceReviewManager from '../mastra/workflows/sourceReview/sourceReviewManager';
 import MenuBuilder from './menu';
@@ -44,12 +47,17 @@ import { resolveHtmlPath } from './lib/util';
 import { ReviewService } from './service/reviewService';
 import { SettingsService } from './service/settingsService';
 import { ChatService } from './service/chatService';
-import { getReviewRepository } from './repository/reviewRepository';
-import { mastra } from '../mastra';
 import { getMainLogger } from './lib/logger';
-import { AppError, internalError, normalizeUnknownError } from './lib/error';
+import {
+  AppError,
+  internalError,
+  normalizeUnknownError,
+  toPayload,
+} from './lib/error';
 import { formatMessage } from './lib/messages';
 import { SourceService } from './service/sourceService';
+import { ZodSchema } from 'zod';
+import { normalizeUnkhownIpcError } from './lib/error';
 
 class AppUpdater {
   constructor() {
@@ -64,6 +72,79 @@ class AppUpdater {
 (globalThis as any).ReadableStream = ReadableStream;
 (globalThis as any).WritableStream = WritableStream;
 (globalThis as any).TransformStream = TransformStream;
+
+// IpcResponsePayloadMap[C] が IpcResult<T> なら T を取り出す
+type DataOf<C extends keyof IpcResponsePayloadMap> =
+  IpcResponsePayloadMap[C] extends IpcResult<infer T> ? T : never;
+
+type Handler<C extends RequestChannel> = (
+  args: IpcRequestPayloadMap[C],
+  ctx: {
+    event: IpcMainInvokeEvent;
+  },
+) => Promise<DataOf<C>> | DataOf<C>;
+
+type Options<C extends RequestChannel> = {
+  /** 引数バリデーション (任意) */
+  schema?: ZodSchema<IpcRequestPayloadMap[C]>;
+  /** 成功/失敗ログに付けたい追加メタデータ (任意) */
+  meta?: Record<string, unknown>;
+  /** 例外をログするか (デフォルト: true) */
+  printErrorLog?: boolean;
+  /** 成功時もログするか (デフォルト: false) */
+  printSuccessLog?: boolean;
+};
+
+/**
+ * 型安全な ipcMain.handle ラッパ
+ * - handler は「成功データ(DataOf<C>)のみ」返す
+ * - 例外はここで握って IpcResult に変換
+ *  - renderer 側では try/catch は基本不要
+ *  - ただし、メッセージにユーザー向けの文言を含めたい場合は適切な例外処理の上、AppError をthrowすること
+ * - Zod スキーマがあれば入力で parse
+ */
+export function handleIpc<C extends RequestChannel>(
+  channel: C,
+  handler: Handler<C>,
+  opts: Options<C> = {},
+) {
+  const { schema, meta, printErrorLog = true, printSuccessLog = false } = opts;
+
+  ipcMain.handle(
+    channel as IpcChannel,
+    async (event, raw): Promise<IpcResponsePayloadMap[C]> => {
+      try {
+        // 引数バリデーション（任意）
+        const args = schema
+          ? await schema.parseAsync(raw)
+          : (raw as IpcRequestPayloadMap[C]);
+
+        const data = await handler(args, { event });
+
+        if (printSuccessLog) {
+          logger.info({ channel, ...meta, ok: true }, 'ipc success');
+        }
+
+        return { success: true, data } as IpcResponsePayloadMap[C];
+      } catch (err) {
+        // normalizeUnknownError で既定フォーマットに寄せる
+        const normalized = normalizeUnkhownIpcError(err, IpcNameMap[channel]);
+        console.error(normalized);
+        if (printErrorLog) {
+          logger.error(
+            JSON.stringify(normalized, null, 2),
+            `IPC ${channel} error`,
+          );
+        }
+
+        return {
+          success: false,
+          error: toPayload(normalized),
+        } as IpcResponsePayloadMap[C];
+      }
+    },
+  );
+}
 
 // ユーザは利用者のみなのでIDは固定
 const userId = 'user';
@@ -93,109 +174,66 @@ const initializeSettings = async (): Promise<void> => {
 };
 
 const setupStoreHandlers = () => {
-  ipcMain.handle(
-    IpcChannels.GET_STORE_VALUE,
-    async (
-      _,
-      key: IpcRequestPayloadMap[typeof IpcChannels.GET_STORE_VALUE],
-    ): Promise<IpcResponsePayloadMap[typeof IpcChannels.GET_STORE_VALUE]> => {
-      const store = getStore();
-      return store.get(key);
-    },
-  );
+  handleIpc(IpcChannels.GET_STORE_VALUE, async (key) => {
+    const store = getStore();
+    return store.get(key);
+  });
 
-  ipcMain.handle(
-    IpcChannels.SET_STORE_VALUE,
-    async (
-      _,
-      { key, value }: IpcRequestPayloadMap[typeof IpcChannels.SET_STORE_VALUE],
-    ): Promise<IpcResponsePayloadMap[typeof IpcChannels.SET_STORE_VALUE]> => {
-      const store = getStore();
-      store.set(key, value);
-      return { success: true };
-    },
-  );
+  handleIpc(IpcChannels.SET_STORE_VALUE, async ({ key, value }) => {
+    const store = getStore();
+    store.set(key, value);
+    return true;
+  });
 };
 
 /**
  * 設定状態を取得するIPCハンドラ
  */
 // 設定状態取得ハンドラ
-ipcMain.handle(
-  IpcChannels.GET_SETTINGS_STATUS,
-  (): IpcResponsePayloadMap[typeof IpcChannels.GET_SETTINGS_STATUS] => {
-    return { success: true, data: settingsService.getStatus() };
-  },
-);
+handleIpc(IpcChannels.GET_SETTINGS_STATUS, async () => {
+  return settingsService.getStatus();
+});
 
 // メッセージ削除ハンドラ
-ipcMain.handle(
-  IpcChannels.REMOVE_SETTINGS_MESSAGE,
-  (
-    _,
-    messageId: IpcRequestPayloadMap[typeof IpcChannels.REMOVE_SETTINGS_MESSAGE],
-  ): IpcResponsePayloadMap[typeof IpcChannels.REMOVE_SETTINGS_MESSAGE] => {
-    settingsService.removeMessage(messageId);
-    return { success: true };
-  },
-);
+handleIpc(IpcChannels.REMOVE_SETTINGS_MESSAGE, async (messageId) => {
+  settingsService.removeMessage(messageId);
+  return undefined as never;
+});
 
 // 設定更新ハンドラ
-ipcMain.handle(
-  IpcChannels.REINITIALIZE_SETTINGS,
-  async (): Promise<
-    IpcResponsePayloadMap[typeof IpcChannels.REINITIALIZE_SETTINGS]
-  > => {
-    await settingsService.initializeSettings();
-    return { success: true };
-  },
-);
+handleIpc(IpcChannels.REINITIALIZE_SETTINGS, async () => {
+  await settingsService.initializeSettings();
+  return undefined as never;
+});
 
 // チャット関連のIPCハンドラー
 const setupChatHandlers = () => {
   // チャット中断ハンドラ
-  ipcMain.handle(
-    IpcChannels.CHAT_ABORT_REQUEST,
-    async (
-      _,
-      { threadId }: IpcRequestPayloadMap[typeof IpcChannels.CHAT_ABORT_REQUEST],
-    ): Promise<
-      IpcResponsePayloadMap[typeof IpcChannels.CHAT_ABORT_REQUEST]
-    > => {
-      chatService.abortGeneration(userId, threadId);
-      return { success: true };
-    },
-  );
+  handleIpc(IpcChannels.CHAT_ABORT_REQUEST, async ({ threadId }) => {
+    chatService.abortGeneration(userId, threadId);
+    return undefined as never;
+  });
 
   // チャットメッセージ編集履歴ハンドラ
-  ipcMain.handle(
+  handleIpc(
     IpcChannels.CHAT_DELETE_MESSAGES_BEFORE_SPECIFIC_ID,
-    async (
-      _,
-      {
-        threadId,
-        messageId,
-      }: IpcRequestPayloadMap[typeof IpcChannels.CHAT_DELETE_MESSAGES_BEFORE_SPECIFIC_ID],
-    ): Promise<
-      IpcResponsePayloadMap[typeof IpcChannels.CHAT_DELETE_MESSAGES_BEFORE_SPECIFIC_ID]
-    > => {
+    async ({ threadId, messageId }) => {
       chatService.deleteMessagesBeforeSpecificId(threadId, messageId);
-      return { success: true };
+      return undefined as never;
     },
   );
 
   // メッセージ送信ハンドラ
-  ipcMain.handle(
+  handleIpc(
     IpcChannels.CHAT_SEND_MESSAGE,
-    async (
-      event,
-      {
-        roomId,
-        messages,
-      }: IpcRequestPayloadMap[typeof IpcChannels.CHAT_SEND_MESSAGE],
-    ): Promise<IpcResponsePayloadMap[typeof IpcChannels.CHAT_SEND_MESSAGE]> => {
+    async ({ roomId, messages }, { event }) => {
       try {
-        await chatService.generate(userId, roomId, messages, event);
+        const dataStream = await chatService.generate(
+          userId,
+          roomId,
+          messages,
+          event,
+        );
 
         // テキストストリームを処理
         // @ts-ignore
@@ -204,7 +242,7 @@ const setupChatHandlers = () => {
           event.sender.send(IpcChannels.CHAT_STREAM, chunk);
         }
 
-        return { success: true };
+        return undefined as never;
       } catch (error) {
         let errorDetail = '不明なエラー';
         // エラー時もAbortControllerを削除
@@ -240,207 +278,115 @@ const setupChatHandlers = () => {
   );
 
   // チャットルーム一覧取得ハンドラ
-  ipcMain.handle(
-    IpcChannels.CHAT_GET_ROOMS,
-    async (): Promise<
-      IpcResponsePayloadMap[typeof IpcChannels.CHAT_GET_ROOMS]
-    > => {
-      const threads = await chatService.getThreadList(userId);
-      return { success: true, data: threads };
-    },
-  );
+  handleIpc(IpcChannels.CHAT_GET_ROOMS, async () => {
+    const threads = await chatService.getThreadList(userId);
+    return threads;
+  });
 
   // チャットメッセージ履歴取得ハンドラ
-  ipcMain.handle(
-    IpcChannels.CHAT_GET_MESSAGES,
-    async (
-      _,
-      threadId: IpcRequestPayloadMap[typeof IpcChannels.CHAT_GET_MESSAGES],
-    ): Promise<IpcResponsePayloadMap[typeof IpcChannels.CHAT_GET_MESSAGES]> => {
-      const messages = await chatService.getThreadMessages(threadId);
-      return { success: true, data: messages };
-    },
-  );
+  handleIpc(IpcChannels.CHAT_GET_MESSAGES, async (threadId) => {
+    const messages = await chatService.getThreadMessages(threadId);
+    return messages;
+  });
 
   // チャットルーム削除ハンドラ
-  ipcMain.handle(
-    IpcChannels.CHAT_DELETE_ROOM,
-    async (
-      _,
-      threadId: IpcRequestPayloadMap[typeof IpcChannels.CHAT_DELETE_ROOM],
-    ): Promise<IpcResponsePayloadMap[typeof IpcChannels.CHAT_DELETE_ROOM]> => {
-      await chatService.deleteThread(userId, threadId);
-      return { success: true };
-    },
-  );
+  handleIpc(IpcChannels.CHAT_DELETE_ROOM, async (threadId) => {
+    await chatService.deleteThread(userId, threadId);
+    return undefined as never;
+  });
 
   // スレッド作成ハンドラ
-  ipcMain.handle(
-    IpcChannels.CHAT_CREATE_THREAD,
-    async (
-      _,
-      { roomId, title },
-    ): Promise<
-      IpcResponsePayloadMap[typeof IpcChannels.CHAT_CREATE_THREAD]
-    > => {
-      await chatService.createThread(roomId, title, userId);
-      return { success: true };
-    },
-  );
+  handleIpc(IpcChannels.CHAT_CREATE_THREAD, async ({ roomId, title }) => {
+    await chatService.createThread(roomId, title, userId);
+    return undefined as never;
+  });
 };
 
 // ソース関連のIPCハンドラー
 // ファイルシステム関連のIPCハンドラー
 const setupFsHandlers = () => {
-  ipcMain.handle(
-    IpcChannels.FS_CHECK_PATH_EXISTS,
-    async (
-      _,
-      filePath: IpcRequestPayloadMap[typeof IpcChannels.FS_CHECK_PATH_EXISTS],
-    ): Promise<
-      IpcResponsePayloadMap[typeof IpcChannels.FS_CHECK_PATH_EXISTS]
-    > => {
-      try {
-        await fs.access(filePath);
-        return { success: true, data: true };
-      } catch {
-        return { success: true, data: false };
-      }
-    },
-  );
+  handleIpc(IpcChannels.FS_CHECK_PATH_EXISTS, async (filePath) => {
+    try {
+      await fs.access(filePath);
+      return true;
+    } catch {
+      return false;
+    }
+  });
 
-  ipcMain.handle(
-    IpcChannels.FS_SHOW_OPEN_DIALOG,
-    async (
-      _,
-      options: IpcRequestPayloadMap[typeof IpcChannels.FS_SHOW_OPEN_DIALOG],
-    ): Promise<
-      IpcResponsePayloadMap[typeof IpcChannels.FS_SHOW_OPEN_DIALOG]
-    > => {
-      const result = await dialog.showOpenDialog(options);
-      return { success: true, data: result };
-    },
-  );
-  ipcMain.handle(
-    IpcChannels.FS_READ_FILE,
-    async (
-      _,
-      filePath: IpcRequestPayloadMap[typeof IpcChannels.FS_READ_FILE],
-    ): Promise<IpcResponsePayloadMap[typeof IpcChannels.FS_READ_FILE]> => {
-      const data = await fs.readFile(filePath);
-      const result = new Uint8Array(
-        data.buffer,
-        data.byteOffset,
-        data.byteLength,
-      );
-      return { success: true, data: result };
-    },
-  );
+  handleIpc(IpcChannels.FS_SHOW_OPEN_DIALOG, async (options) => {
+    const result = await dialog.showOpenDialog(options);
+    return result;
+  });
+
+  handleIpc(IpcChannels.FS_READ_FILE, async (filePath) => {
+    const data = await fs.readFile(filePath);
+    const result = new Uint8Array(
+      data.buffer,
+      data.byteOffset,
+      data.byteLength,
+    );
+    return result;
+  });
 };
 
 const setupSourceHandlers = () => {
   // ソース再読み込みハンドラ
-  ipcMain.handle(
-    IpcChannels.SOURCE_RELOAD,
-    async (): Promise<
-      IpcResponsePayloadMap[typeof IpcChannels.SOURCE_RELOAD]
-    > => {
-      const registrationManager = SourceRegistrationManager.getInstance();
-      await registrationManager.registerAllFiles();
-      return {
-        success: true,
-        data: { message: 'ドキュメントの再読み込みが完了しました' },
-      };
-    },
-  );
+  handleIpc(IpcChannels.SOURCE_RELOAD, async () => {
+    const registrationManager = SourceRegistrationManager.getInstance();
+    await registrationManager.registerAllFiles();
+    return { message: 'ドキュメントの再読み込みが完了しました' };
+  });
 
   // ソース一覧取得ハンドラ
-  ipcMain.handle(
-    IpcChannels.SOURCE_GET_ALL,
-    async (): Promise<
-      IpcResponsePayloadMap[typeof IpcChannels.SOURCE_GET_ALL]
-    > => {
-      const allSources = await sourceService.getAllSources();
-      const data = allSources.map((source: Source) => ({
-        ...source,
-        // ISO 8601形式の日時文字列をDateオブジェクトに変換してから文字列に戻す
-        // これにより、フロントエンドで一貫した日時表示が可能になる
-        createdAt: new Date(source.createdAt).toISOString(),
-        updatedAt: new Date(source.updatedAt).toISOString(),
-      }));
-      return { success: true, data };
-    },
-  );
+  handleIpc(IpcChannels.SOURCE_GET_ALL, async () => {
+    const allSources = await sourceService.getAllSources();
+    const data = allSources.map((source: Source) => ({
+      ...source,
+      // ISO 8601形式の日時文字列をDateオブジェクトに変換してから文字列に戻す
+      // これにより、フロントエンドで一貫した日時表示が可能になる
+      createdAt: new Date(source.createdAt).toISOString(),
+      updatedAt: new Date(source.updatedAt).toISOString(),
+    }));
+    return data;
+  });
 
   // ソースの有効/無効状態を更新するハンドラ
-  ipcMain.handle(
+  handleIpc(
     IpcChannels.SOURCE_UPDATE_ENABLED,
-    async (
-      _,
-      { sourceId, isEnabled },
-    ): Promise<
-      IpcResponsePayloadMap[typeof IpcChannels.SOURCE_UPDATE_ENABLED]
-    > => {
+    async ({ sourceId, isEnabled }) => {
       await sourceService.updateSourceEnabled(sourceId, isEnabled);
-      return { success: true };
+      return undefined as never;
     },
   );
 };
 
 const setupReviewHandlers = () => {
   // レビュー履歴の取得ハンドラ
-  ipcMain.handle(
-    IpcChannels.REVIEW_GET_HISTORIES,
-    async (): Promise<
-      IpcResponsePayloadMap[typeof IpcChannels.REVIEW_GET_HISTORIES]
-    > => {
-      const histories = await reviewService.getReviewHistories();
-      return { success: true, data: histories };
-    },
-  );
+  handleIpc(IpcChannels.REVIEW_GET_HISTORIES, async () => {
+    const histories = await reviewService.getReviewHistories();
+    return histories;
+  });
 
   // チェックリストの取得ハンドラ
-  ipcMain.handle(
-    IpcChannels.REVIEW_GET_HISTORY_DETAIL,
-    async (
-      _,
-      historyId: string,
-    ): Promise<
-      IpcResponsePayloadMap[typeof IpcChannels.REVIEW_GET_HISTORY_DETAIL]
-    > => {
-      const detail = await reviewService.getReviewHistoryDetail(historyId);
-      return { success: true, data: detail };
-    },
-  );
+  handleIpc(IpcChannels.REVIEW_GET_HISTORY_DETAIL, async (historyId) => {
+    const detail = await reviewService.getReviewHistoryDetail(historyId);
+    return detail;
+  });
 
   // レビュー履歴の削除ハンドラ
-  ipcMain.handle(
-    IpcChannels.REVIEW_DELETE_HISTORY,
-    async (
-      _,
-      historyId: string,
-    ): Promise<
-      IpcResponsePayloadMap[typeof IpcChannels.REVIEW_DELETE_HISTORY]
-    > => {
-      await reviewService.deleteReviewHistory(historyId);
-      return { success: true };
-    },
-  );
+  handleIpc(IpcChannels.REVIEW_DELETE_HISTORY, async (historyId) => {
+    await reviewService.deleteReviewHistory(historyId);
+    return undefined as never;
+  });
 
   // チェックリスト抽出ハンドラ
-  ipcMain.handle(
+  handleIpc(
     IpcChannels.REVIEW_EXTRACT_CHECKLIST_CALL,
     async (
-      event,
-      {
-        reviewHistoryId,
-        files,
-        documentType,
-        checklistRequirements,
-      }: IpcRequestPayloadMap[typeof IpcChannels.REVIEW_EXTRACT_CHECKLIST_CALL],
-    ): Promise<
-      IpcResponsePayloadMap[typeof IpcChannels.REVIEW_EXTRACT_CHECKLIST_CALL]
-    > => {
+      { reviewHistoryId, files, documentType, checklistRequirements },
+      { event },
+    ) => {
       const manager = SourceReviewManager.getInstance();
       const result = manager.extractChecklistWithNotification(
         reviewHistoryId,
@@ -450,46 +396,33 @@ const setupReviewHandlers = () => {
         checklistRequirements,
       );
       if (!result.success) {
-        return {
-          success: false,
-          error: { message: result.error!, code: 'INTERNAL' },
-        };
+        throw internalError({
+          expose: true,
+          messageCode: 'UNKNOWN_ERROR',
+          messageParams: { detail: result.error! },
+          cause: new Error(result.error!),
+        });
       }
-      return { success: true };
+      return undefined as never;
     },
   );
 
   // チェックリストの更新ハンドラ
-  ipcMain.handle(
+  handleIpc(
     IpcChannels.REVIEW_UPDATE_CHECKLIST,
-    async (
-      _,
-      {
-        reviewHistoryId,
-        checklistEdits,
-      }: IpcRequestPayloadMap[typeof IpcChannels.REVIEW_UPDATE_CHECKLIST],
-    ): Promise<
-      IpcResponsePayloadMap[typeof IpcChannels.REVIEW_UPDATE_CHECKLIST]
-    > => {
+    async ({ reviewHistoryId, checklistEdits }) => {
       await reviewService.updateChecklists(reviewHistoryId, checklistEdits);
-      return { success: true };
+      return undefined as never;
     },
   );
 
   // レビュー実施ハンドラ
-  ipcMain.handle(
+  handleIpc(
     IpcChannels.REVIEW_EXECUTE_CALL,
     async (
-      event,
-      {
-        reviewHistoryId,
-        files,
-        additionalInstructions,
-        commentFormat,
-      }: IpcRequestPayloadMap[typeof IpcChannels.REVIEW_EXECUTE_CALL],
-    ): Promise<
-      IpcResponsePayloadMap[typeof IpcChannels.REVIEW_EXECUTE_CALL]
-    > => {
+      { reviewHistoryId, files, additionalInstructions, commentFormat },
+      { event },
+    ) => {
       reviewService.updateReviewHistoryAdditionalInstructionsAndCommentFormat(
         reviewHistoryId,
         additionalInstructions,
@@ -507,13 +440,15 @@ const setupReviewHandlers = () => {
       );
 
       if (!result.success) {
-        return {
-          success: false,
-          error: { message: result.error!, code: 'INTERNAL' },
-        };
+        throw internalError({
+          expose: true,
+          messageCode: 'UNKNOWN_ERROR',
+          messageParams: { detail: result.error! },
+          cause: new Error(result.error!),
+        });
       }
 
-      return { success: true };
+      return undefined as never;
     },
   );
 };
@@ -524,7 +459,9 @@ const initializeSourceRegistration = async () => {
   const registrationManager = SourceRegistrationManager.getInstance();
 
   // 処理中のソースを削除
-  logger.debug('処理中及び失敗しているドキュメントの実行履歴をクリアしています');
+  logger.debug(
+    '処理中及び失敗しているドキュメントの実行履歴をクリアしています',
+  );
   await registrationManager.clearProcessingSources();
 
   // ソース登録を実行

@@ -24,9 +24,8 @@ type ArgOf<C extends RequestChannel> = IpcRequestPayloadMap[C] extends undefined
 /**
  * すべての ipcRenderer.invoke をここで一元化。
  * どのチャンネルでも、成功は {ok:true,data}、失敗は {ok:false,error} を返す。
- * 例外はここで握りつぶすため、renderer 側では try/catch を基本不要にできる。
- * Main側のサービスにおいても基本的には例外はそのままthrowしてよい。
- * ただし、メッセージにユーザー向けの文言を含めたい場合は適切な例外処理の上、AppError をthrowすること。
+ * Mainのhandler側で例外を握っているので、Renderer側でtry/catchする必要は基本的にない
+ * 起動直後でMain側がまだ準備できていない場合などに例外が発生する可能性はある
  */
 export async function invokeIpc<C extends RequestChannel & ResponseChannel>(
   channel: C,

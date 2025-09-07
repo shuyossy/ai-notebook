@@ -236,7 +236,7 @@ export const IpcNameMap = {
   [IpcChannels.SOURCE_UPDATE_ENABLED]: 'ドキュメントの有効/無効更新',
 
   // チャット関連
-  [IpcChannels.CHAT_SEND_MESSAGE]: 'チャット内容送信',
+  [IpcChannels.CHAT_SEND_MESSAGE]: 'チャットメッセージ送信',
   [IpcChannels.CHAT_GET_ROOMS]: 'チャット履歴一覧取得',
   [IpcChannels.CHAT_GET_MESSAGES]: 'チャット履歴取得',
   [IpcChannels.CHAT_DELETE_ROOM]: 'チャットルーム削除',

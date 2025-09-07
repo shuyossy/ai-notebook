@@ -7,12 +7,10 @@ export const template = {
     true {
       {hasDetail, select,
         true {{ipcName}処理でエラーが発生しました\n{detail}}
-        false {{ipcName}処理で予期せぬエラーが発生しました}
+        other {{ipcName}処理で予期せぬエラーが発生しました}
       }
     }
-    false {
-      {予期せぬエラーが発生しました}
-    }
+    other {予期せぬエラーが発生しました}
   }`,
   SERVER_INITIALIZE_ERROR: `アプリケーションの起動中にエラーが発生しました\n{detail}`,
   MASTRA_MEMORY_ERROR: `チャットデータの取得に失敗しました`,
@@ -22,4 +20,4 @@ export const template = {
   FS_OPEN_DIALOG_ERROR: `ファイルダイアログの表示に失敗しました`,
   FILE_TEXT_EXTRACTION_ERROR: `ファイルのテキスト抽出に失敗しました\n{path}`,
   SOURCE_REGISTRATION_DIR_READING_ERROR: `ドキュメント登録用ディレクトリの読み込みに失敗しました`,
-};
+} as const;

@@ -6,6 +6,7 @@ import {
   CssBaseline,
   Box,
   Alert,
+  Stack, // ← 追加：縦並び用
 } from '@mui/material';
 import './App.css';
 import Sidebar from './components/sidebar/Sidebar';
@@ -121,48 +122,68 @@ function App() {
             </Routes>
           </Sidebar>
 
-          {/* メインコンテンツ */}
-          <Routes>
-            <Route
-              path={ROUTES.CHAT}
-              element={<ChatArea selectedRoomId={selectedRoomId} />}
-            />
-            <Route
-              path={ROUTES.REVIEW}
-              element={
-                <ReviewArea selectedReviewHistoryId={selectedReviewHistoryId} />
-              }
-            />
-          </Routes>
+          {/* メインコンテンツ領域：ここを relative にして、内部で absolute 配置する */}
+          <Box
+            component="main"
+            sx={{
+              position: 'relative', // ★ アラートを「この領域の中」で絶対配置できるようにする
+              flex: 1, // サイドバー以外の空間をすべて使う
+              minWidth: 0, // コンテンツのオーバーフロー対策
+              overflow: 'hidden', // スクロールバー制御（必要なら調整）
+              display: 'flex', // 中身のレイアウト（任意）
+            }}
+          >
+            {/* ルーティング（通常表示の中身） */}
+            <Routes>
+              <Route
+                path={ROUTES.CHAT}
+                element={<ChatArea selectedRoomId={selectedRoomId} />}
+              />
+              <Route
+                path={ROUTES.REVIEW}
+                element={
+                  <ReviewArea
+                    selectedReviewHistoryId={selectedReviewHistoryId}
+                  />
+                }
+              />
+            </Routes>
 
-          {/* エラーメッセージ表示 */}
-          {alerts.length > 0 && (
-            <Box
-              sx={{
-                position: 'fixed',
-                top: 20,
-                left: '50%',
-                transform: 'translateX(-50%)',
-                width: 'fit-content',
-                maxWidth: '80%',
-                zIndex: 1300,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 1,
-              }}
-            >
-              {alerts.map((error) => (
-                <Alert
-                  key={error.id}
-                  severity={error.severity}
-                  onClose={() => removeAlert(error.id)}
-                  sx={{ whiteSpace: 'pre-line' }}
-                >
-                  {error.message}
-                </Alert>
-              ))}
-            </Box>
-          )}
+            {/* 中央オーバーレイのエラーメッセージ表示 */}
+            {alerts.length > 0 && (
+              <Box
+                // ★ main(Box)の「中」で中央に重ねる
+                sx={{
+                  position: 'absolute',
+                  top: 20,
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  width: 'fit-content',
+                  maxWidth: '80%',
+                  zIndex: 1300,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 1,
+                }}
+              >
+                <Stack spacing={1} sx={{ pointerEvents: 'auto' }}>
+                  {alerts.map((error) => (
+                    <Alert
+                      key={error.id}
+                      severity={error.severity}
+                      onClose={() => removeAlert(error.id)}
+                      sx={{
+                        whiteSpace: 'pre-line', // 改行を表現
+                        boxShadow: 3, // ちょい浮かせる
+                      }}
+                    >
+                      {error.message}
+                    </Alert>
+                  ))}
+                </Stack>
+              </Box>
+            )}
+          </Box>
         </Box>
       </Router>
     </ThemeProvider>

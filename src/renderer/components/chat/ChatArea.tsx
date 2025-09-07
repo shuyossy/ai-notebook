@@ -89,7 +89,8 @@ const customFetch: typeof fetch = async (input, init) => {
           controller.close();
         });
         chatApi.sendMessage(roomId!, messages, {
-          showAlert: true,
+          // 上記onErrorでstreamのエラー処理として処理され、エラーメッセージが表示されるためここでは表示しない
+          showAlert: false,
           throwError: false,
           printErrorLog: true,
         });
@@ -181,6 +182,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
     initialMessages,
     experimental_throttle: 75,
     experimental_prepareRequestBody: (request) => {
+      const chatApi = ChatApi.getInstance();
       // Ensure messages array is not empty and get the last message
       const lastMessage =
         request.messages.length > 0
@@ -192,9 +194,13 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
 
       // 初回メッセージ送信時にスレッドを作成
       // titleについてはここで、指定してもmemoryのオプションでgenerateTitleをtrueにしていた場合、「New Thread 2025-04-27T08:20:05.694Z」のようなタイトルが自動生成されてしまう
-      // if (selectedRoomId && request.messages.length === 1) {
-      //   chatApi.createThread(selectedRoomId, '', { showAlert: true });
-      // }
+      if (selectedRoomId && request.messages.length === 1) {
+        chatApi.createThread(selectedRoomId, '', {
+          showAlert: false,
+          throwError: true,
+          printErrorLog: true,
+        });
+      }
 
       // Return the structured body for your API route
       return {
@@ -325,7 +331,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
   return (
     <Box
       sx={{
-        width: 'calc(100% - 280px)',
+        width: '100%',
         height: '100vh',
         display: 'flex',
         flexDirection: 'column',

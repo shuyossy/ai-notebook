@@ -81,21 +81,26 @@ export function normalizeUnknownError(err: unknown): AppError {
   });
 }
 
-export function normalizeUnkhownIpcError(err: unknown, ipcName?: string): AppError {
+export function normalizeUnkhownIpcError(
+  err: unknown,
+  ipcName?: string,
+): AppError {
   const normalizedError = normalizeUnknownError(err);
-  const hasDetail = normalizedError.expose && normalizedError.message.trim() !== formatMessage('UNKNOWN_ERROR');
-    const detail = hasDetail ? normalizedError.message : undefined;
-    return internalError({
-      expose: true,
-      cause: err,
-      messageCode: 'IPC_ERROR',
-      messageParams: {
-        hasIpcName: !!ipcName,
-        ipcName: ipcName ?? '',
-        hasDetail,
-        detail,
-      },
-    });
+  const hasDetail =
+    normalizedError.expose &&
+    normalizedError.message.trim() !== formatMessage('UNKNOWN_ERROR');
+  const detail = hasDetail ? normalizedError.message : undefined;
+  return internalError({
+    expose: true,
+    cause: err,
+    messageCode: 'IPC_ERROR',
+    messageParams: {
+      hasIpcName: !!ipcName,
+      ipcName: ipcName ?? '',
+      hasDetail,
+      detail,
+    },
+  });
 }
 
 /**

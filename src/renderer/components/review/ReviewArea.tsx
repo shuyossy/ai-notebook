@@ -213,7 +213,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
   return (
     <Box
       sx={{
-        width: 'calc(100% - 280px)',
+        width: '100%',
         display: 'flex',
         flexDirection: 'column',
         flexGrow: 1,
