@@ -5,7 +5,7 @@ import { z } from 'zod';
 
 // workflowの結果を確認するための関数
 export function checkWorkflowResult(result: WorkflowResult<any, any>): {
-  status: 'success' | 'failed' | 'suspended';
+  status: 'success' | 'failed' | 'suspended' | 'canceled';
   errorMessage?: string;
 } {
   // ワークフロー全体がfailedの場合(本アプリについてはエラーの場合、stepとしては成功させ、outputのstatusをfailedと指定するため、発生しないはず)
@@ -13,6 +13,13 @@ export function checkWorkflowResult(result: WorkflowResult<any, any>): {
     return {
       status: 'failed',
       errorMessage: result.error.message,
+    };
+  }
+
+  // @ts-ignore
+  if (result.status === 'canceled') {
+    return {
+      status: 'canceled',
     };
   }
 

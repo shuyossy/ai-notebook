@@ -454,6 +454,36 @@ const setupReviewHandlers = () => {
       return undefined as never;
     },
   );
+
+  // チェックリスト抽出キャンセルハンドラ
+  handleIpc(IpcChannels.REVIEW_EXTRACT_CHECKLIST_ABORT, async (reviewHistoryId) => {
+    const manager = SourceReviewManager.getInstance();
+    const result = manager.abortExtractChecklist(reviewHistoryId);
+    if (!result.success) {
+      throw internalError({
+        expose: true,
+        messageCode: 'UNKNOWN_ERROR',
+        messageParams: { detail: result.error! },
+        cause: new Error(result.error!),
+      });
+    }
+    return undefined as never;
+  });
+
+  // レビュー実行キャンセルハンドラ
+  handleIpc(IpcChannels.REVIEW_EXECUTE_ABORT, async (reviewHistoryId) => {
+    const manager = SourceReviewManager.getInstance();
+    const result = manager.abortExecuteReview(reviewHistoryId);
+    if (!result.success) {
+      throw internalError({
+        expose: true,
+        messageCode: 'UNKNOWN_ERROR',
+        messageParams: { detail: result.error! },
+        cause: new Error(result.error!),
+      });
+    }
+    return undefined as never;
+  });
 };
 
 // ソース登録処理の実行

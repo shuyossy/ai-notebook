@@ -9,6 +9,8 @@ import type {
   UploadFile,
   ReviewChecklistResultDisplay,
   ReviewChecklistEdit,
+  ChecklistExtractionResultStatus,
+  ReviewExecutionResultStatus,
 } from './review';
 import type {
   SettingsSavingStatus,
@@ -73,9 +75,11 @@ export const IpcChannels = {
   REVIEW_DELETE_HISTORY: 'review-delete-history',
   REVIEW_EXTRACT_CHECKLIST_CALL: 'review-extract-checklist-call', // チェックリスト抽出処理を開始する
   REVIEW_EXTRACT_CHECKLIST_FINISHED: 'review-extract-checklist-finished', // チェックリスト抽出が完了した際の通知
+  REVIEW_EXTRACT_CHECKLIST_ABORT: 'review-extract-checklist-abort', // チェックリスト抽出処理をキャンセルする
   REVIEW_UPDATE_CHECKLIST: 'review-update-checklist',
   REVIEW_EXECUTE_CALL: 'review-execute', // ドキュメントレビューを開始する
   REVIEW_EXECUTE_FINISHED: 'review-execute-finished', // レビュー実行が完了した際の通知
+  REVIEW_EXECUTE_ABORT: 'review-execute-abort', // レビュー実行処理をキャンセルする
 } as const;
 
 export type IpcChannel = (typeof IpcChannels)[keyof typeof IpcChannels];
@@ -130,6 +134,7 @@ export type IpcRequestPayloadMap = {
     documentType?: DocumentType;
     checklistRequirements?: string;
   };
+  [IpcChannels.REVIEW_EXTRACT_CHECKLIST_ABORT]: string; // review history id
   [IpcChannels.REVIEW_UPDATE_CHECKLIST]: {
     reviewHistoryId: string;
     checklistEdits: ReviewChecklistEdit[];
@@ -140,6 +145,7 @@ export type IpcRequestPayloadMap = {
     additionalInstructions?: string;
     commentFormat?: string;
   };
+  [IpcChannels.REVIEW_EXECUTE_ABORT]: string; // review history id
 };
 
 export type IpcResponsePayloadMap = {
@@ -184,9 +190,11 @@ export type IpcResponsePayloadMap = {
     commentFormat?: string;
   }>;
   [IpcChannels.REVIEW_DELETE_HISTORY]: IpcResult;
-  [IpcChannels.REVIEW_EXTRACT_CHECKLIST_CALL]: IpcResult
+  [IpcChannels.REVIEW_EXTRACT_CHECKLIST_CALL]: IpcResult;
+  [IpcChannels.REVIEW_EXTRACT_CHECKLIST_ABORT]: IpcResult;
   [IpcChannels.REVIEW_UPDATE_CHECKLIST]: IpcResult;
   [IpcChannels.REVIEW_EXECUTE_CALL]: IpcResult;
+  [IpcChannels.REVIEW_EXECUTE_ABORT]: IpcResult;
 };
 
 export type IpcEventPayloadMap = {
@@ -194,11 +202,11 @@ export type IpcEventPayloadMap = {
   [IpcChannels.CHAT_COMPLETE]: unknown;
   [IpcChannels.CHAT_ERROR]: { message: string };
   [IpcChannels.REVIEW_EXTRACT_CHECKLIST_FINISHED]: {
-    success: boolean;
+    status: ChecklistExtractionResultStatus;
     error?: string;
   };
   [IpcChannels.REVIEW_EXECUTE_FINISHED]: {
-    success: boolean;
+    status: ReviewExecutionResultStatus;
     error?: string;
   };
 };
@@ -256,6 +264,8 @@ export const IpcNameMap = {
   [IpcChannels.REVIEW_GET_HISTORY_INSTRUCTION]: 'レビュー指示内容の取得',
   [IpcChannels.REVIEW_DELETE_HISTORY]: 'レビュー結果の削除',
   [IpcChannels.REVIEW_EXTRACT_CHECKLIST_CALL]: 'チェックリストの抽出',
+  [IpcChannels.REVIEW_EXTRACT_CHECKLIST_ABORT]: 'チェックリスト抽出の中断',
   [IpcChannels.REVIEW_UPDATE_CHECKLIST]: 'チェックリストの更新',
   [IpcChannels.REVIEW_EXECUTE_CALL]: 'ドキュメントレビューの実行',
+  [IpcChannels.REVIEW_EXECUTE_ABORT]: 'ドキュメントレビューの中断',
 }

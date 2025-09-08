@@ -1,4 +1,4 @@
-import { ReviewChecklistResultDisplay, UploadFile,DocumentType, ReviewChecklistEdit } from '@/types';
+import { ReviewChecklistResultDisplay, UploadFile,DocumentType, ReviewChecklistEdit, ChecklistExtractionResultStatus, ReviewExecutionResultStatus } from '@/types';
 import { ApiServiceDefaultOptions } from '../types';
 import { getData } from '../lib/apiUtils';
 import { ReviewHistory } from '@/db/schema';
@@ -37,10 +37,10 @@ export interface IReviewApi {
     options?: ApiServiceDefaultOptions,
   ): Promise<void>;
   subscribeChecklistExtractionFinished(
-    callback: (payload: { success: boolean; error?: string }) => void,
+    callback: (payload: { status: ChecklistExtractionResultStatus; error?: string }) => void,
   ): () => void;
   subscribeReviewExtractionFinished(
-    callback: (payload: { success: boolean; error?: string }) => void,
+    callback: (payload: { status: ReviewExecutionResultStatus; error?: string }) => void,
   ): () => void;
   updateChecklist(
     historyId: string,
@@ -134,8 +134,34 @@ export class ReviewApi implements IReviewApi {
     getData(result, options);
   }
 
+  /**
+   * チェックリスト抽出処理をキャンセル
+   * @param reviewHistoryId レビュー履歴ID
+   * @param options API オプション
+   */
+  public async abortExtractChecklist(
+    reviewHistoryId: string,
+    options?: ApiServiceDefaultOptions,
+  ): Promise<void> {
+    const result = await window.electron.review.abortExtractChecklist(reviewHistoryId);
+    getData(result, options);
+  }
+
+  /**
+   * レビュー実行処理をキャンセル
+   * @param reviewHistoryId レビュー履歴ID
+   * @param options API オプション
+   */
+  public async abortExecuteReview(
+    reviewHistoryId: string,
+    options?: ApiServiceDefaultOptions,
+  ): Promise<void> {
+    const result = await window.electron.review.abortExecute(reviewHistoryId);
+    getData(result, options);
+  }
+
   public subscribeChecklistExtractionFinished(
-    callback: (payload: { success: boolean; error?: string }) => void,
+    callback: (payload: { status: ChecklistExtractionResultStatus; error?: string }) => void,
   ): () => void {
     const unsubscribe = window.electron.review.onExtractChecklistFinished(
       (payload) => {
@@ -146,7 +172,7 @@ export class ReviewApi implements IReviewApi {
   }
 
   public subscribeReviewExtractionFinished(
-    callback: (payload: { success: boolean; error?: string }) => void,
+    callback: (payload: { status: ReviewExecutionResultStatus; error?: string }) => void,
   ): () => void {
     const unsubscribe = window.electron.review.onExecuteReviewFinished(
       (payload) => {

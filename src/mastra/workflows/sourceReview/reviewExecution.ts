@@ -74,7 +74,7 @@ const classifyChecklistsByCategoryStep = createStep({
   description: 'チェックリストをカテゴリごとに分類するステップ',
   inputSchema: triggerSchema,
   outputSchema: classifyChecklistsByCategoryOutputSchema,
-  execute: async ({ inputData, mastra }) => {
+  execute: async ({ inputData, mastra, abortSignal }) => {
     // トリガーから入力を取得
     const { reviewHistoryId } = inputData;
 
@@ -122,6 +122,7 @@ const classifyChecklistsByCategoryStep = createStep({
         {
           output: outputSchema,
           runtimeContext,
+          abortSignal,
         },
       );
       // 分類結果の妥当性をチェック
@@ -227,7 +228,7 @@ const reviewExecutionStep = createStep({
   description: 'チェックリストごとにレビューを実行するステップ',
   inputSchema: classifyChecklistsByCategoryOutputSchema,
   outputSchema: baseStepOutputSchema,
-  execute: async ({ inputData, getInitData, mastra }) => {
+  execute: async ({ inputData, getInitData, mastra, abortSignal }) => {
     // レビュー対象のファイル
     const { files, additionalInstructions, commentFormat } =
       getInitData() as z.infer<typeof triggerSchema>;
@@ -335,6 +336,7 @@ const reviewExecutionStep = createStep({
               const reviewResult = await reviewAgent.generate(message, {
                 output: outputSchema,
                 runtimeContext,
+                abortSignal,
               });
               const { success, reason } = judgeFinishReason(
                 reviewResult.finishReason,

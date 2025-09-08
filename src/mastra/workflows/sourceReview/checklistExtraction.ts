@@ -83,7 +83,7 @@ const checklistDocumentExtractionStep = createStep({
   description: 'チェックリストドキュメントから既存項目を抽出するステップ',
   inputSchema: triggerSchema,
   outputSchema: checklistDocumentStepOutputSchema,
-  execute: async ({ inputData, mastra }) => {
+  execute: async ({ inputData, mastra, abortSignal }) => {
     // レビュー用のリポジトリを取得
     const reviewRepository = getReviewRepository();
     const sourceRepository = getSourceRepository();
@@ -184,6 +184,7 @@ const checklistDocumentExtractionStep = createStep({
               {
                 output: outputSchema,
                 runtimeContext,
+                abortSignal,
                 // AIの限界生成トークン数を超えた場合のエラーを回避するための設定
                 experimental_repairText: async (options) => {
                   isCompleted = false;
@@ -329,7 +330,7 @@ const topicExtractionStep = createStep({
   description: '一般ドキュメントから独立したトピックを抽出するステップ',
   inputSchema: triggerSchema,
   outputSchema: topicExtractionStepOutputSchema,
-  execute: async ({ inputData, mastra, bail }) => {
+  execute: async ({ inputData, mastra, bail, abortSignal }) => {
     const reviewRepository = getReviewRepository();
     const { files, reviewHistoryId, checklistRequirements } = inputData;
     const errorMessages: string[] = [];
@@ -425,6 +426,7 @@ const topicExtractionStep = createStep({
             {
               output: outputSchema,
               runtimeContext,
+              abortSignal,
             },
           );
 
@@ -491,7 +493,7 @@ const topicChecklistCreationStep = createStep({
     checklistRequirements: z.string().optional(),
   }),
   outputSchema: topicChecklistStepOutputSchema,
-  execute: async ({ inputData, mastra, bail }) => {
+  execute: async ({ inputData, mastra, bail, abortSignal }) => {
     const { title, file, content, reviewHistoryId, checklistRequirements } =
       inputData;
     const reviewRepository = getReviewRepository();
@@ -575,6 +577,7 @@ const topicChecklistCreationStep = createStep({
       const result = await topicChecklistAgent.generate(message, {
         output: outputSchema,
         runtimeContext,
+        abortSignal,
       });
       logger
         .debug(

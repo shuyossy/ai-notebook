@@ -153,6 +153,9 @@ const electronHandler = {
     extractChecklist: (
       params: IpcRequestPayloadMap[typeof IpcChannels.REVIEW_EXTRACT_CHECKLIST_CALL],
     ) => invokeIpc(IpcChannels.REVIEW_EXTRACT_CHECKLIST_CALL, params),
+    /** チェックリスト抽出キャンセル */
+    abortExtractChecklist: (reviewHistoryId: string) =>
+      invokeIpc(IpcChannels.REVIEW_EXTRACT_CHECKLIST_ABORT, reviewHistoryId),
     /** チェックリスト更新 */
     updateChecklist: (
       params: IpcRequestPayloadMap[typeof IpcChannels.REVIEW_UPDATE_CHECKLIST],
@@ -161,6 +164,9 @@ const electronHandler = {
     execute: (
       params: IpcRequestPayloadMap[typeof IpcChannels.REVIEW_EXECUTE_CALL],
     ) => invokeIpc(IpcChannels.REVIEW_EXECUTE_CALL, params),
+    /** レビュー実行キャンセル */
+    abortExecute: (reviewHistoryId: string) =>
+      invokeIpc(IpcChannels.REVIEW_EXECUTE_ABORT, reviewHistoryId),
 
     /** 抽出完了イベント（push） */
     onExtractChecklistFinished: (

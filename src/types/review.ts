@@ -44,3 +44,7 @@ export interface UploadFile {
   pdfImageMode?: PdfImageMode; // PDF画像化の場合のみ (merged: 統合画像, pages: ページ別画像)
   imageData?: string[]; // PDF画像変換時のBase64データ配列 (merged: 長さ1, pages: 各ページ)
 }
+
+export type ChecklistExtractionResultStatus = 'success' | 'failed' | 'suspended' | 'canceled';
+
+export type ReviewExecutionResultStatus = 'success' | 'failed' | 'suspended' | 'canceled';

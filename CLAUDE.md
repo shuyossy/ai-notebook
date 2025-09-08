@@ -186,16 +186,11 @@ ElectronのIPCを使用してフロントエンド・バックエンド間の通
 大規模リファクタリング
 
 ## 依頼タスク
-- 設定の取得・更新方法変更
-  - 目的
-    - 現在、設定情報の取得・更新はelectron-storeに依存してしまっているので、製品が変わったとしても影響を最小限にとどめられるようにする
-      - 設定の取得・更新時の情報取得・更新ロジックは（`src/main/repository/settingsRepository.ts`）を利用することで、製品間の差異を吸収する
-  - バックエンド
-    - electron-storeに保存した値を一つずつ取得・更新するのではなく、一括で設定内容を取得・更新するように変更
-    - 既存のIPC通信のGET_STORE_VALUE、SET_STORE_VALUEは削除し、GET_SETTINGS、SET_SETTINGSを作成
-      - これに合わせて、IPC通信の関連コードを修正
-  - フロントエンド
-    - `src/renderer/hooks/useElectronStore.ts`を削除し、`src/renderer/hooks/useSettingsStore.ts`に一本化
-  - 実装時の注意
-    - リポジトリはサービスクラスからのみアクセスすること
-    - `useSettingsStore.ts`については、今後別機能から設定値にアクセスしたくなった場合にも、簡単に使えるようにすること
+- レビュー機能利用時に、チェックリスト抽出とレビュー実行の処理をキャンセルできるようにする
+  - UI要件
+    - 現状、例えばレビュー実行時はレビューモーダル(`src/renderer/components/review/ReviewSourceModal.tsx`)の「レビュー実行」「チェックリスト抽出」ボタンはどちらも利用不可になり、「レビュー実行」ボタンはローディングが表示される。これを、「レビュー実行」ボタンは利用可能にしてキャンセルボタンを表示するように変更する(もちろんチェクリスト抽出時は逆)。
+  - 実装方法
+    - チャット機能にもチャット停止(abort)機能があるので参考にすること
+    - レビュー機能を利用するごとにabortControllerを発行して管理する
+    - `src/mastra/workflows/sourceReview/sourceReviewManager.ts`のプロパティに`src/main/lib/AbortControllerManager.ts`を持つ形で制御
+    - mastraのworkflowは、createRunAsyncメソッドの戻り値であるRunオブジェクトにcancelメソッドが用意されているため、abortの際はこのcancelメソッドを実行すること

@@ -9,6 +9,7 @@ import {
 } from '@mui/material';
 import CheckBoxIcon from '@mui/icons-material/CheckBox';
 import RateReviewIcon from '@mui/icons-material/RateReview';
+import StopIcon from '@mui/icons-material/Stop';
 import {
   ReviewChecklistEdit,
   ReviewChecklistResultDisplay,
@@ -111,13 +112,13 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
 
         // 抽出完了イベントの購読を開始
         const unsubscribe = reviewApi.subscribeChecklistExtractionFinished(
-          (payload: { success: boolean; error?: string }) => {
-            if (payload.success) {
+          (payload) => {
+            if (payload.status === 'success') {
               addAlert({
                 message: 'チェックリストの抽出が完了しました',
                 severity: 'success',
               });
-            } else {
+            } else if (payload.status === 'failed') {
               addAlert({
                 message: `チェックリストの抽出に失敗しました\n${payload.error}`,
                 severity: 'error',
@@ -162,12 +163,12 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
         // レビュー完了イベントの購読を開始
         const unsubscribe = reviewApi.subscribeReviewExtractionFinished(
           (payload) => {
-            if (payload.success) {
+            if (payload.status === 'success') {
               addAlert({
                 message: 'レビューが完了しました',
                 severity: 'success',
               });
-            } else {
+            } else if (payload.status === 'failed') {
               addAlert({
                 message: `レビューに失敗しました\n${payload.error}`,
                 severity: 'error',
@@ -188,6 +189,58 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
     },
     [selectedReviewHistoryId, addAlert, additionalInstructions, commentFormat],
   );
+
+  // チェックリスト抽出のキャンセル処理
+  const handleCancelExtractChecklist = useCallback(async () => {
+    if (!selectedReviewHistoryId) return;
+
+    const reviewApi = ReviewApi.getInstance();
+
+    try {
+      await reviewApi.abortExtractChecklist(selectedReviewHistoryId, {
+        showAlert: false,
+        throwError: true,
+        printErrorLog: false,
+      });
+      setIsExtracting(false);
+      addAlert({
+        message: 'チェックリスト抽出をキャンセルしました',
+        severity: 'info',
+      });
+    } catch (error) {
+      console.error('チェックリスト抽出のキャンセルエラー:', error);
+      addAlert({
+        message: 'チェックリスト抽出のキャンセルに失敗しました',
+        severity: 'error',
+      });
+    }
+  }, [selectedReviewHistoryId, addAlert]);
+
+  // レビュー実行のキャンセル処理
+  const handleCancelExecuteReview = useCallback(async () => {
+    if (!selectedReviewHistoryId) return;
+
+    const reviewApi = ReviewApi.getInstance();
+
+    try {
+      await reviewApi.abortExecuteReview(selectedReviewHistoryId, {
+        showAlert: true,
+        throwError: true,
+        printErrorLog: false,
+      });
+      setIsReviewing(false);
+      addAlert({
+        message: 'レビュー実行をキャンセルしました',
+        severity: 'info',
+      });
+    } catch (error) {
+      console.error('レビュー実行のキャンセルエラー:', error);
+      addAlert({
+        message: 'レビュー実行のキャンセルに失敗しました',
+        severity: 'error',
+      });
+    }
+  }, [selectedReviewHistoryId, addAlert]);
 
   const handleModalSubmit = useCallback(
     async (
@@ -252,45 +305,39 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
             <Stack direction="row" spacing={2}>
               <Button
                 variant="contained"
-                startIcon={
-                  !isExtracting ? (
-                    <CheckBoxIcon />
-                  ) : (
-                    <CircularProgress size={24} color="inherit" />
-                  )
+                color={isExtracting ? 'error' : 'primary'}
+                startIcon={isExtracting ? <StopIcon /> : <CheckBoxIcon />}
+                onClick={
+                  isExtracting
+                    ? handleCancelExtractChecklist
+                    : () => {
+                        setModalMode('extract');
+                        setIsModalOpen(true);
+                      }
                 }
-                onClick={() => {
-                  setModalMode('extract');
-                  setIsModalOpen(true);
-                }}
-                disabled={
-                  !selectedReviewHistoryId || isExtracting || isReviewing
-                }
+                disabled={!selectedReviewHistoryId || isReviewing}
               >
-                チェックリスト抽出
+                {isExtracting ? 'キャンセル' : 'チェックリスト抽出'}
               </Button>
               <Button
                 variant="contained"
-                color="primary"
-                startIcon={
-                  !isReviewing ? (
-                    <RateReviewIcon />
-                  ) : (
-                    <CircularProgress size={24} color="inherit" />
-                  )
+                color={isReviewing ? 'error' : 'primary'}
+                startIcon={isReviewing ? <StopIcon /> : <RateReviewIcon />}
+                onClick={
+                  isReviewing
+                    ? handleCancelExecuteReview
+                    : () => {
+                        setModalMode('review');
+                        setIsModalOpen(true);
+                      }
                 }
-                onClick={() => {
-                  setModalMode('review');
-                  setIsModalOpen(true);
-                }}
                 disabled={
                   !selectedReviewHistoryId ||
                   isExtracting ||
-                  isReviewing ||
-                  checklistResults.length === 0
+                  (checklistResults.length === 0 && !isReviewing)
                 }
               >
-                レビュー実行
+                {isReviewing ? 'キャンセル' : 'レビュー実行'}
               </Button>
             </Stack>
           </Stack>
