@@ -40,6 +40,69 @@ import { FsApi } from '../../service/fsApi';
 
 import { combineImages, convertPdfBytesToImages } from '../../lib/pdfUtils';
 
+const getMimeTypeFromExtension = (extension: string): string => {
+  const mimeTypes: { [key: string]: string } = {
+    pdf: 'application/pdf',
+    doc: 'application/msword',
+    docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    xls: 'application/vnd.ms-excel',
+    xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    ppt: 'application/vnd.ms-powerpoint',
+    pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    txt: 'text/plain',
+  };
+  return mimeTypes[extension] || 'application/octet-stream';
+};
+
+const getButtonText = (modalMode: ReviewSourceModalProps['modalMode']) => {
+  if (modalMode === 'review') return 'ドキュメントレビュー実行';
+  if (modalMode === 'extract') return 'チェックリスト抽出';
+  return null;
+};
+
+const getTitle = (modalMode: ReviewSourceModalProps['modalMode']) => {
+  if (modalMode === 'review') return 'レビュー対象ファイルのアップロード';
+  if (modalMode === 'extract')
+    return 'チェックリスト抽出対象ファイルのアップロード';
+  return 'ファイルアップロード';
+};
+
+const getAlertMessage = ({
+  modalMode,
+  documentType,
+}: {
+  modalMode: ReviewSourceModalProps['modalMode'];
+  documentType: DocumentType;
+}) => {
+  if (modalMode === 'extract') {
+    return (
+      <>
+        ファイルを選択してチェックリスト抽出を実行できます
+        <br />
+        {documentType === 'checklist'
+          ? '選択されたチェックリストドキュメントから、AIが既存のチェック項目を抽出できます'
+          : '選択された一般ドキュメントから、AIがレビュー用のチェックリストを新規作成できます'}
+        <br />
+        ※
+        <br />
+        チェックリストは手動で編集・追加・削除が可能です
+        <br />
+        手動で追加・編集されたチェックリスト以外は、再度チェックリスト抽出を実行すると削除されます
+      </>
+    );
+  }
+  if (modalMode === 'review') {
+    return (
+      <>
+        レビュー対象ファイルを選択してください
+        <br />
+        選択されたドキュメントに対して、AIがチェックリストに基づいてレビューを行います
+      </>
+    );
+  }
+  return null;
+};
+
 function ReviewSourceModal({
   open,
   onClose,
@@ -69,20 +132,6 @@ function ReviewSourceModal({
 
     loadSavedData();
   }, [modalMode, selectedReviewHistoryId]);
-
-  const getMimeTypeFromExtension = (extension: string): string => {
-    const mimeTypes: { [key: string]: string } = {
-      pdf: 'application/pdf',
-      doc: 'application/msword',
-      docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      xls: 'application/vnd.ms-excel',
-      xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      ppt: 'application/vnd.ms-powerpoint',
-      pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-      txt: 'text/plain',
-    };
-    return mimeTypes[extension] || 'application/octet-stream';
-  };
 
   const handleFileUpload = async () => {
     try {
@@ -262,49 +311,6 @@ function ReviewSourceModal({
     }
   };
 
-  const getButtonText = () => {
-    if (modalMode === 'review') return 'ドキュメントレビュー実行';
-    if (modalMode === 'extract') return 'チェックリスト抽出';
-    return null;
-  };
-
-  const getTitle = () => {
-    if (modalMode === 'review') return 'レビュー対象ファイルのアップロード';
-    if (modalMode === 'extract')
-      return 'チェックリスト抽出対象ファイルのアップロード';
-    return 'ファイルアップロード';
-  };
-
-  const getAlertMessage = () => {
-    if (modalMode === 'extract') {
-      return (
-        <>
-          ファイルを選択してチェックリスト抽出を実行できます
-          <br />
-          {documentType === 'checklist'
-            ? '選択されたチェックリストドキュメントから、AIが既存のチェック項目を抽出できます'
-            : '選択された一般ドキュメントから、AIがレビュー用のチェックリストを新規作成できます'}
-          <br />
-          ※
-          <br />
-          チェックリストは手動で編集・追加・削除が可能です
-          <br />
-          手動で追加・編集されたチェックリスト以外は、再度チェックリスト抽出を実行すると削除されます
-        </>
-      );
-    }
-    if (modalMode === 'review') {
-      return (
-        <>
-          レビュー対象ファイルを選択してください
-          <br />
-          選択されたドキュメントに対して、AIがチェックリストに基づいてレビューを行います
-        </>
-      );
-    }
-    return null;
-  };
-
   return (
     <Modal open={open} onClose={onClose}>
       <Box
@@ -324,11 +330,11 @@ function ReviewSourceModal({
         }}
       >
         <Typography variant="h6" component="h2" gutterBottom>
-          {getTitle()}
+          {getTitle(modalMode)}
         </Typography>
 
         <Alert severity="info" sx={{ whiteSpace: 'pre-line', mb: 2 }}>
-          {getAlertMessage()}
+          {getAlertMessage({ modalMode, documentType })}
         </Alert>
 
         {modalMode === 'extract' && (
@@ -551,7 +557,7 @@ function ReviewSourceModal({
             disabled={processing || disabled || uploadedFiles.length === 0}
             startIcon={processing ? <CircularProgress size={20} /> : null}
           >
-            {processing ? '処理中...' : getButtonText()}
+            {processing ? '処理中...' : getButtonText(modalMode)}
           </Button>
         </Box>
       </Box>
