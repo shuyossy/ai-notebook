@@ -162,7 +162,7 @@ const logger = getMainLogger();
 /**
  * 設定の初期化を行う関数
  */
-const initializeSettings = async (): Promise<void> => {
+const initializeAgentStatus = async (): Promise<void> => {
   try {
     // 設定の初期化
     await settingsService.initializeSettings();
@@ -172,15 +172,13 @@ const initializeSettings = async (): Promise<void> => {
   }
 };
 
-const setupStoreHandlers = () => {
-  handleIpc(IpcChannels.GET_STORE_VALUE, async (key) => {
-    const store = getStore();
-    return store.get(key);
+const setupSettingsHandlers = () => {
+  handleIpc(IpcChannels.GET_SETTINGS, async () => {
+    return await settingsService.getSettings();
   });
 
-  handleIpc(IpcChannels.SET_STORE_VALUE, async ({ key, value }) => {
-    const store = getStore();
-    store.set(key, value);
+  handleIpc(IpcChannels.SET_SETTINGS, async (settings) => {
+    await settingsService.saveSettings(settings);
     return true;
   });
 };
@@ -585,8 +583,8 @@ crashReporter.start({
 
 const initialize = async () => {
   createWindow();
-  await initializeSettings();
-  setupStoreHandlers();
+  await initializeAgentStatus();
+  setupSettingsHandlers();
   setupChatHandlers();
   setupFsHandlers();
   setupSourceHandlers();

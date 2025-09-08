@@ -78,11 +78,10 @@ function App() {
   // 初回fetch+初期化が完了したらpushすれば良さそうだが、、、とりあえずポーリングで対応
   const fetchAgentStatus = useCallback(async () => {
     const settingsApi = SettingsApi.getInstance();
-    const data = await settingsApi.getStatus({
+    const data = await settingsApi.getAgentStatus({
       showAlert: false,
       throwError: false,
     });
-    console.log('Agent Status:', data);
     if (data) {
       setStatus(data);
     }

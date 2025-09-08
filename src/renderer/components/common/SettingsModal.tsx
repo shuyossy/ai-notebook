@@ -9,7 +9,7 @@ import {
   Alert,
 } from '@mui/material';
 import Modal from './Modal';
-import useSettingsStore from '../../hooks/useSettingsStore';
+import useSettingsStore from '../../hooks/useSettings';
 import { StoreSchema as Settings } from '../../../main/store';
 
 interface SettingsModalProps {
@@ -29,7 +29,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     settings,
     validationErrors,
     loading,
-    error,
+    saveError,
     updateField,
     saveSettings,
     isValid,
@@ -79,9 +79,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
 
   return (
     <Modal open={open} onClose={onClose} title="設定" actions={actions}>
-      {error && (
+      {saveError && (
         <Typography color="error" sx={{ p: 2 }}>
-          {error}
+          {saveError}
         </Typography>
       )}
       <Box sx={{ flexGrow: 1 }}>

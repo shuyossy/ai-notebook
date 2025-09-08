@@ -8,6 +8,7 @@ import {
   SettingsSavingStatus,
   SettingsSavingMessage,
   AgentToolStatus,
+  Settings,
 } from '@/types';
 import { InitializeToolsConfig, initializeTools } from '@/mastra/tools';
 import { RedmineBaseInfo } from '@/mastra/tools/redmine';
@@ -28,6 +29,8 @@ export interface ISettingsService {
   removeMessage(messageId: string): void;
   getRuntimeContext(): Promise<RuntimeContext>;
   initializeSettings(): Promise<void>;
+  getSettings(): Promise<Settings>;
+  saveSettings(settings: Settings): Promise<void>;
 }
 
 export class  SettingsService implements ISettingsService {
@@ -249,5 +252,18 @@ export class  SettingsService implements ISettingsService {
     }
     // 初期化完了状態に更新
     this.status.state = 'done';
+  };
+  /**
+   * 設定を取得する
+   */
+  public getSettings = async (): Promise<Settings> => {
+    return await this.settingsRepository.getSettings();
+  };
+
+  /**
+   * 設定を保存する
+   */
+  public saveSettings = async (settings: Settings): Promise<void> => {
+    await this.settingsRepository.saveSettings(settings);
   };
 }

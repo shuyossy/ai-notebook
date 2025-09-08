@@ -28,7 +28,7 @@ export const useAgentStatusStore = create<AgentStatusStore>((set) => ({
       printErrorLog: true,
     });
     // メッセージ削除後に最新のステータスを取得して更新
-    const newStatus = await settingsApi.getStatus({
+    const newStatus = await settingsApi.getAgentStatus({
       showAlert: false,
       throwError: false,
       printErrorLog: true,

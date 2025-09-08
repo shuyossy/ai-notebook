@@ -12,6 +12,7 @@ import type {
 } from './review';
 import type {
   SettingsSavingStatus,
+  Settings,
 } from './setting';
 import type { Source, ReviewHistory } from '@/db/schema';
 
@@ -37,9 +38,9 @@ export const IpcChannels = {
   REINITIALIZE_SETTINGS: 'reinitialize-settings',
   REMOVE_SETTINGS_MESSAGE: 'remove-settings-message',
 
-  // ストア関連
-  GET_STORE_VALUE: 'get-store-value',
-  SET_STORE_VALUE: 'set-store-value',
+  // 設定関連
+  GET_SETTINGS: 'get-settings',
+  SET_SETTINGS: 'set-settings',
 
   // ソース関連
   SOURCE_GET_ALL: 'source-get-all',
@@ -89,14 +90,14 @@ export type IpcRequestPayloadMap = {
   [IpcChannels.REINITIALIZE_SETTINGS]: undefined;
   [IpcChannels.REMOVE_SETTINGS_MESSAGE]: string; // message id
 
+  // 設定関連
+  [IpcChannels.GET_SETTINGS]: undefined;
+  [IpcChannels.SET_SETTINGS]: Settings;
+
   // ファイルシステム関連
   [IpcChannels.FS_CHECK_PATH_EXISTS]: string;
   [IpcChannels.FS_SHOW_OPEN_DIALOG]: OpenDialogOptions;
   [IpcChannels.FS_READ_FILE]: string; // file path
-
-  // ストア関連
-  [IpcChannels.GET_STORE_VALUE]: string;
-  [IpcChannels.SET_STORE_VALUE]: { key: string; value: unknown };
 
   // ソース関連
   [IpcChannels.SOURCE_GET_ALL]: undefined;
@@ -147,6 +148,10 @@ export type IpcResponsePayloadMap = {
   [IpcChannels.REINITIALIZE_SETTINGS]: IpcResult;
   [IpcChannels.REMOVE_SETTINGS_MESSAGE]: IpcResult;
 
+  // 設定関連
+  [IpcChannels.GET_SETTINGS]: IpcResult<Settings>;
+  [IpcChannels.SET_SETTINGS]: IpcResult<boolean>;
+
   // ファイルシステム関連
   [IpcChannels.FS_CHECK_PATH_EXISTS]: IpcResult<boolean>;
   [IpcChannels.FS_SHOW_OPEN_DIALOG]: IpcResult<{
@@ -154,10 +159,6 @@ export type IpcResponsePayloadMap = {
     canceled: boolean;
   }>;
   [IpcChannels.FS_READ_FILE]: IpcResult<Uint8Array>; // ファイルのバイナリデータ
-
-  // ストア関連
-  [IpcChannels.GET_STORE_VALUE]: IpcResult<unknown>;
-  [IpcChannels.SET_STORE_VALUE]: IpcResult<boolean>;
 
   // ソース関連
   [IpcChannels.SOURCE_GET_ALL]: IpcResult<Source[]>;
@@ -221,18 +222,18 @@ export type EventChannel = keyof IpcEventPayloadMap;
 // チャネル名と処理内容のマッピング（ログ出力やエラー処理などで使用）
 export const IpcNameMap = {
   // Mastra関連
-  [IpcChannels.GET_SETTINGS_STATUS]: '設定情報の取得',
-  [IpcChannels.REINITIALIZE_SETTINGS]: '設定情報の更新',
-  [IpcChannels.REMOVE_SETTINGS_MESSAGE]: '設定更新メッセージの削除',
+  [IpcChannels.GET_SETTINGS_STATUS]: 'AIツール情報の取得',
+  [IpcChannels.REINITIALIZE_SETTINGS]: 'AIツール情報の更新',
+  [IpcChannels.REMOVE_SETTINGS_MESSAGE]: 'AIツール情報メッセージの削除',
+
+  // 設定関連
+  [IpcChannels.GET_SETTINGS]: '設定情報の取得',
+  [IpcChannels.SET_SETTINGS]: '設定情報の更新',
 
   // ファイルシステム関連
   [IpcChannels.FS_CHECK_PATH_EXISTS]: 'ファイルパスの存在確認',
   [IpcChannels.FS_SHOW_OPEN_DIALOG]: 'ファイルダイアログ表示',
   [IpcChannels.FS_READ_FILE]: 'ファイル読み込み',
-
-  // ストア関連
-  [IpcChannels.GET_STORE_VALUE]: '設定情報の取得',
-  [IpcChannels.SET_STORE_VALUE]: '設定情報の設定',
 
   // ソース関連
   [IpcChannels.SOURCE_GET_ALL]: 'ドキュメント情報の取得',

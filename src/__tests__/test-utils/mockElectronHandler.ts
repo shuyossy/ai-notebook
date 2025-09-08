@@ -1,7 +1,6 @@
 import type { ElectronHandler } from '@/main/preload';
-import type { StoreSchema as Settings } from '@/main/store';
 import type { Source } from '@/db/schema';
-import type { ChatRoom, SettingsSavingStatus } from '@/types';
+import type { ChatRoom, SettingsSavingStatus, Settings } from '@/types';
 
 /**
  * Mockメソッドの型を定義
@@ -47,7 +46,7 @@ export const createDefaultMockSettings = (): Settings => ({
     apiKey: 'test-gitlab-key',
   },
   mcp: {
-    serverConfigText: '{"testMcp": {"url": "https://mcp.test.com"} }',
+    serverConfig: '{"testMcp": {"url": "https://mcp.test.com"} }',
   },
   systemPrompt: {
     content: 'test system prompt',
@@ -89,6 +88,8 @@ export const createMockElectronWithOptions = (
       }),
       reinitialize: jest.fn().mockResolvedValue(undefined),
       removeMessage: jest.fn(),
+      getSettings: jest.fn().mockResolvedValue({ success: true, data: settings }),
+      setSettings: jest.fn().mockResolvedValue({ success: true }),
     },
     fs: {
       access: jest.fn().mockResolvedValue(options.fsAccess ?? true),

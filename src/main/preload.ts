@@ -70,6 +70,11 @@ const electronHandler = {
     // 設定のメッセージを削除する
     removeMessage: (messageId: string) =>
       invokeIpc(IpcChannels.REMOVE_SETTINGS_MESSAGE, messageId),
+    // 設定を一括取得する
+    getSettings: () => invokeIpc(IpcChannels.GET_SETTINGS),
+    // 設定を一括保存する
+    setSettings: (settings: IpcRequestPayloadMap[typeof IpcChannels.SET_SETTINGS]) =>
+      invokeIpc(IpcChannels.SET_SETTINGS, settings),
   },
   fs: {
     /** パスが存在するか */
@@ -81,13 +86,6 @@ const electronHandler = {
     /** ファイル読み込み（Uint8Array） */
     readFile: (filePath: string) =>
       invokeIpc(IpcChannels.FS_READ_FILE, filePath),
-  },
-  store: {
-    store: {
-      get: (key: string) => invokeIpc(IpcChannels.GET_STORE_VALUE, key),
-      set: (options: { key: string; value: unknown }) =>
-        invokeIpc(IpcChannels.SET_STORE_VALUE, options),
-    },
   },
   chat: {
     /** チャットメッセージ送信 */

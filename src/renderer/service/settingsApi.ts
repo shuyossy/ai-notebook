@@ -1,14 +1,19 @@
-import { SettingsSavingStatus } from '@/types';
+import { SettingsSavingStatus, Settings } from '@/types';
 import { getData } from '../lib/apiUtils';
 import { ApiServiceDefaultOptions } from '../types';
 
 export interface ISettingsApi {
-  getStatus(options?: ApiServiceDefaultOptions): Promise<SettingsSavingStatus | null>;
+  getAgentStatus(options?: ApiServiceDefaultOptions): Promise<SettingsSavingStatus | null>;
   removeMessage(
     messageId: string,
     options?: ApiServiceDefaultOptions,
   ): Promise<void>;
   reinitialize(options?: ApiServiceDefaultOptions): Promise<void>;
+  getSettings(options?: ApiServiceDefaultOptions): Promise<Settings | null>;
+  setSettings(
+    settings: Settings,
+    options?: ApiServiceDefaultOptions,
+  ): Promise<boolean | null>;
 }
 
 export class SettingsApi implements ISettingsApi {
@@ -26,7 +31,7 @@ export class SettingsApi implements ISettingsApi {
     return SettingsApi.instance;
   }
 
-  public async getStatus(
+  public async getAgentStatus(
     options?: ApiServiceDefaultOptions,
   ): Promise<SettingsSavingStatus | null> {
     const result = await window.electron.settings.getStatus();
@@ -46,5 +51,20 @@ export class SettingsApi implements ISettingsApi {
   ): Promise<void> {
     const result = await window.electron.settings.reinitialize();
     getData(result, options);
+  }
+
+  public async getSettings(
+    options?: ApiServiceDefaultOptions,
+  ): Promise<Settings | null> {
+    const result = await window.electron.settings.getSettings();
+    return getData(result, options);
+  }
+
+  public async setSettings(
+    settings: Settings,
+    options?: ApiServiceDefaultOptions,
+  ): Promise<boolean | null> {
+    const result = await window.electron.settings.setSettings(settings);
+    return getData(result, options);
   }
 }

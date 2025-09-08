@@ -176,16 +176,26 @@ ElectronのIPCを使用してフロントエンド・バックエンド間の通
     - ライブラリを追加する際は安定稼働バージョンを採用すること
 - eslintについては単純なフォーマットエラーの場合は対応する必要はない
 - IDEからエラー内容を読み取り、必要があれば確り対応すること
-- `src/main/preload.ts`にてエラーを一元管理しているため、IPCハンドラ内のサービスロジックにおいては基本的にはエラーをtry-catchしてハンドリングする必要はない
+- MainプロセスでのIPC処理について、`src/main.ts`のhandleIpcにてエラーを一元管理しているため、IPCハンドラ内のサービスロジックにおいては基本的にはエラーをtry-catchしてハンドリングする必要はない
   - ただし、ユーザにエラーメッセージを通知する必要がある場合は適切なエラーハンドリングの下、`src/mian/lib/error.ts`にて提供されているAppErrorをthrowすること
+- フロントエンドから外部（IPC）通信する場合は`src/renderer/service/~Api.ts`を経由すること
+  - 新規にサービスクラスを作成する場合は既存ロジックを参考にして作成すること
 - テストについては指示されない限り、実行も修正もしなくてよい
 
 ## 現在実施中のタスク
 大規模リファクタリング
-- エラー処理の改善
-  - Main側
-    - `src/mian/lib/error.ts`でAppError例外の導入
-    - IPCハンドラのエラーやレスポンスについて、`src/main/preload.ts`にて一元的に管理するラッパを導入
-  Renderer側
-    - 元々`src/renderer/service/~Service.ts`というモジュールにて外部IPC通信を管理していたが、このファイルを全て削除
-    - 新規に`src/renderer/service/~Api.ts`というモジュールを作成し、外部通信IFを提供する
+
+## 依頼タスク
+- 設定の取得・更新方法変更
+  - 目的
+    - 現在、設定情報の取得・更新はelectron-storeに依存してしまっているので、製品が変わったとしても影響を最小限にとどめられるようにする
+      - 設定の取得・更新時の情報取得・更新ロジックは（`src/main/repository/settingsRepository.ts`）を利用することで、製品間の差異を吸収する
+  - バックエンド
+    - electron-storeに保存した値を一つずつ取得・更新するのではなく、一括で設定内容を取得・更新するように変更
+    - 既存のIPC通信のGET_STORE_VALUE、SET_STORE_VALUEは削除し、GET_SETTINGS、SET_SETTINGSを作成
+      - これに合わせて、IPC通信の関連コードを修正
+  - フロントエンド
+    - `src/renderer/hooks/useElectronStore.ts`を削除し、`src/renderer/hooks/useSettingsStore.ts`に一本化
+  - 実装時の注意
+    - リポジトリはサービスクラスからのみアクセスすること
+    - `useSettingsStore.ts`については、今後別機能から設定値にアクセスしたくなった場合にも、簡単に使えるようにすること
