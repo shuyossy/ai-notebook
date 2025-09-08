@@ -1,17 +1,14 @@
 import { IpcMainInvokeEvent } from 'electron';
 import { getReviewRepository } from '@/main/repository/reviewRepository';
-import {
-  IpcChannels,
-  IpcEventPayloadMap,
-} from '@/types/ipc';
+import { IpcChannels, IpcEventPayloadMap } from '@/types/ipc';
 import { generateReviewTitle } from './lib';
 import { ReviewHistory } from '@/db/schema';
 import { mastra } from '../..';
 import { DocumentType, UploadFile } from '@/types';
 import { checkWorkflowResult } from '../../lib/workflowUtils';
-import { internalError } from '@/main/lib/error';
+import { internalError, normalizeUnknownError } from '@/main/lib/error';
 import { getMainLogger } from '@/main/lib/logger';
-
+import { formatMessage } from '@/main/lib/messages';
 
 const logger = getMainLogger();
 
@@ -69,7 +66,7 @@ export default class SourceReviewManager {
         logger.error('レビュー実行ワークフローが見つかりません');
         throw internalError({
           expose: false,
-        })
+        });
       }
 
       const run = workflow.createRun();
@@ -89,11 +86,14 @@ export default class SourceReviewManager {
         error: checkResult.errorMessage,
       };
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : '不明なエラー';
+      logger.error(error, 'チェックリスト抽出処理に失敗しました');
+      const err = normalizeUnknownError(error);
+      const errorMessage = err.message;
       return {
         success: false,
-        error: `チェックリスト抽出処理でエラーが発生しました: ${errorMessage}`,
+        error: formatMessage('REVIEW_CHECKLIST_EXTRACTION_ERROR', {
+          detail: errorMessage,
+        }),
       };
     }
   }
@@ -128,7 +128,7 @@ export default class SourceReviewManager {
         logger.error('レビュー実行ワークフローが見つかりません');
         throw internalError({
           expose: false,
-        })
+        });
       }
 
       // タイトルの変更
@@ -156,11 +156,14 @@ export default class SourceReviewManager {
         error: checkResult.errorMessage,
       };
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : '不明なエラー';
+      logger.error(error, 'レビュー実行処理に失敗しました');
+      const err = normalizeUnknownError(error);
+      const errorMessage = err.message;
       return {
         success: false,
-        error: `レビュー実行処理でエラーが発生しました: ${errorMessage}`,
+        error: formatMessage('REVIEW_EXECUTION_ERROR', {
+          detail: errorMessage,
+        }),
       };
     }
   }
@@ -177,7 +180,7 @@ export default class SourceReviewManager {
     event: IpcMainInvokeEvent,
     documentType: DocumentType = 'checklist',
     checklistRequirements?: string,
-  ): {success: boolean; error?: string} {
+  ): { success: boolean; error?: string } {
     try {
       this.extractChecklist(
         reviewHistoryId,
@@ -210,8 +213,9 @@ export default class SourceReviewManager {
         success: true,
       };
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : '不明なエラー';
+      logger.error(error, 'チェックリスト抽出処理に失敗しました');
+      const err = normalizeUnknownError(error);
+      const errorMessage = err.message;
       const errorResult = {
         success: false,
         error: errorMessage,
@@ -237,7 +241,7 @@ export default class SourceReviewManager {
     event: IpcMainInvokeEvent,
     additionalInstructions?: string,
     commentFormat?: string,
-  ): {success: boolean; error?: string} {
+  ): { success: boolean; error?: string } {
     try {
       this.executeReview(
         reviewHistoryId,
@@ -267,8 +271,9 @@ export default class SourceReviewManager {
         success: true,
       };
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : '不明なエラー';
+      logger.error(error, 'レビュー実行処理に失敗しました');
+      const err = normalizeUnknownError(error);
+      const errorMessage = err.message;
       const errorResult = {
         success: false,
         error: errorMessage,

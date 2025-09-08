@@ -15,6 +15,10 @@ import {
   ReviewExecuteAgentRuntimeContext,
 } from '../../agents/workflowAgents';
 import { createRuntimeContext, judgeFinishReason } from '../../lib/agentUtils';
+import { getMainLogger } from '@/main/lib/logger';
+import { normalizeUnknownError } from '@/main/lib/error';
+
+const logger = getMainLogger();
 
 // 一つのカテゴリに含めるチェックリストの最大数
 const MAX_CHECKLISTS_PER_CATEGORY = 3;
@@ -189,6 +193,7 @@ const classifyChecklistsByCategoryStep = createStep({
         categories: finalCategories,
       };
     } catch (error) {
+      logger.error(error, 'チェックリストのカテゴリ分類処理に失敗しました');
       if (
         APICallError.isInstance(error) ||
         (NoObjectGeneratedError.isInstance(error) &&
@@ -201,13 +206,13 @@ const classifyChecklistsByCategoryStep = createStep({
           await repository.getChecklists(reviewHistoryId);
         return {
           status: 'success' as stepStatus,
-          categories: splitChecklistEquallyByMaxSize(checklistsResult, 7),
+          categories: splitChecklistEquallyByMaxSize(checklistsResult, MAX_CHECKLISTS_PER_CATEGORY),
         };
       }
-      const errorDetail =
-        error instanceof Error ? error.message : JSON.stringify(error);
+      const normalizedError = normalizeUnknownError(error);
+      const errorDetail = normalizedError.message;
       // エラーが発生した場合はエラ
-      const errorMessage = `ドキュメントレビュー中にエラーが発生しました:\n${errorDetail}`;
+      const errorMessage = `${errorDetail}`;
       return {
         status: 'failed' as stepStatus,
         errorMessage,
@@ -242,7 +247,7 @@ const reviewExecutionStep = createStep({
 
     // チェックリストを全量チェックできなかったドキュメントを格納
     // key: ファイル名, value: エラー内容
-    const errorDocuments = new Map<string, string[]>();
+    const errorDocuments = new Map<string, string>();
 
     try {
       const reviewAgent = mastra.getAgent('reviewExecuteAgent');
@@ -363,6 +368,7 @@ const reviewExecutionStep = createStep({
                 break;
               }
             } catch (error) {
+              logger.error(error, `${file.name}チェックリストのレビュー実行処理に失敗しました`);
               let errorDetail: string;
               if (
                 error instanceof MastraError &&
@@ -379,40 +385,29 @@ const reviewExecutionStep = createStep({
               ) {
                 // AIモデルが生成できる文字数を超えているため、手動でレビューを分割
                 errorDetail = `AIモデルが生成できる文字数を超えています。チェックリスト量の削減を検討してください。`;
-              } else if (error instanceof Error) {
-                errorDetail = error.message;
               } else {
-                errorDetail = JSON.stringify(error);
+                const normalizedError = normalizeUnknownError(error);
+                errorDetail = normalizedError.message;
               }
               // レビューに失敗したチェックリストを記録
-              if (!errorDocuments.has(file.name)) {
-                errorDocuments.set(file.name, []);
-              }
-              errorDocuments.get(file.name)!.push(errorDetail);
+              // 最新のエラー内容に更新
+              errorDocuments.set(file.name, errorDetail);
             } finally {
               attempt += 1;
             }
           }
           if (attempt >= maxAttempts) {
             // 最大試行回数に達した場合、レビューに失敗したドキュメントを記録
-            if (!errorDocuments.has(file.name)) {
-              errorDocuments.set(file.name, []);
-            }
-            errorDocuments
-              .get(file.name)!
-              .push(
-                `全てのチェックリストに対してレビューを完了することができませんでした`,
-              );
+            errorDocuments.set(file.name, `全てのチェックリストに対してレビューを完了することができませんでした`)
           }
         }
       }
       // errorDocumentsが空でない場合、レビューに失敗したドキュメントを返す
       if (errorDocuments.size > 0) {
-        const errorMessage = `以下ドキュメントのレビュー中にエラーが発生しました:
-        ${Array.from(errorDocuments.entries())
+        const errorMessage = `${Array.from(errorDocuments.entries())
           .map(
-            ([fileName, errors]) =>
-              `${fileName}:\n  - ${errors.join('\n  - ')}`,
+            ([fileName, error]) =>
+              `${fileName}のレビュー実行中にエラー: ${error}`,
           )
           .join('\n')}`;
         return {
@@ -428,11 +423,13 @@ const reviewExecutionStep = createStep({
         },
       };
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : '不明なエラー';
+      logger.error(error, 'チェックリストのレビュー実行処理に失敗しました');
+      const normalizedError = normalizeUnknownError(error);
+      const errorMessage = normalizedError.message;
+      // エラーが発生した場合はエラ
       return {
         status: 'failed' as stepStatus,
-        errorMessage: `ドキュメントレビュー中にエラーが発生しました: ${errorMessage}`,
+        errorMessage: `${errorMessage}`,
       };
     }
   },

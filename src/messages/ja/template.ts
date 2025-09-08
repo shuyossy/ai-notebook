@@ -20,4 +20,6 @@ export const template = {
   FS_OPEN_DIALOG_ERROR: `ファイルダイアログの表示に失敗しました`,
   FILE_TEXT_EXTRACTION_ERROR: `ファイルのテキスト抽出に失敗しました\n{path}`,
   SOURCE_REGISTRATION_DIR_READING_ERROR: `ドキュメント登録用ディレクトリの読み込みに失敗しました`,
+  REVIEW_CHECKLIST_EXTRACTION_ERROR: `チェックリスト抽出処理に失敗しました\n{detail}`,
+  REVIEW_EXECUTION_ERROR: `レビュー実行処理に失敗しました\n{detail}`,
 } as const;

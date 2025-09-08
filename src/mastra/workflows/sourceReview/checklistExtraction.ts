@@ -17,6 +17,10 @@ import {
 } from '../../agents/workflowAgents';
 import { createRuntimeContext } from '../../lib/agentUtils';
 import { UploadFile } from '@/types';
+import { normalizeUnknownError } from '@/main/lib/error';
+import { getMainLogger } from '@/main/lib/logger';
+
+const logger = getMainLogger();
 
 // ワークフローの入力スキーマ
 const triggerSchema = z.object({
@@ -85,9 +89,7 @@ const checklistDocumentExtractionStep = createStep({
     const sourceRepository = getSourceRepository();
     // トリガーから入力を取得
     const { reviewHistoryId, files } = inputData;
-    const errorMessages: string[] = [
-      'チェックリスト抽出処理中に以下エラーが発生しました',
-    ];
+    const errorMessages: string[] = [];
 
     try {
       // 既存のシステム作成チェックリストを削除
@@ -266,6 +268,7 @@ const checklistDocumentExtractionStep = createStep({
             }
           }
         } catch (error) {
+          logger.error(error, 'チェックリスト抽出処理に失敗しました');
           let errorMessage = '';
           let errorDetail: string;
           if (
@@ -282,13 +285,12 @@ const checklistDocumentExtractionStep = createStep({
             error.finishReason === 'length'
           ) {
             errorDetail =
-              'AIモデルが生成できる文字数を超えています。チェックリストをファイル分割して再実行してください。';
-          } else if (error instanceof Error) {
-            errorDetail = error.message;
+              'AIの大量出力の補正に失敗しました、チェックリストをファイルの分割を検討してください';
           } else {
-            errorDetail = JSON.stringify(error);
+            const normalizedError = normalizeUnknownError(error);
+            errorDetail = normalizedError.message;
           }
-          errorMessage += `- ${file.name}のチェックリスト抽出でエラー: ${errorDetail}`;
+          errorMessage += `${file.name}のチェックリスト抽出中にエラー: ${errorDetail}`;
           errorMessages.push(errorMessage);
         }
       });
@@ -308,12 +310,9 @@ const checklistDocumentExtractionStep = createStep({
         status: 'success' as stepStatus,
       };
     } catch (error) {
-      if (error instanceof Error && error.message) {
-        if (errorMessages.length > 1) {
-          errorMessages.push(''); // エラーメッセージの区切り
-        }
-        errorMessages.push(`${error.message}`);
-      }
+      logger.error(error, 'チェックリスト抽出処理に失敗しました');
+      const normalizedError = normalizeUnknownError(error);
+      errorMessages.push(normalizedError.message);
       return {
         status: 'failed' as stepStatus,
         errorMessage: errorMessages.join('\n'),
@@ -333,9 +332,7 @@ const topicExtractionStep = createStep({
   execute: async ({ inputData, mastra, bail }) => {
     const reviewRepository = getReviewRepository();
     const { files, reviewHistoryId, checklistRequirements } = inputData;
-    const errorMessages: string[] = [
-      'チェックリスト作成処理中にエラーが発生しました',
-    ];
+    const errorMessages: string[] = [];
 
     try {
       const allTopics: Array<{
@@ -431,8 +428,7 @@ const topicExtractionStep = createStep({
             },
           );
 
-          mastra
-            .getLogger()
+          logger
             .debug(
               `document(${file.name}) extracted topics for creating checklist:`,
               JSON.stringify(extractionResult.object.topics, null, 2),
@@ -446,14 +442,10 @@ const topicExtractionStep = createStep({
             })),
           );
         } catch (error) {
-          let errorDetail: string;
-          if (error instanceof Error) {
-            errorDetail = error.message;
-          } else {
-            errorDetail = JSON.stringify(error);
-          }
+          logger.error(error, 'チェックリスト作成のトピック抽出処理に失敗しました');
+          const normalizedError = normalizeUnknownError(error);
           errorMessages.push(
-            `- ${file.name}のトピック抽出でエラー: ${errorDetail}`,
+            `${file.name}のチェックリスト作成中にエラー: ${normalizedError.message}`,
           );
         }
       });
@@ -468,13 +460,6 @@ const topicExtractionStep = createStep({
         });
       }
 
-      if (allTopics.length === 0) {
-        return bail({
-          status: 'failed' as stepStatus,
-          errorMessage: 'トピックが抽出されませんでした',
-        });
-      }
-
       // 既存のシステム作成チェックリストを削除
       await reviewRepository.deleteSystemCreatedChecklists(reviewHistoryId);
 
@@ -483,12 +468,9 @@ const topicExtractionStep = createStep({
         topics: allTopics,
       };
     } catch (error) {
-      if (error instanceof Error && error.message) {
-        if (errorMessages.length > 1) {
-          errorMessages.push(''); // エラーメッセージの区切り
-        }
-        errorMessages.push(`${error.message}`);
-      }
+      logger.error(error, 'チェックリスト作成のトピック抽出処理に失敗しました');
+      const normalizedError = normalizeUnknownError(error);
+      errorMessages.push(`${normalizedError.message}`);
       return bail({
         status: 'failed' as stepStatus,
         errorMessage: errorMessages.join('\n'),
@@ -513,9 +495,6 @@ const topicChecklistCreationStep = createStep({
     const { title, file, content, reviewHistoryId, checklistRequirements } =
       inputData;
     const reviewRepository = getReviewRepository();
-    const errorMessages: string[] = [
-      'チェックリスト作成処理中にエラーが発生しました',
-    ];
 
     try {
       let message;
@@ -597,8 +576,7 @@ const topicChecklistCreationStep = createStep({
         output: outputSchema,
         runtimeContext,
       });
-      mastra
-        .getLogger()
+      logger
         .debug(
           `document(${file.name}) topic(${title}) generated checklist items:`,
           JSON.stringify(result.object.checklistItems, null, 2),
@@ -608,10 +586,12 @@ const topicChecklistCreationStep = createStep({
         !result.object.checklistItems ||
         result.object.checklistItems.length === 0
       ) {
-        return bail({
-          status: 'failed' as stepStatus,
-          errorMessage: `トピック「${title}」に対するチェックリスト項目が生成されませんでした`,
-        });
+        logger.error(`トピック「${title}」に対するチェックリスト項目が生成されませんでした`);
+        // 別トピックでも生成される可能性があるため、失敗とはせず成功で返す
+        return {
+          status: 'success' as stepStatus,
+          checklistItems: [],
+        };
       }
 
       // 抽出されたチェックリストをDBに保存
@@ -630,15 +610,11 @@ const topicChecklistCreationStep = createStep({
         ),
       };
     } catch (error) {
-      if (error instanceof Error && error.message) {
-        if (errorMessages.length > 1) {
-          errorMessages.push(''); // エラーメッセージの区切り
-        }
-        errorMessages.push(`トピック「${title}」: ${error.message}`);
-      }
+      logger.error(error, `チェックリスト作成処理に失敗しました: ${title}`);
+      const normalizedError = normalizeUnknownError(error);
       return bail({
         status: 'failed' as stepStatus,
-        errorMessage: errorMessages.join('\n'),
+        errorMessage: `${file.name}のチェックリスト作成中にエラー: ${normalizedError.message}`,
       });
     }
   },
