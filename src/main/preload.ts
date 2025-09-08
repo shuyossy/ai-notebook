@@ -8,8 +8,8 @@ import {
   IpcRequestPayloadMap,
   IpcResponsePayloadMap,
   EventChannel,
-  IpcEventPayloadMap,
   IpcNameMap,
+  PushEvent,
 } from '@/types';
 import { normalizeUnkhownIpcError, toPayload } from './lib/error';
 import { getRendererLogger } from '@/renderer/lib/logger';
@@ -51,16 +51,6 @@ export async function invokeIpc<C extends RequestChannel & ResponseChannel>(
   }
 }
 
-export function onIpc<C extends EventChannel>(
-  channel: C,
-  cb: (payload: IpcEventPayloadMap[C]) => void,
-) {
-  const sub = (_e: IpcRendererEvent, payload: IpcEventPayloadMap[C]) =>
-    cb(payload);
-  ipcRenderer.on(channel, sub);
-  return () => ipcRenderer.removeListener(channel, sub);
-}
-
 const electronHandler = {
   settings: {
     // 設定の状態を取得する
@@ -73,15 +63,16 @@ const electronHandler = {
     // 設定を一括取得する
     getSettings: () => invokeIpc(IpcChannels.GET_SETTINGS),
     // 設定を一括保存する
-    setSettings: (settings: IpcRequestPayloadMap[typeof IpcChannels.SET_SETTINGS]) =>
-      invokeIpc(IpcChannels.SET_SETTINGS, settings),
+    setSettings: (
+      settings: IpcRequestPayloadMap[typeof IpcChannels.SET_SETTINGS],
+    ) => invokeIpc(IpcChannels.SET_SETTINGS, settings),
   },
   fs: {
     /** パスが存在するか */
     access: (path: string) => invokeIpc(IpcChannels.FS_CHECK_PATH_EXISTS, path),
     /** ファイル選択ダイアログ */
-    showOpenDialog: (options:
-      IpcRequestPayloadMap[typeof IpcChannels.FS_SHOW_OPEN_DIALOG],
+    showOpenDialog: (
+      options: IpcRequestPayloadMap[typeof IpcChannels.FS_SHOW_OPEN_DIALOG],
     ) => invokeIpc(IpcChannels.FS_SHOW_OPEN_DIALOG, options),
     /** ファイル読み込み（Uint8Array） */
     readFile: (filePath: string) =>
@@ -113,20 +104,6 @@ const electronHandler = {
       params: IpcRequestPayloadMap[typeof IpcChannels.CHAT_DELETE_MESSAGES_BEFORE_SPECIFIC_ID],
     ) => invokeIpc(IpcChannels.CHAT_DELETE_MESSAGES_BEFORE_SPECIFIC_ID, params),
 
-    /** ストリーム受信（push） */
-    onStream: (
-      callback: (
-        payload: IpcEventPayloadMap[typeof IpcChannels.CHAT_STREAM],
-      ) => void,
-    ) => onIpc(IpcChannels.CHAT_STREAM, callback),
-    /** 完了イベント（push） */
-    onComplete: (
-      callback: () => void,
-    ) => onIpc(IpcChannels.CHAT_COMPLETE, () => callback()),
-    /** エラーイベント（push） */
-    onError: (
-      callback: (p: IpcEventPayloadMap[typeof IpcChannels.CHAT_ERROR]) => void,
-    ) => onIpc(IpcChannels.CHAT_ERROR, callback),
   },
   source: {
     /** ソース再読み込み */
@@ -134,8 +111,9 @@ const electronHandler = {
     /** ソース一覧 */
     getSources: () => invokeIpc(IpcChannels.SOURCE_GET_ALL),
     /** 有効/無効更新 */
-    updateSourceEnabled: (params: IpcRequestPayloadMap[typeof IpcChannels.SOURCE_UPDATE_ENABLED]) =>
-      invokeIpc(IpcChannels.SOURCE_UPDATE_ENABLED, params),
+    updateSourceEnabled: (
+      params: IpcRequestPayloadMap[typeof IpcChannels.SOURCE_UPDATE_ENABLED],
+    ) => invokeIpc(IpcChannels.SOURCE_UPDATE_ENABLED, params),
   },
   review: {
     /** レビュー履歴一覧 */
@@ -168,18 +146,21 @@ const electronHandler = {
     abortExecute: (reviewHistoryId: string) =>
       invokeIpc(IpcChannels.REVIEW_EXECUTE_ABORT, reviewHistoryId),
 
-    /** 抽出完了イベント（push） */
-    onExtractChecklistFinished: (
-      cb: (
-        p: IpcEventPayloadMap[typeof IpcChannels.REVIEW_EXTRACT_CHECKLIST_FINISHED],
-      ) => void,
-    ) => onIpc(IpcChannels.REVIEW_EXTRACT_CHECKLIST_FINISHED, cb),
-    /** 実行完了イベント（push） */
-    onExecuteReviewFinished: (
-      cb: (
-        p: IpcEventPayloadMap[typeof IpcChannels.REVIEW_EXECUTE_FINISHED],
-      ) => void,
-    ) => onIpc(IpcChannels.REVIEW_EXECUTE_FINISHED, cb),
+  },
+  pushApi: {
+    async subscribe<C extends EventChannel>(channel: C, cb: (ev: PushEvent<C>) => void) {
+      const { subId } = await ipcRenderer.invoke('push:subscribe', channel);
+
+      const evtName = `push:${channel}:${subId}`;
+      const listener = (_: unknown, ev: PushEvent<C>) => cb(ev);
+
+      ipcRenderer.on(evtName, listener);
+
+      return () => {
+        ipcRenderer.removeListener(evtName, listener);
+        ipcRenderer.invoke('push:unsubscribe', channel, subId);
+      };
+    },
   },
   ipcRenderer: {
     sendMessage(channel: Channels, ...args: unknown[]) {

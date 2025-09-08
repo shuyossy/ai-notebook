@@ -2,6 +2,8 @@ import { ReviewChecklistResultDisplay, UploadFile,DocumentType, ReviewChecklistE
 import { ApiServiceDefaultOptions } from '../types';
 import { getData } from '../lib/apiUtils';
 import { ReviewHistory } from '@/db/schema';
+import { ElectronPushClient } from '../lib/ElectronPushClient';
+import { IpcChannels } from '@/types';
 
 export interface IReviewApi {
   getHistories(options?: ApiServiceDefaultOptions): Promise<ReviewHistory[] | null>;
@@ -163,23 +165,25 @@ export class ReviewApi implements IReviewApi {
   public subscribeChecklistExtractionFinished(
     callback: (payload: { status: ChecklistExtractionResultStatus; error?: string }) => void,
   ): () => void {
-    const unsubscribe = window.electron.review.onExtractChecklistFinished(
-      (payload) => {
-        callback(payload);
+    const pushClient = new ElectronPushClient();
+    return pushClient.subscribe(
+      IpcChannels.REVIEW_EXTRACT_CHECKLIST_FINISHED,
+      (event) => {
+        callback(event.payload);
       },
     );
-    return unsubscribe;
   }
 
   public subscribeReviewExtractionFinished(
     callback: (payload: { status: ReviewExecutionResultStatus; error?: string }) => void,
   ): () => void {
-    const unsubscribe = window.electron.review.onExecuteReviewFinished(
-      (payload) => {
-        callback(payload);
+    const pushClient = new ElectronPushClient();
+    return pushClient.subscribe(
+      IpcChannels.REVIEW_EXECUTE_FINISHED,
+      (event) => {
+        callback(event.payload);
       },
     );
-    return unsubscribe;
   }
 
   public async updateChecklist(

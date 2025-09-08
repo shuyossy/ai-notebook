@@ -1,6 +1,7 @@
 import { ChatMessage, ChatRoom, IpcChannels, IpcEventPayload } from '@/types';
 import { getData } from '../lib/apiUtils';
 import { ApiServiceDefaultOptions } from '../types';
+import { ElectronPushClient } from '../lib/ElectronPushClient';
 
 export interface IChatApi {
   getChatRooms(options?: ApiServiceDefaultOptions): Promise<ChatRoom[] | null>;
@@ -76,43 +77,47 @@ export class ChatApi implements IChatApi {
     onDone: () => void;
     onError: (error: Error) => void;
   }): () => void {
+    const pushClient = new ElectronPushClient();
+    const abortController = new AbortController();
+    
     // ストリーミングイベントの購読
-    const unsubscribeStream = window.electron.chat.onStream((chunk) => {
-      callbacks.onMessage(chunk);
-    });
+    pushClient.subscribe(
+      IpcChannels.CHAT_STREAM,
+      (event) => {
+        callbacks.onMessage(event.payload);
+      },
+      { signal: abortController.signal }
+    );
 
     // 完了イベントの購読
-    const unsubscribeComplete = window.electron.chat.onComplete(
-      // eslint-disable-next-line
+    pushClient.subscribe(
+      IpcChannels.CHAT_COMPLETE,
       () => {
         // 購読を解除
-        unsubscribeStream();
-        unsubscribeComplete();
-        // eslint-disable-next-line
-        unsubscribeError();
-
+        abortController.abort();
         // 完了コールバックを呼び出し
         callbacks.onDone();
       },
+      { signal: abortController.signal }
     );
 
     // エラーイベントの購読
-    const unsubscribeError = window.electron.chat.onError((error) => {
-      // 購読を解除
-      unsubscribeStream();
-      unsubscribeComplete();
-      unsubscribeError();
-
-      // エラーコールバックを呼び出し
-      callbacks.onError(
-        new Error(error.message || '予期せぬエラーが発生しました'),
-      );
-    });
+    pushClient.subscribe(
+      IpcChannels.CHAT_ERROR,
+      (event) => {
+        // 購読を解除
+        abortController.abort();
+        // エラーコールバックを呼び出し
+        callbacks.onError(
+          new Error(event.payload.message || '予期せぬエラーが発生しました'),
+        );
+      },
+      { signal: abortController.signal }
+    );
+    
     // 購読解除のためのクリーンアップ
     return () => {
-      unsubscribeStream();
-      unsubscribeComplete();
-      unsubscribeError();
+      abortController.abort();
     };
   }
 

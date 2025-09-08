@@ -1,6 +1,5 @@
-import { IpcMainInvokeEvent } from 'electron';
 import { getReviewRepository } from '@/main/repository/reviewRepository';
-import { IpcChannels, IpcEventPayloadMap } from '@/types/ipc';
+import { IpcChannels } from '@/types/ipc';
 import { generateReviewTitle } from './lib';
 import { ReviewHistory } from '@/db/schema';
 import { mastra } from '../..';
@@ -9,6 +8,7 @@ import { checkWorkflowResult } from '../../lib/workflowUtils';
 import { internalError, normalizeUnknownError } from '@/main/lib/error';
 import { getMainLogger } from '@/main/lib/logger';
 import { formatMessage } from '@/main/lib/messages';
+import { publishEvent } from '@/main/lib/eventPayloadHelper';
 
 const logger = getMainLogger();
 
@@ -205,7 +205,6 @@ export default class SourceReviewManager {
   public extractChecklistWithNotification(
     reviewHistoryId: string,
     files: UploadFile[],
-    event: IpcMainInvokeEvent,
     documentType: DocumentType = 'checklist',
     checklistRequirements?: string,
   ): { success: boolean; error?: string } {
@@ -218,24 +217,21 @@ export default class SourceReviewManager {
       )
         .then((res) => {
           // 完了イベントを送信
-          event.sender.send(IpcChannels.REVIEW_EXTRACT_CHECKLIST_FINISHED, {
+          publishEvent(IpcChannels.REVIEW_EXTRACT_CHECKLIST_FINISHED, {
             status: res.status,
             error: res.error,
-          } as IpcEventPayloadMap[typeof IpcChannels.REVIEW_EXTRACT_CHECKLIST_FINISHED]);
+          });
           return true;
         })
         .catch((error) => {
           const errorMessage =
             error instanceof Error ? error.message : '不明なエラー';
           const errorResult = {
-            status: 'failed',
+            status: 'failed' as ChecklistExtractionResultStatus,
             error: errorMessage,
-          }  as IpcEventPayloadMap[typeof IpcChannels.REVIEW_EXTRACT_CHECKLIST_FINISHED];
+          };
           // エラーイベントを送信
-          event.sender.send(
-            IpcChannels.REVIEW_EXTRACT_CHECKLIST_FINISHED,
-            errorResult,
-          );
+          publishEvent(IpcChannels.REVIEW_EXTRACT_CHECKLIST_FINISHED, errorResult);
         });
       return {
         success: true,
@@ -248,11 +244,12 @@ export default class SourceReviewManager {
         success: false,
         error: errorMessage,
       };
+      const payloadResult = {
+        status: 'failed' as ChecklistExtractionResultStatus,
+        error: errorMessage,
+      };
       // エラーイベントを送信
-      event.sender.send(
-        IpcChannels.REVIEW_EXTRACT_CHECKLIST_FINISHED,
-        errorResult,
-      );
+      publishEvent(IpcChannels.REVIEW_EXTRACT_CHECKLIST_FINISHED, payloadResult);
       return errorResult;
     }
   }
@@ -266,7 +263,6 @@ export default class SourceReviewManager {
   public executeReviewWithNotification(
     reviewHistoryId: string,
     files: UploadFile[],
-    event: IpcMainInvokeEvent,
     additionalInstructions?: string,
     commentFormat?: string,
   ): { success: boolean; error?: string } {
@@ -279,21 +275,21 @@ export default class SourceReviewManager {
       )
         .then((res) => {
           // 完了イベントを送信
-          event.sender.send(IpcChannels.REVIEW_EXECUTE_FINISHED, {
+          publishEvent(IpcChannels.REVIEW_EXECUTE_FINISHED, {
             status: res.status,
             error: res.error,
-          } as IpcEventPayloadMap[typeof IpcChannels.REVIEW_EXECUTE_FINISHED]);
+          });
           return true;
         })
         .catch((error) => {
           const errorMessage =
             error instanceof Error ? error.message : '不明なエラー';
           const errorResult = {
-            status: 'failed',
+            status: 'failed' as ReviewExecutionResultStatus,
             error: errorMessage,
-          } as IpcEventPayloadMap[typeof IpcChannels.REVIEW_EXECUTE_FINISHED];
+          };
           // エラーイベントを送信
-          event.sender.send(IpcChannels.REVIEW_EXECUTE_FINISHED, errorResult);
+          publishEvent(IpcChannels.REVIEW_EXECUTE_FINISHED, errorResult);
         });
       return {
         success: true,
@@ -306,9 +302,13 @@ export default class SourceReviewManager {
         success: false,
         error: errorMessage,
       };
+      const payloadResult = {
+        status: 'failed' as ReviewExecutionResultStatus,
+        error: errorMessage,
+      };
 
       // エラーイベントを送信
-      event.sender.send(IpcChannels.REVIEW_EXECUTE_FINISHED, errorResult);
+      publishEvent(IpcChannels.REVIEW_EXECUTE_FINISHED, payloadResult);
 
       return errorResult;
     }

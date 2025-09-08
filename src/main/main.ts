@@ -58,6 +58,8 @@ import { formatMessage } from './lib/messages';
 import { SourceService } from './service/sourceService';
 import { ZodSchema } from 'zod';
 import { normalizeUnkhownIpcError } from './lib/error';
+import { setupElectronPushBroker } from './push/electronPushBroker';
+import { publishEvent } from './lib/eventPayloadHelper';
 
 class AppUpdater {
   constructor() {
@@ -236,7 +238,7 @@ const setupChatHandlers = () => {
         // @ts-ignore
         for await (const chunk of dataStream) {
           // チャンクをフロントエンドに送信
-          event.sender.send(IpcChannels.CHAT_STREAM, chunk);
+          publishEvent(IpcChannels.CHAT_STREAM, chunk);
         }
 
         return undefined as never;
@@ -250,19 +252,15 @@ const setupChatHandlers = () => {
         ) {
           errorDetail = error.cause.message;
         } else if (error instanceof AppError) {
-          event.sender.send(IpcChannels.CHAT_ERROR, {
-            message: error.message,
-          });
-          event.sender.send(IpcChannels.CHAT_COMPLETE);
+          publishEvent(IpcChannels.CHAT_ERROR, { message: error.message });
+          publishEvent(IpcChannels.CHAT_COMPLETE, undefined);
           throw error;
         }
         const errorMessage = formatMessage('CHAT_GENERATE_ERROR', {
           detail: errorDetail,
         });
-        event.sender.send(IpcChannels.CHAT_ERROR, {
-          message: errorMessage,
-        });
-        event.sender.send(IpcChannels.CHAT_COMPLETE);
+        publishEvent(IpcChannels.CHAT_ERROR, { message: errorMessage });
+        publishEvent(IpcChannels.CHAT_COMPLETE, undefined);
 
         throw internalError({
           expose: true,
@@ -386,15 +384,11 @@ const setupReviewHandlers = () => {
   // チェックリスト抽出ハンドラ
   handleIpc(
     IpcChannels.REVIEW_EXTRACT_CHECKLIST_CALL,
-    async (
-      { reviewHistoryId, files, documentType, checklistRequirements },
-      { event },
-    ) => {
+    async ({ reviewHistoryId, files, documentType, checklistRequirements }) => {
       const manager = SourceReviewManager.getInstance();
       const result = manager.extractChecklistWithNotification(
         reviewHistoryId,
         files,
-        event,
         documentType,
         checklistRequirements,
       );
@@ -422,10 +416,7 @@ const setupReviewHandlers = () => {
   // レビュー実施ハンドラ
   handleIpc(
     IpcChannels.REVIEW_EXECUTE_CALL,
-    async (
-      { reviewHistoryId, files, additionalInstructions, commentFormat },
-      { event },
-    ) => {
+    async ({ reviewHistoryId, files, additionalInstructions, commentFormat }) => {
       reviewService.updateReviewInstruction(
         reviewHistoryId,
         additionalInstructions,
@@ -437,7 +428,6 @@ const setupReviewHandlers = () => {
       const result = manager.executeReviewWithNotification(
         reviewHistoryId,
         files,
-        event,
         additionalInstructions,
         commentFormat,
       );
@@ -614,6 +604,7 @@ crashReporter.start({
 const initialize = async () => {
   createWindow();
   await initializeAgentStatus();
+  setupElectronPushBroker();
   setupSettingsHandlers();
   setupChatHandlers();
   setupFsHandlers();

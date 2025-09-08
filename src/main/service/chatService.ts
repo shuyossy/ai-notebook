@@ -11,6 +11,7 @@ import { ChatMessage, Feature, IpcChannels } from '@/types';
 import { getMainLogger } from '../lib/logger';
 import { formatMessage } from '../lib/messages';
 import { SettingsService } from './settingsService';
+import { publishEvent } from '../lib/eventPayloadHelper';
 
 const logger = getMainLogger();
 
@@ -214,7 +215,7 @@ export class ChatService implements IChatService {
         writer.write(
           `d:${JSON.stringify({ finishReason: res.finishReason, ...res.usage })}\n`,
         );
-        event.sender.send(IpcChannels.CHAT_COMPLETE);
+        publishEvent(IpcChannels.CHAT_COMPLETE, undefined);
         // 処理が完了したらAbortControllerを削除
         this.abortControllerManager.deleteAbortController(feature, threadId);
       },

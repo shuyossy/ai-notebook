@@ -108,12 +108,16 @@ ElectronのIPCを使用してフロントエンド・バックエンド間の通
 - `src/types`：アプリで利用する型・zodスキーマの定義
   - `src/types/index.ts`：アプリ全体で利用する型定義のエントリーポイント（ただし、個別の機能等で型を定義する場合は各機能ディレクトリに作成しているので別途参照が必要）
   - `src/types/ipc.ts`：Electron IPC通信で利用する型定義
+  - `src/types/eventPush.ts`: Main側からのイベントプッシュで利用する型定義
 - `src/db`: データベース定義（スキーマやDB接続情報）
 - `src/repository`: データアクセス層
 - `src/main`: Electronのメインプロセス関連のコード
   - `src/main.ts`: Electronのメインプロセスのエントリポイント、IPC通信のハンドラの具体的な処理の定義やアプリケーションの初期化処理などを含む
   - `src/main/preload.ts`: ElectronのPreloadスクリプト、レンダラープロセスに公開するハンドラを定義(rendererとの境界にあたるため、ここで一元的にエラーハンドリングを実施している)
   - `src/main/store.ts`: electron-storeを利用してアプリケーションの設定や状態の保存・取得を行う、ここではstoreの初期化や設定の定義を行う
+  - `src/main/push`: Main側からのイベントプッシュ関連コード
+    - `src/main/push/InProcBroker.ts`: イベントを蓄積するBroker
+    - `src/main/push/electronPushBroker.ts`: イベント購読についてelectron固有の差異を吸収するBroker
   - `src/main/lib`: メインプロセスで利用するライブラリ群
     - `src/main/lib/logger.ts`: アプリ内で利用するロガーを提供
     - `src/mian/lib/error.ts`: アプリで利用するエラー定義
@@ -126,6 +130,8 @@ ElectronのIPCを使用してフロントエンド・バックエンド間の通
   - `src/renderer/components/common`: アプリ共通のコンポーネント
   - `src/renderer/components/sidebar`: サイドバー共通のコンポーネント
   - `src/renderer/hooks`: フック定義をまとめたディレクトリ
+    - `src/renderer/hooks/usePushChannel.ts`: イベント購読をする際に利用するフック
+    - `src/renderer/hooks/useSettings.ts`: 設定情報を利用したい場合に利用するフック
   - `src/renderer/service`: フロントエンドから利用するサービス層で、外部アクセスロジックもここで管理する(~Api.ts)
   - `src/renderer/stores`: zustandで管理するstate定義
 - `src/mastra`: Mastraを利用したAI関連のコード
@@ -186,11 +192,11 @@ ElectronのIPCを使用してフロントエンド・バックエンド間の通
 大規模リファクタリング
 
 ## 依頼タスク
-- レビュー機能利用時に、チェックリスト抽出とレビュー実行の処理をキャンセルできるようにする
-  - UI要件
-    - 現状、例えばレビュー実行時はレビューモーダル(`src/renderer/components/review/ReviewSourceModal.tsx`)の「レビュー実行」「チェックリスト抽出」ボタンはどちらも利用不可になり、「レビュー実行」ボタンはローディングが表示される。これを、「レビュー実行」ボタンは利用可能にしてキャンセルボタンを表示するように変更する(もちろんチェクリスト抽出時は逆)。
-  - 実装方法
-    - チャット機能にもチャット停止(abort)機能があるので参考にすること
-    - レビュー機能を利用するごとにabortControllerを発行して管理する
-    - `src/mastra/workflows/sourceReview/sourceReviewManager.ts`のプロパティに`src/main/lib/AbortControllerManager.ts`を持つ形で制御
-    - mastraのworkflowは、createRunAsyncメソッドの戻り値であるRunオブジェクトにcancelメソッドが用意されているため、abortの際はこのcancelメソッドを実行すること
+- 既存のイベントpush操作のリファクタリング
+  - 目的
+    - 将来的にこのアプリをWebアプリとして移植した場合でも変更を最小限に止める
+      - サーバサイドのイベント管理、クライアントサイドのイベント購読・コールバック関数実行などのインターフェースを適切に定義して、electron固有のコードを隠蔽できるようにする
+  - 進捗
+    - イベントBroker作成(`electronPushBroker.ts`,`InProcBroker.ts`)
+    - preload修正(修正範囲がわかりやすいように、既存コードはコメントアウトして残しています)
+    - renderer側で利用するフックの作成(`usePushChannel.ts`)
