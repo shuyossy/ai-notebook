@@ -207,7 +207,7 @@ handleIpc(IpcChannels.REINITIALIZE_SETTINGS, async () => {
 const setupChatHandlers = () => {
   // チャット中断ハンドラ
   handleIpc(IpcChannels.CHAT_ABORT_REQUEST, async ({ threadId }) => {
-    chatService.abortGeneration(userId, threadId);
+    chatService.abortGeneration(threadId);
     return undefined as never;
   });
 
@@ -243,7 +243,7 @@ const setupChatHandlers = () => {
       } catch (error) {
         let errorDetail = '不明なエラー';
         // エラー時もAbortControllerを削除
-        chatService.deleteAbortController(userId, roomId);
+        chatService.deleteAbortController(roomId);
         if (
           error instanceof MastraError &&
           APICallError.isInstance(error.cause)
@@ -288,7 +288,7 @@ const setupChatHandlers = () => {
 
   // チャットルーム削除ハンドラ
   handleIpc(IpcChannels.CHAT_DELETE_ROOM, async (threadId) => {
-    await chatService.deleteThread(userId, threadId);
+    await chatService.deleteThread(threadId);
     return undefined as never;
   });
 

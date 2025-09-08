@@ -7,18 +7,20 @@ import { mastra } from '@/mastra';
 import { AppError, internalError } from '../lib/error';
 import { AbortControllerManager } from '../lib/AbortControllerManager';
 import { judgeFinishReason } from '@/mastra/lib/agentUtils';
-import { ChatMessage, IpcChannels } from '@/types';
+import { ChatMessage, Feature, IpcChannels } from '@/types';
 import { getMainLogger } from '../lib/logger';
 import { formatMessage } from '../lib/messages';
 import { SettingsService } from './settingsService';
 
 const logger = getMainLogger();
 
+const feature = 'CHAT' as Feature;
+
 export interface IChatService {
   getThreadList(userId: string): Promise<StorageThreadType[]>;
-  deleteThread(userId: string, threadId: string): Promise<void>;
+  deleteThread(threadId: string): Promise<void>;
   createThread(userId: string, threadId: string, title: string): Promise<void>;
-  abortGeneration(userId: string, threadId: string): void;
+  abortGeneration(threadId: string): void;
   deleteMessagesBeforeSpecificId(
     threadId: string,
     messageId: string,
@@ -30,8 +32,8 @@ export interface IChatService {
     event: Electron.IpcMainInvokeEvent,
   ): Promise<ReturnType<typeof createDataStream>>;
 
-  getOrCreateAbortController(userId: string, threadId: string): AbortController;
-  deleteAbortController(userId: string, threadId: string): void;
+  getOrCreateAbortController(threadId: string): AbortController;
+  deleteAbortController(threadId: string): void;
   getThreadMessages(threadId: string): Promise<UIMessage[]>;
 }
 
@@ -41,8 +43,6 @@ export class ChatService implements IChatService {
 
   // スレッドごとのAbortControllerを管理するMap
   private abortControllerManager = AbortControllerManager.getInstance();
-
-  private orchestratorAgent = mastra.getAgent('orchestrator');
 
   private settingsService = SettingsService.getInstance();
 
@@ -81,9 +81,9 @@ export class ChatService implements IChatService {
    * スレッドを削除する
    * @param threadId スレッドID
    */
-  public async deleteThread(userId: string, threadId: string): Promise<void> {
+  public async deleteThread(threadId: string): Promise<void> {
     // スレッドのAbortControllerを削除
-    this.deleteAbortController(userId, threadId);
+    this.deleteAbortController(threadId);
 
     const memory = await this.getMemory();
 
@@ -110,10 +110,10 @@ export class ChatService implements IChatService {
     });
   }
 
-  public abortGeneration(userId: string, threadId: string): void {
-    const controller = this.getOrCreateAbortController(userId, threadId);
+  public abortGeneration(threadId: string): void {
+    const controller = this.getOrCreateAbortController(threadId);
     controller.abort();
-    this.deleteAbortController(userId, threadId);
+    this.deleteAbortController(threadId);
   }
 
   public async generate(
@@ -124,7 +124,7 @@ export class ChatService implements IChatService {
   ) {
     // 新しいAbortControllerを作成
     const controller = this.abortControllerManager.getOrCreateAbortController(
-      userId,
+      feature,
       threadId,
     );
 
@@ -216,13 +216,13 @@ export class ChatService implements IChatService {
         );
         event.sender.send(IpcChannels.CHAT_COMPLETE);
         // 処理が完了したらAbortControllerを削除
-        this.abortControllerManager.deleteAbortController(userId, threadId);
+        this.abortControllerManager.deleteAbortController(feature, threadId);
       },
       onError: (error) => {
         // エラーが発生したときの処理
         logger.error(error, 'テキスト生成中にエラーが発生');
         // エラー時もAbortControllerを削除
-        this.deleteAbortController(userId, threadId);
+        this.deleteAbortController(threadId);
         let errorDetail = '不明なエラー';
         if (
           error instanceof MastraError &&
@@ -250,11 +250,10 @@ export class ChatService implements IChatService {
    * @returns AbortController
    */
   public getOrCreateAbortController(
-    userId: string,
     threadId: string,
   ): AbortController {
     return this.abortControllerManager.getOrCreateAbortController(
-      userId,
+      feature,
       threadId,
     );
   }
@@ -263,8 +262,8 @@ export class ChatService implements IChatService {
    * スレッドのAbortControllerを削除する
    * @param threadId スレッドID
    */
-  public deleteAbortController(userId: string, threadId: string): void {
-    this.abortControllerManager.deleteAbortController(userId, threadId);
+  public deleteAbortController(threadId: string): void {
+    this.abortControllerManager.deleteAbortController(feature, threadId);
   }
 
   /**

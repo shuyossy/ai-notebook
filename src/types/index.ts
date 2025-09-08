@@ -12,5 +12,7 @@ export const ROUTES = {
   REVIEW: '/review',
 } as const;
 
+export type Feature = keyof typeof ROUTES;
+
 export type MakeOptional<T, K extends keyof T> = Omit<T, K> &
   Partial<Pick<T, K>>;

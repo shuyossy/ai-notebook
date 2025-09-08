@@ -69,7 +69,7 @@ export default class SourceReviewManager {
         });
       }
 
-      const run = workflow.createRun();
+      const run = await workflow.createRunAsync();
       const runResult = await run.start({
         inputData: {
           reviewHistoryId,
@@ -140,7 +140,7 @@ export default class SourceReviewManager {
         reviewTitle,
       );
 
-      const run = workflow.createRun();
+      const run = await workflow.createRunAsync();
       const result = await run.start({
         inputData: {
           reviewHistoryId,
