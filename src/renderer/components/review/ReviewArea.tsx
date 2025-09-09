@@ -44,6 +44,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
 
   // チェック履歴取得
   const fetchChecklistResults = useCallback(async () => {
+    console.log('チェックリスト結果の取得を開始');
     if (!selectedReviewHistoryId) return;
     const reviewApi = ReviewApi.getInstance();
 
@@ -54,37 +55,72 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
     setChecklistResults(result?.checklistResults || []);
   }, [selectedReviewHistoryId]);
 
-  // 選択中の履歴が変更されたら、チェックリスト取得のポーリングを開始
+  // 選択中の履歴が変更されたら、初期データ取得を実行
   useEffect(() => {
     if (!selectedReviewHistoryId) return;
 
-    // チェックリストの初期取得
-    fetchChecklistResults();
+    let intervalId: ReturnType<typeof setInterval> | null = null;
 
-    // 追加指示とコメントフォーマットの取得
-    const reviewApi = ReviewApi.getInstance();
-    reviewApi
-      .getReviewInstruction(selectedReviewHistoryId, {
-        throwError: true,
-        showAlert: true,
-        printErrorLog: true,
-      })
-      .then((result) => {
+    // 初期データ取得（エラーが発生しなくなるまでポーリング）
+    const loadInitialData = async () => {
+      try {
+        // チェックリストの初期取得
+        await fetchChecklistResults();
+
+        // 追加指示とコメントフォーマットの取得
+        const reviewApi = ReviewApi.getInstance();
+        const result = await reviewApi.getReviewInstruction(
+          selectedReviewHistoryId,
+          {
+            throwError: true,
+            showAlert: true,
+            printErrorLog: true,
+          },
+        );
         setAdditionalInstructions(result?.additionalInstructions || '');
         setCommentFormat(result?.commentFormat || defaultCommentFormat);
-      })
-      .catch((error) => {
-        console.error(error);
-      });
 
-    // ポーリングの開始
-    const timer = setInterval(fetchChecklistResults, 5000);
+        // 初期データ取得成功したらポーリングを停止
+        if (intervalId) {
+          clearInterval(intervalId);
+          intervalId = null;
+        }
+      } catch (error) {
+        console.error('初期データの取得に失敗しました:', error);
+        // 失敗時はポーリングを継続（既に設定済みの場合は何もしない）
+        if (!intervalId) {
+          intervalId = setInterval(loadInitialData, 5000);
+        }
+      }
+    };
 
-    // eslint-disable-next-line
+    // 初回実行
+    loadInitialData();
+
+    // クリーンアップでポーリング停止
     return () => {
-      clearInterval(timer);
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
     };
   }, [selectedReviewHistoryId, fetchChecklistResults]);
+
+  // 処理中のポーリング制御
+  useEffect(() => {
+    if (!selectedReviewHistoryId || (!isExtracting && !isReviewing)) return;
+
+    // チェックリスト抽出処理中またはレビュー実行処理中のみポーリング開始
+    const processingTimer = setInterval(fetchChecklistResults, 5000);
+
+    return () => {
+      clearInterval(processingTimer);
+    };
+  }, [
+    selectedReviewHistoryId,
+    isExtracting,
+    isReviewing,
+    fetchChecklistResults,
+  ]);
 
   // チェックリストの抽出処理
   const handleExtractChecklist = useCallback(
@@ -247,8 +283,6 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
       files: UploadFile[],
       documentType?: DocumentType,
       checklistRequirements?: string,
-      modalAdditionalInstructions?: string,
-      modalCommentFormat?: string,
     ) => {
       if (modalMode === 'extract') {
         await handleExtractChecklist(
