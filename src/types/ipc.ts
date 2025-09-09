@@ -31,6 +31,7 @@ export const IpcChannels = {
   // Agent関連
   GET_SETTINGS_STATUS: 'get-settings-status',
   SETTINGS_STATUS_CHANGED: 'settings-status-changed',
+  SETTINGS_UPDATE_FINISHED: 'settings-update-finished', // 設定更新処理が完了した際の通知
   REINITIALIZE_SETTINGS: 'reinitialize-settings',
   REMOVE_SETTINGS_MESSAGE: 'remove-settings-message',
 
@@ -197,6 +198,7 @@ export type IpcEventPayloadMap = {
   [IpcChannels.CHAT_STREAM]: any; // AI SDKが定義するDataStreamが入る想定(型がexportされていないためany型)
   [IpcChannels.CHAT_COMPLETE]: unknown;
   [IpcChannels.CHAT_ERROR]: { message: string };
+  [IpcChannels.SETTINGS_UPDATE_FINISHED]: undefined; // 設定更新処理完了通知
   [IpcChannels.SOURCE_RELOAD_FINISHED]: undefined; // ドキュメント更新処理完了通知
   [IpcChannels.REVIEW_EXTRACT_CHECKLIST_FINISHED]: {
     status: ChecklistExtractionResultStatus;

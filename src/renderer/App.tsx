@@ -18,7 +18,7 @@ import { ROUTES } from '../types';
 import ChatRoomList, { ChatRoomListRef } from './components/chat/ChatRoomList';
 import ReviewHistoryList from './components/review/ReviewHistoryList';
 import { useAgentStatusStore } from './stores/agentStatusStore';
-import { SettingsApi } from './service/settingsApi';
+import useSettingsStore from './hooks/useSettings';
 
 // テーマの設定
 const theme = createTheme({
@@ -69,34 +69,7 @@ function App() {
   const alerts = useAlertStore((state) => state.alerts);
   const addAlert = useAlertStore((state) => state.addAlert);
   const removeAlert = useAlertStore((state) => state.removeAlert);
-  const {
-    status: agentStatus,
-    setStatus,
-    closeMessage,
-  } = useAgentStatusStore();
-
-  // エージェント起動状態を確認（rendererとMainの初期化処理にラグ(Mainの初期化が完了していない場合がある)があるElectron固有の処理）
-  // 初回fetch+初期化が完了したらpushすれば良さそうだが、、、とりあえずポーリングで対応
-  const fetchAgentStatus = useCallback(async () => {
-    const settingsApi = SettingsApi.getInstance();
-    const data = await settingsApi.getAgentStatus({
-      showAlert: false,
-      throwError: false,
-    });
-    if (data) {
-      setStatus(data);
-    }
-  }, [setStatus]);
-
-  // ポーリング処理
-  useEffect(() => {
-    // 初回実行
-    fetchAgentStatus();
-
-    // 以降5秒ごとにポーリング
-    const intervalId = setInterval(fetchAgentStatus, 5000);
-    return () => clearInterval(intervalId);
-  }, [fetchAgentStatus]);
+  const { status: agentStatus, closeMessage } = useAgentStatusStore();
 
   // ソース再読み込みハンドラ
   const handleReloadSources = async () => {

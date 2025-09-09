@@ -5,9 +5,12 @@ import {
   type Settings,
   type ValidationState,
   type ValidationError,
+  IpcChannels,
 } from '@/types';
 import { SettingsApi } from '../service/settingsApi';
 import { useAgentStatusStore } from '../stores/agentStatusStore';
+import { usePushChannel } from './usePushChannel';
+import { useAlertStore } from '../stores/alertStore';
 
 /**
  * 設定値の型安全な管理と検証を行うフック
@@ -38,10 +41,31 @@ const useSettingsStore = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const { setUpdatedFlg } = useAgentStatusStore();
+  const {
+    setUpdatedFlg,
+    setStatus: setAgentStatus,
+  } = useAgentStatusStore();
+
+  // エージェント状態のポーリング制御
+  const [agentStatusPolling, setAgentStatusPolling] = useState(false);
+  const addAlert = useAlertStore((state) => state.addAlert);
 
   // SettingsApiインスタンス
   const settingsApi = SettingsApi.getInstance();
+
+  /**
+   * エージェント状態を取得する関数
+   */
+  const fetchAgentStatus = useCallback(async () => {
+    const data = await settingsApi.getAgentStatus({
+      showAlert: false,
+      throwError: true,
+      printErrorLog: false,
+    });
+    if (data) {
+      setAgentStatus(data);
+    }
+  }, [settingsApi, setAgentStatus]);
 
   /**
    * バリデーションエラーの種類を判定
@@ -152,6 +176,87 @@ const useSettingsStore = () => {
     };
   }, [validateSection]);
 
+  // エージェント状態の初回ポーリング処理（エラーが発生しなくなるまでポーリング継続）
+  useEffect(() => {
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+
+    const loadAgentStatus = async () => {
+      try {
+        await fetchAgentStatus();
+        if (intervalId) {
+          clearInterval(intervalId);
+          intervalId = null;
+        }
+      } catch (error) {
+        console.error('エージェント状態の取得に失敗しました:', error);
+        // 失敗時はポーリングを継続（既に設定済みの場合は何もしない）
+        if (!intervalId) {
+          intervalId = setInterval(loadAgentStatus, 5000);
+        }
+      }
+    };
+
+    // 初回取得
+    loadAgentStatus();
+
+    // クリーンアップでポーリング停止
+    return () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+    };
+  }, [fetchAgentStatus]);
+
+  // 設定更新時のエージェント状態ポーリング処理
+  useEffect(() => {
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+
+    if (!agentStatusPolling) {
+      if (intervalId) {
+        clearInterval(intervalId);
+        intervalId = null;
+      }
+      return;
+    }
+
+    const pollAgentStatus = async () => {
+      try {
+        await fetchAgentStatus();
+      } catch (error) {
+        console.error(
+          'エージェント状態のポーリング中にエラーが発生しました:',
+          error,
+        );
+      }
+    };
+
+    // ポーリング開始
+    intervalId = setInterval(pollAgentStatus, 5000);
+
+    // クリーンアップでポーリング停止
+    return () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+    };
+  }, [agentStatusPolling, fetchAgentStatus]);
+
+  // 設定更新完了イベントの購読
+  usePushChannel(IpcChannels.SETTINGS_UPDATE_FINISHED, () => {
+    // 設定更新完了時にポーリングを停止
+    setAgentStatusPolling(false);
+    // 最新データを取得
+    try {
+      fetchAgentStatus();
+    } catch (error) {
+      console.error('エージェント状態取得に失敗しました:', error);
+      addAlert({
+        message: `AIツール情報の取得に失敗しました\n${(error as Error).message}`,
+        severity: 'error',
+      });
+    }
+  });
+
   /**
    * フィールドの更新処理
    */
@@ -215,6 +320,9 @@ const useSettingsStore = () => {
         printErrorLog: true,
       });
       setUpdatedFlg(true);
+
+      // 設定更新後にポーリング開始
+      setAgentStatusPolling(true);
 
       return true;
     } catch (err) {

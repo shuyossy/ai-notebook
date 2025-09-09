@@ -220,6 +220,7 @@ function SourceListModal({
     loadSources();
 
     // クリーンアップでポーリング停止
+    // eslint-disable-next-line consistent-return
     return () => {
       if (intervalId) {
         clearInterval(intervalId);
@@ -251,6 +252,7 @@ function SourceListModal({
     intervalId = setInterval(pollSources, 5000);
 
     // クリーンアップでポーリング停止
+    // eslint-disable-next-line consistent-return
     return () => {
       if (intervalId) {
         clearInterval(intervalId);
