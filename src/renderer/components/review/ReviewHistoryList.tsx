@@ -17,8 +17,11 @@ import {
 import { MoreVert as MoreIcon } from '@mui/icons-material';
 import AddCircleOutlineOutlinedIcon from '@mui/icons-material/AddCircleOutlineOutlined';
 import { v4 as uuidv4 } from 'uuid';
+import { useAlertStore } from '@/renderer/stores/alertStore';
 import type { ReviewHistory } from '../../../db/schema';
 import { ReviewApi } from '../../service/reviewApi';
+import { usePushChannel } from '../../hooks/usePushChannel';
+import { IpcChannels } from '../../../types/ipc';
 
 interface ReviewHistoryListProps {
   selectedReviewHistoryId?: string | null;
@@ -34,35 +37,78 @@ function ReviewHistoryList({
   const [menuAnchorEl, setMenuAnchorEl] = useState<null | HTMLElement>(null);
   // メニュー選択中のレビュー履歴ID
   const [activeReviewId, setActiveHistoryId] = useState<string | null>(null);
+  const addAlert = useAlertStore((state) => state.addAlert);
 
   // レビュー履歴一覧を取得
   const fetchReviewHistories = useCallback(async () => {
-    try {
-      const reviewApi = ReviewApi.getInstance();
-      const histories = await reviewApi.getHistories({
-        showAlert: false,
-        throwError: true,
-        printErrorLog: false,
-      });
-      if (histories && histories.length > 0) {
-        // updatedAtで降順ソート
-        const sortedHistories = [...histories].sort(
-          (a, b) =>
-            new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
-        );
-        setReviewHistories(sortedHistories);
-      }
-      setLoading(false);
-    } catch (error) {
-      console.error(error);
-      setLoading(true);
+    const reviewApi = ReviewApi.getInstance();
+    const histories = await reviewApi.getHistories({
+      showAlert: false,
+      throwError: true,
+      printErrorLog: false,
+    });
+    if (histories && histories.length > 0) {
+      // updatedAtで降順ソート
+      const sortedHistories = [...histories].sort(
+        (a, b) =>
+          new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+      );
+      setReviewHistories(sortedHistories);
+    } else {
+      setReviewHistories([]);
     }
   }, []);
 
-  // 初期データ読み込み
+  // レビュー履歴一覧を取得（サーバプッシュ更新用）
+  const refreshReviewHistories = useCallback(async () => {
+    try {
+      await fetchReviewHistories();
+      // サーバプッシュ更新時は既にロード完了しているのでローディング状態は変更しない
+    } catch (error) {
+      console.error('レビュー履歴の更新に失敗しました:', error);
+      addAlert({
+        message:
+          'レビュー履歴の更新に失敗しました\nアプリの再起動をお試しください',
+        severity: 'error',
+      });
+    }
+  }, [fetchReviewHistories, addAlert]);
+
+  // 初期データ読み込み（エラーが発生しなくなるまでポーリング）
   useEffect(() => {
-    fetchReviewHistories();
-  }, [fetchReviewHistories]);
+    setLoading(true);
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+
+    const loadReviewHistories = async () => {
+      try {
+        await fetchReviewHistories();
+
+        setLoading(false);
+
+        // 読み込み成功したらポーリングを停止
+        if (intervalId) {
+          clearInterval(intervalId);
+          intervalId = null;
+        }
+      } catch (error) {
+        console.error('レビュー履歴の読み込みに失敗しました:', error);
+        // 失敗時はポーリングを継続（既に設定済みの場合は何もしない）
+        if (!intervalId) {
+          intervalId = setInterval(loadReviewHistories, 5000);
+        }
+      }
+    };
+
+    // 初回読み込み
+    loadReviewHistories();
+
+    // クリーンアップでポーリング停止
+    return () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+    };
+  }, [setLoading, fetchReviewHistories]);
 
   // メニュー操作
   const handleMenuOpen = (
@@ -104,16 +150,11 @@ function ReviewHistoryList({
     }
   };
 
-  // レビュー履歴の更新をトリガーする関数
-  const refreshReviewHistories = useCallback(() => {
-    fetchReviewHistories();
-  }, [fetchReviewHistories]);
-
-  // レビュー履歴の定期更新
-  useEffect(() => {
-    const interval = setInterval(refreshReviewHistories, 5000);
-    return () => clearInterval(interval);
-  }, [refreshReviewHistories]);
+  // レビュー履歴の更新イベントを購読
+  usePushChannel(IpcChannels.REVIEW_HISTORY_UPDATED, () => {
+    // イベント受信時にレビュー履歴を再取得
+    refreshReviewHistories();
+  });
 
   // 新しいレビューを開始
   const handleCreateReview = () => {
@@ -173,11 +214,13 @@ function ReviewHistoryList({
                 <Tooltip title={reviewHistory.title} placement="right">
                   <ListItemText
                     primary={reviewHistory.title}
-                    primaryTypographyProps={{
-                      noWrap: true,
-                      sx: {
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
+                    slotProps={{
+                      primary: {
+                        noWrap: true,
+                        sx: {
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                        },
                       },
                     }}
                   />

@@ -74,6 +74,7 @@ export const IpcChannels = {
   REVIEW_EXECUTE_CALL: 'review-execute', // ドキュメントレビューを開始する
   REVIEW_EXECUTE_FINISHED: 'review-execute-finished', // レビュー実行が完了した際の通知
   REVIEW_EXECUTE_ABORT: 'review-execute-abort', // レビュー実行処理をキャンセルする
+  REVIEW_HISTORY_UPDATED: 'review-history-updated', // レビュー履歴が更新された際の通知
 } as const;
 
 export type IpcChannel = (typeof IpcChannels)[keyof typeof IpcChannels];
@@ -203,6 +204,7 @@ export type IpcEventPayloadMap = {
     status: ReviewExecutionResultStatus;
     error?: string;
   };
+  [IpcChannels.REVIEW_HISTORY_UPDATED]: undefined;
 };
 
 /**

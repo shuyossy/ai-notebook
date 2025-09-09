@@ -60,6 +60,8 @@ export default class SourceReviewManager {
           generateReviewTitle(),
           reviewHistoryId,
         );
+        // 新規作成時はレビュー履歴更新イベントを送信
+        publishEvent(IpcChannels.REVIEW_HISTORY_UPDATED, undefined);
       } else {
         // 既存のレビュー履歴がある場合は、システム作成チェックリストを削除
         await this.reviewRepository.deleteSystemCreatedChecklists(
@@ -161,6 +163,8 @@ export default class SourceReviewManager {
         reviewHistory.id,
         reviewTitle,
       );
+      // タイトル更新時はレビュー履歴更新イベントを送信
+      publishEvent(IpcChannels.REVIEW_HISTORY_UPDATED, undefined);
 
       const run = await workflow.createRunAsync();
 
