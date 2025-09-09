@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   Alert,
   Modal,
@@ -27,6 +27,8 @@ import { useAlertStore } from '@/renderer/stores/alertStore';
 
 import { Source } from '../../../db/schema';
 import { SourceApi } from '../../service/sourceApi';
+import { usePushChannel } from '../../hooks/usePushChannel';
+import { IpcChannels } from '../../../types/ipc';
 
 interface SourceListModalProps {
   open: boolean;
@@ -53,6 +55,7 @@ function SourceListModal({
   const [updatingSources, setUpdatingSources] = useState<Set<number>>(
     new Set(),
   );
+  const [reloadPolling, setReloadPolling] = useState(false);
 
   const addAlert = useAlertStore((state) => state.addAlert);
 
@@ -168,45 +171,111 @@ function SourceListModal({
     });
   };
 
-  // ソースデータの定期更新（processingステータスがある場合のみ）
+  // ソースデータの取得関数
+  const fetchSources = useCallback(async () => {
+    console.log('ドキュメントデータ取得');
+    const sourceApi = SourceApi.getInstance();
+    const responseSources = await sourceApi.getSources({
+      showAlert: false,
+      throwError: true,
+      printErrorLog: false,
+    });
+    const sourceList = responseSources || [];
+    setSources(sourceList);
+    const newProcessing = sourceList.some(
+      (s: Source) => s.status === 'idle' || s.status === 'processing',
+    );
+    // 状態更新
+    const enabledCount = sourceList.filter(
+      (s: Source) => s.isEnabled === 1 && s.status === 'completed',
+    ).length;
+    onStatusUpdate({ processing: newProcessing, enabledCount });
+  }, [onStatusUpdate]);
+
+  // 初期データ読み込み（エラーが発生しなくなるまでポーリング）
   useEffect(() => {
-    const fetchSources = async () => {
+    if (!open) return; // モーダルが開いていない場合は処理しない
+
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+
+    const loadSources = async () => {
       try {
-        const sourceApi = SourceApi.getInstance();
-        const responseSources = await sourceApi.getSources({
-          showAlert: false,
-          throwError: false,
-        });
-        const sourceList = responseSources || [];
-        setSources(sourceList);
-        const newProcessing = sourceList.some(
-          (s: Source) => s.status === 'idle' || s.status === 'processing',
-        );
-        // 状態更新
-        const enabledCount = sourceList.filter(
-          (s: Source) => s.isEnabled === 1 && s.status === 'completed',
-        ).length;
-        onStatusUpdate({ processing: newProcessing, enabledCount });
+        await fetchSources();
+
+        // 読み込み成功したらポーリングを停止
+        if (intervalId) {
+          clearInterval(intervalId);
+          intervalId = null;
+        }
       } catch (error) {
-        addAlert({
-          message: `ソース一覧の取得に失敗しました\n${(error as Error).message}`,
-          severity: 'error',
-        });
+        console.error('ソース一覧の読み込みに失敗しました:', error);
+        // 失敗時はポーリングを継続（既に設定済みの場合は何もしない）
+        if (!intervalId) {
+          intervalId = setInterval(loadSources, 5000);
+        }
       }
     };
-    // 初回データ取得
-    fetchSources();
 
-    const intervalId = setInterval(fetchSources, 5000);
+    // 初回読み込み
+    loadSources();
 
+    // クリーンアップでポーリング停止
     return () => {
       if (intervalId) {
         clearInterval(intervalId);
       }
     };
-  }, [open, checkedSources, onStatusUpdate, addAlert]);
+  }, [open, fetchSources]);
+
+  // ドキュメント更新時のポーリング処理
+  useEffect(() => {
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+
+    if (!reloadPolling) {
+      if (intervalId) {
+        clearInterval(intervalId);
+        intervalId = null;
+      }
+      return;
+    }
+
+    const pollSources = async () => {
+      try {
+        await fetchSources();
+      } catch (error) {
+        console.error('ソース一覧のポーリング中にエラーが発生しました:', error);
+      }
+    };
+
+    // ポーリング開始
+    intervalId = setInterval(pollSources, 5000);
+
+    // クリーンアップでポーリング停止
+    return () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+    };
+  }, [reloadPolling, sources, fetchSources]);
+
+  // ドキュメント更新完了イベントの購読
+  usePushChannel(IpcChannels.SOURCE_RELOAD_FINISHED, () => {
+    // ドキュメント更新完了時にポーリングを停止
+    setReloadPolling(false);
+    // 最新データを取得
+    try {
+      fetchSources();
+    } catch (error) {
+      console.error('ソース一覧の更新に失敗しました:', error);
+      addAlert({
+        message: `ドキュメント一覧の更新に失敗しました\n${(error as Error).message}`,
+        severity: 'error',
+      });
+    }
+  });
 
   const handleReloadClick = () => {
+    setReloadPolling(true);
     onReloadSources();
   };
 

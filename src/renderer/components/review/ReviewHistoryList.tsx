@@ -67,8 +67,7 @@ function ReviewHistoryList({
     } catch (error) {
       console.error('レビュー履歴の更新に失敗しました:', error);
       addAlert({
-        message:
-          'レビュー履歴の更新に失敗しました\nアプリの再起動をお試しください',
+        message: `レビュー履歴の更新に失敗しました\n${(error as Error).message}`,
         severity: 'error',
       });
     }

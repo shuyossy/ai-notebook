@@ -41,6 +41,7 @@ export const IpcChannels = {
   // ソース関連
   SOURCE_GET_ALL: 'source-get-all',
   SOURCE_RELOAD: 'source-reload',
+  SOURCE_RELOAD_FINISHED: 'source-reload-finished', // ドキュメント更新処理が完了した際の通知
   SOURCE_UPDATE_ENABLED: 'source-update-enabled',
 
   // チャット関連
@@ -196,6 +197,7 @@ export type IpcEventPayloadMap = {
   [IpcChannels.CHAT_STREAM]: any; // AI SDKが定義するDataStreamが入る想定(型がexportされていないためany型)
   [IpcChannels.CHAT_COMPLETE]: unknown;
   [IpcChannels.CHAT_ERROR]: { message: string };
+  [IpcChannels.SOURCE_RELOAD_FINISHED]: undefined; // ドキュメント更新処理完了通知
   [IpcChannels.REVIEW_EXTRACT_CHECKLIST_FINISHED]: {
     status: ChecklistExtractionResultStatus;
     error?: string;

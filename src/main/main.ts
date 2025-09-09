@@ -311,6 +311,10 @@ const setupSourceHandlers = () => {
   handleIpc(IpcChannels.SOURCE_RELOAD, async () => {
     const registrationManager = SourceRegistrationManager.getInstance();
     await registrationManager.registerAllFiles();
+    
+    // ドキュメント更新完了イベントを発行
+    publishEvent(IpcChannels.SOURCE_RELOAD_FINISHED, undefined);
+    
     return { message: 'ドキュメントの再読み込みが完了しました' };
   });
 

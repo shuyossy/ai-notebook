@@ -193,8 +193,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
             onChatRoomUpdate();
           } catch (err) {
             addAlert({
-              message:
-                'チャットルーム一覧の更新に失敗しました\nアプリの再起動をお試しください',
+              message: `チャットルーム一覧の更新に失敗しました\n${(err as Error).message}`,
               severity: 'error',
             });
           }

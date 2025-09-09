@@ -44,13 +44,12 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
 
   // チェック履歴取得
   const fetchChecklistResults = useCallback(async () => {
-    console.log('チェックリスト結果の取得を開始');
     if (!selectedReviewHistoryId) return;
     const reviewApi = ReviewApi.getInstance();
 
     const result = await reviewApi.getReviewHistoryDetail(
       selectedReviewHistoryId,
-      { throwError: false, showAlert: true, printErrorLog: true },
+      { throwError: true, showAlert: true, printErrorLog: true },
     );
     setChecklistResults(result?.checklistResults || []);
   }, [selectedReviewHistoryId]);
@@ -110,7 +109,13 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
     if (!selectedReviewHistoryId || (!isExtracting && !isReviewing)) return;
 
     // チェックリスト抽出処理中またはレビュー実行処理中のみポーリング開始
-    const processingTimer = setInterval(fetchChecklistResults, 5000);
+    const processingTimer = setInterval(async () => {
+      try {
+        await fetchChecklistResults();
+      } catch (error) {
+        console.error('チェックリスト結果の取得に失敗しました:', error);
+      }
+    }, 5000);
 
     return () => {
       clearInterval(processingTimer);
@@ -153,6 +158,13 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
               addAlert({
                 message: 'チェックリストの抽出が完了しました',
                 severity: 'success',
+              });
+              // 抽出結果の再取得
+              fetchChecklistResults().catch((error) => {
+                addAlert({
+                  message: `チェックリスト結果の取得に失敗しました\n${(error as Error).message}`,
+                  severity: 'error',
+                });
               });
             } else if (payload.status === 'failed') {
               addAlert({
