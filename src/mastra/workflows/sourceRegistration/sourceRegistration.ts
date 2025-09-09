@@ -1,14 +1,15 @@
 /* eslint-disable import/prefer-default-export */
-import { APICallError } from 'ai';
 // @ts-ignore
 import { createWorkflow, createStep } from '@mastra/core/workflows';
-// @ts-ignore
-import { MastraError } from '@mastra/core/error';
 import { z } from 'zod';
 import { stepStatus } from '../types';
 import { baseStepOutputSchema } from '../schema';
 import { getSourceRepository } from '../../../main/repository/sourceRepository';
 import { createRuntimeContext, judgeFinishReason } from '../../lib/agentUtils';
+import { normalizeUnknownError } from '@/main/lib/error';
+import { getMainLogger } from '@/main/lib/logger';
+
+const logger = getMainLogger();
 
 const triggerSchema = z.object({
   filePath: z.string().describe('登録するソースのファイルパス'),
@@ -84,23 +85,11 @@ const analyzeSourceStep = createStep({
 
       status = 'success';
     } catch (error) {
+      logger.error(error, 'ソース分析に失敗しました');
       let errorDetail: string;
-      if (
-        error instanceof MastraError &&
-        APICallError.isInstance(error.cause)
-      ) {
-        // APIコールエラーの場合はresponseBodyの内容を取得
-        errorDetail = error.cause.responseBody
-          ? error.cause.responseBody
-          : error.cause.message;
-      } else if (error instanceof Error) {
-        errorDetail = error.message;
-      } else {
-        errorDetail = JSON.stringify(error);
-      }
-      errorMessage = `ソース分析でエラーが発生しました:\n${errorDetail}`;
-      console.error(error);
-
+      const normalizedError = normalizeUnknownError(error);
+      errorDetail = normalizedError.message;
+      errorMessage = `ソース分析に失敗しました\n${errorDetail}`;
       // DBにエラー情報を更新
       await sourceRepository.updateProcessingStatus({
         id: sourceId,
@@ -184,20 +173,8 @@ const extractTopicAndSummaryStep = createStep({
       status = 'success';
     } catch (error) {
       let errorDetail: string;
-      if (
-        error instanceof MastraError &&
-        APICallError.isInstance(error.cause)
-      ) {
-        // APIコールエラーの場合はresponseBodyの内容を取得
-        errorDetail = error.cause.message;
-        if (error.cause.responseBody) {
-          errorDetail += `:\n${error.cause.responseBody}`;
-        }
-      } else if (error instanceof Error) {
-        errorDetail = error.message;
-      } else {
-        errorDetail = JSON.stringify(error);
-      }
+      const normalizedError = normalizeUnknownError(error);
+      errorDetail = normalizedError.message;
       errorMessage = `ソース分析でエラーが発生しました:\n${errorDetail}`;
       console.error(error);
 

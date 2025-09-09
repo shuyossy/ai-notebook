@@ -5,7 +5,7 @@ export class ElectronPushClient implements PushClient {
   subscribe<C extends Channel>(
     channel: C,
     onEvent: (ev: PushEvent<C>) => void,
-    opts?: { signal?: AbortSignal }
+    opts?: { signal?: AbortSignal },
   ): () => void {
     if (!window.electron.pushApi) throw new Error('pushApi not available');
     // preload経由で購読登録

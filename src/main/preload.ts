@@ -11,7 +11,7 @@ import {
   IpcNameMap,
   PushEvent,
 } from '@/types';
-import { normalizeUnkhownIpcError, toPayload } from './lib/error';
+import { normalizeUnknownIpcError, toPayload } from './lib/error';
 import { getRendererLogger } from '@/renderer/lib/logger';
 
 export type Channels = (typeof IpcChannels)[keyof typeof IpcChannels];
@@ -42,7 +42,7 @@ export async function invokeIpc<C extends RequestChannel & ResponseChannel>(
     // 素の値は success: true で包む
     return { success: true, data: res } as IpcResponsePayloadMap[C];
   } catch (err: unknown) {
-    const error = normalizeUnkhownIpcError(err, IpcNameMap[channel]);
+    const error = normalizeUnknownIpcError(err, IpcNameMap[channel]);
     logger.error(error, `IPC ${channel} error`);
     return {
       success: false,
@@ -103,7 +103,6 @@ const electronHandler = {
     deleteMessagesBeforeSpecificId: (
       params: IpcRequestPayloadMap[typeof IpcChannels.CHAT_DELETE_MESSAGES_BEFORE_SPECIFIC_ID],
     ) => invokeIpc(IpcChannels.CHAT_DELETE_MESSAGES_BEFORE_SPECIFIC_ID, params),
-
   },
   source: {
     /** ソース再読み込み */
@@ -145,10 +144,12 @@ const electronHandler = {
     /** レビュー実行キャンセル */
     abortExecute: (reviewHistoryId: string) =>
       invokeIpc(IpcChannels.REVIEW_EXECUTE_ABORT, reviewHistoryId),
-
   },
   pushApi: {
-    async subscribe<C extends EventChannel>(channel: C, cb: (ev: PushEvent<C>) => void) {
+    async subscribe<C extends EventChannel>(
+      channel: C,
+      cb: (ev: PushEvent<C>) => void,
+    ) {
       const { subId } = await ipcRenderer.invoke('push:subscribe', channel);
 
       const evtName = `push:${channel}:${subId}`;

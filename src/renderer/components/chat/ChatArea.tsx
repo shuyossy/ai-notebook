@@ -114,6 +114,7 @@ const customFetch: typeof fetch = async (input, init) => {
 
 interface ChatAreaProps {
   selectedRoomId: string | null;
+  onChatRoomUpdate?: () => void;
 }
 
 // プレースホルダーテキストを取得する関数
@@ -135,7 +136,10 @@ const fileToDataURL = (file: File): Promise<string> =>
     reader.readAsDataURL(file);
   });
 
-const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
+const ChatArea: React.FC<ChatAreaProps> = ({
+  selectedRoomId,
+  onChatRoomUpdate,
+}) => {
   const [loading, setLoading] = useState(false);
   const [initialMessages, setInitialMessages] = useState<ChatMessage[]>([]);
   const [editMessageId, setEditMessageId] = useState<string>('');
@@ -181,6 +185,22 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
     fetch: customFetch,
     initialMessages,
     experimental_throttle: 75,
+    onFinish: () => {
+      // AIレスポンス完了時にチャットルーム一覧を更新
+      if (onChatRoomUpdate) {
+        (async () => {
+          try {
+            onChatRoomUpdate();
+          } catch (err) {
+            addAlert({
+              message:
+                'チャットルーム一覧の更新に失敗しました\nアプリの再起動をお試しください',
+              severity: 'error',
+            });
+          }
+        })();
+      }
+    },
     experimental_prepareRequestBody: (request) => {
       const chatApi = ChatApi.getInstance();
       // Ensure messages array is not empty and get the last message
@@ -298,6 +318,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
   };
 
   const handleEditSubmit = async () => {
+    const chatApi = ChatApi.getInstance();
     const messageIndex = messages.findIndex((m) => m.id === editMessageId);
     if (messageIndex === -1) return;
 
@@ -314,14 +335,31 @@ const ChatArea: React.FC<ChatAreaProps> = ({ selectedRoomId }) => {
     };
     setMessages(updatedMessages);
     setIsEditHistory(true);
-    await window.electron.chat.deleteMessagesBeforeSpecificId({
-      threadId: selectedRoomId!,
-      messageId: editMessageId,
-    });
-    setEditMessageId('');
-    setEditMessageContent('');
-    setIsEditHistory(false);
-    reload();
+    try {
+      await chatApi.deleteMessagesBeforeSpecificId(
+        selectedRoomId!,
+        editMessageId,
+        {
+          showAlert: false,
+          throwError: true,
+          printErrorLog: true,
+        },
+      );
+      setEditMessageId('');
+      setEditMessageContent('');
+      setIsEditHistory(false);
+      reload();
+    } catch (err) {
+      addAlert({
+        message: 'メッセージ編集に失敗しました',
+        severity: 'error',
+      });
+    } finally {
+      setEditMessageId('');
+      setEditMessageContent('');
+      setIsEditHistory(false);
+      reload();
+    }
   };
 
   const handleEditCancel = () => {

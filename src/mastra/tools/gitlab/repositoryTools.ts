@@ -25,9 +25,7 @@ export const createGetFileContentTool = (client: GitLabClient) => {
         .describe('Project ID or non-encoded project path (required)'),
       file_path: z
         .string()
-        .describe(
-          'Non-encoded relative path from repository root (required)',
-        ),
+        .describe('Non-encoded relative path from repository root (required)'),
       ref: z.string().describe('Branch name or tag (required)'),
     }),
     outputSchema: createBaseToolResponseSchema(
@@ -81,9 +79,7 @@ export const createGetRawFileTool = (client: GitLabClient) => {
         .describe('Project ID or non-encoded project path (required)'),
       file_path: z
         .string()
-        .describe(
-          'Non-encoded relative path from repository root (required)',
-        ),
+        .describe('Non-encoded relative path from repository root (required)'),
       ref: z.string().describe('Branch name or tag (required)'),
     }),
     outputSchema: createBaseToolResponseSchema(
@@ -137,9 +133,7 @@ export const createGeBlameFileTool = (client: GitLabClient) => {
         .describe('Project ID or non-encoded project path (required)'),
       file_path: z
         .string()
-        .describe(
-          'Non-encoded relative path from repository root (required)',
-        ),
+        .describe('Non-encoded relative path from repository root (required)'),
       ref: z.string().describe('Branch name or tag (required)'),
       range: z
         .object({
@@ -202,9 +196,7 @@ export const createGetRepositoryTreeTool = (client: GitLabClient) => {
       path: z
         .string()
         .optional()
-        .describe(
-          'Directory path relative to repository root (optional)',
-        ),
+        .describe('Directory path relative to repository root (optional)'),
       ref: z.string().describe('Branch name or tag (required)'),
       recursive: z
         .boolean()

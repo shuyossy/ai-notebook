@@ -3,7 +3,12 @@ import { IpcChannels } from '@/types/ipc';
 import { generateReviewTitle } from './lib';
 import { ReviewHistory } from '@/db/schema';
 import { mastra } from '../..';
-import { ChecklistExtractionResultStatus, DocumentType, ReviewExecutionResultStatus, UploadFile } from '@/types';
+import {
+  ChecklistExtractionResultStatus,
+  DocumentType,
+  ReviewExecutionResultStatus,
+  UploadFile,
+} from '@/types';
 import { checkWorkflowResult } from '../../lib/workflowUtils';
 import { internalError, normalizeUnknownError } from '@/main/lib/error';
 import { getMainLogger } from '@/main/lib/logger';
@@ -75,7 +80,9 @@ export default class SourceReviewManager {
       const run = await workflow.createRunAsync();
 
       // 実行中のワークフローを管理
-      this.runningWorkflows.set(reviewHistoryId, { cancel: () => run.cancel() });
+      this.runningWorkflows.set(reviewHistoryId, {
+        cancel: () => run.cancel(),
+      });
 
       const runResult = await run.start({
         inputData: {
@@ -158,7 +165,9 @@ export default class SourceReviewManager {
       const run = await workflow.createRunAsync();
 
       // 実行中のワークフローを管理
-      this.runningWorkflows.set(reviewHistoryId, { cancel: () => run.cancel() });
+      this.runningWorkflows.set(reviewHistoryId, {
+        cancel: () => run.cancel(),
+      });
 
       const result = await run.start({
         inputData: {
@@ -168,7 +177,10 @@ export default class SourceReviewManager {
           commentFormat,
         },
       });
-      console.log('Review Execution Workflow Result:', JSON.stringify(result, null, 2));
+      console.log(
+        'Review Execution Workflow Result:',
+        JSON.stringify(result, null, 2),
+      );
       // 結果を確認
       const checkResult = checkWorkflowResult(result);
 
@@ -231,7 +243,10 @@ export default class SourceReviewManager {
             error: errorMessage,
           };
           // エラーイベントを送信
-          publishEvent(IpcChannels.REVIEW_EXTRACT_CHECKLIST_FINISHED, errorResult);
+          publishEvent(
+            IpcChannels.REVIEW_EXTRACT_CHECKLIST_FINISHED,
+            errorResult,
+          );
         });
       return {
         success: true,
@@ -249,7 +264,10 @@ export default class SourceReviewManager {
         error: errorMessage,
       };
       // エラーイベントを送信
-      publishEvent(IpcChannels.REVIEW_EXTRACT_CHECKLIST_FINISHED, payloadResult);
+      publishEvent(
+        IpcChannels.REVIEW_EXTRACT_CHECKLIST_FINISHED,
+        payloadResult,
+      );
       return errorResult;
     }
   }
@@ -318,17 +336,27 @@ export default class SourceReviewManager {
    * チェックリスト抽出処理をキャンセル
    * @param reviewHistoryId レビュー履歴ID
    */
-  public abortExtractChecklist(reviewHistoryId: string): { success: boolean; error?: string } {
+  public abortExtractChecklist(reviewHistoryId: string): {
+    success: boolean;
+    error?: string;
+  } {
     try {
       const runningWorkflow = this.runningWorkflows.get(reviewHistoryId);
       if (runningWorkflow) {
         runningWorkflow.cancel();
         this.runningWorkflows.delete(reviewHistoryId);
-        logger.info(`チェックリスト抽出処理をキャンセルしました: ${reviewHistoryId}`);
+        logger.info(
+          `チェックリスト抽出処理をキャンセルしました: ${reviewHistoryId}`,
+        );
         return { success: true };
       } else {
-        logger.warn(`キャンセル対象のチェックリスト抽出処理が見つかりません: ${reviewHistoryId}`);
-        return { success: false, error: 'キャンセル対象の処理が見つかりません' };
+        logger.warn(
+          `キャンセル対象のチェックリスト抽出処理が見つかりません: ${reviewHistoryId}`,
+        );
+        return {
+          success: false,
+          error: 'キャンセル対象の処理が見つかりません',
+        };
       }
     } catch (error) {
       logger.error(error, 'チェックリスト抽出のキャンセルに失敗しました');
@@ -341,7 +369,10 @@ export default class SourceReviewManager {
    * レビュー実行処理をキャンセル
    * @param reviewHistoryId レビュー履歴ID
    */
-  public abortExecuteReview(reviewHistoryId: string): { success: boolean; error?: string } {
+  public abortExecuteReview(reviewHistoryId: string): {
+    success: boolean;
+    error?: string;
+  } {
     try {
       const runningWorkflow = this.runningWorkflows.get(reviewHistoryId);
       if (runningWorkflow) {
@@ -350,8 +381,13 @@ export default class SourceReviewManager {
         logger.info(`レビュー実行処理をキャンセルしました: ${reviewHistoryId}`);
         return { success: true };
       } else {
-        logger.warn(`キャンセル対象のレビュー実行処理が見つかりません: ${reviewHistoryId}`);
-        return { success: false, error: 'キャンセル対象の処理が見つかりません' };
+        logger.warn(
+          `キャンセル対象のレビュー実行処理が見つかりません: ${reviewHistoryId}`,
+        );
+        return {
+          success: false,
+          error: 'キャンセル対象の処理が見つかりません',
+        };
       }
     } catch (error) {
       logger.error(error, 'レビュー実行のキャンセルに失敗しました');

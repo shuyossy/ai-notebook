@@ -29,6 +29,11 @@ export interface IChatApi {
     messages: ChatMessage[],
     options?: ApiServiceDefaultOptions,
   ): void;
+  deleteMessagesBeforeSpecificId(
+    roomId: string,
+    messageId: string,
+    options?: ApiServiceDefaultOptions,
+  ): Promise<void>;
 }
 
 // IPC通信を使用してメインプロセスのAIエージェントへメッセージを送信するためのチャットサービス
@@ -79,14 +84,14 @@ export class ChatApi implements IChatApi {
   }): () => void {
     const pushClient = new ElectronPushClient();
     const abortController = new AbortController();
-    
+
     // ストリーミングイベントの購読
     pushClient.subscribe(
       IpcChannels.CHAT_STREAM,
       (event) => {
         callbacks.onMessage(event.payload);
       },
-      { signal: abortController.signal }
+      { signal: abortController.signal },
     );
 
     // 完了イベントの購読
@@ -98,7 +103,7 @@ export class ChatApi implements IChatApi {
         // 完了コールバックを呼び出し
         callbacks.onDone();
       },
-      { signal: abortController.signal }
+      { signal: abortController.signal },
     );
 
     // エラーイベントの購読
@@ -112,9 +117,9 @@ export class ChatApi implements IChatApi {
           new Error(event.payload.message || '予期せぬエラーが発生しました'),
         );
       },
-      { signal: abortController.signal }
+      { signal: abortController.signal },
     );
-    
+
     // 購読解除のためのクリーンアップ
     return () => {
       abortController.abort();
@@ -156,5 +161,17 @@ export class ChatApi implements IChatApi {
     const result = await window.electron.chat.sendMessage({ roomId, messages });
     getData(result, options);
     console.log('Message sent via IPC:', { roomId, messages });
+  }
+
+  public async deleteMessagesBeforeSpecificId(
+    roomId: string,
+    messageId: string,
+    options?: ApiServiceDefaultOptions,
+  ): Promise<void> {
+    const result = await window.electron.chat.deleteMessagesBeforeSpecificId({
+      threadId: roomId,
+      messageId,
+    });
+    getData(result, options);
   }
 }

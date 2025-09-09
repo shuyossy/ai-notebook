@@ -1,9 +1,7 @@
 /* eslint-disable prefer-template */
-import { APICallError, NoObjectGeneratedError } from 'ai';
+import { NoObjectGeneratedError } from 'ai';
 // @ts-ignore
 import { createStep, createWorkflow } from '@mastra/core/workflows';
-// @ts-ignore
-import { MastraError } from '@mastra/core/error';
 import { z } from 'zod';
 import { getReviewRepository } from '@/main/repository/reviewRepository';
 import { getSourceRepository } from '@/main/repository/sourceRepository';
@@ -273,15 +271,6 @@ const checklistDocumentExtractionStep = createStep({
           let errorMessage = '';
           let errorDetail: string;
           if (
-            error instanceof MastraError &&
-            APICallError.isInstance(error.cause)
-          ) {
-            // APIコールエラーの場合はresponseBodyの内容を取得
-            errorDetail = error.cause.message;
-            if (error.cause.responseBody) {
-              errorDetail += `:\n${error.cause.responseBody}`;
-            }
-          } else if (
             NoObjectGeneratedError.isInstance(error) &&
             error.finishReason === 'length'
           ) {
@@ -430,11 +419,10 @@ const topicExtractionStep = createStep({
             },
           );
 
-          logger
-            .debug(
-              `document(${file.name}) extracted topics for creating checklist:`,
-              JSON.stringify(extractionResult.object.topics, null, 2),
-            );
+          logger.debug(
+            `document(${file.name}) extracted topics for creating checklist:`,
+            JSON.stringify(extractionResult.object.topics, null, 2),
+          );
 
           allTopics.push(
             ...extractionResult.object.topics.map((t) => ({
@@ -444,7 +432,10 @@ const topicExtractionStep = createStep({
             })),
           );
         } catch (error) {
-          logger.error(error, 'チェックリスト作成のトピック抽出処理に失敗しました');
+          logger.error(
+            error,
+            'チェックリスト作成のトピック抽出処理に失敗しました',
+          );
           const normalizedError = normalizeUnknownError(error);
           errorMessages.push(
             `${file.name}のチェックリスト作成中にエラー: ${normalizedError.message}`,
@@ -579,17 +570,18 @@ const topicChecklistCreationStep = createStep({
         runtimeContext,
         abortSignal,
       });
-      logger
-        .debug(
-          `document(${file.name}) topic(${title}) generated checklist items:`,
-          JSON.stringify(result.object.checklistItems, null, 2),
-        );
+      logger.debug(
+        `document(${file.name}) topic(${title}) generated checklist items:`,
+        JSON.stringify(result.object.checklistItems, null, 2),
+      );
 
       if (
         !result.object.checklistItems ||
         result.object.checklistItems.length === 0
       ) {
-        logger.error(`トピック「${title}」に対するチェックリスト項目が生成されませんでした`);
+        logger.error(
+          `トピック「${title}」に対するチェックリスト項目が生成されませんでした`,
+        );
         // 別トピックでも生成される可能性があるため、失敗とはせず成功で返す
         return {
           status: 'success' as stepStatus,

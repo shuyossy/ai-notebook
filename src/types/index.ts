@@ -2,7 +2,7 @@ export * from './chat';
 export * from './review';
 export * from './setting';
 export * from './sourceRegister';
-export * from './ipc'
+export * from './ipc';
 export * from './message';
 export * from './error';
 export * from './eventPush';

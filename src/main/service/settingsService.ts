@@ -33,7 +33,7 @@ export interface ISettingsService {
   saveSettings(settings: Settings): Promise<void>;
 }
 
-export class  SettingsService implements ISettingsService {
+export class SettingsService implements ISettingsService {
   // シングルトン変数
   private static instance: SettingsService;
 
@@ -133,7 +133,8 @@ export class  SettingsService implements ISettingsService {
    * @returns OrchestratorRuntimeContext
    */
   public getRuntimeContext = async (): Promise<RuntimeContext> => {
-    const runtimeContext = await createRuntimeContext<OrchestratorRuntimeContext>();
+    const runtimeContext =
+      await createRuntimeContext<OrchestratorRuntimeContext>();
     runtimeContext.set('toolStatus', this.status.tools);
     const store = await this.settingsRepository.getSettings();
     if (this.status.tools.document) {
@@ -157,10 +158,7 @@ export class  SettingsService implements ISettingsService {
       });
     }
     if (store.systemPrompt.content) {
-      runtimeContext.set(
-        'additionalSystemPrompt',
-        store.systemPrompt.content,
-      );
+      runtimeContext.set('additionalSystemPrompt', store.systemPrompt.content);
     }
 
     return runtimeContext;

@@ -1,4 +1,4 @@
-import { APICallError, NoObjectGeneratedError } from 'ai';
+import { NoObjectGeneratedError } from 'ai';
 // @ts-ignore
 import { createWorkflow, createStep } from '@mastra/core/workflows';
 // @ts-ignore
@@ -16,7 +16,7 @@ import {
 } from '../../agents/workflowAgents';
 import { createRuntimeContext, judgeFinishReason } from '../../lib/agentUtils';
 import { getMainLogger } from '@/main/lib/logger';
-import { normalizeUnknownError } from '@/main/lib/error';
+import { normalizeUnknownError, extractAIAPISafeError } from '@/main/lib/error';
 
 const logger = getMainLogger();
 
@@ -196,9 +196,8 @@ const classifyChecklistsByCategoryStep = createStep({
     } catch (error) {
       logger.error(error, 'チェックリストのカテゴリ分類処理に失敗しました');
       if (
-        APICallError.isInstance(error) ||
-        (NoObjectGeneratedError.isInstance(error) &&
-          error.finishReason === 'length') ||
+        extractAIAPISafeError(error) ||
+        NoObjectGeneratedError.isInstance(error) ||
         error instanceof MastraError
       ) {
         // APIコールエラーまたはAIモデルが生成できる文字数を超えた場合、手動でカテゴリー分割
@@ -207,7 +206,10 @@ const classifyChecklistsByCategoryStep = createStep({
           await repository.getChecklists(reviewHistoryId);
         return {
           status: 'success' as stepStatus,
-          categories: splitChecklistEquallyByMaxSize(checklistsResult, MAX_CHECKLISTS_PER_CATEGORY),
+          categories: splitChecklistEquallyByMaxSize(
+            checklistsResult,
+            MAX_CHECKLISTS_PER_CATEGORY,
+          ),
         };
       }
       const normalizedError = normalizeUnknownError(error);
@@ -370,18 +372,12 @@ const reviewExecutionStep = createStep({
                 break;
               }
             } catch (error) {
-              logger.error(error, `${file.name}チェックリストのレビュー実行処理に失敗しました`);
+              logger.error(
+                error,
+                `${file.name}チェックリストのレビュー実行処理に失敗しました`,
+              );
               let errorDetail: string;
               if (
-                error instanceof MastraError &&
-                APICallError.isInstance(error.cause)
-              ) {
-                // APIコールエラーの場合はresponseBodyの内容を取得
-                errorDetail = error.cause.message;
-                if (error.cause.responseBody) {
-                  errorDetail += `:\n${error.cause.responseBody}`;
-                }
-              } else if (
                 NoObjectGeneratedError.isInstance(error) &&
                 error.finishReason === 'length'
               ) {
@@ -400,7 +396,10 @@ const reviewExecutionStep = createStep({
           }
           if (attempt >= maxAttempts) {
             // 最大試行回数に達した場合、レビューに失敗したドキュメントを記録
-            errorDocuments.set(file.name, `全てのチェックリストに対してレビューを完了することができませんでした`)
+            errorDocuments.set(
+              file.name,
+              `全てのチェックリストに対してレビューを完了することができませんでした`,
+            );
           }
         }
       }
@@ -427,11 +426,10 @@ const reviewExecutionStep = createStep({
     } catch (error) {
       logger.error(error, 'チェックリストのレビュー実行処理に失敗しました');
       const normalizedError = normalizeUnknownError(error);
-      const errorMessage = normalizedError.message;
       // エラーが発生した場合はエラ
       return {
         status: 'failed' as stepStatus,
-        errorMessage: `${errorMessage}`,
+        errorMessage: `${normalizedError.message}`,
       };
     }
   },

@@ -26,10 +26,6 @@ import {
   WritableStream,
   TransformStream,
 } from 'node:stream/web';
-// @ts-ignore
-import { MastraError } from '@mastra/core/error';
-import { APICallError } from 'ai';
-import { getStore } from './store';
 import type { Source } from '@/db/schema';
 import {
   IpcChannels,
@@ -48,16 +44,11 @@ import { ReviewService } from './service/reviewService';
 import { SettingsService } from './service/settingsService';
 import { ChatService } from './service/chatService';
 import { getMainLogger } from './lib/logger';
-import {
-  AppError,
-  internalError,
-  normalizeUnknownError,
-  toPayload,
-} from './lib/error';
+import { internalError, normalizeUnknownError, toPayload } from './lib/error';
 import { formatMessage } from './lib/messages';
 import { SourceService } from './service/sourceService';
 import { ZodSchema } from 'zod';
-import { normalizeUnkhownIpcError } from './lib/error';
+import { normalizeUnknownIpcError } from './lib/error';
 import { setupElectronPushBroker } from './push/electronPushBroker';
 import { publishEvent } from './lib/eventPayloadHelper';
 
@@ -130,7 +121,7 @@ export function handleIpc<C extends RequestChannel>(
         return { success: true, data } as IpcResponsePayloadMap[C];
       } catch (err) {
         // normalizeUnknownError で既定フォーマットに寄せる
-        const normalized = normalizeUnkhownIpcError(err, IpcNameMap[channel]);
+        const normalized = normalizeUnknownIpcError(err, IpcNameMap[channel]);
         console.error(normalized);
         if (printErrorLog) {
           logger.error(
@@ -243,21 +234,11 @@ const setupChatHandlers = () => {
 
         return undefined as never;
       } catch (error) {
-        let errorDetail = '不明なエラー';
         // エラー時もAbortControllerを削除
         chatService.deleteAbortController(roomId);
-        if (
-          error instanceof MastraError &&
-          APICallError.isInstance(error.cause)
-        ) {
-          errorDetail = error.cause.message;
-        } else if (error instanceof AppError) {
-          publishEvent(IpcChannels.CHAT_ERROR, { message: error.message });
-          publishEvent(IpcChannels.CHAT_COMPLETE, undefined);
-          throw error;
-        }
+        const normalizedError = normalizeUnknownError(error);
         const errorMessage = formatMessage('CHAT_GENERATE_ERROR', {
-          detail: errorDetail,
+          detail: normalizedError.message,
         });
         publishEvent(IpcChannels.CHAT_ERROR, { message: errorMessage });
         publishEvent(IpcChannels.CHAT_COMPLETE, undefined);
@@ -265,7 +246,7 @@ const setupChatHandlers = () => {
         throw internalError({
           expose: true,
           messageCode: 'CHAT_GENERATE_ERROR',
-          messageParams: { detail: errorDetail },
+          messageParams: { detail: normalizedError.message },
           cause: error,
         });
       }
@@ -416,7 +397,12 @@ const setupReviewHandlers = () => {
   // レビュー実施ハンドラ
   handleIpc(
     IpcChannels.REVIEW_EXECUTE_CALL,
-    async ({ reviewHistoryId, files, additionalInstructions, commentFormat }) => {
+    async ({
+      reviewHistoryId,
+      files,
+      additionalInstructions,
+      commentFormat,
+    }) => {
       reviewService.updateReviewInstruction(
         reviewHistoryId,
         additionalInstructions,
@@ -446,19 +432,22 @@ const setupReviewHandlers = () => {
   );
 
   // チェックリスト抽出キャンセルハンドラ
-  handleIpc(IpcChannels.REVIEW_EXTRACT_CHECKLIST_ABORT, async (reviewHistoryId) => {
-    const manager = SourceReviewManager.getInstance();
-    const result = manager.abortExtractChecklist(reviewHistoryId);
-    if (!result.success) {
-      throw internalError({
-        expose: true,
-        messageCode: 'UNKNOWN_ERROR',
-        messageParams: { detail: result.error! },
-        cause: new Error(result.error!),
-      });
-    }
-    return undefined as never;
-  });
+  handleIpc(
+    IpcChannels.REVIEW_EXTRACT_CHECKLIST_ABORT,
+    async (reviewHistoryId) => {
+      const manager = SourceReviewManager.getInstance();
+      const result = manager.abortExtractChecklist(reviewHistoryId);
+      if (!result.success) {
+        throw internalError({
+          expose: true,
+          messageCode: 'UNKNOWN_ERROR',
+          messageParams: { detail: result.error! },
+          cause: new Error(result.error!),
+        });
+      }
+      return undefined as never;
+    },
+  );
 
   // レビュー実行キャンセルハンドラ
   handleIpc(IpcChannels.REVIEW_EXECUTE_ABORT, async (reviewHistoryId) => {

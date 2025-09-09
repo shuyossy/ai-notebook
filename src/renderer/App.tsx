@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { MemoryRouter as Router, Routes, Route } from 'react-router-dom';
 import {
   ThemeProvider,
@@ -15,7 +15,7 @@ import ReviewArea from './components/review/ReviewArea';
 import { SourceApi } from './service/sourceApi';
 import { useAlertStore } from './stores/alertStore';
 import { ROUTES } from '../types';
-import ChatRoomList from './components/chat/ChatRoomList';
+import ChatRoomList, { ChatRoomListRef } from './components/chat/ChatRoomList';
 import ReviewHistoryList from './components/review/ReviewHistoryList';
 import { useAgentStatusStore } from './stores/agentStatusStore';
 import { SettingsApi } from './service/settingsApi';
@@ -65,6 +65,7 @@ function App() {
   const [selectedReviewHistoryId, setSelectedReviewHistoryId] = useState<
     string | null
   >(null);
+  const chatRoomListRef = useRef<ChatRoomListRef>(null);
   const alerts = useAlertStore((state) => state.alerts);
   const addAlert = useAlertStore((state) => state.addAlert);
   const removeAlert = useAlertStore((state) => state.removeAlert);
@@ -135,6 +136,7 @@ function App() {
                 path={ROUTES.CHAT}
                 element={
                   <ChatRoomList
+                    ref={chatRoomListRef}
                     onRoomSelect={setSelectedRoomId}
                     selectedRoomId={selectedRoomId}
                   />
@@ -167,7 +169,17 @@ function App() {
             <Routes>
               <Route
                 path={ROUTES.CHAT}
-                element={<ChatArea selectedRoomId={selectedRoomId} />}
+                element={
+                  <ChatArea
+                    selectedRoomId={selectedRoomId}
+                    onChatRoomUpdate={() => {
+                      // チャットルーム一覧を更新
+                      if (chatRoomListRef.current) {
+                        chatRoomListRef.current.refreshChatRooms();
+                      }
+                    }}
+                  />
+                }
               />
               <Route
                 path={ROUTES.REVIEW}

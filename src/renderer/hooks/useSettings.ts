@@ -188,7 +188,6 @@ const useSettingsStore = () => {
     }
   };
 
-
   /**
    * 設定の保存処理
    */
@@ -220,7 +219,9 @@ const useSettingsStore = () => {
       return true;
     } catch (err) {
       setSaveError(
-        err instanceof Error ? err.message : '設定保存処理で予期せぬエラーが発生しました',
+        err instanceof Error
+          ? err.message
+          : '設定保存処理で予期せぬエラーが発生しました',
       );
       return false;
     } finally {

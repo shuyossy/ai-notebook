@@ -1,10 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type {
-  Channel,
-  PushEvent,
-  StreamSink,
-  PushBroker,
-} from '@/types';
+import type { Channel, PushEvent, StreamSink, PushBroker } from '@/types';
 
 /**
  * 単一プロセス内で使う軽量ブローカー実装。
@@ -24,7 +19,9 @@ export class InProcPushBroker implements PushBroker {
       try {
         (sink as StreamSink<C>).write(ev);
       } catch {
-        try { sink.close?.(); } finally {
+        try {
+          sink.close?.();
+        } finally {
           sinks.delete(sink.id!);
         }
       }

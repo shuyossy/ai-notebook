@@ -1,10 +1,8 @@
 // @ts-ignore
 import { MastraMemory, StorageThreadType } from '@mastra/core';
-// @ts-ignore
-import { MastraError } from '@mastra/core/error';
-import { APICallError, Message, UIMessage, createDataStream } from 'ai';
+import { Message, UIMessage, createDataStream } from 'ai';
 import { mastra } from '@/mastra';
-import { AppError, internalError } from '../lib/error';
+import { internalError } from '../lib/error';
 import { AbortControllerManager } from '../lib/AbortControllerManager';
 import { judgeFinishReason } from '@/mastra/lib/agentUtils';
 import { ChatMessage, Feature, IpcChannels } from '@/types';
@@ -12,6 +10,7 @@ import { getMainLogger } from '../lib/logger';
 import { formatMessage } from '../lib/messages';
 import { SettingsService } from './settingsService';
 import { publishEvent } from '../lib/eventPayloadHelper';
+import { normalizeUnknownError } from '../lib/error';
 
 const logger = getMainLogger();
 
@@ -224,21 +223,9 @@ export class ChatService implements IChatService {
         logger.error(error, 'テキスト生成中にエラーが発生');
         // エラー時もAbortControllerを削除
         this.deleteAbortController(threadId);
-        let errorDetail = '不明なエラー';
-        if (
-          error instanceof MastraError &&
-          APICallError.isInstance(error.cause)
-        ) {
-          // APIコールエラーの場合はresponseBodyの内容を取得
-          errorDetail = error.cause.message;
-          // if (error.cause.responseBody) {
-          //   errorDetail += `:\n${error.cause.responseBody}`;
-          // }
-        } else if (error instanceof AppError) {
-          return error.message;
-        }
+        const normalizedError = normalizeUnknownError(error);
         return formatMessage('CHAT_GENERATE_ERROR', {
-          detail: errorDetail,
+          detail: normalizedError.message,
         });
       },
     });
@@ -250,9 +237,7 @@ export class ChatService implements IChatService {
    * @param threadId スレッドID
    * @returns AbortController
    */
-  public getOrCreateAbortController(
-    threadId: string,
-  ): AbortController {
+  public getOrCreateAbortController(threadId: string): AbortController {
     return this.abortControllerManager.getOrCreateAbortController(
       feature,
       threadId,

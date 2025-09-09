@@ -60,11 +60,11 @@ export class ReviewService implements IReviewService {
    * レビュー履歴の追加指示とコメントフォーマットを取得
    */
   public async getReviewInstruction(reviewHistoryId: string) {
-    const reviewHistory = await this.repository.getReviewHistory(
-      reviewHistoryId,
-    );
+    const reviewHistory =
+      await this.repository.getReviewHistory(reviewHistoryId);
     return {
-      additionalInstructions: reviewHistory?.additionalInstructions || undefined,
+      additionalInstructions:
+        reviewHistory?.additionalInstructions || undefined,
       commentFormat: reviewHistory?.commentFormat || undefined,
     };
   }

@@ -8,8 +8,8 @@ export type ErrorCode =
   | 'NOT_FOUND'
   | 'VALIDATION'
   | 'EXTERNAL_SERVICE'
-  | 'INTERNAL';
-
+  | 'INTERNAL'
+  | 'AI_API';
 
 /**
  * クライアントへ返す標準エラー形

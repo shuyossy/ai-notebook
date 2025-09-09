@@ -78,7 +78,7 @@ export default class FileExtractor {
     try {
       const ext = path.extname(filePath).toLowerCase();
       return CACHE_TARGET_EXTENSIONS.includes(ext);
-    } catch(error) {
+    } catch (error) {
       logger.error(error, 'ファイルの拡張子の取得に失敗しました');
       return false;
     }
@@ -112,7 +112,7 @@ export default class FileExtractor {
       // ファイルが存在しない場合は null を返す
       // ファイルが存在するが、取り出せない場合(≠ENOENT)はログに出す
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-        logger.error({error, filePath}, 'キャッシュの読み込みに失敗しました');
+        logger.error({ error, filePath }, 'キャッシュの読み込みに失敗しました');
       }
       return null;
     }
@@ -130,7 +130,7 @@ export default class FileExtractor {
       await fs.writeFile(cachePath, content, 'utf-8');
     } catch (error) {
       // キャッシュが保存できない場合は大きな問題にならないのでエラーは握りつぶす
-      logger.error({error, filePath}, 'キャッシュの保存に失敗しました');
+      logger.error({ error, filePath }, 'キャッシュの保存に失敗しました');
     }
   }
 
@@ -197,7 +197,7 @@ export default class FileExtractor {
         },
       };
     } catch (error) {
-      logger.error({error, filePath}, 'ファイルのテキスト抽出に失敗しました');
+      logger.error({ error, filePath }, 'ファイルのテキスト抽出に失敗しました');
       throw internalError({
         expose: true,
         messageCode: 'FILE_TEXT_EXTRACTION_ERROR',
@@ -237,7 +237,10 @@ export default class FileExtractor {
     try {
       return await fs.readFile(filePath, 'utf-8');
     } catch (error) {
-      logger.error({error, filePath}, 'テキストファイルの読み込みに失敗しました');
+      logger.error(
+        { error, filePath },
+        'テキストファイルの読み込みに失敗しました',
+      );
       throw internalError({
         expose: true,
         messageCode: 'FILE_TEXT_EXTRACTION_ERROR',

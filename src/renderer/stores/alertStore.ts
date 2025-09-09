@@ -47,6 +47,5 @@ export const alertStore: StoreApi<AlertStore> = createStore<AlertStore>()(
   }),
 );
 
-export const useAlertStore = <T>(
-  selector: (s: AlertStore) => T,
-) => useStore(alertStore, selector);
+export const useAlertStore = <T>(selector: (s: AlertStore) => T) =>
+  useStore(alertStore, selector);

@@ -3,7 +3,9 @@ import { getData } from '../lib/apiUtils';
 import { ApiServiceDefaultOptions } from '../types';
 
 export interface ISettingsApi {
-  getAgentStatus(options?: ApiServiceDefaultOptions): Promise<SettingsSavingStatus | null>;
+  getAgentStatus(
+    options?: ApiServiceDefaultOptions,
+  ): Promise<SettingsSavingStatus | null>;
   removeMessage(
     messageId: string,
     options?: ApiServiceDefaultOptions,
@@ -46,9 +48,7 @@ export class SettingsApi implements ISettingsApi {
     getData(result, options);
   }
 
-  public async reinitialize(
-    options?: ApiServiceDefaultOptions,
-  ): Promise<void> {
+  public async reinitialize(options?: ApiServiceDefaultOptions): Promise<void> {
     const result = await window.electron.settings.reinitialize();
     getData(result, options);
   }

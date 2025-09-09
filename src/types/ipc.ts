@@ -1,8 +1,5 @@
 import { OpenDialogOptions } from 'electron';
-import type {
-  ChatMessage,
-  ChatRoom,
-} from './chat';
+import type { ChatMessage, ChatRoom } from './chat';
 import { AppErrorPayload } from './error';
 import type {
   DocumentType,
@@ -12,10 +9,7 @@ import type {
   ChecklistExtractionResultStatus,
   ReviewExecutionResultStatus,
 } from './review';
-import type {
-  SettingsSavingStatus,
-  Settings,
-} from './setting';
+import type { SettingsSavingStatus, Settings } from './setting';
 import type { Source, ReviewHistory } from '@/db/schema';
 
 type IpcSuccess<T> = {
@@ -268,4 +262,4 @@ export const IpcNameMap = {
   [IpcChannels.REVIEW_UPDATE_CHECKLIST]: 'チェックリストの更新',
   [IpcChannels.REVIEW_EXECUTE_CALL]: 'ドキュメントレビューの実行',
   [IpcChannels.REVIEW_EXECUTE_ABORT]: 'ドキュメントレビューの中断',
-}
+};

@@ -1,9 +1,6 @@
-import { APICallError } from 'ai';
 import { z } from 'zod';
 // @ts-ignore
 import { createTool } from '@mastra/core/tools';
-// @ts-ignore
-import { MastraError } from '@mastra/core/error';
 import { eq, and } from 'drizzle-orm';
 import { sources } from '@/db/schema';
 import getDb from '@/db/index';
@@ -11,6 +8,7 @@ import FileExtractor from '@/main/lib/fileExtractor';
 import { createBaseToolResponseSchema, RunToolStatus } from './types';
 import { DocumentExpertAgentRuntimeContext } from '../agents/toolAgents';
 import { createRuntimeContext, judgeFinishReason } from '../lib/agentUtils';
+import { normalizeUnknownError } from '@/main/lib/error';
 
 /**
  * ソース一覧表示ツール
@@ -196,20 +194,8 @@ export const documentQueryTool = createTool({
       };
     } catch (error) {
       let errorDetail: string;
-      if (
-        error instanceof MastraError &&
-        APICallError.isInstance(error.cause)
-      ) {
-        // APIコールエラーの場合はresponseBodyの内容を取得
-        errorDetail = error.cause.message;
-        if (error.cause.responseBody) {
-          errorDetail += `:\n${error.cause.responseBody}`;
-        }
-      } else if (error instanceof Error) {
-        errorDetail = error.message;
-      } else {
-        errorDetail = JSON.stringify(error);
-      }
+      const normalizedError = normalizeUnknownError(error);
+      errorDetail = normalizedError.message;
       const errorMessage = `ドキュメント検索ツール実行時にエラーが発生しました:\n${errorDetail}`;
 
       status = 'failed';

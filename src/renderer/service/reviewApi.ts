@@ -1,4 +1,11 @@
-import { ReviewChecklistResultDisplay, UploadFile,DocumentType, ReviewChecklistEdit, ChecklistExtractionResultStatus, ReviewExecutionResultStatus } from '@/types';
+import {
+  ReviewChecklistResultDisplay,
+  UploadFile,
+  DocumentType,
+  ReviewChecklistEdit,
+  ChecklistExtractionResultStatus,
+  ReviewExecutionResultStatus,
+} from '@/types';
 import { ApiServiceDefaultOptions } from '../types';
 import { getData } from '../lib/apiUtils';
 import { ReviewHistory } from '@/db/schema';
@@ -6,7 +13,9 @@ import { ElectronPushClient } from '../lib/ElectronPushClient';
 import { IpcChannels } from '@/types';
 
 export interface IReviewApi {
-  getHistories(options?: ApiServiceDefaultOptions): Promise<ReviewHistory[] | null>;
+  getHistories(
+    options?: ApiServiceDefaultOptions,
+  ): Promise<ReviewHistory[] | null>;
   deleteHistory(
     historyId: string,
     options?: ApiServiceDefaultOptions,
@@ -39,10 +48,16 @@ export interface IReviewApi {
     options?: ApiServiceDefaultOptions,
   ): Promise<void>;
   subscribeChecklistExtractionFinished(
-    callback: (payload: { status: ChecklistExtractionResultStatus; error?: string }) => void,
+    callback: (payload: {
+      status: ChecklistExtractionResultStatus;
+      error?: string;
+    }) => void,
   ): () => void;
   subscribeReviewExtractionFinished(
-    callback: (payload: { status: ReviewExecutionResultStatus; error?: string }) => void,
+    callback: (payload: {
+      status: ReviewExecutionResultStatus;
+      error?: string;
+    }) => void,
   ): () => void;
   updateChecklist(
     historyId: string,
@@ -99,7 +114,8 @@ export class ReviewApi implements IReviewApi {
     additionalInstructions?: string;
     commentFormat?: string;
   } | null> {
-    const result = await window.electron.review.getHistoryInstruction(historyId);
+    const result =
+      await window.electron.review.getHistoryInstruction(historyId);
     const data = getData(result, options);
     return data;
   }
@@ -145,7 +161,8 @@ export class ReviewApi implements IReviewApi {
     reviewHistoryId: string,
     options?: ApiServiceDefaultOptions,
   ): Promise<void> {
-    const result = await window.electron.review.abortExtractChecklist(reviewHistoryId);
+    const result =
+      await window.electron.review.abortExtractChecklist(reviewHistoryId);
     getData(result, options);
   }
 
@@ -163,7 +180,10 @@ export class ReviewApi implements IReviewApi {
   }
 
   public subscribeChecklistExtractionFinished(
-    callback: (payload: { status: ChecklistExtractionResultStatus; error?: string }) => void,
+    callback: (payload: {
+      status: ChecklistExtractionResultStatus;
+      error?: string;
+    }) => void,
   ): () => void {
     const pushClient = new ElectronPushClient();
     return pushClient.subscribe(
@@ -175,7 +195,10 @@ export class ReviewApi implements IReviewApi {
   }
 
   public subscribeReviewExtractionFinished(
-    callback: (payload: { status: ReviewExecutionResultStatus; error?: string }) => void,
+    callback: (payload: {
+      status: ReviewExecutionResultStatus;
+      error?: string;
+    }) => void,
   ): () => void {
     const pushClient = new ElectronPushClient();
     return pushClient.subscribe(

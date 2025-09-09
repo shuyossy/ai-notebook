@@ -283,7 +283,9 @@ describe('ChatArea Component', () => {
 
     // ガイダンステキストが表示されることを確認
     expect(
-      screen.getByText('新規チャットを開始または既存のチャットを選択してください'),
+      screen.getByText(
+        '新規チャットを開始または既存のチャットを選択してください',
+      ),
     ).toBeInTheDocument();
   });
 
@@ -367,7 +369,9 @@ describe('ChatArea Component', () => {
     await user.click(saveButton);
 
     // 編集リクエストが送信されることを確認
-    expect(window.electron.chat.deleteMessagesBeforeSpecificId).toHaveBeenCalledWith({
+    expect(
+      window.electron.chat.deleteMessagesBeforeSpecificId,
+    ).toHaveBeenCalledWith({
       threadId: '1',
       messageId: '1',
     });
@@ -881,10 +885,12 @@ describe('ChatArea Component', () => {
             url: 'data:image/png;base64,dummybase64-3',
           },
         ],
-      }
+      },
     ];
 
-    window.electron.chat.getMessages = jest.fn().mockResolvedValue(mockMultiImageMessages);
+    window.electron.chat.getMessages = jest
+      .fn()
+      .mockResolvedValue(mockMultiImageMessages);
 
     render(<ChatArea selectedRoomId="18" />);
 
@@ -893,7 +899,10 @@ describe('ChatArea Component', () => {
       const images = screen.getAllByRole('img');
       expect(images).toHaveLength(3);
       images.forEach((img, idx) => {
-        expect(img).toHaveAttribute('alt', expect.stringMatching(new RegExp(`test${idx + 1}.png|att-${idx}`)));
+        expect(img).toHaveAttribute(
+          'alt',
+          expect.stringMatching(new RegExp(`test${idx + 1}.png|att-${idx}`)),
+        );
       });
     });
   });
@@ -911,12 +920,14 @@ describe('ChatArea Component', () => {
             name: 'test.png',
             contentType: 'image/png',
             url: 'data:image/png;base64,dummybase64',
-          }
+          },
         ],
-      }
+      },
     ];
 
-    window.electron.chat.getMessages = jest.fn().mockResolvedValue(mockImageMessage);
+    window.electron.chat.getMessages = jest
+      .fn()
+      .mockResolvedValue(mockImageMessage);
     const user = userEvent.setup();
     render(<ChatArea selectedRoomId="19" />);
 
@@ -925,6 +936,8 @@ describe('ChatArea Component', () => {
 
     // ホバー時に編集アイコンが表示されないことを確認
     await user.hover(messageText);
-    expect(screen.queryByTestId('edit-message-button-1')).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId('edit-message-button-1'),
+    ).not.toBeInTheDocument();
   });
 });

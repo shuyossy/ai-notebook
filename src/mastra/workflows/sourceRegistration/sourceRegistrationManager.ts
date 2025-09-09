@@ -207,7 +207,8 @@ export default class SourceRegistrationManager {
       return nested.flat();
     } catch (error) {
       logger.error(
-        error, 'ドキュメント登録用ディレクトリの読み込みに失敗しました'
+        error,
+        'ドキュメント登録用ディレクトリの読み込みに失敗しました',
       );
       throw internalError({
         expose: true,

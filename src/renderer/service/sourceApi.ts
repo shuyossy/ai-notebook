@@ -49,7 +49,7 @@ export class SourceApi implements ISourceApi {
   ): Promise<void> {
     const result = await window.electron.source.updateSourceEnabled({
       sourceId: id,
-      isEnabled: enabled
+      isEnabled: enabled,
     });
     getData(result, options);
   }

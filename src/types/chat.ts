@@ -25,4 +25,3 @@ export type AgentToolStatus = {
   gitlab: boolean;
   mcp: boolean;
 };
-

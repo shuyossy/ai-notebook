@@ -119,6 +119,7 @@ ElectronのIPCを使用してフロントエンド・バックエンド間の通
     - `src/main/push/InProcBroker.ts`: イベントを蓄積するBroker
     - `src/main/push/electronPushBroker.ts`: イベント購読についてelectron固有の差異を吸収するBroker
   - `src/main/lib`: メインプロセスで利用するライブラリ群
+    - `src/main/lib/eventPayloadHelper.ts`: イベントをpushする際のヘルパーを提供
     - `src/main/lib/logger.ts`: アプリ内で利用するロガーを提供
     - `src/mian/lib/error.ts`: アプリで利用するエラー定義
     - `src/main/lib/message.ts`: アプリ内で利用するメッセージテンプレートを解決し、メッセージを提供する関数を提供（メッセージテンプレートはこちら`src/messages/ja/template.ts`）
@@ -134,6 +135,7 @@ ElectronのIPCを使用してフロントエンド・バックエンド間の通
     - `src/renderer/hooks/useSettings.ts`: 設定情報を利用したい場合に利用するフック
   - `src/renderer/service`: フロントエンドから利用するサービス層で、外部アクセスロジックもここで管理する(~Api.ts)
   - `src/renderer/stores`: zustandで管理するstate定義
+  - `src/renderer/lib/ElectronPushClient.ts`: コンポーネント外で直接イベント購読したい際に利用するクライアントクラス（`usePushChannel.ts`についても内部でこのクラスを利用している）
 - `src/mastra`: Mastraを利用したAI関連のコード
   - `src/mastra/agents/prompt.ts`: Mastraのエージェントのプロンプト定義を一箇所に集約（エージェントやワークフロー内で利用するプロンプトを定義）
   - `src/mastra/agents/orchestrator.ts`: 汎用チャット機能で利用するAIエージェントの定義
@@ -186,17 +188,16 @@ ElectronのIPCを使用してフロントエンド・バックエンド間の通
   - ただし、ユーザにエラーメッセージを通知する必要がある場合は適切なエラーハンドリングの下、`src/mian/lib/error.ts`にて提供されているAppErrorをthrowすること
 - フロントエンドから外部（IPC）通信する場合は`src/renderer/service/~Api.ts`を経由すること
   - 新規にサービスクラスを作成する場合は既存ロジックを参考にして作成すること
+- サーバからイベントをpushする際は`src/main/lib/eventPayloadHelper.ts`を利用すること
 - テストについては指示されない限り、実行も修正もしなくてよい
 
 ## 現在実施中のタスク
 大規模リファクタリング
 
 ## 依頼タスク
-- 既存のイベントpush操作のリファクタリング
-  - 目的
-    - 将来的にこのアプリをWebアプリとして移植した場合でも変更を最小限に止める
-      - サーバサイドのイベント管理、クライアントサイドのイベント購読・コールバック関数実行などのインターフェースを適切に定義して、electron固有のコードを隠蔽できるようにする
-  - 進捗
-    - イベントBroker作成(`electronPushBroker.ts`,`InProcBroker.ts`)
-    - preload修正(修正範囲がわかりやすいように、既存コードはコメントアウトして残しています)
-    - renderer側で利用するフックの作成(`usePushChannel.ts`)
+- チャットルーム取得ロジックの変更
+  - 初回取得についてはチャットルームデータを正常に取得できるまで（例外にならない）5秒間隔でポーリングする
+    - データを正常に取得できたらポーリングはキャンセルする
+  - その後は、以下のタイミングでチャットルームデータを取得
+    - チャットルームの初回メッセージ送信後のAIレスポンス完了時(useChatフックのonFinishオプションで指定)
+    - メッセージ編集時のメッセージ送信後のAIレスポンス完了時(useChatフックのonFinishオプションで指定)

@@ -22,4 +22,5 @@ export const template = {
   SOURCE_REGISTRATION_DIR_READING_ERROR: `ドキュメント登録用ディレクトリの読み込みに失敗しました`,
   REVIEW_CHECKLIST_EXTRACTION_ERROR: `チェックリスト抽出処理に失敗しました\n{detail}`,
   REVIEW_EXECUTION_ERROR: `レビュー実行処理に失敗しました\n{detail}`,
+  AI_API_ERROR: `AIのAPIと通信中にエラーが発生しました\n{detail}`,
 } as const;

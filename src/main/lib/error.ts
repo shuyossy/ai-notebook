@@ -4,6 +4,9 @@ import { ErrorCode, MessageCode } from '@/types';
 import { MessageParams } from './messages';
 import { formatMessage } from './messages';
 import { AppErrorPayload } from '@/types';
+import { APICallError, RetryError } from 'ai';
+// @ts-ignore
+import { MastraError } from '@mastra/core/error';
 
 /**
  * 例外として扱うアプリケーションエラー。
@@ -37,6 +40,10 @@ export class AppError extends Error {
     this.couse = options?.cause;
     this.messageCode = options?.messageCode ?? 'UNKNOWN_ERROR';
     this.messageParams = options?.messageParams ?? {};
+  }
+
+  override get message(): string {
+    return this.expose ? super.message : formatMessage('UNKNOWN_ERROR');
   }
 }
 
@@ -74,14 +81,22 @@ export function zodToAppError(e: ZodError) {
 export function normalizeUnknownError(err: unknown): AppError {
   if (err instanceof AppError) return err;
   if (err instanceof ZodError) return zodToAppError(err);
-  // Prisma など各種ライブラリの例外もここで判定して丸められる
+  const aiApiSafeError = extractAIAPISafeError(err);
+  if (aiApiSafeError) {
+    return new AppError('AI_API', {
+      expose: true,
+      cause: err,
+      messageCode: 'AI_API_ERROR',
+      messageParams: { detail: aiApiSafeError.message },
+    });
+  }
   return internalError({
     expose: false,
     cause: err,
   });
 }
 
-export function normalizeUnkhownIpcError(
+export function normalizeUnknownIpcError(
   err: unknown,
   ipcName?: string,
 ): AppError {
@@ -103,12 +118,25 @@ export function normalizeUnkhownIpcError(
   });
 }
 
+export function extractAIAPISafeError(error: unknown): Error | null {
+  if (APICallError.isInstance(error)) return error;
+  if (error instanceof MastraError) {
+    if (APICallError.isInstance(error.cause)) return error.cause;
+    if (RetryError.isInstance(error.cause)) {
+      for (const e of error.cause.errors) {
+        if (APICallError.isInstance(e)) return e;
+      }
+    }
+  }
+  return null;
+}
+
 /**
  * AppError をクライアントに返せるプレーン JSON へ
  */
 export function toPayload(e: AppError): AppErrorPayload {
   return {
     code: e.errorCode,
-    message: e.expose ? e.message : formatMessage('UNKNOWN_ERROR'),
+    message: e.message,
   };
 }

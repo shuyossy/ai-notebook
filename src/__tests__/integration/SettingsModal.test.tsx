@@ -46,7 +46,9 @@ describe('SettingsModal Component', () => {
 
     // データベース設定
     await waitFor(() => {
-      const dbPath = screen.getByRole('textbox', { name: 'データベース保存フォルダ' });
+      const dbPath = screen.getByRole('textbox', {
+        name: 'データベース保存フォルダ',
+      });
       expect(dbPath).toHaveValue('/test/db');
     });
 
@@ -58,7 +60,9 @@ describe('SettingsModal Component', () => {
     // API設定
     const apiKeyInput = screen.getAllByLabelText('APIキー')[0];
     expect(apiKeyInput).toHaveValue('test-api-key');
-    expect(screen.getByLabelText('APIエンドポイントURL')).toHaveValue('https://api.test.com');
+    expect(screen.getByLabelText('APIエンドポイントURL')).toHaveValue(
+      'https://api.test.com',
+    );
     expect(screen.getByLabelText('モデル名')).toHaveValue('test-model');
 
     // Redmine設定
@@ -74,10 +78,14 @@ describe('SettingsModal Component', () => {
     expect(gitlabApiKey).toHaveValue('test-gitlab-key');
 
     // MCPサーバー設定
-    expect(screen.getByLabelText('MCPサーバー設定（JSON）')).toHaveValue('{"testMcp": {"url": "https://mcp.test.com"} }');
+    expect(screen.getByLabelText('MCPサーバー設定（JSON）')).toHaveValue(
+      '{"testMcp": {"url": "https://mcp.test.com"} }',
+    );
 
     // システムプロンプト設定
-    expect(screen.getByLabelText('システムプロンプトのカスタマイズが可能です')).toHaveValue('test system prompt');
+    expect(
+      screen.getByLabelText('システムプロンプトのカスタマイズが可能です'),
+    ).toHaveValue('test system prompt');
   });
 
   // テスト2: 設定値を更新して保存できること
@@ -154,10 +162,15 @@ describe('SettingsModal Component', () => {
       },
     };
     await user.clear(mcpConfigInput);
-    await userEvent.type(mcpConfigInput, JSON.stringify(validMcpConfig, null, 2).replace(/[{[]/g, '$&$&'));
+    await userEvent.type(
+      mcpConfigInput,
+      JSON.stringify(validMcpConfig, null, 2).replace(/[{[]/g, '$&$&'),
+    );
 
     // システムプロンプト設定の更新
-    const systemPromptInput = screen.getByLabelText('システムプロンプトのカスタマイズが可能です');
+    const systemPromptInput = screen.getByLabelText(
+      'システムプロンプトのカスタマイズが可能です',
+    );
     await user.clear(systemPromptInput);
     await user.type(systemPromptInput, 'new test system prompt');
 
@@ -271,7 +284,10 @@ describe('SettingsModal Component', () => {
 
     // 無効なJSON構文
     await user.clear(mcpConfigInput);
-    await userEvent.type(mcpConfigInput, '{ invalid json'.replace(/[{[]/g, '$&$&'));
+    await userEvent.type(
+      mcpConfigInput,
+      '{ invalid json'.replace(/[{[]/g, '$&$&'),
+    );
 
     // バリデーションエラーメッセージが表示されることを確認
     await waitFor(() => {
@@ -280,10 +296,14 @@ describe('SettingsModal Component', () => {
       expect(screen.getByText('モデル名は必須です')).toBeInTheDocument();
 
       // パスが存在しないエラー（DB,ドキュメント登録フォルダ）
-      expect(screen.getAllByText('指定されたパスが存在しません').length).toEqual(2);
+      expect(
+        screen.getAllByText('指定されたパスが存在しません').length,
+      ).toEqual(2);
 
       // 無効なURL形式のエラー
-      expect(screen.getAllByText('有効なURLを入力してください').length).toEqual(3);
+      expect(screen.getAllByText('有効なURLを入力してください').length).toEqual(
+        3,
+      );
 
       // MCPサーバー設定のエラー
       expect(screen.getByText('JSONの形式が不正です')).toBeInTheDocument();

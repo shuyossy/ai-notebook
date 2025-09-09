@@ -11,7 +11,7 @@ import { broker } from '@/main/push/electronPushBroker';
 export function createEventPayload<C extends EventChannel>(
   channel: C,
   payload: IpcEventPayloadMap[C],
-  options?: { timestamp?: number }
+  options?: { timestamp?: number },
 ): PushEvent<C> {
   return {
     channel,
@@ -29,7 +29,7 @@ export function createEventPayload<C extends EventChannel>(
 export function publishEvent<C extends EventChannel>(
   channel: C,
   payload: IpcEventPayloadMap[C],
-  options?: { timestamp?: number }
+  options?: { timestamp?: number },
 ): void {
   const eventPayload = createEventPayload(channel, payload, options);
   broker.publish(channel, eventPayload);

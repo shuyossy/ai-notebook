@@ -16,8 +16,8 @@ export type MockHandler<T> = {
   [K in keyof T]: T[K] extends (...args: any[]) => any
     ? MockFunction<T[K]>
     : T[K] extends object
-    ? MockHandler<T[K]>
-    : T[K];
+      ? MockHandler<T[K]>
+      : T[K];
 };
 
 export type ElectronMock = MockHandler<ElectronHandler>;
@@ -77,18 +77,22 @@ export const createMockElectronWithOptions = (
 
   const mockHandlers = {
     settings: {
-      getStatus: jest.fn().mockReturnValue(options.settingsStatus || {
-        state: 'done',
-        messages: [],
-        tools: {
-          redmine: false,
-          gitlab: false,
-          mcp: false,
+      getStatus: jest.fn().mockReturnValue(
+        options.settingsStatus || {
+          state: 'done',
+          messages: [],
+          tools: {
+            redmine: false,
+            gitlab: false,
+            mcp: false,
+          },
         },
-      }),
+      ),
       reinitialize: jest.fn().mockResolvedValue(undefined),
       removeMessage: jest.fn(),
-      getSettings: jest.fn().mockResolvedValue({ success: true, data: settings }),
+      getSettings: jest
+        .fn()
+        .mockResolvedValue({ success: true, data: settings }),
       setSettings: jest.fn().mockResolvedValue({ success: true }),
     },
     fs: {
@@ -107,7 +111,7 @@ export const createMockElectronWithOptions = (
       getMessages: jest.fn().mockResolvedValue([]),
       deleteRoom: jest.fn().mockResolvedValue({ success: true }),
       createThread: jest.fn().mockResolvedValue({
-        success: true
+        success: true,
       }),
       onError: jest.fn(),
       onStream: jest.fn(),

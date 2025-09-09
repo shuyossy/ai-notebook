@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { AgentToolStatus } from "./chat";
+import { AgentToolStatus } from './chat';
 
 // 設定状態管理用の型定義
 export type SettingsSavingState = 'saving' | 'done' | 'error';
@@ -19,7 +19,6 @@ export type SettingsSavingStatus = {
   tools: AgentToolStatus;
 };
 
-
 /**
  * パスの存在確認を行う関数
  * @param path 確認するパス
@@ -30,8 +29,7 @@ export const checkPathExists = async (path: string): Promise<boolean> => {
   // 設定値を直接変更してエラーになる場合は、画面上にエラー文言を表示するため問題ない
   try {
     if (process && process.type !== 'renderer') return true;
-  } catch(error) {
-  }
+  } catch (error) {}
   try {
     const result = await window.electron.fs.access(path);
     return result.success === true && result.data === true;
@@ -77,14 +75,15 @@ export const DatabaseSchema = z.object({
  * ソース設定のスキーマ
  */
 export const SourceSchema = z.object({
-  registerDir: z
-    .string()
-    .refine(async (path) => {
+  registerDir: z.string().refine(
+    async (path) => {
       if (path === '') return true; // 空文字は許容
-      return await checkPathExists(path)
-    }, {
+      return await checkPathExists(path);
+    },
+    {
       message: '指定されたパスが存在しません',
-    }),
+    },
+  ),
 });
 
 /**
@@ -158,7 +157,8 @@ export const McpStoreSchema = z.object({
         });
         return z.NEVER;
       }
-    }).optional(),
+    })
+    .optional(),
 });
 
 /**
