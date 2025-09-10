@@ -5,11 +5,9 @@ import {
   type Settings,
   type ValidationState,
   type ValidationError,
-  IpcChannels,
 } from '@/types';
 import { SettingsApi } from '../service/settingsApi';
 import { useAgentStatusStore } from '../stores/agentStatusStore';
-import { usePushChannel } from './usePushChannel';
 import { useAlertStore } from '../stores/alertStore';
 
 /**
@@ -241,21 +239,6 @@ const useSettingsStore = () => {
     };
   }, [agentStatusPolling, fetchAgentStatus]);
 
-  // 設定更新完了イベントの購読
-  usePushChannel(IpcChannels.SETTINGS_UPDATE_FINISHED, () => {
-    // 設定更新完了時にポーリングを停止
-    setAgentStatusPolling(false);
-    // 最新データを取得
-    try {
-      fetchAgentStatus();
-    } catch (error) {
-      console.error('エージェント状態取得に失敗しました:', error);
-      addAlert({
-        message: `AIツール情報の取得に失敗しました\n${(error as Error).message}`,
-        severity: 'error',
-      });
-    }
-  });
 
   /**
    * フィールドの更新処理
@@ -307,18 +290,47 @@ const useSettingsStore = () => {
         throw new Error('不正な設定値があります');
       }
 
-      // 設定を一括保存（settingsServiceで自動的に再初期化される）
+      // 設定を一括保存
       await settingsApi.setSettings(settings, {
         showAlert: false,
         throwError: true,
         printErrorLog: false,
       });
 
-      await settingsApi.reinitialize({
+      // 再初期化処理開始のキック
+      settingsApi.reinitialize({
         showAlert: false,
-        throwError: true,
+        throwError: false, // エラーはイベントpushで処理するため
         printErrorLog: true,
       });
+
+      // 完了イベントの購読を開始（ワンショット）
+      const unsubscribe = settingsApi.subscribeSettingsUpdateFinished((payload: { success: boolean; error?: string }) => {
+        // 設定更新完了時にポーリングを停止
+        setAgentStatusPolling(false);
+        
+        if (payload.success) {
+          // 成功時：最新データを取得
+          try {
+            fetchAgentStatus();
+          } catch (error) {
+            console.error('エージェント状態取得に失敗しました:', error);
+            addAlert({
+              message: `AIツール情報の取得に失敗しました\n${(error as Error).message}`,
+              severity: 'error',
+            });
+          }
+        } else {
+          // 失敗時：エラー状態設定
+          addAlert({
+            message: `エージェント初期化に失敗しました\n${payload.error || '不明なエラーが発生しました'}`,
+            severity: 'error',
+          });
+        }
+        // 処理完了と同時に購読解除
+        unsubscribe();
+      });
+      
       setUpdatedFlg(true);
 
       // 設定更新後にポーリング開始

@@ -131,11 +131,11 @@ ElectronのIPCを使用してフロントエンド・バックエンド間の通
   - `src/renderer/components/common`: アプリ共通のコンポーネント
   - `src/renderer/components/sidebar`: サイドバー共通のコンポーネント
   - `src/renderer/hooks`: フック定義をまとめたディレクトリ
-    - `src/renderer/hooks/usePushChannel.ts`: イベント購読をする際に利用するフック
+    - `src/renderer/hooks/usePushChannel.ts`: イベント購読をする際に利用するフック（コンポーネントが常時通信をSSEでデータを受け取れるようにしたい場合に利用）
     - `src/renderer/hooks/useSettings.ts`: 設定情報を利用したい場合に利用するフック
   - `src/renderer/service`: フロントエンドから利用するサービス層で、外部アクセスロジックもここで管理する(~Api.ts)
   - `src/renderer/stores`: zustandで管理するstate定義
-  - `src/renderer/lib/ElectronPushClient.ts`: コンポーネント外で直接イベント購読したい際に利用するクライアントクラス（`usePushChannel.ts`についても内部でこのクラスを利用している）
+  - `src/renderer/lib/ElectronPushClient.ts`: 直接イベント購読したい際に利用するクライアントクラス（`usePushChannel.ts`についても内部でこのクラスを利用している、一度だけSSEでデータを受信したい場合などにも利用）
 - `src/mastra`: Mastraを利用したAI関連のコード
   - `src/mastra/agents/prompt.ts`: Mastraのエージェントのプロンプト定義を一箇所に集約（エージェントやワークフロー内で利用するプロンプトを定義）
   - `src/mastra/agents/orchestrator.ts`: 汎用チャット機能で利用するAIエージェントの定義
@@ -193,11 +193,18 @@ ElectronのIPCを使用してフロントエンド・バックエンド間の通
 
 ## 現在実施中のタスク
 大規模リファクタリング
+目的:
+- コード保守性・移植性向上
+※
+本アプリは将来的にwebアプリに移植する可能性があるため
 
 ## 依頼タスク
-- チャットルーム取得ロジックの変更
-  - 初回取得についてはチャットルームデータを正常に取得できるまで（例外にならない）5秒間隔でポーリングする
-    - データを正常に取得できたらポーリングはキャンセルする
-  - その後は、以下のタイミングでチャットルームデータを取得
-    - チャットルームの初回メッセージ送信後のAIレスポンス完了時(useChatフックのonFinishオプションで指定)
-    - メッセージ編集時のメッセージ送信後のAIレスポンス完了時(useChatフックのonFinishオプションで指定)
+- ドキュメント同期処理(`src/renderer/components/common/SourceListModal.tsx`)の方法を見直す
+    - TO-BE
+        - 処理開始のキックではMain側のサービスクラスを非同期で呼び出すのみ(awaitしない)にして、サービスロジックが全て完了した際に、完了メッセージ{success: boolean, error?: string}をpushする
+    - 現状がTO-BEになっているか徹底的に調査して、もしそうなっていなければ、TO-BEになるように修正してください。
+
+- エージェント初期化処理(`src/renderer/hooks/useSettings.ts`)の方法を見直す
+    - TO-BE
+        - 処理開始のキックではMain側のサービスクラスを非同期で呼び出すのみ(awaitしない)にして、サービスロジックが全て完了した際に、完了メッセージ{success: boolean, error?: string}をpushする
+    - 現状がTO-BEになっているか徹底的に調査して、もしそうなっていなければ、TO-BEになるように修正してください。

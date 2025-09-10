@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { MemoryRouter as Router, Routes, Route } from 'react-router-dom';
 import {
   ThemeProvider,
@@ -67,29 +67,37 @@ function App() {
   >(null);
   const chatRoomListRef = useRef<ChatRoomListRef>(null);
   const alerts = useAlertStore((state) => state.alerts);
-  const addAlert = useAlertStore((state) => state.addAlert);
   const removeAlert = useAlertStore((state) => state.removeAlert);
+  const addAlert = useAlertStore((state) => state.addAlert);
   const { status: agentStatus, closeMessage } = useAgentStatusStore();
 
   // ソース再読み込みハンドラ
-  const handleReloadSources = async () => {
+  const handleReloadSources = () => {
     const sourceApi = SourceApi.getInstance();
-    try {
-      await sourceApi.reloadSources({
-        showAlert: false,
-        throwError: true,
-        printErrorLog: true,
-      });
-      addAlert({
-        message: 'ソースの再読み込みが完了しました',
-        severity: 'success',
-      });
-    } catch (error) {
-      addAlert({
-        message: `${(error as Error).message}`,
-        severity: 'error',
-      });
-    }
+    
+    // 処理開始のキック
+    sourceApi.reloadSources({
+      showAlert: false,
+      throwError: false, // エラーはイベントpushで処理するため
+      printErrorLog: true,
+    });
+
+    // 完了イベントの購読を開始（ワンショット）
+    const unsubscribe = sourceApi.subscribeSourceReloadFinished((payload: { success: boolean; error?: string }) => {
+      if (payload.success) {
+        addAlert({
+          severity: 'success',
+          message: 'ドキュメントの再読み込みが完了しました',
+        });
+      } else {
+        addAlert({
+          severity: 'error',
+          message: payload.error || 'ドキュメントの再読み込みに失敗しました',
+        });
+      }
+      // 処理完了と同時に購読解除
+      unsubscribe();
+    });
   };
 
   return (

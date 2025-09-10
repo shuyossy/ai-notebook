@@ -27,8 +27,6 @@ import { useAlertStore } from '@/renderer/stores/alertStore';
 
 import { Source } from '../../../db/schema';
 import { SourceApi } from '../../service/sourceApi';
-import { usePushChannel } from '../../hooks/usePushChannel';
-import { IpcChannels } from '../../../types/ipc';
 
 interface SourceListModalProps {
   open: boolean;
@@ -260,25 +258,32 @@ function SourceListModal({
     };
   }, [reloadPolling, sources, fetchSources]);
 
-  // ドキュメント更新完了イベントの購読
-  usePushChannel(IpcChannels.SOURCE_RELOAD_FINISHED, () => {
-    // ドキュメント更新完了時にポーリングを停止
-    setReloadPolling(false);
-    // 最新データを取得
-    try {
-      fetchSources();
-    } catch (error) {
-      console.error('ソース一覧の更新に失敗しました:', error);
-      addAlert({
-        message: `ドキュメント一覧の更新に失敗しました\n${(error as Error).message}`,
-        severity: 'error',
-      });
-    }
-  });
-
   const handleReloadClick = () => {
     setReloadPolling(true);
     onReloadSources();
+
+    // 完了イベントの購読を開始（ワンショット）
+    const sourceApi = SourceApi.getInstance();
+    const unsubscribe = sourceApi.subscribeSourceReloadFinished(
+      (payload: { success: boolean; error?: string }) => {
+        // ドキュメント更新完了時にポーリングを停止
+        setReloadPolling(false);
+
+        if (payload.success) {
+          // 成功時：最新データを取得（アラート表示はApp.tsxで行う）
+          fetchSources().catch((error) => {
+            console.error('ソース一覧の更新に失敗しました:', error);
+            addAlert({
+              message: `ドキュメント一覧の更新に失敗しました\n${(error as Error).message}`,
+              severity: 'error',
+            });
+          });
+        }
+        // 失敗時のエラーアラート表示はApp.tsxで行う
+        // 処理完了と同時に購読解除
+        unsubscribe();
+      },
+    );
   };
 
   const getStatusIcon = (status: Source['status'], error?: Source['error']) => {

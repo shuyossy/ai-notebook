@@ -198,8 +198,8 @@ export type IpcEventPayloadMap = {
   [IpcChannels.CHAT_STREAM]: any; // AI SDKが定義するDataStreamが入る想定(型がexportされていないためany型)
   [IpcChannels.CHAT_COMPLETE]: unknown;
   [IpcChannels.CHAT_ERROR]: { message: string };
-  [IpcChannels.SETTINGS_UPDATE_FINISHED]: undefined; // 設定更新処理完了通知
-  [IpcChannels.SOURCE_RELOAD_FINISHED]: undefined; // ドキュメント更新処理完了通知
+  [IpcChannels.SETTINGS_UPDATE_FINISHED]: { success: boolean; error?: string }; // 設定更新処理完了通知
+  [IpcChannels.SOURCE_RELOAD_FINISHED]: { success: boolean; error?: string }; // ドキュメント更新処理完了通知
   [IpcChannels.REVIEW_EXTRACT_CHECKLIST_FINISHED]: {
     status: ChecklistExtractionResultStatus;
     error?: string;

@@ -193,8 +193,6 @@ handleIpc(IpcChannels.REMOVE_SETTINGS_MESSAGE, async (messageId) => {
 // 設定更新ハンドラ
 handleIpc(IpcChannels.REINITIALIZE_SETTINGS, async () => {
   await settingsService.initializeSettings();
-  // 設定更新完了イベントを送信
-  publishEvent(IpcChannels.SETTINGS_UPDATE_FINISHED, undefined);
   return undefined as never;
 });
 
@@ -313,10 +311,6 @@ const setupSourceHandlers = () => {
   handleIpc(IpcChannels.SOURCE_RELOAD, async () => {
     const registrationManager = SourceRegistrationManager.getInstance();
     await registrationManager.registerAllFiles();
-
-    // ドキュメント更新完了イベントを発行
-    publishEvent(IpcChannels.SOURCE_RELOAD_FINISHED, undefined);
-
     return { message: 'ドキュメントの再読み込みが完了しました' };
   });
 

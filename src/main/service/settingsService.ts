@@ -17,6 +17,8 @@ import { OrchestratorRuntimeContext } from '@/mastra/agents/orchestrator';
 import { getSourceRepository } from '@/main/repository/sourceRepository';
 import { createRuntimeContext } from '@/mastra/lib/agentUtils';
 import { getSettingsRepository } from '../repository/settingsRepository';
+import { publishEvent } from '@/main/lib/eventPayloadHelper';
+import { IpcChannels } from '@/types';
 
 export interface ISettingsService {
   getStatus(): SettingsSavingStatus;
@@ -168,89 +170,101 @@ export class SettingsService implements ISettingsService {
    * 設定を初期化する
    */
   public initializeSettings = async () => {
-    this.initStatus();
-    const toolsConfig: InitializeToolsConfig = {};
-    const store = await this.settingsRepository.getSettings();
-    // ドキュメントツール
-    const documentRegisterDir = store.source.registerDir;
-    if (documentRegisterDir && documentRegisterDir.trim() !== '') {
-      toolsConfig.documentTool = true;
-    }
-    // Redmineツール
-    const redmineApiKey = store.redmine.apiKey;
-    const redmineEndpoint = store.redmine.endpoint;
-    if (redmineApiKey && redmineEndpoint) {
-      toolsConfig.redmineTool = {
-        endpoint: redmineEndpoint,
-        apiKey: redmineApiKey,
-      };
-    }
-    // GitLabツール
-    const gitlabApiKey = store.gitlab.apiKey;
-    const gitlabEndpoint = store.gitlab.endpoint;
-    if (gitlabApiKey && gitlabEndpoint) {
-      toolsConfig.gitlabTool = {
-        endpoint: gitlabEndpoint,
-        apiKey: gitlabApiKey,
-      };
-    }
-    // MCP設定
-    const mcpConfig = store.mcp.serverConfig;
-    // Mastra MCPの初期化
-    if (mcpConfig) {
-      const mcpResult = await initializeMCPClient({ mcpConfig, id: 'user' });
-      if (mcpResult.success && mcpResult.mcpClient) {
-        this.status.tools.mcp = true;
-        this.toolsets = await mcpResult.mcpClient.getToolsets();
-      } else {
-        this.status.messages.push({
-          id: crypto.randomUUID(),
-          type: 'error',
-          content: `MCPサーバとの接続に失敗しました\nログについては${mcpResult.logPath}をご確認ください`,
-        });
+    try {
+      this.initStatus();
+      const toolsConfig: InitializeToolsConfig = {};
+      const store = await this.settingsRepository.getSettings();
+      // ドキュメントツール
+      const documentRegisterDir = store.source.registerDir;
+      if (documentRegisterDir && documentRegisterDir.trim() !== '') {
+        toolsConfig.documentTool = true;
       }
+      // Redmineツール
+      const redmineApiKey = store.redmine.apiKey;
+      const redmineEndpoint = store.redmine.endpoint;
+      if (redmineApiKey && redmineEndpoint) {
+        toolsConfig.redmineTool = {
+          endpoint: redmineEndpoint,
+          apiKey: redmineApiKey,
+        };
+      }
+      // GitLabツール
+      const gitlabApiKey = store.gitlab.apiKey;
+      const gitlabEndpoint = store.gitlab.endpoint;
+      if (gitlabApiKey && gitlabEndpoint) {
+        toolsConfig.gitlabTool = {
+          endpoint: gitlabEndpoint,
+          apiKey: gitlabApiKey,
+        };
+      }
+      // MCP設定
+      const mcpConfig = store.mcp.serverConfig;
+      // Mastra MCPの初期化
+      if (mcpConfig) {
+        const mcpResult = await initializeMCPClient({ mcpConfig, id: 'user' });
+        if (mcpResult.success && mcpResult.mcpClient) {
+          this.status.tools.mcp = true;
+          this.toolsets = await mcpResult.mcpClient.getToolsets();
+        } else {
+          this.status.messages.push({
+            id: crypto.randomUUID(),
+            type: 'error',
+            content: `MCPサーバとの接続に失敗しました\\nログについては${mcpResult.logPath}をご確認ください`,
+          });
+        }
+      }
+      // Mastra toolの初期化
+      if (
+        toolsConfig.documentTool ||
+        toolsConfig.redmineTool ||
+        toolsConfig.gitlabTool
+      ) {
+        const { documentTool, redmineTool, gitlabTool, toolsInput } =
+          await initializeTools(toolsConfig);
+        if (documentTool && documentTool?.success === true) {
+          this.status.tools.document = true;
+        } else if (documentTool?.error) {
+          this.status.messages.push({
+            id: uuid(),
+            type: 'error',
+            content: `ドキュメント検索ツールの初期化に失敗しました\\n${documentTool.error}`,
+          });
+        }
+        if (redmineTool && redmineTool?.success === true) {
+          this.redmineBaseInfo = redmineTool.redmineInfo;
+          this.status.tools.redmine = true;
+        } else if (redmineTool?.error) {
+          this.status.messages.push({
+            id: uuid(),
+            type: 'error',
+            content: `Redmine操作ツールの初期化に失敗しました\\n${redmineTool.error}`,
+          });
+        }
+        if (gitlabTool && gitlabTool?.success === true) {
+          this.status.tools.gitlab = true;
+        } else if (gitlabTool?.error) {
+          this.status.messages.push({
+            id: uuid(),
+            type: 'error',
+            content: `GitLab操作ツールの初期化に失敗しました\\n${gitlabTool.error}`,
+          });
+        }
+        this.toolsets.aikataOriginalTools = toolsInput;
+      }
+      // 初期化完了状態に更新
+      this.status.state = 'done';
+      
+      // 設定更新完了イベントを発行（成功）
+      publishEvent(IpcChannels.SETTINGS_UPDATE_FINISHED, { success: true });
+    } catch (error) {
+      // 設定更新完了イベントを発行（失敗）
+      const errorMessage = error instanceof Error ? error.message : '不明なエラーが発生しました';
+      publishEvent(IpcChannels.SETTINGS_UPDATE_FINISHED, { success: false, error: errorMessage });
+      
+      // エラーを再throw
+      throw error;
     }
-    // Mastra toolの初期化
-    if (
-      toolsConfig.documentTool ||
-      toolsConfig.redmineTool ||
-      toolsConfig.gitlabTool
-    ) {
-      const { documentTool, redmineTool, gitlabTool, toolsInput } =
-        await initializeTools(toolsConfig);
-      if (documentTool && documentTool?.success === true) {
-        this.status.tools.document = true;
-      } else if (documentTool?.error) {
-        this.status.messages.push({
-          id: uuid(),
-          type: 'error',
-          content: `ドキュメント検索ツールの初期化に失敗しました\n${documentTool.error}`,
-        });
-      }
-      if (redmineTool && redmineTool?.success === true) {
-        this.redmineBaseInfo = redmineTool.redmineInfo;
-        this.status.tools.redmine = true;
-      } else if (redmineTool?.error) {
-        this.status.messages.push({
-          id: uuid(),
-          type: 'error',
-          content: `Redmine操作ツールの初期化に失敗しました\n${redmineTool.error}`,
-        });
-      }
-      if (gitlabTool && gitlabTool?.success === true) {
-        this.status.tools.gitlab = true;
-      } else if (gitlabTool?.error) {
-        this.status.messages.push({
-          id: uuid(),
-          type: 'error',
-          content: `GitLab操作ツールの初期化に失敗しました\n${gitlabTool.error}`,
-        });
-      }
-      this.toolsets.aikataOriginalTools = toolsInput;
-    }
-    // 初期化完了状態に更新
-    this.status.state = 'done';
-  };
+  }
   /**
    * 設定を取得する
    */

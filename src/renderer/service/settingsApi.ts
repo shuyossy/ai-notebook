@@ -1,6 +1,7 @@
-import { SettingsSavingStatus, Settings } from '@/types';
+import { SettingsSavingStatus, Settings, IpcChannels } from '@/types';
 import { getData } from '../lib/apiUtils';
 import { ApiServiceDefaultOptions } from '../types';
+import { ElectronPushClient } from '../lib/ElectronPushClient';
 
 export interface ISettingsApi {
   getAgentStatus(
@@ -16,6 +17,9 @@ export interface ISettingsApi {
     settings: Settings,
     options?: ApiServiceDefaultOptions,
   ): Promise<boolean | null>;
+  subscribeSettingsUpdateFinished(
+    callback: (payload: { success: boolean; error?: string }) => void,
+  ): () => void;
 }
 
 export class SettingsApi implements ISettingsApi {
@@ -66,5 +70,17 @@ export class SettingsApi implements ISettingsApi {
   ): Promise<boolean | null> {
     const result = await window.electron.settings.setSettings(settings);
     return getData(result, options);
+  }
+
+  public subscribeSettingsUpdateFinished(
+    callback: (payload: { success: boolean; error?: string }) => void,
+  ): () => void {
+    const pushClient = new ElectronPushClient();
+    return pushClient.subscribe(
+      IpcChannels.SETTINGS_UPDATE_FINISHED,
+      (event) => {
+        callback(event.payload);
+      },
+    );
   }
 }

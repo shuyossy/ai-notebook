@@ -1,6 +1,8 @@
 import { getData } from '../lib/apiUtils';
 import { ApiServiceDefaultOptions } from '../types';
 import { Source } from '@/db/schema';
+import { ElectronPushClient } from '../lib/ElectronPushClient';
+import { IpcChannels } from '@/types';
 
 export interface ISourceApi {
   reloadSources(options?: ApiServiceDefaultOptions): Promise<void>;
@@ -10,6 +12,9 @@ export interface ISourceApi {
     enabled: boolean,
     options?: ApiServiceDefaultOptions,
   ): Promise<void>;
+  subscribeSourceReloadFinished(
+    callback: (payload: { success: boolean; error?: string }) => void,
+  ): () => void;
 }
 
 export class SourceApi implements ISourceApi {
@@ -52,5 +57,17 @@ export class SourceApi implements ISourceApi {
       isEnabled: enabled,
     });
     getData(result, options);
+  }
+
+  public subscribeSourceReloadFinished(
+    callback: (payload: { success: boolean; error?: string }) => void,
+  ): () => void {
+    const pushClient = new ElectronPushClient();
+    return pushClient.subscribe(
+      IpcChannels.SOURCE_RELOAD_FINISHED,
+      (event) => {
+        callback(event.payload);
+      },
+    );
   }
 }
