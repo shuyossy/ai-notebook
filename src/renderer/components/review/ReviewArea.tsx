@@ -22,6 +22,7 @@ import ReviewChecklistSection from './ReviewChecklistSection';
 import ReviewSourceModal from './ReviewSourceModal';
 import { ReviewApi } from '../../service/reviewApi';
 import { useAlertStore } from '../../stores/alertStore';
+import { getSafeErrorMessage } from '../../lib/error';
 
 const defaultCommentFormat =
   '【評価理由・根拠】\n（具体的な理由と根拠を記載）\n\n【改善提案】\n（改善のための具体的な提案を記載）';
@@ -49,7 +50,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
 
     const result = await reviewApi.getReviewHistoryDetail(
       selectedReviewHistoryId,
-      { throwError: true, showAlert: true, printErrorLog: true },
+      { throwError: true, showAlert: true },
     );
     setChecklistResults(result?.checklistResults || []);
   }, [selectedReviewHistoryId]);
@@ -73,7 +74,6 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
           {
             throwError: true,
             showAlert: true,
-            printErrorLog: true,
           },
         );
         setAdditionalInstructions(result?.additionalInstructions || '');
@@ -148,7 +148,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
           files,
           documentType,
           checklistRequirements,
-          { throwError: true, showAlert: false, printErrorLog: false },
+          { throwError: true, showAlert: false },
         );
 
         // 抽出完了イベントの購読を開始
@@ -162,7 +162,10 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
               // 抽出結果の再取得
               fetchChecklistResults().catch((error) => {
                 addAlert({
-                  message: `チェックリスト結果の取得に失敗しました\n${(error as Error).message}`,
+                  message: getSafeErrorMessage(
+                    error,
+                    'チェックリスト結果の取得に失敗しました',
+                  ),
                   severity: 'error',
                 });
               });
@@ -179,7 +182,10 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
       } catch (error) {
         console.error(error);
         addAlert({
-          message: `${(error as Error).message}`,
+          message: getSafeErrorMessage(
+            error,
+            'チェックリスト抽出の実行に失敗しました',
+          ),
           severity: 'error',
         });
         setIsExtracting(false);
@@ -205,7 +211,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
           files,
           additionalInstructions || additionalInstructions,
           commentFormat || commentFormat,
-          { throwError: true, showAlert: false, printErrorLog: false },
+          { throwError: true, showAlert: false },
         );
 
         // レビュー完了イベントの購読を開始
@@ -229,7 +235,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
       } catch (error) {
         console.error(error);
         addAlert({
-          message: `レビュー実行の呼び出しに失敗しました\n${(error as Error).message}`,
+          message: getSafeErrorMessage(error, 'レビューの実行に失敗しました'),
           severity: 'error',
         });
         setIsReviewing(false);
@@ -248,7 +254,6 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
       await reviewApi.abortExtractChecklist(selectedReviewHistoryId, {
         showAlert: false,
         throwError: true,
-        printErrorLog: false,
       });
       setIsExtracting(false);
       addAlert({
@@ -259,7 +264,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
       console.error('チェックリスト抽出のキャンセルエラー:', error);
       addAlert({
         message: 'チェックリスト抽出のキャンセルに失敗しました',
-        severity: 'error',
+        severity: 'warning',
       });
     }
   }, [selectedReviewHistoryId, addAlert]);
@@ -274,7 +279,6 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
       await reviewApi.abortExecuteReview(selectedReviewHistoryId, {
         showAlert: true,
         throwError: true,
-        printErrorLog: false,
       });
       setIsReviewing(false);
       addAlert({
@@ -285,7 +289,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
       console.error('レビュー実行のキャンセルエラー:', error);
       addAlert({
         message: 'レビュー実行のキャンセルに失敗しました',
-        severity: 'error',
+        severity: 'warning',
       });
     }
   }, [selectedReviewHistoryId, addAlert]);
@@ -315,11 +319,27 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
 
     setIsSaving(true);
     const reviewApi = ReviewApi.getInstance();
-    await reviewApi.updateChecklist(selectedReviewHistoryId, checklists, {
-      throwError: false,
-      showAlert: true,
-      printErrorLog: true,
-    });
+    try {
+      await reviewApi.updateChecklist(selectedReviewHistoryId, checklists, {
+        throwError: false,
+        showAlert: true,
+      });
+      // 更新後は最新状態を再取得
+      await fetchChecklistResults();
+      addAlert({
+        message: 'チェックリストを保存しました',
+        severity: 'success',
+      });
+    } catch (error) {
+      console.error('チェックリストの保存に失敗しました:', error);
+      addAlert({
+        message: getSafeErrorMessage(
+          error,
+          'チェックリストの保存に失敗しました',
+        ),
+        severity: 'error',
+      });
+    }
     setIsSaving(false);
   };
 

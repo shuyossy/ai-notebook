@@ -1,5 +1,5 @@
 import { SettingsSavingStatus, Settings, IpcChannels } from '@/types';
-import { getData } from '../lib/apiUtils';
+import { invokeApi } from '../lib/apiUtils';
 import { ApiServiceDefaultOptions } from '../types';
 import { ElectronPushClient } from '../lib/ElectronPushClient';
 
@@ -40,36 +40,31 @@ export class SettingsApi implements ISettingsApi {
   public async getAgentStatus(
     options?: ApiServiceDefaultOptions,
   ): Promise<SettingsSavingStatus | null> {
-    const result = await window.electron.settings.getStatus();
-    return getData(result, options);
+    return invokeApi(() => window.electron.settings.getStatus(), options);
   }
 
   public async removeMessage(
     messageId: string,
     options?: ApiServiceDefaultOptions,
   ): Promise<void> {
-    const result = await window.electron.settings.removeMessage(messageId);
-    getData(result, options);
+    await invokeApi(() => window.electron.settings.removeMessage(messageId), options);
   }
 
   public async reinitialize(options?: ApiServiceDefaultOptions): Promise<void> {
-    const result = await window.electron.settings.reinitialize();
-    getData(result, options);
+    await invokeApi(() => window.electron.settings.reinitialize(), options);
   }
 
   public async getSettings(
     options?: ApiServiceDefaultOptions,
   ): Promise<Settings | null> {
-    const result = await window.electron.settings.getSettings();
-    return getData(result, options);
+    return invokeApi(() => window.electron.settings.getSettings(), options);
   }
 
   public async setSettings(
     settings: Settings,
     options?: ApiServiceDefaultOptions,
   ): Promise<boolean | null> {
-    const result = await window.electron.settings.setSettings(settings);
-    return getData(result, options);
+    return invokeApi(() => window.electron.settings.setSettings(settings), options);
   }
 
   public subscribeSettingsUpdateFinished(

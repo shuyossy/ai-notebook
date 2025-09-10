@@ -24,6 +24,7 @@ import {
   Help as UnknownIcon,
 } from '@mui/icons-material';
 import { useAlertStore } from '@/renderer/stores/alertStore';
+import { getSafeErrorMessage } from '../../lib/error';
 
 import { Source } from '../../../db/schema';
 import { SourceApi } from '../../service/sourceApi';
@@ -176,7 +177,6 @@ function SourceListModal({
     const responseSources = await sourceApi.getSources({
       showAlert: false,
       throwError: true,
-      printErrorLog: false,
     });
     const sourceList = responseSources || [];
     setSources(sourceList);
@@ -274,7 +274,10 @@ function SourceListModal({
           fetchSources().catch((error) => {
             console.error('ソース一覧の更新に失敗しました:', error);
             addAlert({
-              message: `ドキュメント一覧の更新に失敗しました\n${(error as Error).message}`,
+              message: getSafeErrorMessage(
+                error,
+                'ドキュメント一覧の更新に失敗しました',
+              ),
               severity: 'error',
             });
           });

@@ -12,6 +12,14 @@ export type ErrorCode =
   | 'AI_API';
 
 /**
+ * フロントエンドで利用するエラーコード
+ */
+export type FrontErrorCode =
+  | 'APP_API'
+  | 'APP_API_CALL'
+  | 'INTERNAL';
+
+/**
  * クライアントへ返す標準エラー形
  * - code: アプリ内の安定したエラーコード
  * - message: ユーザー向けの安全なメッセージ

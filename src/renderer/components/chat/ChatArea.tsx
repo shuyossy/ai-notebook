@@ -5,6 +5,7 @@ import { v4 as uuid } from 'uuid';
 import { ChatMessage } from '@/types';
 import { IpcRequestPayload, IpcChannels } from '@/types/ipc';
 import { useAlertStore } from '@/renderer/stores/alertStore';
+import { getSafeErrorMessage } from '@/renderer/lib/error';
 import { useAgentStatusStore } from '../../stores/agentStatusStore';
 import MessageList from './MessageList';
 import MessageInput, { Attachment } from './MessageInput';
@@ -83,7 +84,6 @@ const customFetch: typeof fetch = async (input, init) => {
           chatApi.abortChatRequest(roomId, {
             showAlert: false,
             throwError: true,
-            printErrorLog: true,
           });
           unsubscribe();
           controller.close();
@@ -92,7 +92,6 @@ const customFetch: typeof fetch = async (input, init) => {
           // 上記onErrorでstreamのエラー処理として処理され、エラーメッセージが表示されるためここでは表示しない
           showAlert: false,
           throwError: false,
-          printErrorLog: true,
         });
       },
       cancel() {
@@ -162,7 +161,6 @@ const ChatArea: React.FC<ChatAreaProps> = ({
       const chatMessages = await chatApi.getChatMessages(roomId, {
         showAlert: true,
         throwError: true,
-        printErrorLog: true,
       });
       setInitialMessages(chatMessages || []);
     } finally {
@@ -193,7 +191,10 @@ const ChatArea: React.FC<ChatAreaProps> = ({
             onChatRoomUpdate();
           } catch (err) {
             addAlert({
-              message: `チャットルーム一覧の更新に失敗しました\n${(err as Error).message}`,
+              message: getSafeErrorMessage(
+                err,
+                'チャットルーム一覧の更新に失敗しました',
+              ),
               severity: 'error',
             });
           }
@@ -217,7 +218,6 @@ const ChatArea: React.FC<ChatAreaProps> = ({
         chatApi.createThread(selectedRoomId, '', {
           showAlert: false,
           throwError: true,
-          printErrorLog: true,
         });
       }
 
@@ -236,7 +236,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
   useEffect(() => {
     if (error) {
       addAlert({
-        message: error.message,
+        message: getSafeErrorMessage(error),
         severity: 'error',
       });
     }
@@ -341,7 +341,6 @@ const ChatArea: React.FC<ChatAreaProps> = ({
         {
           showAlert: false,
           throwError: true,
-          printErrorLog: true,
         },
       );
       setEditMessageId('');
@@ -350,7 +349,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
       reload();
     } catch (err) {
       addAlert({
-        message: 'メッセージ編集に失敗しました',
+        message: getSafeErrorMessage(err, 'メッセージ編集に失敗しました'),
         severity: 'error',
       });
     } finally {

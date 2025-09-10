@@ -24,7 +24,6 @@ import { MoreVert as MoreIcon } from '@mui/icons-material';
 import AddCircleOutlineOutlinedIcon from '@mui/icons-material/AddCircleOutlineOutlined';
 import { v4 as uuidv4 } from 'uuid';
 import type { ChatRoom } from '@/types';
-import { useAlertStore } from '@/renderer/stores/alertStore';
 import { ChatApi } from '../../service/chatApi';
 
 interface ChatRoomListProps {
@@ -43,7 +42,6 @@ const ChatRoomList = forwardRef<ChatRoomListRef, ChatRoomListProps>(
     const [menuAnchorEl, setMenuAnchorEl] = useState<null | HTMLElement>(null);
     // メニュー選択中のチャットルームID
     const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
-    const addAlert = useAlertStore((state) => state.addAlert);
 
     // チャットルーム一覧を取得
     const fetchChatRooms = useCallback(async () => {
@@ -51,7 +49,6 @@ const ChatRoomList = forwardRef<ChatRoomListRef, ChatRoomListProps>(
       const rooms = await chatApi.getChatRooms({
         throwError: true,
         showAlert: false,
-        printErrorLog: false,
       });
       // updatedAtで降順ソート
       const sortedRooms = rooms
@@ -121,7 +118,6 @@ const ChatRoomList = forwardRef<ChatRoomListRef, ChatRoomListProps>(
       await chatApi.deleteChatRoom(activeRoomId, {
         showAlert: true,
         throwError: false,
-        printErrorLog: true,
       });
       // 削除したルームが選択中だった場合は選択を解除
       if (selectedRoomId === activeRoomId) {

@@ -280,7 +280,7 @@ const checklistDocumentExtractionStep = createStep({
             const normalizedError = normalizeUnknownError(error);
             errorDetail = normalizedError.message;
           }
-          errorMessage += `${file.name}のチェックリスト抽出中にエラー: ${errorDetail}`;
+          errorMessage = `${file.name}のチェックリスト抽出中にエラー: ${errorDetail}`;
           errorMessages.push(errorMessage);
         }
       });
@@ -289,7 +289,7 @@ const checklistDocumentExtractionStep = createStep({
       await Promise.all(extractionPromises);
 
       // エラーがあれば失敗として返す
-      if (errorMessages.length > 1) {
+      if (errorMessages.length > 0) {
         return {
           status: 'failed' as stepStatus,
           errorMessage: errorMessages.join('\n'),

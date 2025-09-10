@@ -7,7 +7,7 @@ import {
   ReviewExecutionResultStatus,
 } from '@/types';
 import { ApiServiceDefaultOptions } from '../types';
-import { getData } from '../lib/apiUtils';
+import { invokeApi } from '../lib/apiUtils';
 import { ReviewHistory } from '@/db/schema';
 import { ElectronPushClient } from '../lib/ElectronPushClient';
 import { IpcChannels } from '@/types';
@@ -84,16 +84,14 @@ export class ReviewApi implements IReviewApi {
   public async getHistories(
     options?: ApiServiceDefaultOptions,
   ): Promise<ReviewHistory[] | null> {
-    const result = await window.electron.review.getHistories();
-    return getData(result, options);
+    return invokeApi(() => window.electron.review.getHistories(), options);
   }
 
   public async deleteHistory(
     historyId: string,
     options?: ApiServiceDefaultOptions,
   ): Promise<void> {
-    const result = await window.electron.review.deleteHistory(historyId);
-    getData(result, options);
+    await invokeApi(() => window.electron.review.deleteHistory(historyId), options);
   }
 
   public async getReviewHistoryDetail(
@@ -102,9 +100,7 @@ export class ReviewApi implements IReviewApi {
   ): Promise<{
     checklistResults?: ReviewChecklistResultDisplay[];
   } | null> {
-    const result = await window.electron.review.getHistoryDetail(historyId);
-    const data = getData(result, options);
-    return data;
+    return invokeApi(() => window.electron.review.getHistoryDetail(historyId), options);
   }
 
   public async getReviewInstruction(
@@ -114,10 +110,7 @@ export class ReviewApi implements IReviewApi {
     additionalInstructions?: string;
     commentFormat?: string;
   } | null> {
-    const result =
-      await window.electron.review.getHistoryInstruction(historyId);
-    const data = getData(result, options);
-    return data;
+    return invokeApi(() => window.electron.review.getHistoryInstruction(historyId), options);
   }
 
   public async extractChecklist(
@@ -127,13 +120,12 @@ export class ReviewApi implements IReviewApi {
     checklistRequirements?: string,
     options?: ApiServiceDefaultOptions,
   ): Promise<void> {
-    const result = await window.electron.review.extractChecklist({
+    await invokeApi(() => window.electron.review.extractChecklist({
       reviewHistoryId: historyId,
       files,
       documentType,
       checklistRequirements,
-    });
-    getData(result, options);
+    }), options);
   }
 
   public async executeReview(
@@ -143,13 +135,12 @@ export class ReviewApi implements IReviewApi {
     commentFormat?: string,
     options?: ApiServiceDefaultOptions,
   ): Promise<void> {
-    const result = await window.electron.review.execute({
+    await invokeApi(() => window.electron.review.execute({
       reviewHistoryId: historyId,
       files,
       additionalInstructions,
       commentFormat,
-    });
-    getData(result, options);
+    }), options);
   }
 
   /**
@@ -161,9 +152,7 @@ export class ReviewApi implements IReviewApi {
     reviewHistoryId: string,
     options?: ApiServiceDefaultOptions,
   ): Promise<void> {
-    const result =
-      await window.electron.review.abortExtractChecklist(reviewHistoryId);
-    getData(result, options);
+    await invokeApi(() => window.electron.review.abortExtractChecklist(reviewHistoryId), options);
   }
 
   /**
@@ -175,8 +164,7 @@ export class ReviewApi implements IReviewApi {
     reviewHistoryId: string,
     options?: ApiServiceDefaultOptions,
   ): Promise<void> {
-    const result = await window.electron.review.abortExecute(reviewHistoryId);
-    getData(result, options);
+    await invokeApi(() => window.electron.review.abortExecute(reviewHistoryId), options);
   }
 
   public subscribeChecklistExtractionFinished(
@@ -214,10 +202,9 @@ export class ReviewApi implements IReviewApi {
     checklistEdits: ReviewChecklistEdit[],
     options?: ApiServiceDefaultOptions,
   ): Promise<void> {
-    const result = await window.electron.review.updateChecklist({
+    await invokeApi(() => window.electron.review.updateChecklist({
       reviewHistoryId: historyId,
       checklistEdits,
-    });
-    getData(result, options);
+    }), options);
   }
 }

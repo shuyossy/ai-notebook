@@ -135,7 +135,9 @@ ElectronのIPCを使用してフロントエンド・バックエンド間の通
     - `src/renderer/hooks/useSettings.ts`: 設定情報を利用したい場合に利用するフック
   - `src/renderer/service`: フロントエンドから利用するサービス層で、外部アクセスロジックもここで管理する(~Api.ts)
   - `src/renderer/stores`: zustandで管理するstate定義
+    - `src/renderer/stores/alertStore.ts`: renderer側のユーザに表示するアラートメッセージを一元管理する、addAlertを公開しており、これを利用してalertを追加するとエラーを表示できる
   - `src/renderer/lib/ElectronPushClient.ts`: 直接イベント購読したい際に利用するクライアントクラス（`usePushChannel.ts`についても内部でこのクラスを利用している、一度だけSSEでデータを受信したい場合などにも利用）
+  - `src/renderer/lib/error.ts`: Renderer側で利用するエラーの定義
 - `src/mastra`: Mastraを利用したAI関連のコード
   - `src/mastra/agents/prompt.ts`: Mastraのエージェントのプロンプト定義を一箇所に集約（エージェントやワークフロー内で利用するプロンプトを定義）
   - `src/mastra/agents/orchestrator.ts`: 汎用チャット機能で利用するAIエージェントの定義
@@ -189,6 +191,9 @@ ElectronのIPCを使用してフロントエンド・バックエンド間の通
 - フロントエンドから外部（IPC）通信する場合は`src/renderer/service/~Api.ts`を経由すること
   - 新規にサービスクラスを作成する場合は既存ロジックを参考にして作成すること
 - サーバからイベントをpushする際は`src/main/lib/eventPayloadHelper.ts`を利用すること
+- フロントエンドでイベントを購読する際は`usePushChannel`もしくは`ElectronPushClient`を利用すること
+  - コンポーネントで常にSSEの通信を張ってデータを取得したい場合は`usePushChannel`を、一時的にSSEの通信を貼りたい場合は`ElectronPushClient`を利用
+- フロントエンドでエラーメッセージを表示する(addAlertで出す想定)場合はcatchしたエラーを`src/renderer/lib/error.ts`で定義しているgetSafeErrorMessage関数に適用してエラーメッセージを取り出すこと
 - テストについては指示されない限り、実行も修正もしなくてよい
 
 ## 現在実施中のタスク
@@ -199,12 +204,13 @@ ElectronのIPCを使用してフロントエンド・バックエンド間の通
 本アプリは将来的にwebアプリに移植する可能性があるため
 
 ## 依頼タスク
-- ドキュメント同期処理(`src/renderer/components/common/SourceListModal.tsx`)の方法を見直す
-    - TO-BE
-        - 処理開始のキックではMain側のサービスクラスを非同期で呼び出すのみ(awaitしない)にして、サービスロジックが全て完了した際に、完了メッセージ{success: boolean, error?: string}をpushする
-    - 現状がTO-BEになっているか徹底的に調査して、もしそうなっていなければ、TO-BEになるように修正してください。
+- フロントエンド側エラー処理の見直し
+  - エラー処理を見直し、ユーザへ表示するエラーメッセージを適切に制御する
+  - 実施内容
+    - 全Serviceクラス(~Api.ts)で外部通信を`src/renderer/lib/apiUtils.ts`で定義している`invokeApi`を利用して行うこと
+      - ただし、イベント購読処理は除く
+    - フロントエンドの処理でエラーメッセージを表示している箇所（大部分はtry-catchしてその中でaddAlertでエラーメッセージを表示しているはず）について、`src/renderer/lib/error.ts`で定義しているgetSafeErrorMessage関数に適用してエラーメッセージを取り出すように変更すること
 
-- エージェント初期化処理(`src/renderer/hooks/useSettings.ts`)の方法を見直す
-    - TO-BE
-        - 処理開始のキックではMain側のサービスクラスを非同期で呼び出すのみ(awaitしない)にして、サービスロジックが全て完了した際に、完了メッセージ{success: boolean, error?: string}をpushする
-    - 現状がTO-BEになっているか徹底的に調査して、もしそうなっていなければ、TO-BEになるように修正してください。
+## 依頼タスク実装時の注意点
+修正箇所が膨大になることが予想されます
+修正が必要な箇所を確りと全て把握して、実装を進めて下さい

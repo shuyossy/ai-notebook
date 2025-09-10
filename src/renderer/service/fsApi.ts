@@ -1,5 +1,5 @@
 import { OpenDialogOptions } from 'electron';
-import { getData } from '../lib/apiUtils';
+import { invokeApi } from '../lib/apiUtils';
 import { ApiServiceDefaultOptions } from '../types';
 
 export interface IFsApi {
@@ -36,23 +36,20 @@ export class FsApi implements IFsApi {
     options: OpenDialogOptions,
     apiOptions?: ApiServiceDefaultOptions,
   ): Promise<{ filePaths: string[]; canceled: boolean } | null> {
-    const result = await window.electron.fs.showOpenDialog(options);
-    return getData(result, apiOptions);
+    return invokeApi(() => window.electron.fs.showOpenDialog(options), apiOptions);
   }
 
   public async readFile(
     filePath: string,
     apiOptions?: ApiServiceDefaultOptions,
   ): Promise<Uint8Array | null> {
-    const result = await window.electron.fs.readFile(filePath);
-    return getData(result, apiOptions);
+    return invokeApi(() => window.electron.fs.readFile(filePath), apiOptions);
   }
 
   public async access(
     path: string,
     apiOptions?: ApiServiceDefaultOptions,
   ): Promise<boolean | null> {
-    const result = await window.electron.fs.access(path);
-    return getData(result, apiOptions);
+    return invokeApi(() => window.electron.fs.access(path), apiOptions);
   }
 }

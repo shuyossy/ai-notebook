@@ -9,6 +9,7 @@ import {
 import { SettingsApi } from '../service/settingsApi';
 import { useAgentStatusStore } from '../stores/agentStatusStore';
 import { useAlertStore } from '../stores/alertStore';
+import { getSafeErrorMessage } from '../lib/error';
 
 /**
  * 設定値の型安全な管理と検証を行うフック
@@ -58,7 +59,6 @@ const useSettingsStore = () => {
     const data = await settingsApi.getAgentStatus({
       showAlert: false,
       throwError: true,
-      printErrorLog: false,
     });
     if (data) {
       setAgentStatus(data);
@@ -135,7 +135,6 @@ const useSettingsStore = () => {
         const loadedSettings = await settingsApi.getSettings({
           showAlert: false,
           throwError: true,
-          printErrorLog: false,
         });
 
         if (loadedSettings) {
@@ -294,21 +293,19 @@ const useSettingsStore = () => {
       await settingsApi.setSettings(settings, {
         showAlert: false,
         throwError: true,
-        printErrorLog: false,
       });
 
       // 再初期化処理開始のキック
       settingsApi.reinitialize({
         showAlert: false,
         throwError: false, // エラーはイベントpushで処理するため
-        printErrorLog: true,
       });
 
       // 完了イベントの購読を開始（ワンショット）
       const unsubscribe = settingsApi.subscribeSettingsUpdateFinished((payload: { success: boolean; error?: string }) => {
         // 設定更新完了時にポーリングを停止
         setAgentStatusPolling(false);
-        
+
         if (payload.success) {
           // 成功時：最新データを取得
           try {
@@ -316,7 +313,7 @@ const useSettingsStore = () => {
           } catch (error) {
             console.error('エージェント状態取得に失敗しました:', error);
             addAlert({
-              message: `AIツール情報の取得に失敗しました\n${(error as Error).message}`,
+              message: getSafeErrorMessage(error, 'AIツール情報の取得に失敗しました'),
               severity: 'error',
             });
           }
@@ -330,7 +327,7 @@ const useSettingsStore = () => {
         // 処理完了と同時に購読解除
         unsubscribe();
       });
-      
+
       setUpdatedFlg(true);
 
       // 設定更新後にポーリング開始

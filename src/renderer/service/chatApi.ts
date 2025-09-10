@@ -1,5 +1,5 @@
 import { ChatMessage, ChatRoom, IpcChannels, IpcEventPayload } from '@/types';
-import { getData } from '../lib/apiUtils';
+import { invokeApi } from '../lib/apiUtils';
 import { ApiServiceDefaultOptions } from '../types';
 import { ElectronPushClient } from '../lib/ElectronPushClient';
 
@@ -60,8 +60,7 @@ export class ChatApi implements IChatApi {
     options?: ApiServiceDefaultOptions,
   ): Promise<ChatRoom[] | null> {
     // IPCを使用してメインプロセスから取得
-    const result = await window.electron.chat.getRooms();
-    return getData(result, options);
+    return invokeApi(() => window.electron.chat.getRooms(), options);
   }
 
   /**
@@ -73,8 +72,7 @@ export class ChatApi implements IChatApi {
     options?: ApiServiceDefaultOptions,
   ): Promise<void> {
     // IPCを使用してメインプロセスから削除
-    const result = await window.electron.chat.deleteRoom(roomId);
-    getData(result, options);
+    await invokeApi(() => window.electron.chat.deleteRoom(roomId), options);
   }
 
   public streamResponse(callbacks: {
@@ -130,18 +128,16 @@ export class ChatApi implements IChatApi {
     roomId: string,
     options?: ApiServiceDefaultOptions,
   ): Promise<void> {
-    const result = await window.electron.chat.requestAbort({
+    await invokeApi(() => window.electron.chat.requestAbort({
       threadId: roomId,
-    });
-    getData(result, options);
+    }), options);
   }
 
   public async getChatMessages(
     roomId: string,
     options?: ApiServiceDefaultOptions,
   ): Promise<ChatMessage[] | null> {
-    const result = await window.electron.chat.getMessages(roomId);
-    return getData(result, options);
+    return invokeApi(() => window.electron.chat.getMessages(roomId), options);
   }
 
   public async createThread(
@@ -149,8 +145,7 @@ export class ChatApi implements IChatApi {
     title: string,
     options?: ApiServiceDefaultOptions,
   ): Promise<void> {
-    const result = await window.electron.chat.createThread({ roomId, title });
-    getData(result, options);
+    await invokeApi(() => window.electron.chat.createThread({ roomId, title }), options);
   }
 
   public async sendMessage(
@@ -158,8 +153,7 @@ export class ChatApi implements IChatApi {
     messages: ChatMessage[],
     options?: ApiServiceDefaultOptions,
   ): Promise<void> {
-    const result = await window.electron.chat.sendMessage({ roomId, messages });
-    getData(result, options);
+    await invokeApi(() => window.electron.chat.sendMessage({ roomId, messages }), options);
     console.log('Message sent via IPC:', { roomId, messages });
   }
 
@@ -168,10 +162,9 @@ export class ChatApi implements IChatApi {
     messageId: string,
     options?: ApiServiceDefaultOptions,
   ): Promise<void> {
-    const result = await window.electron.chat.deleteMessagesBeforeSpecificId({
+    await invokeApi(() => window.electron.chat.deleteMessagesBeforeSpecificId({
       threadId: roomId,
       messageId,
-    });
-    getData(result, options);
+    }), options);
   }
 }

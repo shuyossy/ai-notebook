@@ -18,6 +18,7 @@ import { MoreVert as MoreIcon } from '@mui/icons-material';
 import AddCircleOutlineOutlinedIcon from '@mui/icons-material/AddCircleOutlineOutlined';
 import { v4 as uuidv4 } from 'uuid';
 import { useAlertStore } from '@/renderer/stores/alertStore';
+import { getSafeErrorMessage } from '../../lib/error';
 import type { ReviewHistory } from '../../../db/schema';
 import { ReviewApi } from '../../service/reviewApi';
 import { usePushChannel } from '../../hooks/usePushChannel';
@@ -45,7 +46,6 @@ function ReviewHistoryList({
     const histories = await reviewApi.getHistories({
       showAlert: false,
       throwError: true,
-      printErrorLog: false,
     });
     if (histories && histories.length > 0) {
       // updatedAtで降順ソート
@@ -67,7 +67,7 @@ function ReviewHistoryList({
     } catch (error) {
       console.error('レビュー履歴の更新に失敗しました:', error);
       addAlert({
-        message: `レビュー履歴の更新に失敗しました\n${(error as Error).message}`,
+        message: getSafeErrorMessage(error, 'レビュー履歴の更新に失敗しました'),
         severity: 'error',
       });
     }
@@ -133,7 +133,6 @@ function ReviewHistoryList({
       await reviewApi.deleteHistory(activeReviewId, {
         showAlert: true,
         throwError: true,
-        printErrorLog: false,
       });
       // 削除した履歴が選択中だった場合は選択を解除
       if (selectedReviewHistoryId === activeReviewId) {

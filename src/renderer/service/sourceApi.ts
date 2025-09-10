@@ -1,4 +1,4 @@
-import { getData } from '../lib/apiUtils';
+import { invokeApi } from '../lib/apiUtils';
 import { ApiServiceDefaultOptions } from '../types';
 import { Source } from '@/db/schema';
 import { ElectronPushClient } from '../lib/ElectronPushClient';
@@ -35,16 +35,13 @@ export class SourceApi implements ISourceApi {
   public async reloadSources(
     options?: ApiServiceDefaultOptions,
   ): Promise<void> {
-    const result = await window.electron.source.reloadSources();
-    getData(result, options);
+    await invokeApi(() => window.electron.source.reloadSources(), options);
   }
 
   public async getSources(
     options?: ApiServiceDefaultOptions,
   ): Promise<Source[] | null> {
-    const result = await window.electron.source.getSources();
-    const data = getData(result, options);
-    return data as Source[] | null;
+    return invokeApi(() => window.electron.source.getSources(), options);
   }
 
   public async updateSourceEnabled(
@@ -52,11 +49,10 @@ export class SourceApi implements ISourceApi {
     enabled: boolean,
     options?: ApiServiceDefaultOptions,
   ): Promise<void> {
-    const result = await window.electron.source.updateSourceEnabled({
+    await invokeApi(() => window.electron.source.updateSourceEnabled({
       sourceId: id,
       isEnabled: enabled,
-    });
-    getData(result, options);
+    }), options);
   }
 
   public subscribeSourceReloadFinished(

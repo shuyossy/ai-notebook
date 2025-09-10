@@ -35,6 +35,7 @@ import {
   PdfImageMode,
 } from '@/types';
 import { useAlertStore } from '@/renderer/stores/alertStore';
+import { getSafeErrorMessage } from '../../lib/error';
 import { ReviewSourceModalProps } from './types';
 import { FsApi } from '../../service/fsApi';
 
@@ -159,7 +160,6 @@ function ReviewSourceModal({
         {
           showAlert: true,
           throwError: true,
-          printErrorLog: false,
         },
       );
 
@@ -189,7 +189,7 @@ function ReviewSourceModal({
     } catch (e) {
       console.error('ファイル選択エラー:', e);
       addAlert({
-        message: 'ファイル選択に失敗しました。もう一度お試しください。',
+        message: getSafeErrorMessage(e, 'ファイル選択に失敗しました'),
         severity: 'error',
       });
     }
@@ -245,7 +245,6 @@ function ReviewSourceModal({
           const data = await fsApi.readFile(f.path, {
             showAlert: false,
             throwError: true,
-            printErrorLog: false,
           });
 
           // ブラウザ側で pdf.js にレンダリングさせて PNG を得る
@@ -303,7 +302,7 @@ function ReviewSourceModal({
     } catch (e) {
       console.error('送信処理中に失敗:', e);
       addAlert({
-        message: 'ファイルの送信処理に失敗しました。もう一度お試しください。',
+        message: getSafeErrorMessage(e, 'ファイルの送信処理に失敗しました'),
         severity: 'error',
       });
     } finally {
