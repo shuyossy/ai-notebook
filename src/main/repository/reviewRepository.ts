@@ -206,7 +206,7 @@ class DrizzleReviewRepository implements IReviewRepository {
         .where(eq(reviewChecklists.id, id))
         .returning();
       if (!checklist) {
-        throw new Error('指定されたチェックリストが存在しません');
+        throw repositoryError('指定されたチェックリストが存在しません', null);
       }
       return checklist;
     } catch (err) {

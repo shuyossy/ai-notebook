@@ -194,6 +194,7 @@ ElectronのIPCを使用してフロントエンド・バックエンド間の通
 - フロントエンドでイベントを購読する際は`usePushChannel`もしくは`ElectronPushClient`を利用すること
   - コンポーネントで常にSSEの通信を張ってデータを取得したい場合は`usePushChannel`を、一時的にSSEの通信を貼りたい場合は`ElectronPushClient`を利用
 - フロントエンドでエラーメッセージを表示する(addAlertで出す想定)場合はcatchしたエラーを`src/renderer/lib/error.ts`で定義しているgetSafeErrorMessage関数に適用してエラーメッセージを取り出すこと
+- このアプリでは基本的にエラーメッセージは独自例外(`src/renderer/lib/error.ts`,`src/main/lib/error.ts`)をthrowしないとユーザにエラーメッセージが表示されないため、注意すること
 - テストについては指示されない限り、実行も修正もしなくてよい
 
 ## 現在実施中のタスク
@@ -204,12 +205,11 @@ ElectronのIPCを使用してフロントエンド・バックエンド間の通
 本アプリは将来的にwebアプリに移植する可能性があるため
 
 ## 依頼タスク
-- フロントエンド側エラー処理の見直し
-  - エラー処理を見直し、ユーザへ表示するエラーメッセージを適切に制御する
-  - 実施内容
-    - 全Serviceクラス(~Api.ts)で外部通信を`src/renderer/lib/apiUtils.ts`で定義している`invokeApi`を利用して行うこと
-      - ただし、イベント購読処理は除く
-    - フロントエンドの処理でエラーメッセージを表示している箇所（大部分はtry-catchしてその中でaddAlertでエラーメッセージを表示しているはず）について、`src/renderer/lib/error.ts`で定義しているgetSafeErrorMessage関数に適用してエラーメッセージを取り出すように変更すること
+- エラー処理の見直し
+  - このアプリでは基本的にエラーメッセージは独自例外(`src/renderer/lib/error.ts`,`src/main/lib/error.ts`)をthrowしないとユーザにエラーメッセージが表示されない
+    - それにも関わらず、ユーザに通知すべきエラーで生のthrow new Error(~)してしまっている場合が散見される
+    - Main側、Renderer側それぞれで、上記のようなケースを全て見つけ出し、修正してください 
+      - 見つけ出してinternalErrorビルダを利用して作成したAppError,FrontAppErrorをthrowするように修正してください
 
 ## 依頼タスク実装時の注意点
 修正箇所が膨大になることが予想されます

@@ -5,7 +5,7 @@ import { v4 as uuid } from 'uuid';
 import { ChatMessage } from '@/types';
 import { IpcRequestPayload, IpcChannels } from '@/types/ipc';
 import { useAlertStore } from '@/renderer/stores/alertStore';
-import { getSafeErrorMessage } from '@/renderer/lib/error';
+import { getSafeErrorMessage, internalError } from '@/renderer/lib/error';
 import { useAgentStatusStore } from '../../stores/agentStatusStore';
 import MessageList from './MessageList';
 import MessageInput, { Attachment } from './MessageInput';
@@ -209,7 +209,9 @@ const ChatArea: React.FC<ChatAreaProps> = ({
           ? request.messages[request.messages.length - 1]
           : null;
       if (!lastMessage) {
-        throw new Error('送信メッセージの取得に失敗しました');
+        throw internalError('送信メッセージの取得に失敗しました', {
+          expose: true,
+        });
       }
 
       // 初回メッセージ送信時にスレッドを作成

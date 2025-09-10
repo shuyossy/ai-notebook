@@ -1,4 +1,5 @@
 import * as pdfjsLib from 'pdfjs-dist';
+import { internalError } from './error';
 
 // PDF.jsのワーカーを設定
 const workerUrl = new URL('pdf.worker.mjs', window.location.href).toString();
@@ -29,7 +30,11 @@ export const convertPdfBytesToImages = async (
 
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
-    if (!ctx) throw new Error('Canvas context could not be created');
+    if (!ctx) {
+      throw internalError('Canvas context could not be created', {
+        expose: true,
+      });
+    }
 
     canvas.width = viewport.width;
     canvas.height = viewport.height;
@@ -46,7 +51,11 @@ export const convertPdfBytesToImages = async (
 export const combineImages = async (
   imageDataArray: string[],
 ): Promise<string> => {
-  if (imageDataArray.length === 0) throw new Error('画像データが空です');
+  if (imageDataArray.length === 0) {
+    throw internalError('画像データが空です', {
+      expose: true,
+    });
+  }
   if (imageDataArray.length === 1) return imageDataArray[0];
 
   const images = await Promise.all(
@@ -66,7 +75,11 @@ export const combineImages = async (
 
   const canvas = document.createElement('canvas');
   const context = canvas.getContext('2d');
-  if (!context) throw new Error('Canvas context could not be created');
+  if (!context) {
+    throw internalError('Canvas context could not be created', {
+      expose: true,
+    });
+  }
 
   canvas.width = maxWidth;
   canvas.height = totalHeight;

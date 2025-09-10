@@ -7,6 +7,7 @@ import { z } from 'zod';
 // @ts-ignore
 import { createTool } from '@mastra/core/tools';
 import { RedmineClient } from './redmineClient';
+import { internalError } from '@/main/lib/error';
 import { createBaseToolResponseSchema, RunToolStatus } from '../types';
 import {
   IssueFilter,
@@ -626,7 +627,11 @@ export const createUpdateIssueTool = (client: RedmineClient) => {
 
       // 更新内容があるか確認
       if (Object.keys(updateData).length === 0) {
-        throw new Error('No update fields specified');
+        throw internalError({
+          expose: true,
+          messageCode: 'VALIDATION_ERROR',
+          messageParams: { detail: 'No update fields specified' },
+        });
       }
 
       try {

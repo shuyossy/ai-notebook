@@ -89,9 +89,11 @@ export class RedmineClient {
         body: data ? JSON.stringify(data) : undefined,
       });
       if (!response.ok) {
-        throw new Error(
-          `Redmine API Error: ${response.status} ${response.statusText}`,
-        );
+        throw internalError({
+          expose: true,
+          messageCode: 'REDMINE_API_ERROR',
+          messageParams: { detail: `${response.status} ${response.statusText}` },
+        });
       }
       if (response.status === 204) {
         return {} as T;
@@ -121,7 +123,11 @@ export class RedmineClient {
         headers: commonHeaders,
       });
       if (!res.ok) {
-        throw new Error(`Redmine API Error: ${res.status} ${res.statusText}`);
+        throw internalError({
+          expose: true,
+          messageCode: 'REDMINE_API_ERROR',
+          messageParams: { detail: `${res.status} ${res.statusText}` },
+        });
       }
       const json = (await res.json()) as Record<string, any>;
 
@@ -206,7 +212,11 @@ export class RedmineClient {
       return found.id;
     }
 
-    throw new Error(`Unable to resolve ID for: ${value}`);
+    throw internalError({
+      expose: true,
+      messageCode: 'VALIDATION_ERROR',
+      messageParams: { detail: `Unable to resolve ID for: ${value}` },
+    });
   }
 
   /**

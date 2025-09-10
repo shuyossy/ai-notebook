@@ -273,7 +273,11 @@ export class ChatService implements IChatService {
       (msg) => msg.id === messageId,
     );
     if (targetMessageIndex === -1) {
-      throw new Error(`メッセージが見つかりません`);
+      throw internalError({
+        expose: true,
+        messageCode: 'CHAT_EDIT_ERROR',
+        messageParams: { detail: '対象メッセージが見つかりません' },
+      });
     }
     // 最初のメッセージからmessageIdに対応するメッセージまでの履歴を取得
     const history = messages.slice(0, targetMessageIndex);

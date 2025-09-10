@@ -8,7 +8,7 @@ import FileExtractor from '@/main/lib/fileExtractor';
 import { createBaseToolResponseSchema, RunToolStatus } from './types';
 import { DocumentExpertAgentRuntimeContext } from '../agents/toolAgents';
 import { createRuntimeContext, judgeFinishReason } from '../lib/agentUtils';
-import { normalizeUnknownError } from '@/main/lib/error';
+import { normalizeUnknownError, internalError } from '@/main/lib/error';
 
 /**
  * ソース一覧表示ツール
@@ -172,7 +172,11 @@ export const documentQueryTool = createTool({
             answer = res.text;
             const { success, reason } = judgeFinishReason(res.finishReason);
             if (!success) {
-              throw new Error(reason);
+              throw internalError({
+                expose: true,
+                messageCode: 'AI_API_ERROR',
+                messageParams: { detail: reason },
+              });
             }
           } catch (error) {
             answer = `error occured while processing the query: ${error instanceof Error ? `: ${error.message}` : JSON.stringify(error)}`;

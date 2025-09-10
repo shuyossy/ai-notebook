@@ -16,7 +16,7 @@ import {
 } from '../../agents/workflowAgents';
 import { createRuntimeContext, judgeFinishReason } from '../../lib/agentUtils';
 import { getMainLogger } from '@/main/lib/logger';
-import { normalizeUnknownError, extractAIAPISafeError } from '@/main/lib/error';
+import { normalizeUnknownError, extractAIAPISafeError, internalError } from '@/main/lib/error';
 
 const logger = getMainLogger();
 
@@ -85,7 +85,10 @@ const classifyChecklistsByCategoryStep = createStep({
       // チェックリストを取得
       const checklistsResult = await repository.getChecklists(reviewHistoryId);
       if (!checklistsResult || checklistsResult.length === 0) {
-        throw new Error('レビュー対象のチェックリストが見つかりません');
+        throw internalError({
+          expose: true,
+          messageCode: 'REVIEW_EXECUTION_NO_TARGET_CHECKLIST',
+        });
       }
 
       // チェックリストデータを整形
@@ -344,7 +347,11 @@ const reviewExecutionStep = createStep({
                 reviewResult.finishReason,
               );
               if (!success) {
-                throw new Error(reason);
+                throw internalError({
+                  expose: true,
+                  messageCode: 'AI_API_ERROR',
+                  messageParams: { detail: reason },
+                });
               }
               // レビュー結果をDBに保存
               if (reviewResult.object && Array.isArray(reviewResult.object)) {

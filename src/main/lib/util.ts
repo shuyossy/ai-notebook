@@ -2,6 +2,7 @@
 import { URL, pathToFileURL } from 'url';
 import path from 'path';
 import fs from 'fs';
+import { internalError } from './error';
 
 export function resolveHtmlPath(htmlFileName: string) {
   if (process.env.NODE_ENV === 'development') {
@@ -28,9 +29,11 @@ export function toAbsolutePath(dirOrPath: string, fileName?: string): string {
   if (fileName !== undefined) {
     // 第一引数に拡張子があれば「ファイル名＋fileName の二重指定」とみなして例外
     if (path.extname(dirOrPath) !== '') {
-      throw new Error(
-        `第一引数にファイル名が含まれています: "${dirOrPath}". fileName と重複指定はできません。`,
-      );
+      throw internalError({
+        expose: false,
+        messageCode: 'VALIDATION_ERROR',
+        messageParams: { detail: `第一引数にファイル名が含まれています: "${dirOrPath}". fileName と重複指定はできません。` },
+      });
     }
     // ディレクトリ部を取り出して結合
     return path.join(basePath, fileName);
@@ -62,8 +65,10 @@ export function isPathExists(dirOrPath: string): boolean {
     const absolutePath = toAbsolutePath(dirOrPath);
     return fs.existsSync(absolutePath);
   } catch (error) {
-    throw new Error(
-      `パスの存在確認中にエラーが発生しました: ${error instanceof Error ? error.message : JSON.stringify(error)}`,
-    );
+    throw internalError({
+      expose: true,
+      messageCode: 'VALIDATION_ERROR',
+      messageParams: { detail: `パスの存在確認中にエラーが発生しました: ${error instanceof Error ? error.message : JSON.stringify(error)}` },
+    });
   }
 }

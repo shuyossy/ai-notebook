@@ -9,7 +9,7 @@ import {
 import { SettingsApi } from '../service/settingsApi';
 import { useAgentStatusStore } from '../stores/agentStatusStore';
 import { useAlertStore } from '../stores/alertStore';
-import { getSafeErrorMessage } from '../lib/error';
+import { getSafeErrorMessage, internalError } from '../lib/error';
 
 /**
  * 設定値の型安全な管理と検証を行うフック
@@ -286,7 +286,9 @@ const useSettingsStore = () => {
       // 全体のバリデーションを実行
       const isValid = await validateAll();
       if (!isValid) {
-        throw new Error('不正な設定値があります');
+        throw internalError('不正な設定値があります', {
+          expose: true,
+        });
       }
 
       // 設定を一括保存

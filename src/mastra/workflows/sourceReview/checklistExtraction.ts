@@ -15,7 +15,7 @@ import {
 } from '../../agents/workflowAgents';
 import { createRuntimeContext } from '../../lib/agentUtils';
 import { UploadFile } from '@/types';
-import { normalizeUnknownError } from '@/main/lib/error';
+import { normalizeUnknownError, internalError } from '@/main/lib/error';
 import { getMainLogger } from '@/main/lib/logger';
 
 const logger = getMainLogger();
@@ -216,9 +216,10 @@ const checklistDocumentExtractionStep = createStep({
                     console.error(
                       `チェックリスト抽出の修正に失敗しました: ${error}`,
                     );
-                    throw new Error(
-                      'チェックリストの抽出結果がAIモデルの最大出力トークン数を超え、不正な出力となった為修正を試みましたが失敗しました。抽出結果が最大出力トークン内に収まるようにチェックリストのファイル分割を検討してください。',
-                    );
+                    throw internalError({
+                      expose: true,
+                      messageCode: 'REVIEW_CHECKLIST_EXTRACTION_OVER_MAX_TOKENS',
+                    });
                   }
                   return repairedText;
                 },
@@ -227,9 +228,10 @@ const checklistDocumentExtractionStep = createStep({
 
             // チェックリストドキュメントでない場合はエラー
             if (!extractionResult.object.isChecklistDocument) {
-              throw new Error(
-                `チェックリスト抽出に適さないドキュメントとして判定されたため処理を終了しました`,
-              );
+              throw internalError({
+                expose: true,
+                messageCode: 'REVIEW_CHECKLIST_EXTRACTION_NOT_CHECKLIST_DOCUMENT',
+              });
             }
 
             if (
@@ -237,7 +239,11 @@ const checklistDocumentExtractionStep = createStep({
               (!extractionResult.object.newChecklists ||
                 extractionResult.object.newChecklists.length === 0)
             ) {
-              throw new Error(`チェックリストが抽出されませんでした`);
+              throw internalError({
+                expose: true,
+                messageCode: 'AI_API_ERROR',
+                messageParams: { detail: 'チェックリストが抽出されませんでした' },
+              });
             }
 
             // 抽出されたチェックリストから新規のものを蓄積
@@ -261,9 +267,10 @@ const checklistDocumentExtractionStep = createStep({
             }
             attempts++;
             if (attempts >= MAX_ATTEMPTS) {
-              throw new Error(
-                `チェックリスト抽出処理の実行回数が一定数を超えました。チェックリストのファイル分割を検討してください。`,
-              );
+              throw internalError({
+                expose: true,
+                messageCode: 'REVIEW_CHECKLIST_EXTRACTION_OVER_MAX_TOKENS',
+              });
             }
           }
         } catch (error) {

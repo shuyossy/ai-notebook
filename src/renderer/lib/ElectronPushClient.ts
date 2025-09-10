@@ -1,4 +1,5 @@
 import type { Channel, PushClient, PushEvent } from '@/types';
+import { internalError } from './error';
 
 // Rendererプロセス側で使うPushクライアント実装
 export class ElectronPushClient implements PushClient {
@@ -7,7 +8,11 @@ export class ElectronPushClient implements PushClient {
     onEvent: (ev: PushEvent<C>) => void,
     opts?: { signal?: AbortSignal },
   ): () => void {
-    if (!window.electron.pushApi) throw new Error('pushApi not available');
+    if (!window.electron.pushApi) {
+      throw internalError('pushApi not available', {
+        expose: false,
+      });
+    }
     // preload経由で購読登録
     let unsub = () => {};
     // 非同期を吸収するため、即時IIFEで握る

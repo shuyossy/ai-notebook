@@ -6,7 +6,7 @@ import { stepStatus } from '../types';
 import { baseStepOutputSchema } from '../schema';
 import { getSourceRepository } from '../../../main/repository/sourceRepository';
 import { createRuntimeContext, judgeFinishReason } from '../../lib/agentUtils';
-import { normalizeUnknownError } from '@/main/lib/error';
+import { normalizeUnknownError, internalError } from '@/main/lib/error';
 import { getMainLogger } from '@/main/lib/logger';
 
 const logger = getMainLogger();
@@ -69,7 +69,11 @@ const analyzeSourceStep = createStep({
         analysisResult.finishReason,
       );
       if (!success) {
-        throw new Error(reason);
+        throw internalError({
+          expose: true,
+          messageCode: 'AI_API_ERROR',
+          messageParams: { detail: reason },
+        });
       }
 
       title = analysisResult.object.title;
@@ -151,7 +155,11 @@ const extractTopicAndSummaryStep = createStep({
         analysisResult.finishReason,
       );
       if (!success) {
-        throw new Error(reason);
+        throw internalError({
+          expose: true,
+          messageCode: 'AI_API_ERROR',
+          messageParams: { detail: reason },
+        });
       }
 
       // トピックと要約をデータベースに登録
