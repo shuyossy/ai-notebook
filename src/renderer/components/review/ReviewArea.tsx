@@ -328,7 +328,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
       await fetchChecklistResults();
       addAlert({
         message: 'チェックリストを保存しました',
-        severity: 'success',
+        severity: 'info',
       });
     } catch (error) {
       console.error('チェックリストの保存に失敗しました:', error);

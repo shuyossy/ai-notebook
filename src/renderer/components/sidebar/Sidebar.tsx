@@ -25,7 +25,7 @@ function Sidebar({ onReloadSources, children = null }: SidebarProps) {
 
   const onSettingsUpdated = useCallback(() => {
     // 設定更新完了時の処理
-    addAlert({ message: '設定を更新しました', severity: 'success' });
+    addAlert({ message: '設定を更新しました', severity: 'info' });
   }, [addAlert]);
 
   // 設定モーダルを開く

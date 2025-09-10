@@ -9,6 +9,7 @@ export interface AlertMessage {
   message: string;
   severity: AlertColor;
   timestamp: number;
+  timerId?: NodeJS.Timeout; // 自動削除用タイマーID
 }
 
 interface AlertState {
@@ -30,20 +31,61 @@ export const alertStore: StoreApi<AlertStore> = createStore<AlertStore>()(
     alerts: [],
 
     addAlert: (alert) => {
+      const id = uuidv4();
       const newAlert: AlertMessage = {
         ...alert,
-        id: uuidv4(),
+        id,
         timestamp: Date.now(),
       };
-      set((state) => ({
-        alerts: [newAlert, ...state.alerts].slice(0, MAX_ALERT_MESSAGES),
-      }));
+
+      // errorメッセージ以外は5秒後に自動削除
+      if (alert.severity !== 'error' && alert.severity !== 'success') {
+        const timerId = setTimeout(() => {
+          get().removeAlert(id);
+        }, 2000);
+        newAlert.timerId = timerId;
+      }
+
+      set((state) => {
+        const newAlerts = [newAlert, ...state.alerts].slice(
+          0,
+          MAX_ALERT_MESSAGES,
+        );
+
+        // 最大数を超えて削除されたアラートのタイマーもクリア
+        const removedAlerts = [newAlert, ...state.alerts].slice(
+          MAX_ALERT_MESSAGES,
+        );
+        removedAlerts.forEach((alert) => {
+          if (alert.timerId) {
+            clearTimeout(alert.timerId);
+          }
+        });
+
+        return { alerts: newAlerts };
+      });
     },
 
     removeAlert: (id) =>
-      set((state) => ({ alerts: state.alerts.filter((e) => e.id !== id) })),
+      set((state) => {
+        // 削除対象のアラートを見つけてタイマーをクリア
+        const alertToRemove = state.alerts.find((alert) => alert.id === id);
+        if (alertToRemove?.timerId) {
+          clearTimeout(alertToRemove.timerId);
+        }
+        return { alerts: state.alerts.filter((e) => e.id !== id) };
+      }),
 
-    clearAlerts: () => set({ alerts: [] }),
+    clearAlerts: () =>
+      set((state) => {
+        // 全てのタイマーをクリア
+        state.alerts.forEach((alert) => {
+          if (alert.timerId) {
+            clearTimeout(alert.timerId);
+          }
+        });
+        return { alerts: [] };
+      }),
   }),
 );
 

@@ -172,7 +172,6 @@ function SourceListModal({
 
   // ソースデータの取得関数
   const fetchSources = useCallback(async () => {
-    console.log('ドキュメントデータ取得');
     const sourceApi = SourceApi.getInstance();
     const responseSources = await sourceApi.getSources({
       showAlert: false,
