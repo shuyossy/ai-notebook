@@ -94,6 +94,7 @@
     "@gitbeaker/rest": "^42.5.0",
     "@mastra/core": "^0.14.1",
     "@mastra/libsql": "^0.13.4",
+    "@mastra/loggers": "^0.10.9",
     "@mastra/mcp": "^0.10.12",
     "@mastra/memory": "^0.13.1",
     "@mui/icons-material": "^7.0.2",

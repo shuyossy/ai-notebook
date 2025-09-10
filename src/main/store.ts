@@ -101,7 +101,7 @@ const schema = {
  * 3. macOS / Linux      : userData（書き込み可）
  * 4. 開発時             : プロジェクトのルート
  */
-function getConfigDir(): string {
+export function getConfigDir(): string {
   // --- ① Windows Portable (.exe 単体) --------------------------
   // electron-builder の Portable テンプレートが自動で環境変数をセット
   if (process.env.PORTABLE_EXECUTABLE_DIR) {

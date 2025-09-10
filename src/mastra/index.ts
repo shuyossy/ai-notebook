@@ -3,7 +3,9 @@
 // @ts-ignore
 import { Mastra } from '@mastra/core';
 // @ts-ignore
-import { ConsoleLogger } from '@mastra/core/logger';
+import { PinoLogger } from '@mastra/loggers';
+// @ts-ignore
+import { FileTransport } from '@mastra/loggers/file';
 import { orchestrator } from './agents/orchestrator';
 import { documentExpertAgent } from './agents/toolAgents';
 import {
@@ -19,14 +21,33 @@ import {
 import { sourceRegistrationWorkflow } from './workflows/sourceRegistration/sourceRegistration';
 import { checklistExtractionWorkflow } from './workflows/sourceReview/checklistExtraction';
 import { reviewExecutionWorkflow } from './workflows/sourceReview/reviewExecution';
+import { getConfigDir } from '@/main/store';
+import fs from 'fs';
+import path from 'path';
+import { getLogLevel } from '@/main/lib/logger';
 
-// 開発環境か本番環境かによってログレベルを切り替え
-const logLevel = process.env.NODE_ENV === 'production' ? 'info' : 'debug';
+const logDir = getConfigDir();
+// ログファイルの保存先ディレクトリを設定
+const logFilePath = path.join(logDir, 'ai.log');
+console.log(`AIログファイルの保存先: ${logFilePath}`);
+
+// --- ここでログファイルの初期化処理 ---
+try {
+  if (fs.existsSync(logFilePath)) {
+    // 存在する場合は削除
+    fs.unlinkSync(logFilePath);
+  }
+  // 空ファイルを作成（存在しない場合でも touch 的に作れる）
+  fs.writeFileSync(logFilePath, '');
+} catch (err) {
+  console.error('ログファイル初期化に失敗:', err);
+}
 
 // ロガーの作成
-const logger = new ConsoleLogger({
+export const logger = new PinoLogger({
   name: 'AIKATA',
-  level: logLevel,
+  level: getLogLevel(),
+  transports: { file: new FileTransport({ path: logFilePath }) },
 });
 
 export const mastra: Mastra = new Mastra({
