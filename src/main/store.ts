@@ -45,7 +45,6 @@ const schema = {
     properties: {
       registerDir: { type: 'string' },
     },
-    required: ['registerDir'],
   },
   api: {
     type: 'object',
@@ -62,7 +61,6 @@ const schema = {
       endpoint: { type: 'string' },
       apiKey: { type: 'string' },
     },
-    required: [],
   },
   gitlab: {
     type: 'object',
@@ -70,7 +68,6 @@ const schema = {
       endpoint: { type: 'string' },
       apiKey: { type: 'string' },
     },
-    required: [],
   },
   mcp: {
     type: 'object',
@@ -80,7 +77,6 @@ const schema = {
         default: '',
       },
     },
-    required: [],
   },
   systemPrompt: {
     type: 'object',
@@ -89,7 +85,6 @@ const schema = {
         type: 'string',
       },
     },
-    required: [],
   },
 } as const;
 
@@ -164,7 +159,7 @@ const store = new Store<StoreSchema>({
 // ストアを取得する関数
 export function getStore() {
   if (!store) {
-    throw new Error('Store has not been initialized. Call initStore() first.');
+    throw new Error('Store has not been initialized.');
   }
   return store;
 }

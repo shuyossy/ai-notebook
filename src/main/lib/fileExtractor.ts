@@ -8,6 +8,7 @@ import { readFileSync, existsSync, mkdirSync } from 'fs';
 import { createHash } from 'crypto';
 import { app } from 'electron';
 import type { TextItem } from 'pdfjs-dist/types/src/display/api';
+import { getConfigDir } from '../store';
 
 // pdfテキスト抽出処理において、pdfjs-dist/legacy/build/pdf.mjsを動的インポートする際に、node.js環境でpdf処理をするためにライブラリ内部で@napi-rs/canvasを利用して、ブラウザのcanvasをpolyfillする
 // その際、動的にrequire("@napi-rs/canvas")が実行されるが、本番環境だとモジュールが見つけられないエラーになる
@@ -52,15 +53,7 @@ export default class FileExtractor {
    * キャッシュディレクトリのパスを取得
    */
   private static getCacheDir(): string {
-    const userDataPath = app.getPath('userData');
-    const cacheDir = path.join(userDataPath, 'document_caches');
-
-    // ディレクトリが存在しない場合は作成
-    if (!existsSync(cacheDir)) {
-      mkdirSync(cacheDir, { recursive: true });
-    }
-
-    return cacheDir;
+    return getConfigDir();
   }
 
   /**

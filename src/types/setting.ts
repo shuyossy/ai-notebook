@@ -75,8 +75,9 @@ export const DatabaseSchema = z.object({
  * ソース設定のスキーマ
  */
 export const SourceSchema = z.object({
-  registerDir: z.string().refine(
+  registerDir: z.string().optional().refine(
     async (path) => {
+      if (!path) return true;
       if (path === '') return true; // 空文字は許容
       return await checkPathExists(path);
     },

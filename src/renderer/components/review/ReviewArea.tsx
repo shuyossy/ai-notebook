@@ -327,7 +327,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
       // 更新後は最新状態を再取得
       await fetchChecklistResults();
       addAlert({
-        message: 'チェックリストを保存しました',
+        message: 'チェックリストを更新しました',
         severity: 'info',
       });
     } catch (error) {
