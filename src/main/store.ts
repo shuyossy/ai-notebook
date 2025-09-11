@@ -1,7 +1,6 @@
-import path, { join } from 'path';
-import { app } from 'electron';
 // @ts-ignore
 import Store from 'electron-store';
+import { getCustomAppDataDir } from './main';
 // 設定の型定義
 export interface StoreSchema {
   database: {
@@ -88,36 +87,6 @@ const schema = {
   },
 } as const;
 
-/**
- * config.json を収納するディレクトリを決定する
- *
- * 1. Windows Portable   : PORTABLE_EXECUTABLE_DIR
- * 2. Windows Installer  : exe と同階層
- * 3. macOS / Linux      : userData（書き込み可）
- * 4. 開発時             : プロジェクトのルート
- */
-export function getConfigDir(): string {
-  // --- ① Windows Portable (.exe 単体) --------------------------
-  // electron-builder の Portable テンプレートが自動で環境変数をセット
-  if (process.env.PORTABLE_EXECUTABLE_DIR) {
-    return process.env.PORTABLE_EXECUTABLE_DIR;
-  }
-
-  // --- ② パッケージ版 (app.isPackaged === true) ---------------
-  if (app.isPackaged) {
-    // macOS .app や Linux AppImage は execPath 周辺が書き込み不可
-    if (process.platform === 'darwin' || process.platform === 'linux') {
-      return app.getPath('userData'); // ユーザ領域へ退避
-    }
-    // Windows インストーラ版は exe と同階層 （Program Files でも書き込める）
-    return path.dirname(process.execPath);
-  }
-
-  // --- ③ 開発時 (electron . / npm start) -----------------------
-  // execPath は node_modules 内の Electron バイナリ ⇒ プロジェクト直下へ補正
-  return join(__dirname, '..', '..', 'electron-store');
-}
-
 // デフォルト値の設定
 const defaults: StoreSchema = {
   database: {
@@ -153,7 +122,7 @@ const store = new Store<StoreSchema>({
   defaults,
   // アプリのユーザーデータディレクトリ内のconfigフォルダに保存
   // cwd: path.join(app.getPath('userData'), 'config'),
-  cwd: getConfigDir(),
+  cwd: getCustomAppDataDir(), 
 });
 
 // ストアを取得する関数

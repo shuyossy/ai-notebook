@@ -21,12 +21,12 @@ import {
 import { sourceRegistrationWorkflow } from './workflows/sourceRegistration/sourceRegistration';
 import { checklistExtractionWorkflow } from './workflows/sourceReview/checklistExtraction';
 import { reviewExecutionWorkflow } from './workflows/sourceReview/reviewExecution';
-import { getConfigDir } from '@/main/store';
 import fs from 'fs';
 import path from 'path';
 import { getLogLevel } from '@/main/lib/logger';
+import { getCustomAppDataDir } from '@/main/main';
 
-const logDir = getConfigDir();
+const logDir = getCustomAppDataDir();
 // ログファイルの保存先ディレクトリを設定
 const logFilePath = path.join(logDir, 'ai.log');
 console.log(`AIログファイルの保存先: ${logFilePath}`);

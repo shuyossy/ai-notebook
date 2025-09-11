@@ -8,19 +8,15 @@
  * When running `npm run build` or `npm run build:main`, this file is compiled to
  * `./src/main.js` using webpack. This gives us some performance wins.
  */
-import path from 'path';
+import path, { join } from 'path';
 import fs from 'fs/promises';
 import nodeFs from 'node:fs';
+import { app } from 'electron';
 
-// windows環境でexeを実行する際は、userDataディレクトリを変更する（プロファイル逼迫対策）
-if (process.env.PORTABLE_EXECUTABLE_DIR) {
-  const userDataPath = path.join(
-    process.env.PORTABLE_EXECUTABLE_DIR,
-    'userData',
-  );
-  ensureDir(userDataPath);
-  app.setPath('userData', userDataPath);
-}
+// APPDATAディレクトリ変更
+const appDataDir = getCustomAppDataDir();
+ensureDir(appDataDir);
+app.setPath('userData', appDataDir);
 
 function ensureDir(p: string) {
   try {
@@ -31,8 +27,37 @@ function ensureDir(p: string) {
   }
 }
 
+/**
+ * AIKATA用のAPPDATAディレクトリを決定する
+ *
+ * 1. Windows Portable   : PORTABLE_EXECUTABLE_DIR
+ * 2. Windows Installer  : exe と同階層
+ * 3. macOS / Linux      : userData（書き込み可）
+ * 4. 開発時             : プロジェクトのルート
+ */
+export function getCustomAppDataDir(): string {
+  // --- ① Windows Portable (.exe 単体) --------------------------
+  // electron-builder の Portable テンプレートが自動で環境変数をセット
+  if (process.env.PORTABLE_EXECUTABLE_DIR) {
+    return process.env.PORTABLE_EXECUTABLE_DIR;
+  }
+
+  // --- ② パッケージ版 (app.isPackaged === true) ---------------
+  if (app.isPackaged) {
+    // macOS .app や Linux AppImage は execPath 周辺が書き込み不可
+    if (process.platform === 'darwin' || process.platform === 'linux') {
+      return app.getPath('userData');
+    }
+    // Windows インストーラ版は exe と同階層 （Program Files でも書き込める）
+    return path.dirname(process.execPath);
+  }
+
+  // --- ③ 開発時 (electron . / npm start) -----------------------
+  // execPath は node_modules 内の Electron バイナリ ⇒ プロジェクト直下へ補正
+  return join(__dirname, '..', '..', 'dev_appdata');
+}
+
 import {
-  app,
   BrowserWindow,
   shell,
   ipcMain,
