@@ -10,6 +10,27 @@
  */
 import path from 'path';
 import fs from 'fs/promises';
+import nodeFs from 'node:fs';
+
+// windows環境でexeを実行する際は、userDataディレクトリを変更する（プロファイル逼迫対策）
+if (process.env.PORTABLE_EXECUTABLE_DIR) {
+  const userDataPath = path.join(
+    process.env.PORTABLE_EXECUTABLE_DIR,
+    'userData',
+  );
+  ensureDir(userDataPath);
+  app.setPath('userData', userDataPath);
+}
+
+function ensureDir(p: string) {
+  try {
+    if (!nodeFs.existsSync(p)) nodeFs.mkdirSync(p, { recursive: true });
+  } catch (e) {
+    // 失敗時は必要に応じてフォールバック or エラー終了
+    console.error('Failed to create dir for app path:', p, e);
+  }
+}
+
 import {
   app,
   BrowserWindow,
