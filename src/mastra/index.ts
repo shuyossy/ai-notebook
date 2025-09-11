@@ -31,17 +31,24 @@ const logDir = getConfigDir();
 const logFilePath = path.join(logDir, 'ai.log');
 console.log(`AIログファイルの保存先: ${logFilePath}`);
 
-// --- ここでログファイルの初期化処理 ---
+// --- ログディレクトリとファイルの初期化処理 ---
 try {
+  // ディレクトリが存在しなければ作成（再帰的に作成可能）
+  if (!fs.existsSync(logDir)) {
+    fs.mkdirSync(logDir, { recursive: true });
+  }
+
   if (fs.existsSync(logFilePath)) {
     // 存在する場合は削除
     fs.unlinkSync(logFilePath);
   }
+
   // 空ファイルを作成（存在しない場合でも touch 的に作れる）
   fs.writeFileSync(logFilePath, '');
 } catch (err) {
   console.error('ログファイル初期化に失敗:', err);
 }
+
 
 // ロガーの作成
 export const logger = new PinoLogger({
