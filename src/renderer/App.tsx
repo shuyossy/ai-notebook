@@ -80,25 +80,6 @@ function App() {
       showAlert: false,
       throwError: false, // エラーはイベントpushで処理するため
     });
-
-    // 完了イベントの購読を開始（ワンショット）
-    const unsubscribe = sourceApi.subscribeSourceReloadFinished(
-      (payload: { success: boolean; error?: string }) => {
-        if (payload.success) {
-          addAlert({
-            severity: 'success',
-            message: 'ドキュメントの再読み込みが完了しました',
-          });
-        } else {
-          addAlert({
-            severity: 'error',
-            message: payload.error || 'ドキュメントの再読み込みに失敗しました',
-          });
-        }
-        // 処理完了と同時に購読解除
-        unsubscribe();
-      },
-    );
   };
 
   return (

@@ -442,7 +442,6 @@ function SourceListModal({
                 <TableCell>ファイルパス</TableCell>
                 <TableCell>タイトル（生成）</TableCell>
                 <TableCell>同期処理ステータス</TableCell>
-                <TableCell>最終更新</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -480,9 +479,6 @@ function SourceListModal({
                   <TableCell>{source.title}</TableCell>
                   <TableCell>
                     {getStatusIcon(source.status, source.error)}
-                  </TableCell>
-                  <TableCell>
-                    {new Date(source.updatedAt).toLocaleString()}
                   </TableCell>
                 </TableRow>
               ))}
