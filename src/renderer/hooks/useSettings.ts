@@ -291,8 +291,10 @@ const useSettingsStore = () => {
         });
       }
 
+      const parsedSettings = await SettingsSchema.parseAsync(settings);
+
       // 設定を一括保存
-      await settingsApi.setSettings(settings, {
+      await settingsApi.setSettings(parsedSettings, {
         showAlert: false,
         throwError: true,
       });

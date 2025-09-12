@@ -75,16 +75,19 @@ export const DatabaseSchema = z.object({
  * ソース設定のスキーマ
  */
 export const SourceSchema = z.object({
-  registerDir: z.string().optional().refine(
-    async (path) => {
-      if (!path) return true;
-      if (path === '') return true; // 空文字は許容
-      return await checkPathExists(path);
-    },
-    {
-      message: '指定されたパスが存在しません',
-    },
-  ),
+  registerDir: z
+    .string()
+    .optional()
+    .refine(
+      async (path) => {
+        if (!path) return true;
+        if (path === '') return true; // 空文字は許容
+        return await checkPathExists(path);
+      },
+      {
+        message: '指定されたパスが存在しません',
+      },
+    ),
 });
 
 /**
@@ -136,7 +139,13 @@ export const McpStoreSchema = z.object({
     .optional()
     .transform((str, ctx) => {
       try {
-        if (!str || str.trim() === '') {
+        if (str === undefined) return undefined;
+
+        // 全ての空白を取り除く（半角/全角スペース・タブ・改行など）
+        const cleaned = str.replace(/[\s\u3000]/g, '');
+
+        // 空文字または "{}" の場合は undefined を返す
+        if (cleaned === '' || cleaned === '{}' || cleaned === '""') {
           return undefined;
         }
         const json = JSON.parse(str);
