@@ -26,6 +26,15 @@ export const getSettingsRepository = (): ISettingsRepository => {
   return SettingsRepository;
 };
 
+/** undefined を保存したら例外になるため、delete に切り替える */
+function setOrDelete<T>(store: any, key: string, value: T | undefined) {
+  if (value === undefined) {
+    store.delete(key);
+  } else {
+    store.set(key, value);
+  }
+}
+
 /**
  * Electron Storeを使用した設定リポジトリの実装
  */
@@ -46,21 +55,34 @@ class ElectronStoreSettingsRepository implements ISettingsRepository {
 
   async saveSettings(settings: Settings): Promise<void> {
     try {
+      // 必須系（undefined にならない想定）
       this.store.set('database.dir', settings.database.dir);
-      this.store.set('source.registerDir', settings.source.registerDir);
       this.store.set('api.key', settings.api.key);
       this.store.set('api.model', settings.api.model);
       this.store.set('api.url', settings.api.url);
-      this.store.set('redmine.endpoint', settings.redmine.endpoint);
-      this.store.set('redmine.apiKey', settings.redmine.apiKey);
-      this.store.set('gitlab.endpoint', settings.gitlab.endpoint);
-      this.store.set('gitlab.apiKey', settings.gitlab.apiKey);
-      this.store.set('systemPrompt.content', settings.systemPrompt.content);
+
+      // 任意系は undefined の可能性があるため setOrDelete で処理
+      setOrDelete(this.store, 'source.registerDir', settings.source.registerDir);
+
+      setOrDelete(this.store, 'redmine.endpoint', settings.redmine.endpoint);
+      setOrDelete(this.store, 'redmine.apiKey', settings.redmine.apiKey);
+
+      setOrDelete(this.store, 'gitlab.endpoint', settings.gitlab.endpoint);
+      setOrDelete(this.store, 'gitlab.apiKey', settings.gitlab.apiKey);
+
+      setOrDelete(
+        this.store,
+        'systemPrompt.content',
+        settings.systemPrompt.content,
+      );
+
       if (settings.mcp.serverConfig) {
         this.store.set(
           'mcp.serverConfig',
           JSON.stringify(settings.mcp.serverConfig, null, 2),
         );
+      } else {
+        this.store.delete('mcp.serverConfig');
       }
     } catch (err) {
       throw repositoryError('設定情報の保存に失敗しました', err);
