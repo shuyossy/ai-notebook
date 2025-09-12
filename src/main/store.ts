@@ -90,15 +90,15 @@ const schema = {
 // デフォルト値の設定
 const defaults: StoreSchema = {
   database: {
-    dir: './default_data_dir',
+    dir: getCustomAppDataDir(),
   },
   source: {
     registerDir: undefined,
   },
   api: {
-    key: '',
-    url: '',
-    model: '',
+    key: 'aaa',
+    url: 'http://localhost',
+    model: 'aaa',
   },
   redmine: {
     endpoint: undefined,
@@ -122,7 +122,7 @@ const store = new Store<StoreSchema>({
   defaults,
   // アプリのユーザーデータディレクトリ内のconfigフォルダに保存
   // cwd: path.join(app.getPath('userData'), 'config'),
-  cwd: getCustomAppDataDir(), 
+  cwd: getCustomAppDataDir(),
 });
 
 // ストアを取得する関数

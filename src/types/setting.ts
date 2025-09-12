@@ -124,7 +124,7 @@ export const GitLabSchema = z.object({
  * システムプロンプト設定のスキーマ
  */
 export const SystemPromptSchema = z.object({
-  content: z.string(),
+  content: z.string().optional().or(z.literal('')),
 });
 
 /**
