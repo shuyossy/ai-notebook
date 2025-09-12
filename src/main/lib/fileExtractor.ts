@@ -4,7 +4,7 @@ import os from 'os';
 import path from 'path';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
-import { readFileSync} from 'fs';
+import { readFileSync, existsSync, mkdirSync } from 'fs';
 import { createHash } from 'crypto';
 import type { TextItem } from 'pdfjs-dist/types/src/display/api';
 import { getCustomAppDataDir } from '../main';
@@ -52,7 +52,15 @@ export default class FileExtractor {
    * キャッシュディレクトリのパスを取得
    */
   private static getCacheDir(): string {
-    return getCustomAppDataDir()
+    const userDataPath = getCustomAppDataDir()
+    const cacheDir = path.join(userDataPath, 'document_caches');
+
+    // ディレクトリが存在しない場合は作成
+    if (!existsSync(cacheDir)) {
+      mkdirSync(cacheDir, { recursive: true });
+    }
+
+    return cacheDir;
   }
 
   /**
