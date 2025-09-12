@@ -1,183 +1,126 @@
-diff --git a/.gitignore b/.gitignore
-index b5cdd5709..19003f9b1 100644
---- a/.gitignore
-+++ b/.gitignore
-@@ -46,3 +46,4 @@ mcp.log
- electron-store
- .erb/chrome.exe
- /release/app/drizzle
-+dev_appdata
-diff --git a/src/main/lib/fileExtractor.ts b/src/main/lib/fileExtractor.ts
-index 66debff84..4375ab235 100644
---- a/src/main/lib/fileExtractor.ts
-+++ b/src/main/lib/fileExtractor.ts
-@@ -4,11 +4,10 @@ import os from 'os';
- import path from 'path';
- import { execFile } from 'child_process';
- import { promisify } from 'util';
--import { readFileSync, existsSync, mkdirSync } from 'fs';
-+import { readFileSync} from 'fs';
- import { createHash } from 'crypto';
--import { app } from 'electron';
- import type { TextItem } from 'pdfjs-dist/types/src/display/api';
--import { getConfigDir } from '../store';
-+import { getCustomAppDataDir } from '../main';
+diff --git a/src/main/repository/settingsRepository.ts b/src/main/repository/settingsRepository.ts
+index 144bdb864..8e9590332 100644
+--- a/src/main/repository/settingsRepository.ts
++++ b/src/main/repository/settingsRepository.ts
+@@ -26,6 +26,15 @@ export const getSettingsRepository = (): ISettingsRepository => {
+   return SettingsRepository;
+ };
  
- // pdfテキスト抽出処理において、pdfjs-dist/legacy/build/pdf.mjsを動的インポートする際に、node.js環境でpdf処理をするためにライブラリ内部で@napi-rs/canvasを利用して、ブラウザのcanvasをpolyfillする
- // その際、動的にrequire("@napi-rs/canvas")が実行されるが、本番環境だとモジュールが見つけられないエラーになる
-@@ -53,7 +52,7 @@ export default class FileExtractor {
-    * キャッシュディレクトリのパスを取得
-    */
-   private static getCacheDir(): string {
--    return getConfigDir();
-+    return getCustomAppDataDir()
-   }
- 
-   /**
-diff --git a/src/main/main.ts b/src/main/main.ts
-index 0410a2ca4..1a49853bc 100644
---- a/src/main/main.ts
-+++ b/src/main/main.ts
-@@ -8,19 +8,15 @@
-  * When running `npm run build` or `npm run build:main`, this file is compiled to
-  * `./src/main.js` using webpack. This gives us some performance wins.
-  */
--import path from 'path';
-+import path, { join } from 'path';
- import fs from 'fs/promises';
- import nodeFs from 'node:fs';
-+import { app } from 'electron';
- 
--// windows環境でexeを実行する際は、userDataディレクトリを変更する（プロファイル逼迫対策）
--if (process.env.PORTABLE_EXECUTABLE_DIR) {
--  const userDataPath = path.join(
--    process.env.PORTABLE_EXECUTABLE_DIR,
--    'userData',
--  );
--  ensureDir(userDataPath);
--  app.setPath('userData', userDataPath);
--}
-+// APPDATAディレクトリ変更
-+const appDataDir = getCustomAppDataDir();
-+ensureDir(appDataDir);
-+app.setPath('userData', appDataDir);
- 
- function ensureDir(p: string) {
-   try {
-@@ -31,8 +27,37 @@ function ensureDir(p: string) {
-   }
- }
- 
-+/**
-+ * AIKATA用のAPPDATAディレクトリを決定する
-+ *
-+ * 1. Windows Portable   : PORTABLE_EXECUTABLE_DIR
-+ * 2. Windows Installer  : exe と同階層
-+ * 3. macOS / Linux      : userData（書き込み可）
-+ * 4. 開発時             : プロジェクトのルート
-+ */
-+export function getCustomAppDataDir(): string {
-+  // --- ① Windows Portable (.exe 単体) --------------------------
-+  // electron-builder の Portable テンプレートが自動で環境変数をセット
-+  if (process.env.PORTABLE_EXECUTABLE_DIR) {
-+    return process.env.PORTABLE_EXECUTABLE_DIR;
++/** undefined を保存したら例外になるため、delete に切り替える */
++function setOrDelete<T>(store: any, key: string, value: T | undefined) {
++  if (value === undefined) {
++    store.delete(key);
++  } else {
++    store.set(key, value);
 +  }
-+
-+  // --- ② パッケージ版 (app.isPackaged === true) ---------------
-+  if (app.isPackaged) {
-+    // macOS .app や Linux AppImage は execPath 周辺が書き込み不可
-+    if (process.platform === 'darwin' || process.platform === 'linux') {
-+      return app.getPath('userData');
-+    }
-+    // Windows インストーラ版は exe と同階層 （Program Files でも書き込める）
-+    return path.dirname(process.execPath);
-+  }
-+
-+  // --- ③ 開発時 (electron . / npm start) -----------------------
-+  // execPath は node_modules 内の Electron バイナリ ⇒ プロジェクト直下へ補正
-+  return join(__dirname, '..', '..', 'dev_appdata');
 +}
 +
- import {
--  app,
-   BrowserWindow,
-   shell,
-   ipcMain,
-diff --git a/src/main/store.ts b/src/main/store.ts
-index 9a05907a4..32a5cd3db 100644
---- a/src/main/store.ts
-+++ b/src/main/store.ts
-@@ -1,7 +1,6 @@
--import path, { join } from 'path';
--import { app } from 'electron';
- // @ts-ignore
- import Store from 'electron-store';
-+import { getCustomAppDataDir } from './main';
- // 設定の型定義
- export interface StoreSchema {
-   database: {
-@@ -88,36 +87,6 @@ const schema = {
-   },
- } as const;
+ /**
+  * Electron Storeを使用した設定リポジトリの実装
+  */
+@@ -46,21 +55,34 @@ class ElectronStoreSettingsRepository implements ISettingsRepository {
  
--/**
-- * config.json を収納するディレクトリを決定する
-- *
-- * 1. Windows Portable   : PORTABLE_EXECUTABLE_DIR
-- * 2. Windows Installer  : exe と同階層
-- * 3. macOS / Linux      : userData（書き込み可）
-- * 4. 開発時             : プロジェクトのルート
-- */
--export function getConfigDir(): string {
--  // --- ① Windows Portable (.exe 単体) --------------------------
--  // electron-builder の Portable テンプレートが自動で環境変数をセット
--  if (process.env.PORTABLE_EXECUTABLE_DIR) {
--    return process.env.PORTABLE_EXECUTABLE_DIR;
--  }
--
--  // --- ② パッケージ版 (app.isPackaged === true) ---------------
--  if (app.isPackaged) {
--    // macOS .app や Linux AppImage は execPath 周辺が書き込み不可
--    if (process.platform === 'darwin' || process.platform === 'linux') {
--      return app.getPath('userData'); // ユーザ領域へ退避
--    }
--    // Windows インストーラ版は exe と同階層 （Program Files でも書き込める）
--    return path.dirname(process.execPath);
--  }
--
--  // --- ③ 開発時 (electron . / npm start) -----------------------
--  // execPath は node_modules 内の Electron バイナリ ⇒ プロジェクト直下へ補正
--  return join(__dirname, '..', '..', 'electron-store');
--}
--
- // デフォルト値の設定
- const defaults: StoreSchema = {
-   database: {
-@@ -153,7 +122,7 @@ const store = new Store<StoreSchema>({
-   defaults,
-   // アプリのユーザーデータディレクトリ内のconfigフォルダに保存
-   // cwd: path.join(app.getPath('userData'), 'config'),
--  cwd: getConfigDir(),
-+  cwd: getCustomAppDataDir(), 
+   async saveSettings(settings: Settings): Promise<void> {
+     try {
++      // 必須系（undefined にならない想定）
+       this.store.set('database.dir', settings.database.dir);
+-      this.store.set('source.registerDir', settings.source.registerDir);
+       this.store.set('api.key', settings.api.key);
+       this.store.set('api.model', settings.api.model);
+       this.store.set('api.url', settings.api.url);
+-      this.store.set('redmine.endpoint', settings.redmine.endpoint);
+-      this.store.set('redmine.apiKey', settings.redmine.apiKey);
+-      this.store.set('gitlab.endpoint', settings.gitlab.endpoint);
+-      this.store.set('gitlab.apiKey', settings.gitlab.apiKey);
+-      this.store.set('systemPrompt.content', settings.systemPrompt.content);
++
++      // 任意系は undefined の可能性があるため setOrDelete で処理
++      setOrDelete(this.store, 'source.registerDir', settings.source.registerDir);
++
++      setOrDelete(this.store, 'redmine.endpoint', settings.redmine.endpoint);
++      setOrDelete(this.store, 'redmine.apiKey', settings.redmine.apiKey);
++
++      setOrDelete(this.store, 'gitlab.endpoint', settings.gitlab.endpoint);
++      setOrDelete(this.store, 'gitlab.apiKey', settings.gitlab.apiKey);
++
++      setOrDelete(
++        this.store,
++        'systemPrompt.content',
++        settings.systemPrompt.content,
++      );
++
+       if (settings.mcp.serverConfig) {
+         this.store.set(
+           'mcp.serverConfig',
+           JSON.stringify(settings.mcp.serverConfig, null, 2),
+         );
++      } else {
++        this.store.delete('mcp.serverConfig');
+       }
+     } catch (err) {
+       throw repositoryError('設定情報の保存に失敗しました', err);
+diff --git a/src/renderer/hooks/useSettings.ts b/src/renderer/hooks/useSettings.ts
+index 5da798fa8..fb7a118eb 100644
+--- a/src/renderer/hooks/useSettings.ts
++++ b/src/renderer/hooks/useSettings.ts
+@@ -291,8 +291,10 @@ const useSettingsStore = () => {
+         });
+       }
+ 
++      const parsedSettings = await SettingsSchema.parseAsync(settings);
++
+       // 設定を一括保存
+-      await settingsApi.setSettings(settings, {
++      await settingsApi.setSettings(parsedSettings, {
+         showAlert: false,
+         throwError: true,
+       });
+diff --git a/src/types/setting.ts b/src/types/setting.ts
+index e02af8c58..a0416b4f4 100644
+--- a/src/types/setting.ts
++++ b/src/types/setting.ts
+@@ -75,16 +75,19 @@ export const DatabaseSchema = z.object({
+  * ソース設定のスキーマ
+  */
+ export const SourceSchema = z.object({
+-  registerDir: z.string().optional().refine(
+-    async (path) => {
+-      if (!path) return true;
+-      if (path === '') return true; // 空文字は許容
+-      return await checkPathExists(path);
+-    },
+-    {
+-      message: '指定されたパスが存在しません',
+-    },
+-  ),
++  registerDir: z
++    .string()
++    .optional()
++    .refine(
++      async (path) => {
++        if (!path) return true;
++        if (path === '') return true; // 空文字は許容
++        return await checkPathExists(path);
++      },
++      {
++        message: '指定されたパスが存在しません',
++      },
++    ),
  });
  
- // ストアを取得する関数
-diff --git a/src/mastra/index.ts b/src/mastra/index.ts
-index 3b8821615..ee263a839 100644
---- a/src/mastra/index.ts
-+++ b/src/mastra/index.ts
-@@ -21,12 +21,12 @@ import {
- import { sourceRegistrationWorkflow } from './workflows/sourceRegistration/sourceRegistration';
- import { checklistExtractionWorkflow } from './workflows/sourceReview/checklistExtraction';
- import { reviewExecutionWorkflow } from './workflows/sourceReview/reviewExecution';
--import { getConfigDir } from '@/main/store';
- import fs from 'fs';
- import path from 'path';
- import { getLogLevel } from '@/main/lib/logger';
-+import { getCustomAppDataDir } from '@/main/main';
- 
--const logDir = getConfigDir();
-+const logDir = getCustomAppDataDir();
- // ログファイルの保存先ディレクトリを設定
- const logFilePath = path.join(logDir, 'ai.log');
- console.log(`AIログファイルの保存先: ${logFilePath}`);
+ /**
+@@ -136,7 +139,13 @@ export const McpStoreSchema = z.object({
+     .optional()
+     .transform((str, ctx) => {
+       try {
+-        if (!str || str.trim() === '') {
++        if (str === undefined) return undefined;
++
++        // 全ての空白を取り除く（半角/全角スペース・タブ・改行など）
++        const cleaned = str.replace(/[\s\u3000]/g, '');
++
++        // 空文字または "{}" の場合は undefined を返す
++        if (cleaned === '' || cleaned === '{}' || cleaned === '""') {
+           return undefined;
+         }
+         const json = JSON.parse(str);
