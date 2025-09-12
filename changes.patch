@@ -1,0 +1,429 @@
+diff --git a/changes.patch b/changes.patch
+index 61b6505df..e69de29bb 100644
+--- a/changes.patch
++++ b/changes.patch
+@@ -1,126 +0,0 @@
+-diff --git a/src/main/repository/settingsRepository.ts b/src/main/repository/settingsRepository.ts
+-index 144bdb864..8e9590332 100644
+---- a/src/main/repository/settingsRepository.ts
+-+++ b/src/main/repository/settingsRepository.ts
+-@@ -26,6 +26,15 @@ export const getSettingsRepository = (): ISettingsRepository => {
+-   return SettingsRepository;
+- };
+- 
+-+/** undefined を保存したら例外になるため、delete に切り替える */
+-+function setOrDelete<T>(store: any, key: string, value: T | undefined) {
+-+  if (value === undefined) {
+-+    store.delete(key);
+-+  } else {
+-+    store.set(key, value);
+-+  }
+-+}
+-+
+- /**
+-  * Electron Storeを使用した設定リポジトリの実装
+-  */
+-@@ -46,21 +55,34 @@ class ElectronStoreSettingsRepository implements ISettingsRepository {
+- 
+-   async saveSettings(settings: Settings): Promise<void> {
+-     try {
+-+      // 必須系（undefined にならない想定）
+-       this.store.set('database.dir', settings.database.dir);
+--      this.store.set('source.registerDir', settings.source.registerDir);
+-       this.store.set('api.key', settings.api.key);
+-       this.store.set('api.model', settings.api.model);
+-       this.store.set('api.url', settings.api.url);
+--      this.store.set('redmine.endpoint', settings.redmine.endpoint);
+--      this.store.set('redmine.apiKey', settings.redmine.apiKey);
+--      this.store.set('gitlab.endpoint', settings.gitlab.endpoint);
+--      this.store.set('gitlab.apiKey', settings.gitlab.apiKey);
+--      this.store.set('systemPrompt.content', settings.systemPrompt.content);
+-+
+-+      // 任意系は undefined の可能性があるため setOrDelete で処理
+-+      setOrDelete(this.store, 'source.registerDir', settings.source.registerDir);
+-+
+-+      setOrDelete(this.store, 'redmine.endpoint', settings.redmine.endpoint);
+-+      setOrDelete(this.store, 'redmine.apiKey', settings.redmine.apiKey);
+-+
+-+      setOrDelete(this.store, 'gitlab.endpoint', settings.gitlab.endpoint);
+-+      setOrDelete(this.store, 'gitlab.apiKey', settings.gitlab.apiKey);
+-+
+-+      setOrDelete(
+-+        this.store,
+-+        'systemPrompt.content',
+-+        settings.systemPrompt.content,
+-+      );
+-+
+-       if (settings.mcp.serverConfig) {
+-         this.store.set(
+-           'mcp.serverConfig',
+-           JSON.stringify(settings.mcp.serverConfig, null, 2),
+-         );
+-+      } else {
+-+        this.store.delete('mcp.serverConfig');
+-       }
+-     } catch (err) {
+-       throw repositoryError('設定情報の保存に失敗しました', err);
+-diff --git a/src/renderer/hooks/useSettings.ts b/src/renderer/hooks/useSettings.ts
+-index 5da798fa8..fb7a118eb 100644
+---- a/src/renderer/hooks/useSettings.ts
+-+++ b/src/renderer/hooks/useSettings.ts
+-@@ -291,8 +291,10 @@ const useSettingsStore = () => {
+-         });
+-       }
+- 
+-+      const parsedSettings = await SettingsSchema.parseAsync(settings);
+-+
+-       // 設定を一括保存
+--      await settingsApi.setSettings(settings, {
+-+      await settingsApi.setSettings(parsedSettings, {
+-         showAlert: false,
+-         throwError: true,
+-       });
+-diff --git a/src/types/setting.ts b/src/types/setting.ts
+-index e02af8c58..a0416b4f4 100644
+---- a/src/types/setting.ts
+-+++ b/src/types/setting.ts
+-@@ -75,16 +75,19 @@ export const DatabaseSchema = z.object({
+-  * ソース設定のスキーマ
+-  */
+- export const SourceSchema = z.object({
+--  registerDir: z.string().optional().refine(
+--    async (path) => {
+--      if (!path) return true;
+--      if (path === '') return true; // 空文字は許容
+--      return await checkPathExists(path);
+--    },
+--    {
+--      message: '指定されたパスが存在しません',
+--    },
+--  ),
+-+  registerDir: z
+-+    .string()
+-+    .optional()
+-+    .refine(
+-+      async (path) => {
+-+        if (!path) return true;
+-+        if (path === '') return true; // 空文字は許容
+-+        return await checkPathExists(path);
+-+      },
+-+      {
+-+        message: '指定されたパスが存在しません',
+-+      },
+-+    ),
+- });
+- 
+- /**
+-@@ -136,7 +139,13 @@ export const McpStoreSchema = z.object({
+-     .optional()
+-     .transform((str, ctx) => {
+-       try {
+--        if (!str || str.trim() === '') {
+-+        if (str === undefined) return undefined;
+-+
+-+        // 全ての空白を取り除く（半角/全角スペース・タブ・改行など）
+-+        const cleaned = str.replace(/[\s\u3000]/g, '');
+-+
+-+        // 空文字または "{}" の場合は undefined を返す
+-+        if (cleaned === '' || cleaned === '{}' || cleaned === '""') {
+-           return undefined;
+-         }
+-         const json = JSON.parse(str);
+diff --git a/src/mastra/workflows/sourceRegistration/sourceRegistrationManager.ts b/src/mastra/workflows/sourceRegistration/sourceRegistrationManager.ts
+index 248f7ec78..7cdb548b2 100644
+--- a/src/mastra/workflows/sourceRegistration/sourceRegistrationManager.ts
++++ b/src/mastra/workflows/sourceRegistration/sourceRegistrationManager.ts
+@@ -69,6 +69,12 @@ export default class SourceRegistrationManager {
+     try {
+       const store = await this.settingsRepository.getSettings();
+       const { registerDir } = store.source;
++      if (!registerDir || registerDir.trim() === '') {
++        throw internalError({
++          expose: true,
++          messageCode: 'SOURCE_REGISTRATION_DIR_NOT_SET',
++        });
++      }
+       let files: string[] = [];
+       if (registerDir.trim() !== '') {
+         // フォルダ内のファイル一覧を取得
+diff --git a/src/messages/ja/template.ts b/src/messages/ja/template.ts
+index 0b7d5ae55..2b70b6eed 100644
+--- a/src/messages/ja/template.ts
++++ b/src/messages/ja/template.ts
+@@ -22,6 +22,7 @@ export const template = {
+   FS_OPEN_DIALOG_ERROR: `ファイルダイアログの表示に失敗しました`,
+   FILE_TEXT_EXTRACTION_ERROR: `ファイルのテキスト抽出に失敗しました\n{path}`,
+   SOURCE_REGISTRATION_DIR_READING_ERROR: `ドキュメント登録用ディレクトリの読み込みに失敗しました`,
++  SOURCE_REGISTRATION_DIR_NOT_SET: `ドキュメント登録用ディレクトリが設定されていません\n設定画面で登録用ディレクトリを指定してください`,
+   REVIEW_CHECKLIST_EXTRACTION_ERROR: `チェックリスト抽出処理に失敗しました\n{detail}`,
+   REVIEW_EXECUTION_ERROR: `レビュー実行処理に失敗しました\n{detail}`,
+   REVIEW_CHECKLIST_EXTRACTION_OVER_MAX_TOKENS: `チェックリストの抽出結果がAIモデルの最大出力トークン数を超え、不正な出力となった為修正を試みましたが失敗しました。抽出結果が最大出力トークン内に収まるようにチェックリストのファイル分割を検討してください。`,
+diff --git a/src/renderer/components/common/AppErrorBoundary.tsx b/src/renderer/components/common/AppErrorBoundary.tsx
+index 1ec35d955..6835d73d5 100644
+--- a/src/renderer/components/common/AppErrorBoundary.tsx
++++ b/src/renderer/components/common/AppErrorBoundary.tsx
+@@ -1,4 +1,5 @@
+ import React from 'react';
++// @ts-ignore
+ import { ErrorBoundary } from 'react-error-boundary';
+ import { getSafeErrorMessage } from '@/renderer/lib/error';
+ import { alertStore } from '../../stores/alertStore';
+diff --git a/src/renderer/components/common/SourceListModal.tsx b/src/renderer/components/common/SourceListModal.tsx
+index ff4676736..e927559be 100644
+--- a/src/renderer/components/common/SourceListModal.tsx
++++ b/src/renderer/components/common/SourceListModal.tsx
+@@ -268,17 +268,28 @@ function SourceListModal({
+         // ドキュメント更新完了時にポーリングを停止
+         setReloadPolling(false);
+ 
++        fetchSources().catch((error) => {
++          console.error('ソース一覧の更新に失敗しました:', error);
++          addAlert({
++            message: getSafeErrorMessage(
++              error,
++              '登録済みドキュメントの取得に失敗しました',
++            ),
++            severity: 'error',
++          });
++        });
++
+         if (payload.success) {
+-          // 成功時：最新データを取得（アラート表示はApp.tsxで行う）
+-          fetchSources().catch((error) => {
+-            console.error('ソース一覧の更新に失敗しました:', error);
+-            addAlert({
+-              message: getSafeErrorMessage(
+-                error,
+-                'ドキュメント一覧の更新に失敗しました',
+-              ),
+-              severity: 'error',
+-            });
++          addAlert({
++            message: 'ドキュメントの同期が完了しました',
++            severity: 'success',
++          });
++        } else if (!payload.success) {
++          addAlert({
++            message: `ドキュメントの同期に失敗しました: ${
++              payload.error || '不明なエラー'
++            }`,
++            severity: 'error',
+           });
+         }
+         // 失敗時のエラーアラート表示はApp.tsxで行う
+diff --git a/src/renderer/components/review/ReviewArea.tsx b/src/renderer/components/review/ReviewArea.tsx
+index e204655ea..7a726d3b8 100644
+--- a/src/renderer/components/review/ReviewArea.tsx
++++ b/src/renderer/components/review/ReviewArea.tsx
+@@ -154,21 +154,21 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
+         // 抽出完了イベントの購読を開始
+         const unsubscribe = reviewApi.subscribeChecklistExtractionFinished(
+           (payload) => {
++            // 抽出結果の再取得
++            fetchChecklistResults().catch((error) => {
++              addAlert({
++                message: getSafeErrorMessage(
++                  error,
++                  'チェックリストの取得に失敗しました',
++                ),
++                severity: 'error',
++              });
++            });
+             if (payload.status === 'success') {
+               addAlert({
+                 message: 'チェックリストの抽出が完了しました',
+                 severity: 'success',
+               });
+-              // 抽出結果の再取得
+-              fetchChecklistResults().catch((error) => {
+-                addAlert({
+-                  message: getSafeErrorMessage(
+-                    error,
+-                    'チェックリスト結果の取得に失敗しました',
+-                  ),
+-                  severity: 'error',
+-                });
+-              });
+             } else if (payload.status === 'failed') {
+               addAlert({
+                 message: `チェックリストの抽出に失敗しました\n${payload.error}`,
+@@ -191,7 +191,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
+         setIsExtracting(false);
+       }
+     },
+-    [selectedReviewHistoryId, addAlert],
++    [selectedReviewHistoryId, addAlert, fetchChecklistResults],
+   );
+ 
+   // レビュー実行処理
+@@ -217,6 +217,16 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
+         // レビュー完了イベントの購読を開始
+         const unsubscribe = reviewApi.subscribeReviewExtractionFinished(
+           (payload) => {
++            // 抽出結果の再取得
++            fetchChecklistResults().catch((error) => {
++              addAlert({
++                message: getSafeErrorMessage(
++                  error,
++                  'チェックリストの取得に失敗しました',
++                ),
++                severity: 'error',
++              });
++            });
+             if (payload.status === 'success') {
+               addAlert({
+                 message: 'レビューが完了しました',
+@@ -241,7 +251,13 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
+         setIsReviewing(false);
+       }
+     },
+-    [selectedReviewHistoryId, addAlert, additionalInstructions, commentFormat],
++    [
++      selectedReviewHistoryId,
++      addAlert,
++      additionalInstructions,
++      commentFormat,
++      fetchChecklistResults,
++    ],
+   );
+ 
+   // チェックリスト抽出のキャンセル処理
+@@ -260,6 +276,16 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
+         message: 'チェックリスト抽出をキャンセルしました',
+         severity: 'info',
+       });
++      // 抽出結果の再取得
++      fetchChecklistResults().catch((error) => {
++        addAlert({
++          message: getSafeErrorMessage(
++            error,
++            'チェックリストの取得に失敗しました',
++          ),
++          severity: 'error',
++        });
++      });
+     } catch (error) {
+       console.error('チェックリスト抽出のキャンセルエラー:', error);
+       addAlert({
+@@ -267,7 +293,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
+         severity: 'warning',
+       });
+     }
+-  }, [selectedReviewHistoryId, addAlert]);
++  }, [selectedReviewHistoryId, addAlert, fetchChecklistResults]);
+ 
+   // レビュー実行のキャンセル処理
+   const handleCancelExecuteReview = useCallback(async () => {
+@@ -285,6 +311,15 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
+         message: 'レビュー実行をキャンセルしました',
+         severity: 'info',
+       });
++      fetchChecklistResults().catch((error) => {
++        addAlert({
++          message: getSafeErrorMessage(
++            error,
++            'チェックリストの取得に失敗しました',
++          ),
++          severity: 'error',
++        });
++      });
+     } catch (error) {
+       console.error('レビュー実行のキャンセルエラー:', error);
+       addAlert({
+@@ -292,7 +327,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
+         severity: 'warning',
+       });
+     }
+-  }, [selectedReviewHistoryId, addAlert]);
++  }, [selectedReviewHistoryId, addAlert, fetchChecklistResults]);
+ 
+   const handleModalSubmit = useCallback(
+     async (
+diff --git a/src/renderer/hooks/useSettings.ts b/src/renderer/hooks/useSettings.ts
+index fb7a118eb..85592c279 100644
+--- a/src/renderer/hooks/useSettings.ts
++++ b/src/renderer/hooks/useSettings.ts
+@@ -40,10 +40,7 @@ const useSettingsStore = () => {
+   const [loading, setLoading] = useState(true);
+   const [saving, setSaving] = useState(false);
+   const [saveError, setSaveError] = useState<string | null>(null);
+-  const {
+-    setUpdatedFlg,
+-    setStatus: setAgentStatus,
+-  } = useAgentStatusStore();
++  const { setUpdatedFlg, setStatus: setAgentStatus } = useAgentStatusStore();
+ 
+   // エージェント状態のポーリング制御
+   const [agentStatusPolling, setAgentStatusPolling] = useState(false);
+@@ -238,7 +235,6 @@ const useSettingsStore = () => {
+     };
+   }, [agentStatusPolling, fetchAgentStatus]);
+ 
+-
+   /**
+    * フィールドの更新処理
+    */
+@@ -306,31 +302,35 @@ const useSettingsStore = () => {
+       });
+ 
+       // 完了イベントの購読を開始（ワンショット）
+-      const unsubscribe = settingsApi.subscribeSettingsUpdateFinished((payload: { success: boolean; error?: string }) => {
+-        // 設定更新完了時にポーリングを停止
+-        setAgentStatusPolling(false);
++      const unsubscribe = settingsApi.subscribeSettingsUpdateFinished(
++        (payload: { success: boolean; error?: string }) => {
++          // 設定更新完了時にポーリングを停止
++          setAgentStatusPolling(false);
+ 
+-        if (payload.success) {
+-          // 成功時：最新データを取得
+           try {
+             fetchAgentStatus();
+           } catch (error) {
+             console.error('エージェント状態取得に失敗しました:', error);
+             addAlert({
+-              message: getSafeErrorMessage(error, 'AIツール情報の取得に失敗しました'),
++              message: getSafeErrorMessage(
++                error,
++                'AIツール起動情報の取得に失敗しました\n再度設定保存を実行してください',
++              ),
+               severity: 'error',
+             });
+           }
+-        } else {
+-          // 失敗時：エラー状態設定
+-          addAlert({
+-            message: `エージェント初期化に失敗しました\n${payload.error || '不明なエラーが発生しました'}`,
+-            severity: 'error',
+-          });
+-        }
+-        // 処理完了と同時に購読解除
+-        unsubscribe();
+-      });
++
++          if (!payload.success) {
++            // 失敗時：エラー状態設定
++            addAlert({
++              message: `AIツールの初期化に失敗しました: ${payload.error || '不明なエラーが発生しました'}\n再度設定保存を実行してください`,
++              severity: 'error',
++            });
++          }
++          // 処理完了と同時に購読解除
++          unsubscribe();
++        },
++      );
+ 
+       setUpdatedFlg(true);
+ 
+diff --git a/src/types/message.ts b/src/types/message.ts
+index d114ead74..e91cd18f6 100644
+--- a/src/types/message.ts
++++ b/src/types/message.ts
+@@ -13,6 +13,7 @@ export type MessageCode =
+   | 'REDMINE_API_ERROR'
+   | 'FILE_TEXT_EXTRACTION_ERROR'
+   | 'SOURCE_REGISTRATION_DIR_READING_ERROR'
++  | 'SOURCE_REGISTRATION_DIR_NOT_SET'
+   | 'REVIEW_CHECKLIST_EXTRACTION_ERROR'
+   | 'REVIEW_CHECKLIST_EXTRACTION_OVER_MAX_TOKENS'
+   | 'REVIEW_CHECKLIST_EXTRACTION_NOT_CHECKLIST_DOCUMENT'
