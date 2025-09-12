@@ -7,6 +7,7 @@ import { AppErrorPayload } from '@/types';
 import { APICallError, RetryError } from 'ai';
 // @ts-ignore
 import { MastraError } from '@mastra/core/error';
+import { error } from 'console';
 
 /**
  * 例外として扱うアプリケーションエラー。
@@ -83,11 +84,18 @@ export function normalizeUnknownError(err: unknown): AppError {
   if (err instanceof ZodError) return zodToAppError(err);
   const aiApiSafeError = extractAIAPISafeError(err);
   if (aiApiSafeError) {
+    let errorMessage = aiApiSafeError.message;
+    if (
+      APICallError.isInstance(aiApiSafeError) &&
+      aiApiSafeError.responseHeaders
+    ) {
+      errorMessage += `: ${aiApiSafeError.responseHeaders.errorMessage || aiApiSafeError.responseHeaders.errormessage || JSON.stringify(aiApiSafeError.responseBody, null, 2)}`;
+    }
     return new AppError('AI_API', {
       expose: true,
       cause: err,
       messageCode: 'AI_API_ERROR',
-      messageParams: { detail: aiApiSafeError.message },
+      messageParams: { detail: errorMessage },
     });
   }
   return internalError({
