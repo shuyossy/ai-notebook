@@ -268,17 +268,28 @@ function SourceListModal({
         // ドキュメント更新完了時にポーリングを停止
         setReloadPolling(false);
 
+        fetchSources().catch((error) => {
+          console.error('ソース一覧の更新に失敗しました:', error);
+          addAlert({
+            message: getSafeErrorMessage(
+              error,
+              '登録済みドキュメントの取得に失敗しました',
+            ),
+            severity: 'error',
+          });
+        });
+
         if (payload.success) {
-          // 成功時：最新データを取得（アラート表示はApp.tsxで行う）
-          fetchSources().catch((error) => {
-            console.error('ソース一覧の更新に失敗しました:', error);
-            addAlert({
-              message: getSafeErrorMessage(
-                error,
-                'ドキュメント一覧の更新に失敗しました',
-              ),
-              severity: 'error',
-            });
+          addAlert({
+            message: 'ドキュメントの同期が完了しました',
+            severity: 'success',
+          });
+        } else if (!payload.success) {
+          addAlert({
+            message: `ドキュメントの同期に失敗しました: ${
+              payload.error || '不明なエラー'
+            }`,
+            severity: 'error',
           });
         }
         // 失敗時のエラーアラート表示はApp.tsxで行う

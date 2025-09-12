@@ -22,6 +22,7 @@ export const template = {
   FS_OPEN_DIALOG_ERROR: `ファイルダイアログの表示に失敗しました`,
   FILE_TEXT_EXTRACTION_ERROR: `ファイルのテキスト抽出に失敗しました\n{path}`,
   SOURCE_REGISTRATION_DIR_READING_ERROR: `ドキュメント登録用ディレクトリの読み込みに失敗しました`,
+  SOURCE_REGISTRATION_DIR_NOT_SET: `ドキュメント登録用ディレクトリが設定されていません\n設定画面で登録用ディレクトリを指定してください`,
   REVIEW_CHECKLIST_EXTRACTION_ERROR: `チェックリスト抽出処理に失敗しました\n{detail}`,
   REVIEW_EXECUTION_ERROR: `レビュー実行処理に失敗しました\n{detail}`,
   REVIEW_CHECKLIST_EXTRACTION_OVER_MAX_TOKENS: `チェックリストの抽出結果がAIモデルの最大出力トークン数を超え、不正な出力となった為修正を試みましたが失敗しました。抽出結果が最大出力トークン内に収まるようにチェックリストのファイル分割を検討してください。`,

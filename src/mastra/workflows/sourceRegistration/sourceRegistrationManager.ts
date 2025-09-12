@@ -69,6 +69,12 @@ export default class SourceRegistrationManager {
     try {
       const store = await this.settingsRepository.getSettings();
       const { registerDir } = store.source;
+      if (!registerDir || registerDir.trim() === '') {
+        throw internalError({
+          expose: true,
+          messageCode: 'SOURCE_REGISTRATION_DIR_NOT_SET',
+        });
+      }
       let files: string[] = [];
       if (registerDir.trim() !== '') {
         // フォルダ内のファイル一覧を取得

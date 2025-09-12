@@ -154,20 +154,20 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
         // 抽出完了イベントの購読を開始
         const unsubscribe = reviewApi.subscribeChecklistExtractionFinished(
           (payload) => {
+            // 抽出結果の再取得
+            fetchChecklistResults().catch((error) => {
+              addAlert({
+                message: getSafeErrorMessage(
+                  error,
+                  'チェックリストの取得に失敗しました',
+                ),
+                severity: 'error',
+              });
+            });
             if (payload.status === 'success') {
               addAlert({
                 message: 'チェックリストの抽出が完了しました',
                 severity: 'success',
-              });
-              // 抽出結果の再取得
-              fetchChecklistResults().catch((error) => {
-                addAlert({
-                  message: getSafeErrorMessage(
-                    error,
-                    'チェックリスト結果の取得に失敗しました',
-                  ),
-                  severity: 'error',
-                });
               });
             } else if (payload.status === 'failed') {
               addAlert({
@@ -191,7 +191,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
         setIsExtracting(false);
       }
     },
-    [selectedReviewHistoryId, addAlert],
+    [selectedReviewHistoryId, addAlert, fetchChecklistResults],
   );
 
   // レビュー実行処理
@@ -217,6 +217,16 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
         // レビュー完了イベントの購読を開始
         const unsubscribe = reviewApi.subscribeReviewExtractionFinished(
           (payload) => {
+            // 抽出結果の再取得
+            fetchChecklistResults().catch((error) => {
+              addAlert({
+                message: getSafeErrorMessage(
+                  error,
+                  'チェックリストの取得に失敗しました',
+                ),
+                severity: 'error',
+              });
+            });
             if (payload.status === 'success') {
               addAlert({
                 message: 'レビューが完了しました',
@@ -241,7 +251,13 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
         setIsReviewing(false);
       }
     },
-    [selectedReviewHistoryId, addAlert, additionalInstructions, commentFormat],
+    [
+      selectedReviewHistoryId,
+      addAlert,
+      additionalInstructions,
+      commentFormat,
+      fetchChecklistResults,
+    ],
   );
 
   // チェックリスト抽出のキャンセル処理
@@ -260,6 +276,16 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
         message: 'チェックリスト抽出をキャンセルしました',
         severity: 'info',
       });
+      // 抽出結果の再取得
+      fetchChecklistResults().catch((error) => {
+        addAlert({
+          message: getSafeErrorMessage(
+            error,
+            'チェックリストの取得に失敗しました',
+          ),
+          severity: 'error',
+        });
+      });
     } catch (error) {
       console.error('チェックリスト抽出のキャンセルエラー:', error);
       addAlert({
@@ -267,7 +293,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
         severity: 'warning',
       });
     }
-  }, [selectedReviewHistoryId, addAlert]);
+  }, [selectedReviewHistoryId, addAlert, fetchChecklistResults]);
 
   // レビュー実行のキャンセル処理
   const handleCancelExecuteReview = useCallback(async () => {
@@ -285,6 +311,15 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
         message: 'レビュー実行をキャンセルしました',
         severity: 'info',
       });
+      fetchChecklistResults().catch((error) => {
+        addAlert({
+          message: getSafeErrorMessage(
+            error,
+            'チェックリストの取得に失敗しました',
+          ),
+          severity: 'error',
+        });
+      });
     } catch (error) {
       console.error('レビュー実行のキャンセルエラー:', error);
       addAlert({
@@ -292,7 +327,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
         severity: 'warning',
       });
     }
-  }, [selectedReviewHistoryId, addAlert]);
+  }, [selectedReviewHistoryId, addAlert, fetchChecklistResults]);
 
   const handleModalSubmit = useCallback(
     async (

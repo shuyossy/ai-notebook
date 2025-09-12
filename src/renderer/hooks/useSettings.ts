@@ -40,10 +40,7 @@ const useSettingsStore = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const {
-    setUpdatedFlg,
-    setStatus: setAgentStatus,
-  } = useAgentStatusStore();
+  const { setUpdatedFlg, setStatus: setAgentStatus } = useAgentStatusStore();
 
   // エージェント状態のポーリング制御
   const [agentStatusPolling, setAgentStatusPolling] = useState(false);
@@ -238,7 +235,6 @@ const useSettingsStore = () => {
     };
   }, [agentStatusPolling, fetchAgentStatus]);
 
-
   /**
    * フィールドの更新処理
    */
@@ -306,31 +302,35 @@ const useSettingsStore = () => {
       });
 
       // 完了イベントの購読を開始（ワンショット）
-      const unsubscribe = settingsApi.subscribeSettingsUpdateFinished((payload: { success: boolean; error?: string }) => {
-        // 設定更新完了時にポーリングを停止
-        setAgentStatusPolling(false);
+      const unsubscribe = settingsApi.subscribeSettingsUpdateFinished(
+        (payload: { success: boolean; error?: string }) => {
+          // 設定更新完了時にポーリングを停止
+          setAgentStatusPolling(false);
 
-        if (payload.success) {
-          // 成功時：最新データを取得
           try {
             fetchAgentStatus();
           } catch (error) {
             console.error('エージェント状態取得に失敗しました:', error);
             addAlert({
-              message: getSafeErrorMessage(error, 'AIツール情報の取得に失敗しました'),
+              message: getSafeErrorMessage(
+                error,
+                'AIツール起動情報の取得に失敗しました\n再度設定保存を実行してください',
+              ),
               severity: 'error',
             });
           }
-        } else {
-          // 失敗時：エラー状態設定
-          addAlert({
-            message: `エージェント初期化に失敗しました\n${payload.error || '不明なエラーが発生しました'}`,
-            severity: 'error',
-          });
-        }
-        // 処理完了と同時に購読解除
-        unsubscribe();
-      });
+
+          if (!payload.success) {
+            // 失敗時：エラー状態設定
+            addAlert({
+              message: `AIツールの初期化に失敗しました: ${payload.error || '不明なエラーが発生しました'}\n再度設定保存を実行してください`,
+              severity: 'error',
+            });
+          }
+          // 処理完了と同時に購読解除
+          unsubscribe();
+        },
+      );
 
       setUpdatedFlg(true);
 

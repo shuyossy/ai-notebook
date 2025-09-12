@@ -1,4 +1,5 @@
 import React from 'react';
+// @ts-ignore
 import { ErrorBoundary } from 'react-error-boundary';
 import { getSafeErrorMessage } from '@/renderer/lib/error';
 import { alertStore } from '../../stores/alertStore';
