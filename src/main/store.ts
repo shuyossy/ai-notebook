@@ -101,12 +101,12 @@ const defaults: StoreSchema = {
     model: 'aaa',
   },
   redmine: {
-    endpoint: undefined,
-    apiKey: undefined,
+    endpoint: 'http://localhost',
+    apiKey: '',
   },
   gitlab: {
-    endpoint: undefined,
-    apiKey: undefined,
+    endpoint: 'http://localhost',
+    apiKey: '',
   },
   mcp: {
     serverConfig: undefined,
