@@ -1,9 +1,12 @@
 import Logger from 'electron-log';
 import log from 'electron-log/main';
+import { getCustomAppDataDir } from '../main';
+import path from 'path';
 
 const logLevel = getLogLevel();
 log.transports.file.level = logLevel;
 log.transports.console.level = logLevel;
+log.transports.file.resolvePathFn = () => path.join(getCustomAppDataDir(), 'main.log');
 
 // シングルトン変数
 let _mainLogger: Logger.MainLogger | null = null;
