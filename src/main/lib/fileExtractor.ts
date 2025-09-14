@@ -35,6 +35,42 @@ const CACHE_TARGET_EXTENSIONS = [
   '.pdf',
 ];
 
+/** テキスト後処理ポリシー */
+type TextPostProcessPolicy = {
+  /** 連続空白（半角/全角/タブ/NBSP）を1つに圧縮 */
+  collapseConsecutiveWhitespaces: boolean;
+  /** 行頭インデントは保持したまま圧縮 */
+  collapsePreserveIndent: boolean;
+  /** 行末の空白を削除 */
+  trimLineEndSpaces: boolean;
+  /**
+   * 行末カンマを削除
+   * - preserveCsvTrailingEmptyFields=true の場合、CSVの末尾空セルらしき行は温存
+   */
+  removeTrailingCommas: boolean;
+  /** CSV の末尾空セルらしき行は行末カンマを温存する */
+  preserveCsvTrailingEmptyFields: boolean;
+  /** “空行”連続の最大許容数（例: 2） */
+  maxConsecutiveBlankLines: number;
+  /**
+   * 【追加】カンマと空白のみで構成される行を削除
+   * 例: ",,,", " , , , " など（空白は無視）
+   * デフォルトは安全側で false
+   */
+  removeCommaOnlyLines: boolean;
+};
+
+/** デフォルト（安全寄り） */
+const DEFAULT_POST_PROCESS_POLICY: TextPostProcessPolicy = {
+  collapseConsecutiveWhitespaces: true,
+  collapsePreserveIndent: true,
+  trimLineEndSpaces: true,
+  removeTrailingCommas: true,
+  preserveCsvTrailingEmptyFields: true,
+  maxConsecutiveBlankLines: 2,
+  removeCommaOnlyLines: true,
+};
+
 /** 抽出結果の型定義 */
 export interface ExtractionResult {
   content: string;
@@ -46,13 +82,19 @@ export interface ExtractionResult {
   };
 }
 
+/** extractText オプション */
+type ExtractTextOptions = {
+  useCache?: boolean;
+  textPostProcess?: Partial<TextPostProcessPolicy>;
+};
+
 /** 多様なファイル形式からテキストを抽出するユーティリティクラス */
 export default class FileExtractor {
   /**
    * キャッシュディレクトリのパスを取得
    */
   private static getCacheDir(): string {
-    const userDataPath = getCustomAppDataDir()
+    const userDataPath = getCustomAppDataDir();
     const cacheDir = path.join(userDataPath, 'document_caches');
 
     // ディレクトリが存在しない場合は作成
@@ -155,7 +197,7 @@ export default class FileExtractor {
    */
   public static async extractText(
     filePath: string,
-    options?: { useCache?: boolean },
+    options?: ExtractTextOptions,
   ): Promise<ExtractionResult> {
     const extension = path.extname(filePath).toLowerCase();
     const useCache = options?.useCache ?? true;
@@ -180,11 +222,19 @@ export default class FileExtractor {
           content = cachedContent;
         } else {
           content = await this.extractContentByType(filePath, extension);
+          content = this.normalizeExtractedText(
+            content,
+            options?.textPostProcess,
+          );
           // 抽出したテキストをキャッシュに保存
           await this.saveCache(filePath, content);
         }
       } else {
         content = await this.extractContentByType(filePath, extension);
+        content = this.normalizeExtractedText(
+          content,
+          options?.textPostProcess,
+        );
       }
 
       return {
@@ -205,6 +255,91 @@ export default class FileExtractor {
         cause: error,
       });
     }
+  }
+
+  private static normalizeExtractedText(
+    raw: string,
+    overrides?: Partial<TextPostProcessPolicy>,
+  ): string {
+    const policy: TextPostProcessPolicy = {
+      ...DEFAULT_POST_PROCESS_POLICY,
+      ...(overrides ?? {}),
+    };
+
+    // 改行を LF に正規化
+    let text = raw.replace(/\r\n?/g, '\n');
+
+    const lines = text.split('\n').map((line) => {
+      let current = line;
+
+      // (1) 行末空白削除
+      if (policy.trimLineEndSpaces) {
+        current = current.replace(/[ \t\u00A0\u3000]+$/u, '');
+      }
+
+      // (2) 連続空白の圧縮（行頭インデント保護可）
+      if (policy.collapseConsecutiveWhitespaces) {
+        if (policy.collapsePreserveIndent) {
+          const indentMatch = current.match(/^[ \t\u00A0\u3000]*/u);
+          const indent = indentMatch ? indentMatch[0] : '';
+          const rest = current.slice(indent.length);
+          current = indent + rest.replace(/[ \t\u00A0\u3000]{2,}/gu, ' ');
+        } else {
+          current = current.replace(/[ \t\u00A0\u3000]{2,}/gu, ' ');
+        }
+      }
+
+      // (3) カンマのみ行（空白は無視）を削除
+      //     例: ",,,", " , , , ", "\t,\t,\t"
+      if (policy.removeCommaOnlyLines) {
+        const commaOnly = /^[ \t\u00A0\u3000]*(?:,[ \t\u00A0\u3000]*)+$/u; // カンマ+空白のみ（少なくとも1つのカンマ）
+        if (commaOnly.test(current)) {
+          current = '';
+        }
+      }
+
+      // (4) 行末カンマの削除（CSV末尾空セルは温存可）
+      if (policy.removeTrailingCommas) {
+        const endsWithComma = /,+$/.test(current);
+        if (endsWithComma) {
+          if (policy.preserveCsvTrailingEmptyFields) {
+            const hasInnerComma = /,.*,[^,]*$/.test(current); // 末尾以外にもカンマ
+            const hasQuote = /"/.test(current);
+            const isSheetHeader = current.startsWith('#sheet:');
+            if (!(hasInnerComma || hasQuote || isSheetHeader)) {
+              current = current.replace(/,+$/u, '');
+            }
+          } else {
+            current = current.replace(/,+$/u, '');
+          }
+        }
+      }
+
+      // (5) 空白のみ行は空行へ
+      if (/^[ \t\u00A0\u3000]+$/u.test(current)) {
+        current = '';
+      }
+
+      return current;
+    });
+
+    // (6) 空行の連続を制限
+    if (policy.maxConsecutiveBlankLines >= 0) {
+      const out: string[] = [];
+      let blankRun = 0;
+      for (const l of lines) {
+        if (l.length === 0) {
+          blankRun += 1;
+          if (blankRun <= policy.maxConsecutiveBlankLines) out.push('');
+        } else {
+          blankRun = 0;
+          out.push(l);
+        }
+      }
+      return out.join('\n');
+    }
+
+    return lines.join('\n');
   }
 
   /* ------------------------------------------------------------------ */
@@ -274,7 +409,10 @@ export default class FileExtractor {
         ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', tmp],
         { encoding: 'utf8', maxBuffer: 1024 * 1024 * 20 }, // 20 MiB
       );
-      return stdout.replace(/\r/g, '\n').trimEnd();
+      return stdout
+        .replace(/\r\n/g, '\n') // CRLF → LF
+        .replace(/\r/g, '\n') // 孤立 CR → LF
+        .trimEnd(); // 末尾改行除去
     } finally {
       await fs.unlink(tmp).catch(() => void 0); // 後始末
     }
@@ -297,24 +435,87 @@ $Path = '${safePath}'
     switch (mode) {
       /* ---------------------------- Word / PDF ---------------------- */
       case 'word':
-        // case 'pdf': // PDFもword経由で処理できるが、確認ダイアログが出てしまうので、PDFは別途処理する
         return (
           commonHeader +
           `
 try {
+    # Word 起動
     $word = New-Object -ComObject Word.Application
     $word.Visible = $false
-    $doc  = $word.Documents.Open($Path, \$false, \$true)
-    $txt  = $doc.Content.Text                             # Document.Content.Text → Range.Text  [oai_citation:0‡Microsoft Learn](https://learn.microsoft.com/en-us/office/vba/api/word.document.content?utm_source=chatgpt.com) [oai_citation:1‡Microsoft Learn](https://learn.microsoft.com/en-us/office/vba/api/word.range.text?utm_source=chatgpt.com)
-    $doc.Close()
-    $word.Quit()
+    $word.DisplayAlerts = 0  # ダイアログ抑止
+
+    # 読み取り専用ではなく開く（本文を書き換えるため）
+    $doc = $word.Documents.Open($Path, $false, $false)
+
+    # ===== CSV 変換ユーティリティ =====
+
+    function Convert-ToCsvField {
+      param([string]$Text, [string]$Delimiter)
+      # デリミタ or ダブルクオート or 改行を含むなら引用
+      $needsQuote = $Text.Contains($Delimiter) -or
+                    $Text.Contains('"') -or
+                    ($Text.IndexOf([char]13) -ge 0) -or
+                    ($Text.IndexOf([char]10) -ge 0)
+      $escaped = $Text -replace '"','""'
+      if ($needsQuote) { return '"' + $escaped + '"' } else { return $escaped }
+    }
+
+    function Get-CleanCellText {
+      param($Cell) # Word.Cell
+      # セル末尾の CR(13) + BEL(7) を除去
+      $t = $Cell.Range.Text.TrimEnd([char]13,[char]7)
+      # セル内の改行は見やすさのため空白 1 個に畳み込み
+      $t = [regex]::Replace($t, "(\\r?\\n)+", " ")
+      return $t
+    }
+
+    function Convert-TableToCsv {
+      param($Table, [string]$Delimiter)
+      $sb = New-Object System.Text.StringBuilder
+      for ($r = 1; $r -le $Table.Rows.Count; $r++) {
+        $row = $Table.Rows.Item($r)
+        $fields = New-Object System.Collections.Generic.List[string]
+        for ($ci = 1; $ci -le $row.Cells.Count; $ci++) {
+          $cell = $row.Cells.Item($ci)
+          $raw  = Get-CleanCellText -Cell $cell
+          $csvF = Convert-ToCsvField -Text $raw -Delimiter $Delimiter
+          [void]$fields.Add($csvF)
+        }
+        [void]$sb.AppendLine([string]::Join(",", $fields))
+      }
+      # 最終改行を削除（CR/LF を直接指定）
+      return $sb.ToString().TrimEnd([char]13, [char]10)
+    }
+
+    function Replace-TablesWithCsvInRange {
+      param($Range)
+      # 逆順処理：置換で Tables コレクションが揺れるのを防ぐ
+      $tables = $Range.Tables
+      for ($i = $tables.Count; $i -ge 1; $i--) {
+        $tbl = $tables.Item($i)
+        $csv = Convert-TableToCsv -Table $tbl -Delimiter ","
+        # 表の範囲そのものを CSV テキストに置換（元位置に埋め込み）
+        $tbl.Range.Text = $csv
+      }
+    }
+
+    # ===== 本文（メインストーリー）だけを対象に置換 =====
+    Replace-TablesWithCsvInRange -Range $doc.Content
+
+    # 置換後の本文テキストを取得（ファイルは保存しない）
+    $txt = $doc.Content.Text
+
+    # 出力
     Write-Output $txt
-} finally {
-    try { if ($doc)  { $doc.Close() } } catch {}
+}
+finally {
+    # 変更は保存せずにクローズ（0 = wdDoNotSaveChanges）
+    try { if ($doc)  { $doc.Close(0) } } catch {}
     try { if ($word) { $word.Quit() } } catch {}
 }
 `
         );
+
       /* ---------------------------- Excel --------------------------- */
       case 'excel':
         return (
