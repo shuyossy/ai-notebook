@@ -4,14 +4,13 @@ import { AppErrorPayload } from './error';
 import type {
   DocumentType,
   UploadFile,
-  ReviewChecklistResultDisplay,
+  ReviewChecklistResult,
   ReviewChecklistEdit,
   ChecklistExtractionResultStatus,
   ReviewExecutionResultStatus,
 } from './review';
 import type { SettingsSavingStatus, Settings } from './setting';
-import type { Source } from '@/types';
-import type { ReviewHistory } from '@/db/schema';
+import type { Source, RevieHistory } from '@/types';
 
 type IpcSuccess<T> = {
   success: true;
@@ -179,9 +178,9 @@ export type IpcResponsePayloadMap = {
   [IpcChannels.CHAT_DELETE_MESSAGES_BEFORE_SPECIFIC_ID]: IpcResult;
 
   // ドキュメントレビュー関連
-  [IpcChannels.REVIEW_GET_HISTORIES]: IpcResult<ReviewHistory[]>;
+  [IpcChannels.REVIEW_GET_HISTORIES]: IpcResult<RevieHistory[]>;
   [IpcChannels.REVIEW_GET_HISTORY_DETAIL]: IpcResult<{
-    checklistResults?: ReviewChecklistResultDisplay[];
+    checklistResults?: ReviewChecklistResult[];
   }>;
   [IpcChannels.REVIEW_GET_HISTORY_INSTRUCTION]: IpcResult<{
     additionalInstructions?: string;

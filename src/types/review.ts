@@ -1,3 +1,21 @@
+export interface RevieHistory {
+  id: string; // reviewHistoriesのid
+  title: string;
+  additionalInstructions: string | null;
+  commentFormat?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ReviewChecklist {
+  id: number;
+  reviewHistoryId: string;
+  content: string;
+  createdBy: ReviewChecklistCreatedBy;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // レビュー評価の型定義
 export type ReviewEvaluation = 'A' | 'B' | 'C' | '-';
 
@@ -5,7 +23,7 @@ export type ReviewEvaluation = 'A' | 'B' | 'C' | '-';
 export type ReviewChecklistCreatedBy = 'user' | 'system';
 
 // 最終的に画面に表示するチェックリストの型
-export type ReviewChecklistResultDisplay = {
+export type ReviewChecklistResult = {
   id: number; // チェックリストのID
   content: string;
   sourceEvaluations?: {

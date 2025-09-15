@@ -1,17 +1,15 @@
 import { eq, and } from 'drizzle-orm';
-import type {
-  ReviewHistory,
-  ReviewChecklist,
-  ReviewChecklistResult as DBReviewChecklistResult,
-} from '../../db/schema';
 import {
   reviewHistories,
   reviewChecklists,
   reviewChecklistResults,
+  ReviewChecklistEntity,
 } from '../../db/schema';
 import getDb from '../../db';
 import type {
-  ReviewChecklistResultDisplay,
+  RevieHistory,
+  ReviewChecklist,
+  ReviewChecklistResult,
   ReviewEvaluation,
   ReviewChecklistCreatedBy,
 } from '@/types';
@@ -23,9 +21,9 @@ import { repositoryError } from './error';
  */
 export interface IReviewRepository {
   // レビュー履歴
-  createReviewHistory(title: string, id?: string): Promise<ReviewHistory>;
-  getReviewHistory(id: string): Promise<ReviewHistory | null>;
-  getAllReviewHistories(): Promise<ReviewHistory[]>;
+  createReviewHistory(title: string, id?: string): Promise<RevieHistory>;
+  getReviewHistory(id: string): Promise<RevieHistory | null>;
+  getAllReviewHistories(): Promise<RevieHistory[]>;
   updateReviewHistoryTitle(id: string, title: string): Promise<void>;
   updateReviewHistoryAdditionalInstructionsAndCommentFormat(
     id: string,
@@ -39,9 +37,9 @@ export interface IReviewRepository {
     reviewHistoryId: string,
     content: string,
     createdBy: ReviewChecklistCreatedBy,
-  ): Promise<ReviewChecklist>;
+  ): Promise<void>;
   getChecklists(reviewHistoryId: string): Promise<ReviewChecklist[]>;
-  updateChecklist(id: number, content: string): Promise<ReviewChecklist>;
+  updateChecklist(id: number, content: string): Promise<void>;
   deleteChecklist(id: number): Promise<void>;
   deleteSystemCreatedChecklists(reviewHistoryId: string): Promise<void>;
 
@@ -54,17 +52,14 @@ export interface IReviewRepository {
       fileId: string;
       fileName: string;
     }[],
-  ): Promise<DBReviewChecklistResult[]>;
-  getReviewResults(
-    reviewChecklistId: number,
-  ): Promise<DBReviewChecklistResult[]>;
+  ): Promise<void>;
   deleteReviewResults(
     reviewChecklistId: number,
     sourceId: number,
   ): Promise<void>;
   getReviewChecklistResults(
     reviewHistoryId: string,
-  ): Promise<ReviewChecklistResultDisplay[]>;
+  ): Promise<ReviewChecklistResult[]>;
   deleteAllReviewResults(reviewHistoryId: string): Promise<void>;
 }
 
@@ -74,11 +69,20 @@ let reviewRepository: IReviewRepository | null = null;
  * Drizzle ORM を使用したレビューリポジトリの実装
  */
 class DrizzleReviewRepository implements IReviewRepository {
+  convertReviewChecklistEntityToReviewChecklist(
+    reviewChecklistEntity: ReviewChecklistEntity,
+  ): ReviewChecklist {
+    return {
+      id: reviewChecklistEntity.id,
+      reviewHistoryId: reviewChecklistEntity.reviewHistoryId,
+      content: reviewChecklistEntity.content,
+      createdBy: reviewChecklistEntity.createdBy as ReviewChecklistCreatedBy,
+      createdAt: reviewChecklistEntity.createdAt,
+      updatedAt: reviewChecklistEntity.updatedAt,
+    };
+  }
   /** レビュー履歴を作成 */
-  async createReviewHistory(
-    title: string,
-    id?: string,
-  ): Promise<ReviewHistory> {
+  async createReviewHistory(title: string, id?: string): Promise<RevieHistory> {
     try {
       const db = await getDb();
       const [history] = await db
@@ -92,7 +96,7 @@ class DrizzleReviewRepository implements IReviewRepository {
   }
 
   /** レビュー履歴を取得（存在しない場合は null） */
-  async getReviewHistory(id: string): Promise<ReviewHistory | null> {
+  async getReviewHistory(id: string): Promise<RevieHistory | null> {
     try {
       const db = await getDb();
       const [history] = await db
@@ -106,7 +110,7 @@ class DrizzleReviewRepository implements IReviewRepository {
   }
 
   /** 全レビュー履歴を取得 */
-  async getAllReviewHistories(): Promise<ReviewHistory[]> {
+  async getAllReviewHistories(): Promise<RevieHistory[]> {
     try {
       const db = await getDb();
       return await db
@@ -169,14 +173,13 @@ class DrizzleReviewRepository implements IReviewRepository {
     reviewHistoryId: string,
     content: string,
     createdBy: ReviewChecklistCreatedBy,
-  ): Promise<ReviewChecklist> {
+  ): Promise<void> {
     try {
       const db = await getDb();
       const [checklist] = await db
         .insert(reviewChecklists)
         .values({ reviewHistoryId, content, createdBy })
         .returning();
-      return checklist;
     } catch (err) {
       throw repositoryError('チェックリストの作成に失敗しました', err);
     }
@@ -186,18 +189,21 @@ class DrizzleReviewRepository implements IReviewRepository {
   async getChecklists(reviewHistoryId: string): Promise<ReviewChecklist[]> {
     try {
       const db = await getDb();
-      return await db
+      const reviewChecklistEntities = await db
         .select()
         .from(reviewChecklists)
         .where(eq(reviewChecklists.reviewHistoryId, reviewHistoryId))
         .orderBy(reviewChecklists.updatedAt);
+      return reviewChecklistEntities.map((entity) =>
+        this.convertReviewChecklistEntityToReviewChecklist(entity),
+      );
     } catch (err) {
       throw repositoryError('チェックリスト一覧の取得に失敗しました', err);
     }
   }
 
   /** チェックリストを更新 */
-  async updateChecklist(id: number, content: string): Promise<ReviewChecklist> {
+  async updateChecklist(id: number, content: string): Promise<void> {
     try {
       const db = await getDb();
       const [checklist] = await db
@@ -208,7 +214,6 @@ class DrizzleReviewRepository implements IReviewRepository {
       if (!checklist) {
         throw repositoryError('指定されたチェックリストが存在しません', null);
       }
-      return checklist;
     } catch (err) {
       if (err instanceof AppError) throw err;
       throw repositoryError('チェックリストの更新に失敗しました', err);
@@ -251,10 +256,9 @@ class DrizzleReviewRepository implements IReviewRepository {
       fileId: string;
       fileName: string;
     }[],
-  ): Promise<DBReviewChecklistResult[]> {
+  ): Promise<void> {
     try {
       const db = await getDb();
-      const upsertedResults: DBReviewChecklistResult[] = [];
       for (const result of results) {
         const [upserted] = await db
           .insert(reviewChecklistResults)
@@ -270,26 +274,9 @@ class DrizzleReviewRepository implements IReviewRepository {
             },
           })
           .returning();
-        upsertedResults.push(upserted);
       }
-      return upsertedResults;
     } catch (err) {
       throw repositoryError('レビュー結果の保存に失敗しました', err);
-    }
-  }
-
-  /** レビュー結果一覧を取得 */
-  async getReviewResults(
-    reviewChecklistId: number,
-  ): Promise<DBReviewChecklistResult[]> {
-    try {
-      const db = await getDb();
-      return await db
-        .select()
-        .from(reviewChecklistResults)
-        .where(eq(reviewChecklistResults.reviewChecklistId, reviewChecklistId));
-    } catch (err) {
-      throw repositoryError('レビュー結果一覧の取得に失敗しました', err);
     }
   }
 
@@ -316,7 +303,7 @@ class DrizzleReviewRepository implements IReviewRepository {
   /** チェックリスト結果を取得してグルーピング */
   async getReviewChecklistResults(
     reviewHistoryId: string,
-  ): Promise<ReviewChecklistResultDisplay[]> {
+  ): Promise<ReviewChecklistResult[]> {
     try {
       const db = await getDb();
       const rows = await db
@@ -336,7 +323,7 @@ class DrizzleReviewRepository implements IReviewRepository {
         .where(eq(reviewChecklists.reviewHistoryId, reviewHistoryId))
         .orderBy(reviewChecklists.createdAt);
 
-      const map = new Map<number, ReviewChecklistResultDisplay>();
+      const map = new Map<number, ReviewChecklistResult>();
       for (const row of rows) {
         let group = map.get(row.checklistId);
         if (!group) {

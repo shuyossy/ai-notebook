@@ -1,4 +1,4 @@
-import { ReviewChecklistResultDisplay } from '@/types';
+import { ReviewChecklistResult } from '@/types';
 
 /**
  * CSV用文字列のエスケープ処理
@@ -30,7 +30,7 @@ const escapeCSVField = (field: string): string => {
  * レビュー結果データをCSV形式に変換
  */
 export const convertReviewResultsToCSV = (
-  checklistResults: ReviewChecklistResultDisplay[],
+  checklistResults: ReviewChecklistResult[],
 ): string => {
   if (!checklistResults || checklistResults.length === 0) {
     return 'チェックリスト\n';

@@ -1,6 +1,6 @@
 import {
   ReviewChecklistEdit,
-  ReviewChecklistResultDisplay,
+  ReviewChecklistResult,
   ModalMode,
   UploadFile,
   DocumentType,
@@ -13,7 +13,7 @@ export interface ReviewAreaProps {
 
 // ReviewChecklistSectionのProps型
 export interface ReviewChecklistSectionProps {
-  checklistResults: ReviewChecklistResultDisplay[];
+  checklistResults: ReviewChecklistResult[];
   isLoading: boolean;
   onSave: (checklists: ReviewChecklistEdit[]) => Promise<void>;
 }

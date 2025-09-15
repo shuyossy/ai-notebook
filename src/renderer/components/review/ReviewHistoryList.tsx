@@ -18,11 +18,10 @@ import { MoreVert as MoreIcon } from '@mui/icons-material';
 import AddCircleOutlineOutlinedIcon from '@mui/icons-material/AddCircleOutlineOutlined';
 import { v4 as uuidv4 } from 'uuid';
 import { useAlertStore } from '@/renderer/stores/alertStore';
+import { RevieHistory, IpcChannels } from '@/types';
 import { getSafeErrorMessage } from '../../lib/error';
-import type { ReviewHistory } from '../../../db/schema';
 import { ReviewApi } from '../../service/reviewApi';
 import { usePushChannel } from '../../hooks/usePushChannel';
-import { IpcChannels } from '../../../types/ipc';
 
 interface ReviewHistoryListProps {
   selectedReviewHistoryId?: string | null;
@@ -33,7 +32,7 @@ function ReviewHistoryList({
   selectedReviewHistoryId = null,
   onReviewHistorySelect,
 }: ReviewHistoryListProps) {
-  const [reviewHistories, setReviewHistories] = useState<ReviewHistory[]>([]);
+  const [reviewHistories, setReviewHistories] = useState<RevieHistory[]>([]);
   const [loading, setLoading] = useState(true);
   const [menuAnchorEl, setMenuAnchorEl] = useState<null | HTMLElement>(null);
   // メニュー選択中のレビュー履歴ID

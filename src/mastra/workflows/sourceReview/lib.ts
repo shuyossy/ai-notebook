@@ -1,5 +1,5 @@
 import { format } from 'date-fns';
-import { ReviewChecklist } from '../../../db/schema';
+import { ReviewChecklist } from '@/types';
 
 export function generateReviewTitle(sourceTitles: string[] = []): string {
   const now = format(new Date(), 'yyyy-MM-dd HH:mm:ss');

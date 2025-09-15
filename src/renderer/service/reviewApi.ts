@@ -1,5 +1,5 @@
 import {
-  ReviewChecklistResultDisplay,
+  ReviewChecklistResult,
   UploadFile,
   DocumentType,
   ReviewChecklistEdit,
@@ -8,14 +8,14 @@ import {
 } from '@/types';
 import { ApiServiceDefaultOptions } from '../types';
 import { invokeApi } from '../lib/apiUtils';
-import { ReviewHistory } from '@/db/schema';
+import { RevieHistory } from '@/types';
 import { ElectronPushClient } from '../lib/ElectronPushClient';
 import { IpcChannels } from '@/types';
 
 export interface IReviewApi {
   getHistories(
     options?: ApiServiceDefaultOptions,
-  ): Promise<ReviewHistory[] | null>;
+  ): Promise<RevieHistory[] | null>;
   deleteHistory(
     historyId: string,
     options?: ApiServiceDefaultOptions,
@@ -24,7 +24,7 @@ export interface IReviewApi {
     historyId: string,
     options?: ApiServiceDefaultOptions,
   ): Promise<{
-    checklistResults?: ReviewChecklistResultDisplay[];
+    checklistResults?: ReviewChecklistResult[];
   } | null>;
   getReviewInstruction(
     historyId: string,
@@ -83,7 +83,7 @@ export class ReviewApi implements IReviewApi {
 
   public async getHistories(
     options?: ApiServiceDefaultOptions,
-  ): Promise<ReviewHistory[] | null> {
+  ): Promise<RevieHistory[] | null> {
     return invokeApi(() => window.electron.review.getHistories(), options);
   }
 
@@ -91,16 +91,22 @@ export class ReviewApi implements IReviewApi {
     historyId: string,
     options?: ApiServiceDefaultOptions,
   ): Promise<void> {
-    await invokeApi(() => window.electron.review.deleteHistory(historyId), options);
+    await invokeApi(
+      () => window.electron.review.deleteHistory(historyId),
+      options,
+    );
   }
 
   public async getReviewHistoryDetail(
     historyId: string,
     options?: ApiServiceDefaultOptions,
   ): Promise<{
-    checklistResults?: ReviewChecklistResultDisplay[];
+    checklistResults?: ReviewChecklistResult[];
   } | null> {
-    return invokeApi(() => window.electron.review.getHistoryDetail(historyId), options);
+    return invokeApi(
+      () => window.electron.review.getHistoryDetail(historyId),
+      options,
+    );
   }
 
   public async getReviewInstruction(
@@ -110,7 +116,10 @@ export class ReviewApi implements IReviewApi {
     additionalInstructions?: string;
     commentFormat?: string;
   } | null> {
-    return invokeApi(() => window.electron.review.getHistoryInstruction(historyId), options);
+    return invokeApi(
+      () => window.electron.review.getHistoryInstruction(historyId),
+      options,
+    );
   }
 
   public async extractChecklist(
@@ -120,12 +129,16 @@ export class ReviewApi implements IReviewApi {
     checklistRequirements?: string,
     options?: ApiServiceDefaultOptions,
   ): Promise<void> {
-    await invokeApi(() => window.electron.review.extractChecklist({
-      reviewHistoryId: historyId,
-      files,
-      documentType,
-      checklistRequirements,
-    }), options);
+    await invokeApi(
+      () =>
+        window.electron.review.extractChecklist({
+          reviewHistoryId: historyId,
+          files,
+          documentType,
+          checklistRequirements,
+        }),
+      options,
+    );
   }
 
   public async executeReview(
@@ -135,12 +148,16 @@ export class ReviewApi implements IReviewApi {
     commentFormat?: string,
     options?: ApiServiceDefaultOptions,
   ): Promise<void> {
-    await invokeApi(() => window.electron.review.execute({
-      reviewHistoryId: historyId,
-      files,
-      additionalInstructions,
-      commentFormat,
-    }), options);
+    await invokeApi(
+      () =>
+        window.electron.review.execute({
+          reviewHistoryId: historyId,
+          files,
+          additionalInstructions,
+          commentFormat,
+        }),
+      options,
+    );
   }
 
   /**
@@ -152,7 +169,10 @@ export class ReviewApi implements IReviewApi {
     reviewHistoryId: string,
     options?: ApiServiceDefaultOptions,
   ): Promise<void> {
-    await invokeApi(() => window.electron.review.abortExtractChecklist(reviewHistoryId), options);
+    await invokeApi(
+      () => window.electron.review.abortExtractChecklist(reviewHistoryId),
+      options,
+    );
   }
 
   /**
@@ -164,7 +184,10 @@ export class ReviewApi implements IReviewApi {
     reviewHistoryId: string,
     options?: ApiServiceDefaultOptions,
   ): Promise<void> {
-    await invokeApi(() => window.electron.review.abortExecute(reviewHistoryId), options);
+    await invokeApi(
+      () => window.electron.review.abortExecute(reviewHistoryId),
+      options,
+    );
   }
 
   public subscribeChecklistExtractionFinished(
@@ -202,9 +225,13 @@ export class ReviewApi implements IReviewApi {
     checklistEdits: ReviewChecklistEdit[],
     options?: ApiServiceDefaultOptions,
   ): Promise<void> {
-    await invokeApi(() => window.electron.review.updateChecklist({
-      reviewHistoryId: historyId,
-      checklistEdits,
-    }), options);
+    await invokeApi(
+      () =>
+        window.electron.review.updateChecklist({
+          reviewHistoryId: historyId,
+          checklistEdits,
+        }),
+      options,
+    );
   }
 }

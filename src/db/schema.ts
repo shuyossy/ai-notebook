@@ -114,10 +114,10 @@ export type SourceEntity = typeof sources.$inferSelect;
 export type InsertSourceEntity = typeof sources.$inferInsert;
 export type TopicEntity = typeof topics.$inferSelect;
 export type InsertTopicEntity = typeof topics.$inferInsert;
-export type ReviewHistory = typeof reviewHistories.$inferSelect;
-export type InsertReviewHistory = typeof reviewHistories.$inferInsert;
-export type ReviewChecklist = typeof reviewChecklists.$inferSelect;
-export type InsertReviewChecklist = typeof reviewChecklists.$inferInsert;
-export type ReviewChecklistResult = typeof reviewChecklistResults.$inferSelect;
-export type InsertReviewChecklistResult =
+export type ReviewHistoryEntity = typeof reviewHistories.$inferSelect;
+export type InsertReviewHistoryEntity = typeof reviewHistories.$inferInsert;
+export type ReviewChecklistEntity = typeof reviewChecklists.$inferSelect;
+export type InsertReviewChecklistEntity = typeof reviewChecklists.$inferInsert;
+export type ReviewChecklistResultEntity = typeof reviewChecklistResults.$inferSelect;
+export type InsertReviewChecklistResultEntity =
   typeof reviewChecklistResults.$inferInsert;

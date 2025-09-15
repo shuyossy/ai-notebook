@@ -12,7 +12,7 @@ import RateReviewIcon from '@mui/icons-material/RateReview';
 import StopIcon from '@mui/icons-material/Stop';
 import {
   ReviewChecklistEdit,
-  ReviewChecklistResultDisplay,
+  ReviewChecklistResult,
   ModalMode,
   DocumentType,
   UploadFile,
@@ -30,7 +30,7 @@ const defaultCommentFormat =
 const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
   // 状態管理
   const [checklistResults, setChecklistResults] = useState<
-    ReviewChecklistResultDisplay[]
+    ReviewChecklistResult[]
   >([]);
   // チェックリスト更新処理中であるかどうか
   const [isSaving, setIsSaving] = useState(false);

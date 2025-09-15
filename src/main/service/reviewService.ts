@@ -1,12 +1,12 @@
 import { getReviewRepository } from '@/main/repository/reviewRepository';
-import { ReviewChecklistEdit, ReviewChecklistResultDisplay } from '@/types';
+import { ReviewChecklistEdit, ReviewChecklistResult } from '@/types';
 import { generateReviewTitle } from '@/mastra/workflows/sourceReview/lib';
-import { ReviewHistory } from '@/db/schema';
+import { RevieHistory } from '@/types';
 
 export interface IReviewService {
-  getReviewHistories(): Promise<ReviewHistory[]>;
+  getReviewHistories(): Promise<RevieHistory[]>;
   getReviewHistoryDetail(reviewHistoryId: string): Promise<{
-    checklistResults: ReviewChecklistResultDisplay[];
+    checklistResults: ReviewChecklistResult[];
   }>;
   getReviewInstruction(reviewHistoryId: string): Promise<{
     additionalInstructions?: string;

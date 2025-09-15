@@ -1,7 +1,7 @@
 import { getReviewRepository } from '@/main/repository/reviewRepository';
 import { IpcChannels } from '@/types/ipc';
 import { generateReviewTitle } from './lib';
-import { ReviewHistory } from '@/db/schema';
+import { RevieHistory } from '@/types';
 import { mastra } from '../..';
 import {
   ChecklistExtractionResultStatus,
@@ -51,7 +51,7 @@ export default class SourceReviewManager {
     checklistRequirements?: string,
   ): Promise<{ status: ChecklistExtractionResultStatus; error?: string }> {
     try {
-      let reviewHistory: ReviewHistory | null;
+      let reviewHistory: RevieHistory | null;
       reviewHistory =
         await this.reviewRepository.getReviewHistory(reviewHistoryId);
       // レビュー履歴が存在しない場合は新規作成
