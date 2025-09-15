@@ -23,10 +23,9 @@ import {
   HourglassEmpty as ProcessingIcon,
   Help as UnknownIcon,
 } from '@mui/icons-material';
+import { Source } from '@/types';
 import { useAlertStore } from '@/renderer/stores/alertStore';
 import { getSafeErrorMessage } from '../../lib/error';
-
-import { Source } from '../../../db/schema';
 import { SourceApi } from '../../service/sourceApi';
 
 interface SourceListModalProps {
@@ -67,7 +66,7 @@ function SourceListModal({
           acc[source.id] = false;
           return acc;
         }
-        acc[source.id] = source.isEnabled === 1;
+        acc[source.id] = source.isEnabled;
         return acc;
       },
       {} as { [key: number]: boolean },
@@ -184,7 +183,7 @@ function SourceListModal({
     );
     // 状態更新
     const enabledCount = sourceList.filter(
-      (s: Source) => s.isEnabled === 1 && s.status === 'completed',
+      (s: Source) => s.isEnabled && s.status === 'completed',
     ).length;
     onStatusUpdate({ processing: newProcessing, enabledCount });
   }, [onStatusUpdate]);

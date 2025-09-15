@@ -1,5 +1,5 @@
 import { getSourceRepository } from '../repository/sourceRepository';
-import { Source } from '@/db/schema';
+import { Source } from '@/types';
 
 export interface ISourceService {
   getAllSources(): Promise<Source[]>;

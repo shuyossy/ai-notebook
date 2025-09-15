@@ -110,10 +110,10 @@ export const reviewChecklistResults = sqliteTable(
 );
 
 // 型定義
-export type Source = typeof sources.$inferSelect;
-export type InsertSource = typeof sources.$inferInsert;
-export type Topic = typeof topics.$inferSelect;
-export type InsertTopic = typeof topics.$inferInsert;
+export type SourceEntity = typeof sources.$inferSelect;
+export type InsertSourceEntity = typeof sources.$inferInsert;
+export type TopicEntity = typeof topics.$inferSelect;
+export type InsertTopicEntity = typeof topics.$inferInsert;
 export type ReviewHistory = typeof reviewHistories.$inferSelect;
 export type InsertReviewHistory = typeof reviewHistories.$inferInsert;
 export type ReviewChecklist = typeof reviewChecklists.$inferSelect;

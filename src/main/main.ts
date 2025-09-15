@@ -72,7 +72,6 @@ import {
   WritableStream,
   TransformStream,
 } from 'node:stream/web';
-import type { Source } from '@/db/schema';
 import {
   IpcChannels,
   IpcResponsePayloadMap,
@@ -81,7 +80,8 @@ import {
   RequestChannel,
   IpcChannel,
   IpcNameMap,
-} from '@/types/ipc';
+  Source,
+} from '@/types';
 import SourceRegistrationManager from '../mastra/workflows/sourceRegistration/sourceRegistrationManager';
 import SourceReviewManager from '../mastra/workflows/sourceReview/sourceReviewManager';
 import MenuBuilder from './menu';

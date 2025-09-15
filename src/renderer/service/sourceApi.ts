@@ -1,6 +1,6 @@
 import { invokeApi } from '../lib/apiUtils';
 import { ApiServiceDefaultOptions } from '../types';
-import { Source } from '@/db/schema';
+import { Source } from '@/types';
 import { ElectronPushClient } from '../lib/ElectronPushClient';
 import { IpcChannels } from '@/types';
 

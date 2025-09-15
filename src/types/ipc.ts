@@ -10,7 +10,8 @@ import type {
   ReviewExecutionResultStatus,
 } from './review';
 import type { SettingsSavingStatus, Settings } from './setting';
-import type { Source, ReviewHistory } from '@/db/schema';
+import type { Source } from '@/types';
+import type { ReviewHistory } from '@/db/schema';
 
 type IpcSuccess<T> = {
   success: true;

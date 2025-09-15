@@ -1,9 +1,20 @@
 import { eq, inArray, and } from 'drizzle-orm';
 import getDb from '../../db';
-import type { Source, InsertSource, InsertTopic } from '../../db/schema';
+import type { SourceEntity } from '../../db/schema';
 import { sources, topics } from '../../db/schema';
-import { ProcessStatus } from '@/types';
+import { Source, Topic, ProcessStatus } from '@/types';
 import { repositoryError } from './error';
+
+export type InsertSource = Omit<
+  Source,
+  'id' | 'createdAt' | 'updatedAt' | 'status' | 'error' | 'isEnabled'
+> &
+  Partial<Pick<Source, 'status' | 'error' | 'isEnabled'>>;
+
+export type InsertTopic = Omit<
+  Topic,
+  'id' | 'createdAt' | 'updatedAt'
+>;
 
 export interface SourceRepository {
   /**
@@ -106,6 +117,20 @@ export interface SourceRepository {
 let sourceRepository: SourceRepository | null = null;
 
 class DrizzleSourceRepository implements SourceRepository {
+  convertSourceEntityToSource(entity: SourceEntity): Source {
+    return {
+      id: entity.id,
+      path: entity.path,
+      title: entity.title,
+      summary: entity.summary,
+      createdAt: entity.createdAt,
+      updatedAt: entity.updatedAt,
+      status: entity.status,
+      error: entity.error,
+      isEnabled: entity.isEnabled === 1,
+    };
+  }
+
   async getSourceById(sourceId: number): Promise<Source | null> {
     try {
       const db = await getDb();
@@ -114,7 +139,10 @@ class DrizzleSourceRepository implements SourceRepository {
         .from(sources)
         .where(eq(sources.id, sourceId))
         .limit(1);
-      return source || null;
+      if (!source) {
+        throw Error('指定されたIDのソースが存在しません');
+      }
+      return this.convertSourceEntityToSource(source);
     } catch (err) {
       throw repositoryError('ドキュメント情報の取得に失敗しました', err);
     }
@@ -123,7 +151,8 @@ class DrizzleSourceRepository implements SourceRepository {
   async getSourcesByIds(sourceIds: number[]): Promise<Source[]> {
     try {
       const db = await getDb();
-      return db.select().from(sources).where(inArray(sources.id, sourceIds));
+      const sourceEntities =  await db.select().from(sources).where(inArray(sources.id, sourceIds));
+      return sourceEntities.map((entity) => this.convertSourceEntityToSource(entity));
     } catch (err) {
       throw repositoryError('ドキュメント情報の取得に失敗しました', err);
     }
@@ -183,7 +212,7 @@ class DrizzleSourceRepository implements SourceRepository {
           },
         })
         .returning();
-      return result;
+      return this.convertSourceEntityToSource(result);
     } catch (err) {
       throw repositoryError('ドキュメント情報の更新に失敗しました', err);
     }
@@ -299,7 +328,8 @@ class DrizzleSourceRepository implements SourceRepository {
   async getSouorceInStatus(status: ProcessStatus[]): Promise<Source[]> {
     try {
       const db = await getDb();
-      return db.select().from(sources).where(inArray(sources.status, status));
+      const sourceEntities = await db.select().from(sources).where(inArray(sources.status, status));
+      return sourceEntities.map((entity) => this.convertSourceEntityToSource(entity));
     } catch (err) {
       throw repositoryError('ドキュメント情報の取得に失敗しました', err);
     }
@@ -315,8 +345,7 @@ class DrizzleSourceRepository implements SourceRepository {
         .select()
         .from(sources)
         .where(and(eq(sources.path, path), inArray(sources.status, status)));
-
-      return sourcesInStatus;
+      return sourcesInStatus.map((entity) => this.convertSourceEntityToSource(entity));
     } catch (err) {
       throw repositoryError('ドキュメント情報の取得に失敗しました', err);
     }
@@ -325,7 +354,8 @@ class DrizzleSourceRepository implements SourceRepository {
   async getAllSources(): Promise<Source[]> {
     try {
       const db = await getDb();
-      return db.select().from(sources);
+      const sourceEntities = await db.select().from(sources);
+      return sourceEntities.map((entity) => this.convertSourceEntityToSource(entity));
     } catch (err) {
       throw repositoryError('ドキュメント情報の取得に失敗しました', err);
     }
@@ -334,7 +364,11 @@ class DrizzleSourceRepository implements SourceRepository {
   async insertSources(sourceList: InsertSource[]): Promise<void> {
     try {
       const db = await getDb();
-      await db.insert(sources).values(sourceList);
+      const insertSourceEntities = sourceList.map((source) => ({
+        ...source,
+        isEnabled: source.isEnabled ? 1 : 0,
+      }));
+      await db.insert(sources).values(insertSourceEntities);
     } catch (err) {
       throw repositoryError('ドキュメント情報の作成に失敗しました', err);
     }

@@ -178,6 +178,7 @@ const extractTopicAndSummaryStep = createStep({
         status: 'completed',
         error: null,
       });
+      await sourceRepository.updateSourceEnabled(sourceId, true);
       status = 'success';
     } catch (error) {
       let errorDetail: string;
