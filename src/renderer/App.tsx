@@ -166,7 +166,7 @@ function App() {
                     transform: 'translateX(-50%)',
                     width: 'fit-content',
                     maxWidth: '80%',
-                    zIndex: 1300,
+                    zIndex: 1400,
                     display: 'flex',
                     flexDirection: 'column',
                     gap: 1,
