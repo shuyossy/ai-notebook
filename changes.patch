@@ -1,429 +1,2797 @@
-diff --git a/changes.patch b/changes.patch
-index 61b6505df..e69de29bb 100644
---- a/changes.patch
-+++ b/changes.patch
-@@ -1,126 +0,0 @@
--diff --git a/src/main/repository/settingsRepository.ts b/src/main/repository/settingsRepository.ts
--index 144bdb864..8e9590332 100644
----- a/src/main/repository/settingsRepository.ts
--+++ b/src/main/repository/settingsRepository.ts
--@@ -26,6 +26,15 @@ export const getSettingsRepository = (): ISettingsRepository => {
--   return SettingsRepository;
-- };
-- 
--+/** undefined を保存したら例外になるため、delete に切り替える */
--+function setOrDelete<T>(store: any, key: string, value: T | undefined) {
--+  if (value === undefined) {
--+    store.delete(key);
--+  } else {
--+    store.set(key, value);
--+  }
--+}
--+
-- /**
--  * Electron Storeを使用した設定リポジトリの実装
--  */
--@@ -46,21 +55,34 @@ class ElectronStoreSettingsRepository implements ISettingsRepository {
-- 
--   async saveSettings(settings: Settings): Promise<void> {
--     try {
--+      // 必須系（undefined にならない想定）
--       this.store.set('database.dir', settings.database.dir);
---      this.store.set('source.registerDir', settings.source.registerDir);
--       this.store.set('api.key', settings.api.key);
--       this.store.set('api.model', settings.api.model);
--       this.store.set('api.url', settings.api.url);
---      this.store.set('redmine.endpoint', settings.redmine.endpoint);
---      this.store.set('redmine.apiKey', settings.redmine.apiKey);
---      this.store.set('gitlab.endpoint', settings.gitlab.endpoint);
---      this.store.set('gitlab.apiKey', settings.gitlab.apiKey);
---      this.store.set('systemPrompt.content', settings.systemPrompt.content);
--+
--+      // 任意系は undefined の可能性があるため setOrDelete で処理
--+      setOrDelete(this.store, 'source.registerDir', settings.source.registerDir);
--+
--+      setOrDelete(this.store, 'redmine.endpoint', settings.redmine.endpoint);
--+      setOrDelete(this.store, 'redmine.apiKey', settings.redmine.apiKey);
--+
--+      setOrDelete(this.store, 'gitlab.endpoint', settings.gitlab.endpoint);
--+      setOrDelete(this.store, 'gitlab.apiKey', settings.gitlab.apiKey);
--+
--+      setOrDelete(
--+        this.store,
--+        'systemPrompt.content',
--+        settings.systemPrompt.content,
--+      );
--+
--       if (settings.mcp.serverConfig) {
--         this.store.set(
--           'mcp.serverConfig',
--           JSON.stringify(settings.mcp.serverConfig, null, 2),
--         );
--+      } else {
--+        this.store.delete('mcp.serverConfig');
--       }
--     } catch (err) {
--       throw repositoryError('設定情報の保存に失敗しました', err);
--diff --git a/src/renderer/hooks/useSettings.ts b/src/renderer/hooks/useSettings.ts
--index 5da798fa8..fb7a118eb 100644
----- a/src/renderer/hooks/useSettings.ts
--+++ b/src/renderer/hooks/useSettings.ts
--@@ -291,8 +291,10 @@ const useSettingsStore = () => {
--         });
--       }
-- 
--+      const parsedSettings = await SettingsSchema.parseAsync(settings);
--+
--       // 設定を一括保存
---      await settingsApi.setSettings(settings, {
--+      await settingsApi.setSettings(parsedSettings, {
--         showAlert: false,
--         throwError: true,
--       });
--diff --git a/src/types/setting.ts b/src/types/setting.ts
--index e02af8c58..a0416b4f4 100644
----- a/src/types/setting.ts
--+++ b/src/types/setting.ts
--@@ -75,16 +75,19 @@ export const DatabaseSchema = z.object({
--  * ソース設定のスキーマ
--  */
-- export const SourceSchema = z.object({
---  registerDir: z.string().optional().refine(
---    async (path) => {
---      if (!path) return true;
---      if (path === '') return true; // 空文字は許容
---      return await checkPathExists(path);
---    },
---    {
---      message: '指定されたパスが存在しません',
---    },
---  ),
--+  registerDir: z
--+    .string()
--+    .optional()
--+    .refine(
--+      async (path) => {
--+        if (!path) return true;
--+        if (path === '') return true; // 空文字は許容
--+        return await checkPathExists(path);
--+      },
--+      {
--+        message: '指定されたパスが存在しません',
--+      },
--+    ),
-- });
-- 
-- /**
--@@ -136,7 +139,13 @@ export const McpStoreSchema = z.object({
--     .optional()
--     .transform((str, ctx) => {
--       try {
---        if (!str || str.trim() === '') {
--+        if (str === undefined) return undefined;
--+
--+        // 全ての空白を取り除く（半角/全角スペース・タブ・改行など）
--+        const cleaned = str.replace(/[\s\u3000]/g, '');
--+
--+        // 空文字または "{}" の場合は undefined を返す
--+        if (cleaned === '' || cleaned === '{}' || cleaned === '""') {
--           return undefined;
--         }
--         const json = JSON.parse(str);
-diff --git a/src/mastra/workflows/sourceRegistration/sourceRegistrationManager.ts b/src/mastra/workflows/sourceRegistration/sourceRegistrationManager.ts
-index 248f7ec78..7cdb548b2 100644
---- a/src/mastra/workflows/sourceRegistration/sourceRegistrationManager.ts
-+++ b/src/mastra/workflows/sourceRegistration/sourceRegistrationManager.ts
-@@ -69,6 +69,12 @@ export default class SourceRegistrationManager {
-     try {
-       const store = await this.settingsRepository.getSettings();
-       const { registerDir } = store.source;
-+      if (!registerDir || registerDir.trim() === '') {
-+        throw internalError({
-+          expose: true,
-+          messageCode: 'SOURCE_REGISTRATION_DIR_NOT_SET',
-+        });
+diff --git a/.serena/cache/typescript/document_symbols_cache_v23-06-25.pkl b/.serena/cache/typescript/document_symbols_cache_v23-06-25.pkl
+index 58732acda..2c559adb9 100644
+Binary files a/.serena/cache/typescript/document_symbols_cache_v23-06-25.pkl and b/.serena/cache/typescript/document_symbols_cache_v23-06-25.pkl differ
+diff --git a/CLAUDE.md b/CLAUDE.md
+index 18a27bcb8..038b47943 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -195,22 +195,20 @@ ElectronのIPCを使用してフロントエンド・バックエンド間の通
+   - コンポーネントで常にSSEの通信を張ってデータを取得したい場合は`usePushChannel`を、一時的にSSEの通信を貼りたい場合は`ElectronPushClient`を利用
+ - フロントエンドでエラーメッセージを表示する(addAlertで出す想定)場合はcatchしたエラーを`src/renderer/lib/error.ts`で定義しているgetSafeErrorMessage関数に適用してエラーメッセージを取り出すこと
+ - このアプリでは基本的にエラーメッセージは独自例外(`src/renderer/lib/error.ts`,`src/main/lib/error.ts`)をthrowしないとユーザにエラーメッセージが表示されないため、注意すること
++- DB用の型(`src/db/schema.ts`)とシステム内部で利用する型(`src/types`)は将来の保守性や移植性を考慮して適切に分離し、これらの差分はrepositoryで吸収すること
+ - テストについては指示されない限り、実行も修正もしなくてよい
+ 
+-## 現在実施中のタスク
+-大規模リファクタリング
+-目的:
+-- コード保守性・移植性向上
+-※
+-本アプリは将来的にwebアプリに移植する可能性があるため
+-
+ ## 依頼タスク
+-- エラー処理の見直し
+-  - このアプリでは基本的にエラーメッセージは独自例外(`src/renderer/lib/error.ts`,`src/main/lib/error.ts`)をthrowしないとユーザにエラーメッセージが表示されない
+-    - それにも関わらず、ユーザに通知すべきエラーで生のthrow new Error(~)してしまっている場合が散見される
+-    - Main側、Renderer側それぞれで、上記のようなケースを全て見つけ出し、修正してください 
+-      - 見つけ出してinternalErrorビルダを利用して作成したAppError,FrontAppErrorをthrowするように修正してください
+-
+-## 依頼タスク実装時の注意点
+-修正箇所が膨大になることが予想されます
+-修正が必要な箇所を確りと全て把握して、実装を進めて下さい
++### 要件
++- レビュー機能のチェックリスト抽出時に、(AIを利用せずに)CSVからチェックリストを直接インポートできるようにする
++  - CSVの一列目を全てチェックリストとしてインポートする
++### UI要件
++- `ReviewSourceModal`のチェックリスト抽出モード時にインポートできるようにする
++  - ドキュメント種別をチェックリストドキュメントを選択した際に、AI抽出かCSVファイルインポートか選択できるようにする
++    - CSVファイルインポートを選択した場合に、「選択したCSVファイルの一列目の値を全てチェックリスト項目として抽出します」とユーザに提示する
++  - Renderer側では、チェックリスト抽出ボタンを押下時に、選択されているファイル形式がCSVファイル以外かどうかチェックして、「CSVインポートを選択している場合はCSVファイルのみ指定可能です」とアラート表示する
++### 機能要件
++- CSVインポートが選択されている場合はAIにチェックリストを抽出するのではなく、機械的にチェックリストを以下手順で抽出する(複数CSVファイルが与えられた場合は、抽出したチェックリストを統合する)
++  1. CSVファイルを`fileExtractor.ts`でテキスト抽出(CSVの空行削除)
++  2. 抽出したCSVテキストの一列目からチェックリスト項目を抽出（空白のみ行、空文字は無視する）
++  3. 抽出完了したらAI抽出処理と同様にイベントを通知
+diff --git a/drizzle/migrations/0006_glossy_captain_america.sql b/drizzle/migrations/0006_glossy_captain_america.sql
+new file mode 100644
+index 000000000..bf43b9079
+--- /dev/null
++++ b/drizzle/migrations/0006_glossy_captain_america.sql
+@@ -0,0 +1 @@
++ALTER TABLE `review_histories` ADD `evaluation_settings` text;
+\ No newline at end of file
+diff --git a/drizzle/migrations/meta/0006_snapshot.json b/drizzle/migrations/meta/0006_snapshot.json
+new file mode 100644
+index 000000000..c4e5d12b3
+--- /dev/null
++++ b/drizzle/migrations/meta/0006_snapshot.json
+@@ -0,0 +1,383 @@
++{
++  "version": "6",
++  "dialect": "sqlite",
++  "id": "7a707cee-0297-4e9c-855c-2d2fa013e963",
++  "prevId": "0119337c-b3ca-4f25-bf85-8103efccf966",
++  "tables": {
++    "review_checklist_results": {
++      "name": "review_checklist_results",
++      "columns": {
++        "review_checklist_id": {
++          "name": "review_checklist_id",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "file_id": {
++          "name": "file_id",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "file_name": {
++          "name": "file_name",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "evaluation": {
++          "name": "evaluation",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "comment": {
++          "name": "comment",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "created_at": {
++          "name": "created_at",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false,
++          "default": "(current_timestamp)"
++        },
++        "updated_at": {
++          "name": "updated_at",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false,
++          "default": "(current_timestamp)"
++        }
++      },
++      "indexes": {},
++      "foreignKeys": {
++        "review_checklist_results_review_checklist_id_review_checklists_id_fk": {
++          "name": "review_checklist_results_review_checklist_id_review_checklists_id_fk",
++          "tableFrom": "review_checklist_results",
++          "tableTo": "review_checklists",
++          "columnsFrom": [
++            "review_checklist_id"
++          ],
++          "columnsTo": [
++            "id"
++          ],
++          "onDelete": "cascade",
++          "onUpdate": "no action"
++        }
++      },
++      "compositePrimaryKeys": {
++        "review_checklist_results_review_checklist_id_file_id_pk": {
++          "columns": [
++            "review_checklist_id",
++            "file_id"
++          ],
++          "name": "review_checklist_results_review_checklist_id_file_id_pk"
++        }
++      },
++      "uniqueConstraints": {},
++      "checkConstraints": {}
++    },
++    "review_checklists": {
++      "name": "review_checklists",
++      "columns": {
++        "id": {
++          "name": "id",
++          "type": "integer",
++          "primaryKey": true,
++          "notNull": true,
++          "autoincrement": true
++        },
++        "review_history_id": {
++          "name": "review_history_id",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "content": {
++          "name": "content",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "created_by": {
++          "name": "created_by",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "created_at": {
++          "name": "created_at",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false,
++          "default": "(current_timestamp)"
++        },
++        "updated_at": {
++          "name": "updated_at",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false,
++          "default": "(current_timestamp)"
++        }
++      },
++      "indexes": {},
++      "foreignKeys": {
++        "review_checklists_review_history_id_review_histories_id_fk": {
++          "name": "review_checklists_review_history_id_review_histories_id_fk",
++          "tableFrom": "review_checklists",
++          "tableTo": "review_histories",
++          "columnsFrom": [
++            "review_history_id"
++          ],
++          "columnsTo": [
++            "id"
++          ],
++          "onDelete": "cascade",
++          "onUpdate": "no action"
++        }
++      },
++      "compositePrimaryKeys": {},
++      "uniqueConstraints": {},
++      "checkConstraints": {}
++    },
++    "review_histories": {
++      "name": "review_histories",
++      "columns": {
++        "id": {
++          "name": "id",
++          "type": "text",
++          "primaryKey": true,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "title": {
++          "name": "title",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "additional_instructions": {
++          "name": "additional_instructions",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "comment_format": {
++          "name": "comment_format",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "evaluation_settings": {
++          "name": "evaluation_settings",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "created_at": {
++          "name": "created_at",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false,
++          "default": "(current_timestamp)"
++        },
++        "updated_at": {
++          "name": "updated_at",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false,
++          "default": "(current_timestamp)"
++        }
++      },
++      "indexes": {},
++      "foreignKeys": {},
++      "compositePrimaryKeys": {},
++      "uniqueConstraints": {},
++      "checkConstraints": {}
++    },
++    "sources": {
++      "name": "sources",
++      "columns": {
++        "id": {
++          "name": "id",
++          "type": "integer",
++          "primaryKey": true,
++          "notNull": true,
++          "autoincrement": true
++        },
++        "path": {
++          "name": "path",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "title": {
++          "name": "title",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "summary": {
++          "name": "summary",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "created_at": {
++          "name": "created_at",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false,
++          "default": "(current_timestamp)"
++        },
++        "updated_at": {
++          "name": "updated_at",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false,
++          "default": "(current_timestamp)"
++        },
++        "status": {
++          "name": "status",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false,
++          "default": "'idle'"
++        },
++        "error": {
++          "name": "error",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false,
++          "autoincrement": false
++        },
++        "is_enabled": {
++          "name": "is_enabled",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false,
++          "default": 1
++        }
++      },
++      "indexes": {
++        "sources_path_unique": {
++          "name": "sources_path_unique",
++          "columns": [
++            "path"
++          ],
++          "isUnique": true
++        }
++      },
++      "foreignKeys": {},
++      "compositePrimaryKeys": {},
++      "uniqueConstraints": {},
++      "checkConstraints": {}
++    },
++    "topics": {
++      "name": "topics",
++      "columns": {
++        "id": {
++          "name": "id",
++          "type": "integer",
++          "primaryKey": true,
++          "notNull": true,
++          "autoincrement": true
++        },
++        "source_id": {
++          "name": "source_id",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "name": {
++          "name": "name",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "summary": {
++          "name": "summary",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false
++        },
++        "created_at": {
++          "name": "created_at",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false,
++          "default": "(current_timestamp)"
++        },
++        "updated_at": {
++          "name": "updated_at",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "autoincrement": false,
++          "default": "(current_timestamp)"
++        }
++      },
++      "indexes": {},
++      "foreignKeys": {
++        "topics_source_id_sources_id_fk": {
++          "name": "topics_source_id_sources_id_fk",
++          "tableFrom": "topics",
++          "tableTo": "sources",
++          "columnsFrom": [
++            "source_id"
++          ],
++          "columnsTo": [
++            "id"
++          ],
++          "onDelete": "cascade",
++          "onUpdate": "no action"
++        }
++      },
++      "compositePrimaryKeys": {},
++      "uniqueConstraints": {},
++      "checkConstraints": {}
++    }
++  },
++  "views": {},
++  "enums": {},
++  "_meta": {
++    "schemas": {},
++    "tables": {},
++    "columns": {}
++  },
++  "internal": {
++    "indexes": {}
++  }
++}
+\ No newline at end of file
+diff --git a/drizzle/migrations/meta/_journal.json b/drizzle/migrations/meta/_journal.json
+index 7d36c29f2..2bfef1da6 100644
+--- a/drizzle/migrations/meta/_journal.json
++++ b/drizzle/migrations/meta/_journal.json
+@@ -43,6 +43,13 @@
+       "when": 1756973708951,
+       "tag": "0005_workable_karen_page",
+       "breakpoints": true
++    },
++    {
++      "idx": 6,
++      "version": "6",
++      "when": 1757908369496,
++      "tag": "0006_glossy_captain_america",
++      "breakpoints": true
+     }
+   ]
+ }
+\ No newline at end of file
+diff --git a/src/db/schema.ts b/src/db/schema.ts
+index ecc5e9226..619d3c393 100644
+--- a/src/db/schema.ts
++++ b/src/db/schema.ts
+@@ -61,6 +61,7 @@ export const reviewHistories = sqliteTable('review_histories', {
+   title: text('title').notNull(), // ソースのtitleを/区切りで結合
+   additionalInstructions: text('additional_instructions'), // レビューの追加指示
+   commentFormat: text('comment_format'), // レビューのコメントフォーマット
++  evaluationSettings: text('evaluation_settings'), // 評定項目設定（JSON形式）
+   createdAt: text('created_at')
+     .notNull()
+     .default(sql`(current_timestamp)`),
+@@ -110,14 +111,14 @@ export const reviewChecklistResults = sqliteTable(
+ );
+ 
+ // 型定義
+-export type Source = typeof sources.$inferSelect;
+-export type InsertSource = typeof sources.$inferInsert;
+-export type Topic = typeof topics.$inferSelect;
+-export type InsertTopic = typeof topics.$inferInsert;
+-export type ReviewHistory = typeof reviewHistories.$inferSelect;
+-export type InsertReviewHistory = typeof reviewHistories.$inferInsert;
+-export type ReviewChecklist = typeof reviewChecklists.$inferSelect;
+-export type InsertReviewChecklist = typeof reviewChecklists.$inferInsert;
+-export type ReviewChecklistResult = typeof reviewChecklistResults.$inferSelect;
+-export type InsertReviewChecklistResult =
++export type SourceEntity = typeof sources.$inferSelect;
++export type InsertSourceEntity = typeof sources.$inferInsert;
++export type TopicEntity = typeof topics.$inferSelect;
++export type InsertTopicEntity = typeof topics.$inferInsert;
++export type ReviewHistoryEntity = typeof reviewHistories.$inferSelect;
++export type InsertReviewHistoryEntity = typeof reviewHistories.$inferInsert;
++export type ReviewChecklistEntity = typeof reviewChecklists.$inferSelect;
++export type InsertReviewChecklistEntity = typeof reviewChecklists.$inferInsert;
++export type ReviewChecklistResultEntity = typeof reviewChecklistResults.$inferSelect;
++export type InsertReviewChecklistResultEntity =
+   typeof reviewChecklistResults.$inferInsert;
+diff --git a/src/main/lib/fileExtractor.ts b/src/main/lib/fileExtractor.ts
+index 13ea92b23..7387d2fec 100644
+--- a/src/main/lib/fileExtractor.ts
++++ b/src/main/lib/fileExtractor.ts
+@@ -35,6 +35,42 @@ const CACHE_TARGET_EXTENSIONS = [
+   '.pdf',
+ ];
+ 
++/** テキスト後処理ポリシー */
++type TextPostProcessPolicy = {
++  /** 連続空白（半角/全角/タブ/NBSP）を1つに圧縮 */
++  collapseConsecutiveWhitespaces: boolean;
++  /** 行頭インデントは保持したまま圧縮 */
++  collapsePreserveIndent: boolean;
++  /** 行末の空白を削除 */
++  trimLineEndSpaces: boolean;
++  /**
++   * 行末カンマを削除
++   * - preserveCsvTrailingEmptyFields=true の場合、CSVの末尾空セルらしき行は温存
++   */
++  removeTrailingCommas: boolean;
++  /** CSV の末尾空セルらしき行は行末カンマを温存する */
++  preserveCsvTrailingEmptyFields: boolean;
++  /** “空行”連続の最大許容数（例: 2） */
++  maxConsecutiveBlankLines: number;
++  /**
++   * 【追加】カンマと空白のみで構成される行を削除
++   * 例: ",,,", " , , , " など（空白は無視）
++   * デフォルトは安全側で false
++   */
++  removeCommaOnlyLines: boolean;
++};
++
++/** デフォルト（安全寄り） */
++const DEFAULT_POST_PROCESS_POLICY: TextPostProcessPolicy = {
++  collapseConsecutiveWhitespaces: true,
++  collapsePreserveIndent: true,
++  trimLineEndSpaces: true,
++  removeTrailingCommas: true,
++  preserveCsvTrailingEmptyFields: true,
++  maxConsecutiveBlankLines: 2,
++  removeCommaOnlyLines: true,
++};
++
+ /** 抽出結果の型定義 */
+ export interface ExtractionResult {
+   content: string;
+@@ -46,13 +82,19 @@ export interface ExtractionResult {
+   };
+ }
+ 
++/** extractText オプション */
++type ExtractTextOptions = {
++  useCache?: boolean;
++  textPostProcess?: Partial<TextPostProcessPolicy>;
++};
++
+ /** 多様なファイル形式からテキストを抽出するユーティリティクラス */
+ export default class FileExtractor {
+   /**
+    * キャッシュディレクトリのパスを取得
+    */
+   private static getCacheDir(): string {
+-    const userDataPath = getCustomAppDataDir()
++    const userDataPath = getCustomAppDataDir();
+     const cacheDir = path.join(userDataPath, 'document_caches');
+ 
+     // ディレクトリが存在しない場合は作成
+@@ -155,7 +197,7 @@ export default class FileExtractor {
+    */
+   public static async extractText(
+     filePath: string,
+-    options?: { useCache?: boolean },
++    options?: ExtractTextOptions,
+   ): Promise<ExtractionResult> {
+     const extension = path.extname(filePath).toLowerCase();
+     const useCache = options?.useCache ?? true;
+@@ -180,11 +222,19 @@ export default class FileExtractor {
+           content = cachedContent;
+         } else {
+           content = await this.extractContentByType(filePath, extension);
++          content = this.normalizeExtractedText(
++            content,
++            options?.textPostProcess,
++          );
+           // 抽出したテキストをキャッシュに保存
+           await this.saveCache(filePath, content);
+         }
+       } else {
+         content = await this.extractContentByType(filePath, extension);
++        content = this.normalizeExtractedText(
++          content,
++          options?.textPostProcess,
++        );
+       }
+ 
+       return {
+@@ -207,6 +257,91 @@ export default class FileExtractor {
+     }
+   }
+ 
++  private static normalizeExtractedText(
++    raw: string,
++    overrides?: Partial<TextPostProcessPolicy>,
++  ): string {
++    const policy: TextPostProcessPolicy = {
++      ...DEFAULT_POST_PROCESS_POLICY,
++      ...(overrides ?? {}),
++    };
++
++    // 改行を LF に正規化
++    let text = raw.replace(/\r\n?/g, '\n');
++
++    const lines = text.split('\n').map((line) => {
++      let current = line;
++
++      // (1) 行末空白削除
++      if (policy.trimLineEndSpaces) {
++        current = current.replace(/[ \t\u00A0\u3000]+$/u, '');
 +      }
-       let files: string[] = [];
-       if (registerDir.trim() !== '') {
-         // フォルダ内のファイル一覧を取得
++
++      // (2) 連続空白の圧縮（行頭インデント保護可）
++      if (policy.collapseConsecutiveWhitespaces) {
++        if (policy.collapsePreserveIndent) {
++          const indentMatch = current.match(/^[ \t\u00A0\u3000]*/u);
++          const indent = indentMatch ? indentMatch[0] : '';
++          const rest = current.slice(indent.length);
++          current = indent + rest.replace(/[ \t\u00A0\u3000]{2,}/gu, ' ');
++        } else {
++          current = current.replace(/[ \t\u00A0\u3000]{2,}/gu, ' ');
++        }
++      }
++
++      // (3) カンマのみ行（空白は無視）を削除
++      //     例: ",,,", " , , , ", "\t,\t,\t"
++      if (policy.removeCommaOnlyLines) {
++        const commaOnly = /^[ \t\u00A0\u3000]*(?:,[ \t\u00A0\u3000]*)+$/u; // カンマ+空白のみ（少なくとも1つのカンマ）
++        if (commaOnly.test(current)) {
++          current = '';
++        }
++      }
++
++      // (4) 行末カンマの削除（CSV末尾空セルは温存可）
++      if (policy.removeTrailingCommas) {
++        const endsWithComma = /,+$/.test(current);
++        if (endsWithComma) {
++          if (policy.preserveCsvTrailingEmptyFields) {
++            const hasInnerComma = /,.*,[^,]*$/.test(current); // 末尾以外にもカンマ
++            const hasQuote = /"/.test(current);
++            const isSheetHeader = current.startsWith('#sheet:');
++            if (!(hasInnerComma || hasQuote || isSheetHeader)) {
++              current = current.replace(/,+$/u, '');
++            }
++          } else {
++            current = current.replace(/,+$/u, '');
++          }
++        }
++      }
++
++      // (5) 空白のみ行は空行へ
++      if (/^[ \t\u00A0\u3000]+$/u.test(current)) {
++        current = '';
++      }
++
++      return current;
++    });
++
++    // (6) 空行の連続を制限
++    if (policy.maxConsecutiveBlankLines >= 0) {
++      const out: string[] = [];
++      let blankRun = 0;
++      for (const l of lines) {
++        if (l.length === 0) {
++          blankRun += 1;
++          if (blankRun <= policy.maxConsecutiveBlankLines) out.push('');
++        } else {
++          blankRun = 0;
++          out.push(l);
++        }
++      }
++      return out.join('\n');
++    }
++
++    return lines.join('\n');
++  }
++
+   /* ------------------------------------------------------------------ */
+   /*  拡張子別ハンドラ                                                  */
+   /* ------------------------------------------------------------------ */
+@@ -274,7 +409,10 @@ export default class FileExtractor {
+         ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', tmp],
+         { encoding: 'utf8', maxBuffer: 1024 * 1024 * 20 }, // 20 MiB
+       );
+-      return stdout.replace(/\r/g, '\n').trimEnd();
++      return stdout
++        .replace(/\r\n/g, '\n') // CRLF → LF
++        .replace(/\r/g, '\n') // 孤立 CR → LF
++        .trimEnd(); // 末尾改行除去
+     } finally {
+       await fs.unlink(tmp).catch(() => void 0); // 後始末
+     }
+@@ -297,24 +435,87 @@ $Path = '${safePath}'
+     switch (mode) {
+       /* ---------------------------- Word / PDF ---------------------- */
+       case 'word':
+-        // case 'pdf': // PDFもword経由で処理できるが、確認ダイアログが出てしまうので、PDFは別途処理する
+         return (
+           commonHeader +
+           `
+ try {
++    # Word 起動
+     $word = New-Object -ComObject Word.Application
+     $word.Visible = $false
+-    $doc  = $word.Documents.Open($Path, \$false, \$true)
+-    $txt  = $doc.Content.Text                             # Document.Content.Text → Range.Text  [oai_citation:0‡Microsoft Learn](https://learn.microsoft.com/en-us/office/vba/api/word.document.content?utm_source=chatgpt.com) [oai_citation:1‡Microsoft Learn](https://learn.microsoft.com/en-us/office/vba/api/word.range.text?utm_source=chatgpt.com)
+-    $doc.Close()
+-    $word.Quit()
++    $word.DisplayAlerts = 0  # ダイアログ抑止
++
++    # 読み取り専用ではなく開く（本文を書き換えるため）
++    $doc = $word.Documents.Open($Path, $false, $false)
++
++    # ===== CSV 変換ユーティリティ =====
++
++    function Convert-ToCsvField {
++      param([string]$Text, [string]$Delimiter)
++      # デリミタ or ダブルクオート or 改行を含むなら引用
++      $needsQuote = $Text.Contains($Delimiter) -or
++                    $Text.Contains('"') -or
++                    ($Text.IndexOf([char]13) -ge 0) -or
++                    ($Text.IndexOf([char]10) -ge 0)
++      $escaped = $Text -replace '"','""'
++      if ($needsQuote) { return '"' + $escaped + '"' } else { return $escaped }
++    }
++
++    function Get-CleanCellText {
++      param($Cell) # Word.Cell
++      # セル末尾の CR(13) + BEL(7) を除去
++      $t = $Cell.Range.Text.TrimEnd([char]13,[char]7)
++      # セル内の改行は見やすさのため空白 1 個に畳み込み
++      $t = [regex]::Replace($t, "(\\r?\\n)+", " ")
++      return $t
++    }
++
++    function Convert-TableToCsv {
++      param($Table, [string]$Delimiter)
++      $sb = New-Object System.Text.StringBuilder
++      for ($r = 1; $r -le $Table.Rows.Count; $r++) {
++        $row = $Table.Rows.Item($r)
++        $fields = New-Object System.Collections.Generic.List[string]
++        for ($ci = 1; $ci -le $row.Cells.Count; $ci++) {
++          $cell = $row.Cells.Item($ci)
++          $raw  = Get-CleanCellText -Cell $cell
++          $csvF = Convert-ToCsvField -Text $raw -Delimiter $Delimiter
++          [void]$fields.Add($csvF)
++        }
++        [void]$sb.AppendLine([string]::Join(",", $fields))
++      }
++      # 最終改行を削除（CR/LF を直接指定）
++      return $sb.ToString().TrimEnd([char]13, [char]10)
++    }
++
++    function Replace-TablesWithCsvInRange {
++      param($Range)
++      # 逆順処理：置換で Tables コレクションが揺れるのを防ぐ
++      $tables = $Range.Tables
++      for ($i = $tables.Count; $i -ge 1; $i--) {
++        $tbl = $tables.Item($i)
++        $csv = Convert-TableToCsv -Table $tbl -Delimiter ","
++        # 表の範囲そのものを CSV テキストに置換（元位置に埋め込み）
++        $tbl.Range.Text = $csv
++      }
++    }
++
++    # ===== 本文（メインストーリー）だけを対象に置換 =====
++    Replace-TablesWithCsvInRange -Range $doc.Content
++
++    # 置換後の本文テキストを取得（ファイルは保存しない）
++    $txt = $doc.Content.Text
++
++    # 出力
+     Write-Output $txt
+-} finally {
+-    try { if ($doc)  { $doc.Close() } } catch {}
++}
++finally {
++    # 変更は保存せずにクローズ（0 = wdDoNotSaveChanges）
++    try { if ($doc)  { $doc.Close(0) } } catch {}
+     try { if ($word) { $word.Quit() } } catch {}
+ }
+ `
+         );
++
+       /* ---------------------------- Excel --------------------------- */
+       case 'excel':
+         return (
+diff --git a/src/main/main.ts b/src/main/main.ts
+index 1a49853bc..5a16af467 100644
+--- a/src/main/main.ts
++++ b/src/main/main.ts
+@@ -72,7 +72,6 @@ import {
+   WritableStream,
+   TransformStream,
+ } from 'node:stream/web';
+-import type { Source } from '@/db/schema';
+ import {
+   IpcChannels,
+   IpcResponsePayloadMap,
+@@ -81,7 +80,8 @@ import {
+   RequestChannel,
+   IpcChannel,
+   IpcNameMap,
+-} from '@/types/ipc';
++  Source,
++} from '@/types';
+ import SourceRegistrationManager from '../mastra/workflows/sourceRegistration/sourceRegistrationManager';
+ import SourceReviewManager from '../mastra/workflows/sourceReview/sourceReviewManager';
+ import MenuBuilder from './menu';
+@@ -412,6 +412,13 @@ const setupReviewHandlers = () => {
+   handleIpc(
+     IpcChannels.REVIEW_EXTRACT_CHECKLIST_CALL,
+     async ({ reviewHistoryId, files, documentType, checklistRequirements }) => {
++      // CSVインポートの場合は直接ReviewServiceを使用
++      if (documentType === 'checklist-csv') {
++        reviewService.extractChecklistFromCsv(reviewHistoryId, files);
++        return undefined as never;
++      }
++
++      // AI処理の場合は既存のワークフロー処理を実行
+       const manager = SourceReviewManager.getInstance();
+       const result = manager.extractChecklistWithNotification(
+         reviewHistoryId,
+@@ -448,18 +455,21 @@ const setupReviewHandlers = () => {
+       files,
+       additionalInstructions,
+       commentFormat,
++      evaluationSettings,
+     }) => {
+       reviewService.updateReviewInstruction(
+         reviewHistoryId,
+         additionalInstructions,
+         commentFormat,
+       );
++      reviewService.updateReviewEvaluationSettings(reviewHistoryId, evaluationSettings);
+       const manager = SourceReviewManager.getInstance();
+ 
+       // 非同期でレビュー実行処理を実行
+       const result = manager.executeReviewWithNotification(
+         reviewHistoryId,
+         files,
++        evaluationSettings,
+         additionalInstructions,
+         commentFormat,
+       );
+diff --git a/src/main/repository/reviewRepository.ts b/src/main/repository/reviewRepository.ts
+index 40addf565..4e462df93 100644
+--- a/src/main/repository/reviewRepository.ts
++++ b/src/main/repository/reviewRepository.ts
+@@ -1,19 +1,19 @@
+ import { eq, and } from 'drizzle-orm';
+-import type {
+-  ReviewHistory,
+-  ReviewChecklist,
+-  ReviewChecklistResult as DBReviewChecklistResult,
+-} from '../../db/schema';
+ import {
+   reviewHistories,
+   reviewChecklists,
+   reviewChecklistResults,
++  ReviewChecklistEntity,
++  ReviewHistoryEntity,
+ } from '../../db/schema';
+ import getDb from '../../db';
+ import type {
+-  ReviewChecklistResultDisplay,
++  RevieHistory,
++  ReviewChecklist,
++  ReviewChecklistResult,
+   ReviewEvaluation,
+   ReviewChecklistCreatedBy,
++  CustomEvaluationSettings,
+ } from '@/types';
+ import { AppError } from '@/main/lib/error';
+ import { repositoryError } from './error';
+@@ -23,15 +23,19 @@ import { repositoryError } from './error';
+  */
+ export interface IReviewRepository {
+   // レビュー履歴
+-  createReviewHistory(title: string, id?: string): Promise<ReviewHistory>;
+-  getReviewHistory(id: string): Promise<ReviewHistory | null>;
+-  getAllReviewHistories(): Promise<ReviewHistory[]>;
++  createReviewHistory(title: string, id?: string): Promise<RevieHistory>;
++  getReviewHistory(id: string): Promise<RevieHistory | null>;
++  getAllReviewHistories(): Promise<RevieHistory[]>;
+   updateReviewHistoryTitle(id: string, title: string): Promise<void>;
+   updateReviewHistoryAdditionalInstructionsAndCommentFormat(
+     id: string,
+     additionalInstructions?: string,
+     commentFormat?: string,
+   ): Promise<void>;
++  updateReviewHistoryEvaluationSettings(
++    id: string,
++    evaluationSettings?: CustomEvaluationSettings,
++  ): Promise<void>;
+   deleteReviewHistory(id: string): Promise<void>;
+ 
+   // チェックリスト
+@@ -39,9 +43,9 @@ export interface IReviewRepository {
+     reviewHistoryId: string,
+     content: string,
+     createdBy: ReviewChecklistCreatedBy,
+-  ): Promise<ReviewChecklist>;
++  ): Promise<void>;
+   getChecklists(reviewHistoryId: string): Promise<ReviewChecklist[]>;
+-  updateChecklist(id: number, content: string): Promise<ReviewChecklist>;
++  updateChecklist(id: number, content: string): Promise<void>;
+   deleteChecklist(id: number): Promise<void>;
+   deleteSystemCreatedChecklists(reviewHistoryId: string): Promise<void>;
+ 
+@@ -54,17 +58,14 @@ export interface IReviewRepository {
+       fileId: string;
+       fileName: string;
+     }[],
+-  ): Promise<DBReviewChecklistResult[]>;
+-  getReviewResults(
+-    reviewChecklistId: number,
+-  ): Promise<DBReviewChecklistResult[]>;
++  ): Promise<void>;
+   deleteReviewResults(
+     reviewChecklistId: number,
+     sourceId: number,
+   ): Promise<void>;
+   getReviewChecklistResults(
+     reviewHistoryId: string,
+-  ): Promise<ReviewChecklistResultDisplay[]>;
++  ): Promise<ReviewChecklistResult[]>;
+   deleteAllReviewResults(reviewHistoryId: string): Promise<void>;
+ }
+ 
+@@ -74,45 +75,84 @@ let reviewRepository: IReviewRepository | null = null;
+  * Drizzle ORM を使用したレビューリポジトリの実装
+  */
+ class DrizzleReviewRepository implements IReviewRepository {
++  convertReviewChecklistEntityToReviewChecklist(
++    reviewChecklistEntity: ReviewChecklistEntity,
++  ): ReviewChecklist {
++    return {
++      id: reviewChecklistEntity.id,
++      reviewHistoryId: reviewChecklistEntity.reviewHistoryId,
++      content: reviewChecklistEntity.content,
++      createdBy: reviewChecklistEntity.createdBy as ReviewChecklistCreatedBy,
++      createdAt: reviewChecklistEntity.createdAt,
++      updatedAt: reviewChecklistEntity.updatedAt,
++    };
++  }
++
++  convertReviewHistoryEntityToReviewHistory(
++    reviewHistoryEntity: ReviewHistoryEntity,
++  ): RevieHistory {
++    const reviewHistory = {
++      id: reviewHistoryEntity.id,
++      title: reviewHistoryEntity.title,
++      additionalInstructions: reviewHistoryEntity.additionalInstructions,
++      commentFormat: reviewHistoryEntity.commentFormat,
++      evaluationSettings: null,
++      createdAt: reviewHistoryEntity.createdAt,
++      updatedAt: reviewHistoryEntity.updatedAt,
++    } as RevieHistory;
++    if (reviewHistoryEntity.evaluationSettings) {
++      try {
++        reviewHistory.evaluationSettings = JSON.parse(
++          reviewHistoryEntity.evaluationSettings,
++        ) as CustomEvaluationSettings;
++      } catch (err) {
++        // JSONパースエラーの場合はnullにフォールバック
++        reviewHistory.evaluationSettings = null;
++      }
++    }
++    return reviewHistory;
++  }
+   /** レビュー履歴を作成 */
+-  async createReviewHistory(
+-    title: string,
+-    id?: string,
+-  ): Promise<ReviewHistory> {
++  async createReviewHistory(title: string, id?: string): Promise<RevieHistory> {
+     try {
+       const db = await getDb();
+       const [history] = await db
+         .insert(reviewHistories)
+         .values({ title, id })
+         .returning();
+-      return history;
++      return this.convertReviewHistoryEntityToReviewHistory(history);
+     } catch (err) {
+       throw repositoryError('レビュー結果の作成に失敗しました', err);
+     }
+   }
+ 
+   /** レビュー履歴を取得（存在しない場合は null） */
+-  async getReviewHistory(id: string): Promise<ReviewHistory | null> {
++  async getReviewHistory(id: string): Promise<RevieHistory | null> {
+     try {
+       const db = await getDb();
+       const [history] = await db
+         .select()
+         .from(reviewHistories)
+         .where(eq(reviewHistories.id, id));
+-      return history || null;
++
++      if (!history) return null;
++      return this.convertReviewHistoryEntityToReviewHistory(history);
+     } catch (err) {
+       throw repositoryError('レビュー結果の取得に失敗しました', err);
+     }
+   }
+ 
+   /** 全レビュー履歴を取得 */
+-  async getAllReviewHistories(): Promise<ReviewHistory[]> {
++  async getAllReviewHistories(): Promise<RevieHistory[]> {
+     try {
+       const db = await getDb();
+-      return await db
++      const histories = await db
+         .select()
+         .from(reviewHistories)
+         .orderBy(reviewHistories.updatedAt);
++      return histories.map((entity) =>
++        this.convertReviewHistoryEntityToReviewHistory(entity),
++      );
+     } catch (err) {
+       throw repositoryError('レビュー結果の取得に失敗しました', err);
+     }
+@@ -154,6 +194,32 @@ class DrizzleReviewRepository implements IReviewRepository {
+     }
+   }
+ 
++  /** レビューの評定項目設定を更新 */
++  async updateReviewHistoryEvaluationSettings(
++    id: string,
++    evaluationSettings?: CustomEvaluationSettings,
++  ): Promise<void> {
++    try {
++      const db = await getDb();
++      // オブジェクトをJSON文字列に変換してDBに保存
++      const evaluationSettingsJson = evaluationSettings
++        ? JSON.stringify(evaluationSettings)
++        : null;
++
++      await db
++        .update(reviewHistories)
++        .set({
++          evaluationSettings: evaluationSettingsJson,
++        })
++        .where(eq(reviewHistories.id, id));
++    } catch (err) {
++      throw repositoryError(
++        'レビューの評定項目設定の更新に失敗しました',
++        err,
++      );
++    }
++  }
++
+   /** レビュー履歴を削除 */
+   async deleteReviewHistory(id: string): Promise<void> {
+     try {
+@@ -169,14 +235,13 @@ class DrizzleReviewRepository implements IReviewRepository {
+     reviewHistoryId: string,
+     content: string,
+     createdBy: ReviewChecklistCreatedBy,
+-  ): Promise<ReviewChecklist> {
++  ): Promise<void> {
+     try {
+       const db = await getDb();
+       const [checklist] = await db
+         .insert(reviewChecklists)
+         .values({ reviewHistoryId, content, createdBy })
+         .returning();
+-      return checklist;
+     } catch (err) {
+       throw repositoryError('チェックリストの作成に失敗しました', err);
+     }
+@@ -186,18 +251,21 @@ class DrizzleReviewRepository implements IReviewRepository {
+   async getChecklists(reviewHistoryId: string): Promise<ReviewChecklist[]> {
+     try {
+       const db = await getDb();
+-      return await db
++      const reviewChecklistEntities = await db
+         .select()
+         .from(reviewChecklists)
+         .where(eq(reviewChecklists.reviewHistoryId, reviewHistoryId))
+         .orderBy(reviewChecklists.updatedAt);
++      return reviewChecklistEntities.map((entity) =>
++        this.convertReviewChecklistEntityToReviewChecklist(entity),
++      );
+     } catch (err) {
+       throw repositoryError('チェックリスト一覧の取得に失敗しました', err);
+     }
+   }
+ 
+   /** チェックリストを更新 */
+-  async updateChecklist(id: number, content: string): Promise<ReviewChecklist> {
++  async updateChecklist(id: number, content: string): Promise<void> {
+     try {
+       const db = await getDb();
+       const [checklist] = await db
+@@ -208,7 +276,6 @@ class DrizzleReviewRepository implements IReviewRepository {
+       if (!checklist) {
+         throw repositoryError('指定されたチェックリストが存在しません', null);
+       }
+-      return checklist;
+     } catch (err) {
+       if (err instanceof AppError) throw err;
+       throw repositoryError('チェックリストの更新に失敗しました', err);
+@@ -251,10 +318,9 @@ class DrizzleReviewRepository implements IReviewRepository {
+       fileId: string;
+       fileName: string;
+     }[],
+-  ): Promise<DBReviewChecklistResult[]> {
++  ): Promise<void> {
+     try {
+       const db = await getDb();
+-      const upsertedResults: DBReviewChecklistResult[] = [];
+       for (const result of results) {
+         const [upserted] = await db
+           .insert(reviewChecklistResults)
+@@ -270,29 +336,12 @@ class DrizzleReviewRepository implements IReviewRepository {
+             },
+           })
+           .returning();
+-        upsertedResults.push(upserted);
+       }
+-      return upsertedResults;
+     } catch (err) {
+       throw repositoryError('レビュー結果の保存に失敗しました', err);
+     }
+   }
+ 
+-  /** レビュー結果一覧を取得 */
+-  async getReviewResults(
+-    reviewChecklistId: number,
+-  ): Promise<DBReviewChecklistResult[]> {
+-    try {
+-      const db = await getDb();
+-      return await db
+-        .select()
+-        .from(reviewChecklistResults)
+-        .where(eq(reviewChecklistResults.reviewChecklistId, reviewChecklistId));
+-    } catch (err) {
+-      throw repositoryError('レビュー結果一覧の取得に失敗しました', err);
+-    }
+-  }
+-
+   /** レビュー結果を削除 */
+   async deleteReviewResults(
+     reviewChecklistId: number,
+@@ -316,7 +365,7 @@ class DrizzleReviewRepository implements IReviewRepository {
+   /** チェックリスト結果を取得してグルーピング */
+   async getReviewChecklistResults(
+     reviewHistoryId: string,
+-  ): Promise<ReviewChecklistResultDisplay[]> {
++  ): Promise<ReviewChecklistResult[]> {
+     try {
+       const db = await getDb();
+       const rows = await db
+@@ -336,7 +385,7 @@ class DrizzleReviewRepository implements IReviewRepository {
+         .where(eq(reviewChecklists.reviewHistoryId, reviewHistoryId))
+         .orderBy(reviewChecklists.createdAt);
+ 
+-      const map = new Map<number, ReviewChecklistResultDisplay>();
++      const map = new Map<number, ReviewChecklistResult>();
+       for (const row of rows) {
+         let group = map.get(row.checklistId);
+         if (!group) {
+diff --git a/src/main/repository/sourceRepository.ts b/src/main/repository/sourceRepository.ts
+index 3f65acc05..7929194e7 100644
+--- a/src/main/repository/sourceRepository.ts
++++ b/src/main/repository/sourceRepository.ts
+@@ -1,10 +1,21 @@
+ import { eq, inArray, and } from 'drizzle-orm';
+ import getDb from '../../db';
+-import type { Source, InsertSource, InsertTopic } from '../../db/schema';
++import type { SourceEntity } from '../../db/schema';
+ import { sources, topics } from '../../db/schema';
+-import { ProcessStatus } from '@/types';
++import { Source, Topic, ProcessStatus } from '@/types';
+ import { repositoryError } from './error';
+ 
++export type InsertSource = Omit<
++  Source,
++  'id' | 'createdAt' | 'updatedAt' | 'status' | 'error' | 'isEnabled'
++> &
++  Partial<Pick<Source, 'status' | 'error' | 'isEnabled'>>;
++
++export type InsertTopic = Omit<
++  Topic,
++  'id' | 'createdAt' | 'updatedAt'
++>;
++
+ export interface SourceRepository {
+   /**
+    * ソースを取得する
+@@ -106,6 +117,20 @@ export interface SourceRepository {
+ let sourceRepository: SourceRepository | null = null;
+ 
+ class DrizzleSourceRepository implements SourceRepository {
++  convertSourceEntityToSource(entity: SourceEntity): Source {
++    return {
++      id: entity.id,
++      path: entity.path,
++      title: entity.title,
++      summary: entity.summary,
++      createdAt: entity.createdAt,
++      updatedAt: entity.updatedAt,
++      status: entity.status,
++      error: entity.error,
++      isEnabled: entity.isEnabled === 1,
++    };
++  }
++
+   async getSourceById(sourceId: number): Promise<Source | null> {
+     try {
+       const db = await getDb();
+@@ -114,7 +139,10 @@ class DrizzleSourceRepository implements SourceRepository {
+         .from(sources)
+         .where(eq(sources.id, sourceId))
+         .limit(1);
+-      return source || null;
++      if (!source) {
++        throw Error('指定されたIDのソースが存在しません');
++      }
++      return this.convertSourceEntityToSource(source);
+     } catch (err) {
+       throw repositoryError('ドキュメント情報の取得に失敗しました', err);
+     }
+@@ -123,7 +151,8 @@ class DrizzleSourceRepository implements SourceRepository {
+   async getSourcesByIds(sourceIds: number[]): Promise<Source[]> {
+     try {
+       const db = await getDb();
+-      return db.select().from(sources).where(inArray(sources.id, sourceIds));
++      const sourceEntities =  await db.select().from(sources).where(inArray(sources.id, sourceIds));
++      return sourceEntities.map((entity) => this.convertSourceEntityToSource(entity));
+     } catch (err) {
+       throw repositoryError('ドキュメント情報の取得に失敗しました', err);
+     }
+@@ -183,7 +212,7 @@ class DrizzleSourceRepository implements SourceRepository {
+           },
+         })
+         .returning();
+-      return result;
++      return this.convertSourceEntityToSource(result);
+     } catch (err) {
+       throw repositoryError('ドキュメント情報の更新に失敗しました', err);
+     }
+@@ -299,7 +328,8 @@ class DrizzleSourceRepository implements SourceRepository {
+   async getSouorceInStatus(status: ProcessStatus[]): Promise<Source[]> {
+     try {
+       const db = await getDb();
+-      return db.select().from(sources).where(inArray(sources.status, status));
++      const sourceEntities = await db.select().from(sources).where(inArray(sources.status, status));
++      return sourceEntities.map((entity) => this.convertSourceEntityToSource(entity));
+     } catch (err) {
+       throw repositoryError('ドキュメント情報の取得に失敗しました', err);
+     }
+@@ -315,8 +345,7 @@ class DrizzleSourceRepository implements SourceRepository {
+         .select()
+         .from(sources)
+         .where(and(eq(sources.path, path), inArray(sources.status, status)));
+-
+-      return sourcesInStatus;
++      return sourcesInStatus.map((entity) => this.convertSourceEntityToSource(entity));
+     } catch (err) {
+       throw repositoryError('ドキュメント情報の取得に失敗しました', err);
+     }
+@@ -325,7 +354,8 @@ class DrizzleSourceRepository implements SourceRepository {
+   async getAllSources(): Promise<Source[]> {
+     try {
+       const db = await getDb();
+-      return db.select().from(sources);
++      const sourceEntities = await db.select().from(sources);
++      return sourceEntities.map((entity) => this.convertSourceEntityToSource(entity));
+     } catch (err) {
+       throw repositoryError('ドキュメント情報の取得に失敗しました', err);
+     }
+@@ -334,7 +364,11 @@ class DrizzleSourceRepository implements SourceRepository {
+   async insertSources(sourceList: InsertSource[]): Promise<void> {
+     try {
+       const db = await getDb();
+-      await db.insert(sources).values(sourceList);
++      const insertSourceEntities = sourceList.map((source) => ({
++        ...source,
++        isEnabled: source.isEnabled ? 1 : 0,
++      }));
++      await db.insert(sources).values(insertSourceEntities);
+     } catch (err) {
+       throw repositoryError('ドキュメント情報の作成に失敗しました', err);
+     }
+diff --git a/src/main/service/reviewService.ts b/src/main/service/reviewService.ts
+index 1ba891fa3..dbbd7cd35 100644
+--- a/src/main/service/reviewService.ts
++++ b/src/main/service/reviewService.ts
+@@ -1,16 +1,26 @@
+ import { getReviewRepository } from '@/main/repository/reviewRepository';
+-import { ReviewChecklistEdit, ReviewChecklistResultDisplay } from '@/types';
++import {
++  ReviewChecklistEdit,
++  ReviewChecklistResult,
++  CustomEvaluationSettings,
++  UploadFile,
++  IpcChannels,
++} from '@/types';
+ import { generateReviewTitle } from '@/mastra/workflows/sourceReview/lib';
+-import { ReviewHistory } from '@/db/schema';
++import { RevieHistory } from '@/types';
++import FileExtractor from '@/main/lib/fileExtractor';
++import { publishEvent } from '../lib/eventPayloadHelper';
++import { internalError, normalizeUnknownError, toPayload } from '../lib/error';
+ 
+ export interface IReviewService {
+-  getReviewHistories(): Promise<ReviewHistory[]>;
++  getReviewHistories(): Promise<RevieHistory[]>;
+   getReviewHistoryDetail(reviewHistoryId: string): Promise<{
+-    checklistResults: ReviewChecklistResultDisplay[];
++    checklistResults: ReviewChecklistResult[];
+   }>;
+   getReviewInstruction(reviewHistoryId: string): Promise<{
+     additionalInstructions?: string;
+     commentFormat?: string;
++    evaluationSettings?: CustomEvaluationSettings;
+   }>;
+   deleteReviewHistory(reviewHistoryId: string): Promise<void>;
+   updateChecklists(
+@@ -22,6 +32,14 @@ export interface IReviewService {
+     additionalInstructions: string | undefined,
+     commentFormat: string | undefined,
+   ): Promise<void>;
++  updateReviewEvaluationSettings(
++    reviewHistoryId: string,
++    evaluationSettings: CustomEvaluationSettings,
++  ): Promise<void>;
++  extractChecklistFromCsv(
++    reviewHistoryId: string,
++    files: UploadFile[],
++  ): Promise<void>;
+ }
+ 
+ export class ReviewService implements IReviewService {
+@@ -57,7 +75,7 @@ export class ReviewService implements IReviewService {
+   }
+ 
+   /**
+-   * レビュー履歴の追加指示とコメントフォーマットを取得
++   * レビュー履歴の追加指示、コメントフォーマット、評定項目設定を取得
+    */
+   public async getReviewInstruction(reviewHistoryId: string) {
+     const reviewHistory =
+@@ -66,6 +84,7 @@ export class ReviewService implements IReviewService {
+       additionalInstructions:
+         reviewHistory?.additionalInstructions || undefined,
+       commentFormat: reviewHistory?.commentFormat || undefined,
++      evaluationSettings: reviewHistory?.evaluationSettings || undefined,
+     };
+   }
+ 
+@@ -128,4 +147,85 @@ export class ReviewService implements IReviewService {
+       commentFormat,
+     );
+   }
++
++  /**
++   * レビュー履歴の評定項目設定を更新
++   */
++  public async updateReviewEvaluationSettings(
++    reviewHistoryId: string,
++    evaluationSettings: CustomEvaluationSettings,
++  ): Promise<void> {
++    return this.repository.updateReviewHistoryEvaluationSettings(
++      reviewHistoryId,
++      evaluationSettings,
++    );
++  }
++
++  /**
++   * CSVファイルからチェックリストを抽出してDBに保存
++   */
++  public async extractChecklistFromCsv(
++    reviewHistoryId: string,
++    files: UploadFile[],
++  ): Promise<void> {
++    try {
++    // レビュー履歴が存在しない場合は新規作成
++    let reviewHistory = await this.repository.getReviewHistory(reviewHistoryId);
++    if (reviewHistory === null) {
++      reviewHistory = await this.repository.createReviewHistory(
++        generateReviewTitle(),
++        reviewHistoryId,
++      );
++    }
++
++    // システム作成のチェックリストを削除（手動作成分は保持）
++    await this.repository.deleteSystemCreatedChecklists(reviewHistoryId);
++
++    const allChecklistItems: string[] = [];
++
++    // 各CSVファイルを処理
++    for (const file of files) {
++      // ファイルからテキストを抽出
++      const extractionResult = await FileExtractor.extractText(file.path);
++      const csvText = extractionResult.content;
++
++      // CSVテキストを行に分割
++      const lines = csvText.split('\n');
++
++      // 各行の1列目を取得（空行、空文字は除外）
++      for (const line of lines) {
++        const trimmedLine = line.trim();
++        if (trimmedLine) {
++          // CSVの1列目を取得（カンマ区切りの最初の値）
++          const firstColumn = trimmedLine.split(',')[0]?.trim();
++          if (firstColumn && firstColumn !== '') {
++            // ダブルクォートを除去
++            const cleanedItem = firstColumn.replace(/^"(.*)"$/, '$1');
++            if (cleanedItem) {
++              allChecklistItems.push(cleanedItem);
++            }
++          }
++        }
++      }
++    }
++
++    // 重複を除去
++    const uniqueChecklistItems = [...new Set(allChecklistItems)];
++
++    // チェックリスト項目をDBに保存
++    for (const item of uniqueChecklistItems) {
++      await this.repository.createChecklist(reviewHistoryId, item, 'system');
++    }
++    // AI処理と同様のイベント通知を発火
++    publishEvent(IpcChannels.REVIEW_EXTRACT_CHECKLIST_FINISHED, {
++      status: 'success' as const,
++    });
++    } catch (error) {
++      const normalizedError = normalizeUnknownError(error);
++      publishEvent(IpcChannels.REVIEW_EXTRACT_CHECKLIST_FINISHED, {
++        status: 'failed' as const,
++        error: toPayload(normalizedError).message,
++      });
++    }
++  }
+ }
+diff --git a/src/main/service/sourceService.ts b/src/main/service/sourceService.ts
+index 406a8ac70..fd760ef57 100644
+--- a/src/main/service/sourceService.ts
++++ b/src/main/service/sourceService.ts
+@@ -1,5 +1,5 @@
+ import { getSourceRepository } from '../repository/sourceRepository';
+-import { Source } from '@/db/schema';
++import { Source } from '@/types';
+ 
+ export interface ISourceService {
+   getAllSources(): Promise<Source[]>;
+diff --git a/src/mastra/agents/prompts.ts b/src/mastra/agents/prompts.ts
+index eba05ff08..019490841 100644
+--- a/src/mastra/agents/prompts.ts
++++ b/src/mastra/agents/prompts.ts
+@@ -425,6 +425,7 @@ export function getDocumentReviewExecutionPrompt({
+   const checklists = runtimeContext.get('checklistItems');
+   const additionalInstructions = runtimeContext.get('additionalInstructions');
+   const commentFormat = runtimeContext.get('commentFormat');
++  const evaluationSettings = runtimeContext.get('evaluationSettings');
+ 
+   // Build a human-readable list of checklist items
+   const formattedList = checklists
+@@ -443,17 +444,31 @@ export function getDocumentReviewExecutionPrompt({
+       ? commentFormat
+       : defaultFormat;
+ 
++  // 評定項目の設定を構築
++  let evaluationInstructions = '';
++  if (evaluationSettings && evaluationSettings.items && evaluationSettings.items.length > 0) {
++    // カスタム評定項目を使用
++    const evaluationList = evaluationSettings.items
++      .map((item) => `   - ${item.label}: ${item.description}`)
++      .join('\n');
++    evaluationInstructions = `1. For each checklist item, assign one of these ratings:
++${evaluationList}`;
++  } else {
++    // デフォルト評定項目を使用
++    evaluationInstructions = `1. For each checklist item, assign one of these ratings:
++   - A: 基準を完全に満たしている
++   - B: 基準を一部満たしている
++   - C: 基準を満たしていない
++   - –: 評価の対象外、または評価できない`;
++  }
++
+   return `You are a professional document reviewer. Your job is to evaluate the user-provided document against a set of checklist items.
+ 
+ Checklist items:
+ ${formattedList}
+ 
+ Instructions:
+-1. For each checklist item, assign one of these ratings:
+-   - A: Excellent — fully meets the criterion.
+-   - B: Satisfactory — partially meets the criterion.
+-   - C: Needs Improvement — does not meet the criterion.
+-   - –: Not Applicable / Cannot Evaluate — outside the scope or cannot be assessed.
++${evaluationInstructions}
+ 2. For each item, write a comment in Japanese following this exact structure:
+ 
+ ${actualFormat}
+diff --git a/src/mastra/agents/workflowAgents.ts b/src/mastra/agents/workflowAgents.ts
+index f40642ebd..fbc74bfb3 100644
+--- a/src/mastra/agents/workflowAgents.ts
++++ b/src/mastra/agents/workflowAgents.ts
+@@ -15,6 +15,7 @@ import {
+ } from './prompts';
+ import { getOpenAICompatibleModel } from './model/openAICompatible';
+ import { BaseRuntimeContext } from './types';
++import type { CustomEvaluationSettings } from '@/types';
+ 
+ export type ChecklistExtractionAgentRuntimeContext = BaseRuntimeContext & {
+   extractedItems: string[];
+@@ -29,6 +30,7 @@ export type ReviewExecuteAgentRuntimeContext = BaseRuntimeContext & {
+   checklistItems: { id: number; content: string }[];
+   additionalInstructions?: string;
+   commentFormat?: string;
++  evaluationSettings?: CustomEvaluationSettings;
+ };
+ 
+ export type TopicExtractionAgentRuntimeContext = BaseRuntimeContext & {
+diff --git a/src/mastra/workflows/sourceRegistration/sourceRegistration.ts b/src/mastra/workflows/sourceRegistration/sourceRegistration.ts
+index c0f30ca1e..3490732e5 100644
+--- a/src/mastra/workflows/sourceRegistration/sourceRegistration.ts
++++ b/src/mastra/workflows/sourceRegistration/sourceRegistration.ts
+@@ -178,6 +178,7 @@ const extractTopicAndSummaryStep = createStep({
+         status: 'completed',
+         error: null,
+       });
++      await sourceRepository.updateSourceEnabled(sourceId, true);
+       status = 'success';
+     } catch (error) {
+       let errorDetail: string;
+diff --git a/src/mastra/workflows/sourceReview/lib.ts b/src/mastra/workflows/sourceReview/lib.ts
+index 6bbfefdb7..c10b4c941 100644
+--- a/src/mastra/workflows/sourceReview/lib.ts
++++ b/src/mastra/workflows/sourceReview/lib.ts
+@@ -1,5 +1,5 @@
+ import { format } from 'date-fns';
+-import { ReviewChecklist } from '../../../db/schema';
++import { ReviewChecklist } from '@/types';
+ 
+ export function generateReviewTitle(sourceTitles: string[] = []): string {
+   const now = format(new Date(), 'yyyy-MM-dd HH:mm:ss');
+diff --git a/src/mastra/workflows/sourceReview/reviewExecution.ts b/src/mastra/workflows/sourceReview/reviewExecution.ts
+index 038049e67..bca2c16d1 100644
+--- a/src/mastra/workflows/sourceReview/reviewExecution.ts
++++ b/src/mastra/workflows/sourceReview/reviewExecution.ts
+@@ -66,6 +66,15 @@ const triggerSchema = z.object({
+     .string()
+     .optional()
+     .describe('レビューコメントのフォーマット'),
++  evaluationSettings: z
++    .object({
++      items: z.array(z.object({
++        label: z.string(),
++        description: z.string(),
++      })),
++    })
++    .optional()
++    .describe('カスタム評定項目設定'),
+ });
+ 
+ // ステップ1: チェックリストをカテゴリごとに分類
+@@ -235,7 +244,7 @@ const reviewExecutionStep = createStep({
+   outputSchema: baseStepOutputSchema,
+   execute: async ({ inputData, getInitData, mastra, abortSignal }) => {
+     // レビュー対象のファイル
+-    const { files, additionalInstructions, commentFormat } =
++    const { files, additionalInstructions, commentFormat, evaluationSettings } =
+       getInitData() as z.infer<typeof triggerSchema>;
+     // ステップ1からの入力を取得
+     const { categories } = inputData;
+@@ -320,13 +329,24 @@ const reviewExecutionStep = createStep({
+           let reviewTargetChecklists = category.checklists;
+           while (attempt < maxAttempts) {
+             try {
++              // デフォルトの評定項目
++              const defaultEvaluationItems = ['A', 'B', 'C', '-'] as const;
++
++              // カスタム評定項目がある場合はそれを使用、なければデフォルトを使用
++              const evaluationItems = evaluationSettings?.items?.length
++                ? evaluationSettings.items.map(item => item.label)
++                : defaultEvaluationItems;
++
++              // 最初の要素が存在することを確認してenumを作成
++              const evaluationEnum = evaluationItems.length > 0
++                ? z.enum([evaluationItems[0], ...evaluationItems.slice(1)] as [string, ...string[]])
++                : z.enum(defaultEvaluationItems);
++
+               const outputSchema = z.array(
+                 z.object({
+                   checklistId: z.number(),
+                   comment: z.string().describe('evaluation comment'),
+-                  evaluation: z
+-                    .enum(['A', 'B', 'C', '-'])
+-                    .describe('evaluation'),
++                  evaluation: evaluationEnum.describe('evaluation'),
+                 }),
+               );
+               const runtimeContext =
+@@ -337,6 +357,7 @@ const reviewExecutionStep = createStep({
+                 additionalInstructions,
+               );
+               runtimeContext.set('commentFormat', commentFormat);
++              runtimeContext.set('evaluationSettings', evaluationSettings);
+               // レビューエージェントを使用してレビューを実行
+               const reviewResult = await reviewAgent.generate(message, {
+                 output: outputSchema,
+diff --git a/src/mastra/workflows/sourceReview/sourceReviewManager.ts b/src/mastra/workflows/sourceReview/sourceReviewManager.ts
+index 7819b54ba..76f01bbb6 100644
+--- a/src/mastra/workflows/sourceReview/sourceReviewManager.ts
++++ b/src/mastra/workflows/sourceReview/sourceReviewManager.ts
+@@ -1,7 +1,7 @@
+ import { getReviewRepository } from '@/main/repository/reviewRepository';
+ import { IpcChannels } from '@/types/ipc';
+ import { generateReviewTitle } from './lib';
+-import { ReviewHistory } from '@/db/schema';
++import { RevieHistory, CustomEvaluationSettings } from '@/types';
+ import { mastra } from '../..';
+ import {
+   ChecklistExtractionResultStatus,
+@@ -47,11 +47,11 @@ export default class SourceReviewManager {
+   public async extractChecklist(
+     reviewHistoryId: string,
+     files: UploadFile[],
+-    documentType: DocumentType = 'checklist',
++    documentType: DocumentType = 'checklist-ai',
+     checklistRequirements?: string,
+   ): Promise<{ status: ChecklistExtractionResultStatus; error?: string }> {
+     try {
+-      let reviewHistory: ReviewHistory | null;
++      let reviewHistory: RevieHistory | null;
+       reviewHistory =
+         await this.reviewRepository.getReviewHistory(reviewHistoryId);
+       // レビュー履歴が存在しない場合は新規作成
+@@ -131,6 +131,7 @@ export default class SourceReviewManager {
+   public async executeReview(
+     reviewHistoryId: string,
+     files: UploadFile[],
++    evaluationSettings: CustomEvaluationSettings,
+     additionalInstructions?: string,
+     commentFormat?: string,
+   ): Promise<{ status: ReviewExecutionResultStatus; error?: string }> {
+@@ -177,6 +178,7 @@ export default class SourceReviewManager {
+         inputData: {
+           reviewHistoryId,
+           files,
++          evaluationSettings,
+           additionalInstructions,
+           commentFormat,
+         },
+@@ -221,7 +223,7 @@ export default class SourceReviewManager {
+   public extractChecklistWithNotification(
+     reviewHistoryId: string,
+     files: UploadFile[],
+-    documentType: DocumentType = 'checklist',
++    documentType: DocumentType = 'checklist-ai',
+     checklistRequirements?: string,
+   ): { success: boolean; error?: string } {
+     try {
+@@ -285,6 +287,7 @@ export default class SourceReviewManager {
+   public executeReviewWithNotification(
+     reviewHistoryId: string,
+     files: UploadFile[],
++    evaluationSettings: CustomEvaluationSettings,
+     additionalInstructions?: string,
+     commentFormat?: string,
+   ): { success: boolean; error?: string } {
+@@ -292,6 +295,7 @@ export default class SourceReviewManager {
+       this.executeReview(
+         reviewHistoryId,
+         files,
++        evaluationSettings,
+         additionalInstructions,
+         commentFormat,
+       )
 diff --git a/src/messages/ja/template.ts b/src/messages/ja/template.ts
-index 0b7d5ae55..2b70b6eed 100644
+index 2b70b6eed..3ca4604e2 100644
 --- a/src/messages/ja/template.ts
 +++ b/src/messages/ja/template.ts
-@@ -22,6 +22,7 @@ export const template = {
-   FS_OPEN_DIALOG_ERROR: `ファイルダイアログの表示に失敗しました`,
-   FILE_TEXT_EXTRACTION_ERROR: `ファイルのテキスト抽出に失敗しました\n{path}`,
-   SOURCE_REGISTRATION_DIR_READING_ERROR: `ドキュメント登録用ディレクトリの読み込みに失敗しました`,
-+  SOURCE_REGISTRATION_DIR_NOT_SET: `ドキュメント登録用ディレクトリが設定されていません\n設定画面で登録用ディレクトリを指定してください`,
-   REVIEW_CHECKLIST_EXTRACTION_ERROR: `チェックリスト抽出処理に失敗しました\n{detail}`,
-   REVIEW_EXECUTION_ERROR: `レビュー実行処理に失敗しました\n{detail}`,
-   REVIEW_CHECKLIST_EXTRACTION_OVER_MAX_TOKENS: `チェックリストの抽出結果がAIモデルの最大出力トークン数を超え、不正な出力となった為修正を試みましたが失敗しました。抽出結果が最大出力トークン内に収まるようにチェックリストのファイル分割を検討してください。`,
-diff --git a/src/renderer/components/common/AppErrorBoundary.tsx b/src/renderer/components/common/AppErrorBoundary.tsx
-index 1ec35d955..6835d73d5 100644
---- a/src/renderer/components/common/AppErrorBoundary.tsx
-+++ b/src/renderer/components/common/AppErrorBoundary.tsx
-@@ -1,4 +1,5 @@
- import React from 'react';
-+// @ts-ignore
- import { ErrorBoundary } from 'react-error-boundary';
- import { getSafeErrorMessage } from '@/renderer/lib/error';
- import { alertStore } from '../../stores/alertStore';
+@@ -29,5 +29,6 @@ export const template = {
+   REVIEW_CHECKLIST_EXTRACTION_NOT_CHECKLIST_DOCUMENT: `チェックリスト抽出に適さないドキュメントとして判定されたため処理を終了しました`,
+   REVIEW_CHECKLIST_EXTRACTION_NO_CHECKLIST_ITEM: `チェックリストが抽出されませんでした`,
+   REVIEW_EXECUTION_NO_TARGET_CHECKLIST: `対象のチェックリストが存在しないためレビューを実行できませんでした`,
++  REVIEW_CHECKLIST_EXTRACTION_FROM_CSV_ERROR: `CSVファイルからのチェックリスト抽出中に予期せぬエラーが発生しました`,
+   AI_API_ERROR: `AIのAPIと通信中にエラーが発生しました\n{detail}`,
+ } as const;
+diff --git a/src/renderer/App.tsx b/src/renderer/App.tsx
+index 1af597658..3db408950 100644
+--- a/src/renderer/App.tsx
++++ b/src/renderer/App.tsx
+@@ -166,7 +166,7 @@ function App() {
+                     transform: 'translateX(-50%)',
+                     width: 'fit-content',
+                     maxWidth: '80%',
+-                    zIndex: 1300,
++                    zIndex: 1400,
+                     display: 'flex',
+                     flexDirection: 'column',
+                     gap: 1,
 diff --git a/src/renderer/components/common/SourceListModal.tsx b/src/renderer/components/common/SourceListModal.tsx
-index ff4676736..e927559be 100644
+index b9b6c0a90..a42823c46 100644
 --- a/src/renderer/components/common/SourceListModal.tsx
 +++ b/src/renderer/components/common/SourceListModal.tsx
-@@ -268,17 +268,28 @@ function SourceListModal({
-         // ドキュメント更新完了時にポーリングを停止
-         setReloadPolling(false);
+@@ -23,10 +23,9 @@ import {
+   HourglassEmpty as ProcessingIcon,
+   Help as UnknownIcon,
+ } from '@mui/icons-material';
++import { Source } from '@/types';
+ import { useAlertStore } from '@/renderer/stores/alertStore';
+ import { getSafeErrorMessage } from '../../lib/error';
+-
+-import { Source } from '../../../db/schema';
+ import { SourceApi } from '../../service/sourceApi';
  
-+        fetchSources().catch((error) => {
-+          console.error('ソース一覧の更新に失敗しました:', error);
-+          addAlert({
-+            message: getSafeErrorMessage(
-+              error,
-+              '登録済みドキュメントの取得に失敗しました',
-+            ),
-+            severity: 'error',
-+          });
-+        });
-+
-         if (payload.success) {
--          // 成功時：最新データを取得（アラート表示はApp.tsxで行う）
--          fetchSources().catch((error) => {
--            console.error('ソース一覧の更新に失敗しました:', error);
--            addAlert({
--              message: getSafeErrorMessage(
--                error,
--                'ドキュメント一覧の更新に失敗しました',
--              ),
--              severity: 'error',
--            });
-+          addAlert({
-+            message: 'ドキュメントの同期が完了しました',
-+            severity: 'success',
-+          });
-+        } else if (!payload.success) {
-+          addAlert({
-+            message: `ドキュメントの同期に失敗しました: ${
-+              payload.error || '不明なエラー'
-+            }`,
-+            severity: 'error',
-           });
+ interface SourceListModalProps {
+@@ -67,7 +66,7 @@ function SourceListModal({
+           acc[source.id] = false;
+           return acc;
          }
-         // 失敗時のエラーアラート表示はApp.tsxで行う
+-        acc[source.id] = source.isEnabled === 1;
++        acc[source.id] = source.isEnabled;
+         return acc;
+       },
+       {} as { [key: number]: boolean },
+@@ -184,7 +183,7 @@ function SourceListModal({
+     );
+     // 状態更新
+     const enabledCount = sourceList.filter(
+-      (s: Source) => s.isEnabled === 1 && s.status === 'completed',
++      (s: Source) => s.isEnabled && s.status === 'completed',
+     ).length;
+     onStatusUpdate({ processing: newProcessing, enabledCount });
+   }, [onStatusUpdate]);
 diff --git a/src/renderer/components/review/ReviewArea.tsx b/src/renderer/components/review/ReviewArea.tsx
-index e204655ea..7a726d3b8 100644
+index 7a726d3b8..5e2563c49 100644
 --- a/src/renderer/components/review/ReviewArea.tsx
 +++ b/src/renderer/components/review/ReviewArea.tsx
-@@ -154,21 +154,21 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
-         // 抽出完了イベントの購読を開始
-         const unsubscribe = reviewApi.subscribeChecklistExtractionFinished(
-           (payload) => {
-+            // 抽出結果の再取得
-+            fetchChecklistResults().catch((error) => {
-+              addAlert({
-+                message: getSafeErrorMessage(
-+                  error,
-+                  'チェックリストの取得に失敗しました',
-+                ),
-+                severity: 'error',
-+              });
-+            });
-             if (payload.status === 'success') {
-               addAlert({
-                 message: 'チェックリストの抽出が完了しました',
-                 severity: 'success',
-               });
--              // 抽出結果の再取得
--              fetchChecklistResults().catch((error) => {
--                addAlert({
--                  message: getSafeErrorMessage(
--                    error,
--                    'チェックリスト結果の取得に失敗しました',
--                  ),
--                  severity: 'error',
--                });
--              });
-             } else if (payload.status === 'failed') {
-               addAlert({
-                 message: `チェックリストの抽出に失敗しました\n${payload.error}`,
-@@ -191,7 +191,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
-         setIsExtracting(false);
-       }
-     },
--    [selectedReviewHistoryId, addAlert],
-+    [selectedReviewHistoryId, addAlert, fetchChecklistResults],
-   );
+@@ -1,21 +1,15 @@
+ import React, { useEffect, useState, useCallback } from 'react';
+-import {
+-  Box,
+-  Button,
+-  Paper,
+-  CircularProgress,
+-  Stack,
+-  Typography,
+-} from '@mui/material';
++import { Box, Button, Paper, Stack, Typography } from '@mui/material';
+ import CheckBoxIcon from '@mui/icons-material/CheckBox';
+ import RateReviewIcon from '@mui/icons-material/RateReview';
+ import StopIcon from '@mui/icons-material/Stop';
+ import {
+   ReviewChecklistEdit,
+-  ReviewChecklistResultDisplay,
++  ReviewChecklistResult,
+   ModalMode,
+   DocumentType,
+   UploadFile,
++  CustomEvaluationSettings,
+ } from '@/types';
+ import { ReviewAreaProps } from './types';
+ import ReviewChecklistSection from './ReviewChecklistSection';
+@@ -27,10 +21,20 @@ import { getSafeErrorMessage } from '../../lib/error';
+ const defaultCommentFormat =
+   '【評価理由・根拠】\n（具体的な理由と根拠を記載）\n\n【改善提案】\n（改善のための具体的な提案を記載）';
  
-   // レビュー実行処理
-@@ -217,6 +217,16 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
-         // レビュー完了イベントの購読を開始
-         const unsubscribe = reviewApi.subscribeReviewExtractionFinished(
-           (payload) => {
-+            // 抽出結果の再取得
-+            fetchChecklistResults().catch((error) => {
-+              addAlert({
-+                message: getSafeErrorMessage(
-+                  error,
-+                  'チェックリストの取得に失敗しました',
-+                ),
-+                severity: 'error',
-+              });
-+            });
-             if (payload.status === 'success') {
-               addAlert({
-                 message: 'レビューが完了しました',
-@@ -241,7 +251,13 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
-         setIsReviewing(false);
-       }
-     },
--    [selectedReviewHistoryId, addAlert, additionalInstructions, commentFormat],
-+    [
-+      selectedReviewHistoryId,
-+      addAlert,
-+      additionalInstructions,
-+      commentFormat,
-+      fetchChecklistResults,
-+    ],
-   );
- 
-   // チェックリスト抽出のキャンセル処理
-@@ -260,6 +276,16 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
-         message: 'チェックリスト抽出をキャンセルしました',
-         severity: 'info',
-       });
-+      // 抽出結果の再取得
-+      fetchChecklistResults().catch((error) => {
-+        addAlert({
-+          message: getSafeErrorMessage(
-+            error,
-+            'チェックリストの取得に失敗しました',
-+          ),
-+          severity: 'error',
-+        });
-+      });
-     } catch (error) {
-       console.error('チェックリスト抽出のキャンセルエラー:', error);
-       addAlert({
-@@ -267,7 +293,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
-         severity: 'warning',
-       });
-     }
--  }, [selectedReviewHistoryId, addAlert]);
-+  }, [selectedReviewHistoryId, addAlert, fetchChecklistResults]);
- 
-   // レビュー実行のキャンセル処理
-   const handleCancelExecuteReview = useCallback(async () => {
-@@ -285,6 +311,15 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
-         message: 'レビュー実行をキャンセルしました',
-         severity: 'info',
-       });
-+      fetchChecklistResults().catch((error) => {
-+        addAlert({
-+          message: getSafeErrorMessage(
-+            error,
-+            'チェックリストの取得に失敗しました',
-+          ),
-+          severity: 'error',
-+        });
-+      });
-     } catch (error) {
-       console.error('レビュー実行のキャンセルエラー:', error);
-       addAlert({
-@@ -292,7 +327,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
-         severity: 'warning',
-       });
-     }
--  }, [selectedReviewHistoryId, addAlert]);
-+  }, [selectedReviewHistoryId, addAlert, fetchChecklistResults]);
- 
-   const handleModalSubmit = useCallback(
-     async (
-diff --git a/src/renderer/hooks/useSettings.ts b/src/renderer/hooks/useSettings.ts
-index fb7a118eb..85592c279 100644
---- a/src/renderer/hooks/useSettings.ts
-+++ b/src/renderer/hooks/useSettings.ts
-@@ -40,10 +40,7 @@ const useSettingsStore = () => {
-   const [loading, setLoading] = useState(true);
-   const [saving, setSaving] = useState(false);
-   const [saveError, setSaveError] = useState<string | null>(null);
--  const {
--    setUpdatedFlg,
--    setStatus: setAgentStatus,
--  } = useAgentStatusStore();
-+  const { setUpdatedFlg, setStatus: setAgentStatus } = useAgentStatusStore();
- 
-   // エージェント状態のポーリング制御
-   const [agentStatusPolling, setAgentStatusPolling] = useState(false);
-@@ -238,7 +235,6 @@ const useSettingsStore = () => {
-     };
-   }, [agentStatusPolling, fetchAgentStatus]);
- 
--
-   /**
-    * フィールドの更新処理
-    */
-@@ -306,31 +302,35 @@ const useSettingsStore = () => {
-       });
- 
-       // 完了イベントの購読を開始（ワンショット）
--      const unsubscribe = settingsApi.subscribeSettingsUpdateFinished((payload: { success: boolean; error?: string }) => {
--        // 設定更新完了時にポーリングを停止
--        setAgentStatusPolling(false);
-+      const unsubscribe = settingsApi.subscribeSettingsUpdateFinished(
-+        (payload: { success: boolean; error?: string }) => {
-+          // 設定更新完了時にポーリングを停止
-+          setAgentStatusPolling(false);
- 
--        if (payload.success) {
--          // 成功時：最新データを取得
-           try {
-             fetchAgentStatus();
-           } catch (error) {
-             console.error('エージェント状態取得に失敗しました:', error);
-             addAlert({
--              message: getSafeErrorMessage(error, 'AIツール情報の取得に失敗しました'),
-+              message: getSafeErrorMessage(
-+                error,
-+                'AIツール起動情報の取得に失敗しました\n再度設定保存を実行してください',
-+              ),
-               severity: 'error',
-             });
-           }
--        } else {
--          // 失敗時：エラー状態設定
--          addAlert({
--            message: `エージェント初期化に失敗しました\n${payload.error || '不明なエラーが発生しました'}`,
--            severity: 'error',
--          });
--        }
--        // 処理完了と同時に購読解除
--        unsubscribe();
--      });
++// デフォルト評定項目
++const defaultEvaluationSettings: CustomEvaluationSettings = {
++  items: [
++    { label: 'A', description: '基準を完全に満たしている' },
++    { label: 'B', description: '基準を一部満たしている' },
++    { label: 'C', description: '基準を満たしていない' },
++    { label: '–', description: '評価の対象外、または評価できない' },
++  ],
++};
 +
-+          if (!payload.success) {
-+            // 失敗時：エラー状態設定
-+            addAlert({
-+              message: `AIツールの初期化に失敗しました: ${payload.error || '不明なエラーが発生しました'}\n再度設定保存を実行してください`,
-+              severity: 'error',
-+            });
-+          }
-+          // 処理完了と同時に購読解除
-+          unsubscribe();
-+        },
+ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
+   // 状態管理
+   const [checklistResults, setChecklistResults] = useState<
+-    ReviewChecklistResultDisplay[]
++    ReviewChecklistResult[]
+   >([]);
+   // チェックリスト更新処理中であるかどうか
+   const [isSaving, setIsSaving] = useState(false);
+@@ -40,6 +44,8 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
+   const [modalMode, setModalMode] = useState<ModalMode | null>(null);
+   const [additionalInstructions, setAdditionalInstructions] = useState('');
+   const [commentFormat, setCommentFormat] = useState(defaultCommentFormat);
++  const [evaluationSettings, setEvaluationSettings] =
++    useState<CustomEvaluationSettings>(defaultEvaluationSettings);
+ 
+   const addAlert = useAlertStore((state) => state.addAlert);
+ 
+@@ -78,6 +84,9 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
+         );
+         setAdditionalInstructions(result?.additionalInstructions || '');
+         setCommentFormat(result?.commentFormat || defaultCommentFormat);
++        setEvaluationSettings(
++          result?.evaluationSettings || defaultEvaluationSettings,
++        );
+ 
+         // 初期データ取得成功したらポーリングを停止
+         if (intervalId) {
+@@ -209,6 +218,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
+         const result = await reviewApi.executeReview(
+           selectedReviewHistoryId,
+           files,
++          evaluationSettings,
+           additionalInstructions || additionalInstructions,
+           commentFormat || commentFormat,
+           { throwError: true, showAlert: false },
+@@ -257,6 +267,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
+       additionalInstructions,
+       commentFormat,
+       fetchChecklistResults,
++      evaluationSettings,
+     ],
+   );
+ 
+@@ -475,6 +486,8 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
+             setAdditionalInstructions={setAdditionalInstructions}
+             commentFormat={commentFormat}
+             setCommentFormat={setCommentFormat}
++            evaluationSettings={evaluationSettings || defaultEvaluationSettings}
++            setEvaluationSettings={setEvaluationSettings}
+           />
+         </>
+       )}
+diff --git a/src/renderer/components/review/ReviewChecklistSection.tsx b/src/renderer/components/review/ReviewChecklistSection.tsx
+index 9e950df0e..63ef7654d 100644
+--- a/src/renderer/components/review/ReviewChecklistSection.tsx
++++ b/src/renderer/components/review/ReviewChecklistSection.tsx
+@@ -13,7 +13,6 @@ import {
+   Button,
+   TextField,
+   Stack,
+-  Avatar,
+   Typography,
+ } from '@mui/material';
+ import AddIcon from '@mui/icons-material/Add';
+@@ -30,14 +29,30 @@ import {
+   generateCSVFilename,
+ } from '../../lib/csvUtils';
+ 
+-// 評価ごとの色マッピング
+-const evaluationColors: Record<ReviewEvaluation, string> = {
++// 評価ごとの色マッピング（デフォルト）
++const defaultEvaluationColors = {
+   A: '#4caf50', // 緑
+   B: '#ffb74d', // オレンジ
+   C: '#f44336', // 赤
+   '-': '#9e9e9e', // グレー（評価対象外／評価不可能）
+ };
+ 
++// 動的評価項目用の色取得関数
++const getEvaluationColor = (evaluation: ReviewEvaluation): string => {
++  // デフォルト色マッピングに存在する場合はそれを使用
++  if (evaluation in defaultEvaluationColors) {
++    // @ts-ignore
++    return defaultEvaluationColors[evaluation];
++  }
++  // 存在しない場合はハッシュ値から色を生成
++  let hash = 0;
++  for (let i = 0; i < evaluation.length; i++) {
++    hash = evaluation.charCodeAt(i) + ((hash << 5) - hash);
++  }
++  const hue = hash % 360;
++  return `hsl(${hue}, 70%, 50%)`;
++};
++
+ const ReviewChecklistSection: React.FC<ReviewChecklistSectionProps> = ({
+   checklistResults,
+   isLoading,
+@@ -111,31 +126,26 @@ const ReviewChecklistSection: React.FC<ReviewChecklistSectionProps> = ({
+   }, [checklistResults]);
+ 
+   // --- ソート ---
+-  const descOrder: ReviewEvaluation[] = ['A', 'B', 'C', '-'];
+-  const ascOrder: ReviewEvaluation[] = ['C', 'A', 'B', '-'];
+-
++  // 動的評価項目対応のため、文字列順ソートを使用
+   const sortedResults = useMemo(() => {
+     if (sortBy == null) return checklistResults;
+ 
+-    // ソート方向に応じて使う配列を選択
+-    const order = sortDirection === 'desc' ? descOrder : ascOrder;
+-
+     return [...checklistResults].sort((a, b) => {
+-      // 対象ファイルの評価を取得。未評価は '-' 扱い
++      // 対象ファイルの評価を取得。未評価は空文字扱い
+       const aEv =
+         a.sourceEvaluations?.find((ev) => ev.fileId === sortBy)?.evaluation ??
+-        '-';
++        '';
+       const bEv =
+         b.sourceEvaluations?.find((ev) => ev.fileId === sortBy)?.evaluation ??
+-        '-';
+-
+-      // 配列のインデックスで比較
+-      const aIdx = order.indexOf(aEv);
+-      const bIdx = order.indexOf(bEv);
++        '';
+ 
+-      return aIdx - bIdx;
++      // 文字列順で比較
++      if (sortDirection === 'desc') {
++        return bEv.localeCompare(aEv);
++      } else {
++        return aEv.localeCompare(bEv);
++      }
+     });
+-    // eslint-disable-next-line
+   }, [checklistResults, sortBy, sortDirection]);
+ 
+   // --- ボックス用スタイル ---
+@@ -210,20 +220,19 @@ const ReviewChecklistSection: React.FC<ReviewChecklistSectionProps> = ({
+             <Box>
+               {ev?.evaluation && (
+                 <Stack spacing={1} alignItems="center">
+-                  <Avatar
++                  <Typography
++                    variant="body2"
+                     sx={{
+-                      bgcolor: evaluationColors[ev.evaluation],
+-                      width: 32,
+-                      height: 32,
++                      color: getEvaluationColor(ev.evaluation),
++                      fontWeight: 'bold',
++                      textDecoration: 'underline',
++                      textDecorationColor: getEvaluationColor(ev.evaluation),
++                      textDecorationThickness: '2px',
++                      textUnderlineOffset: '3px',
+                     }}
+                   >
+-                    <Typography
+-                      variant="caption"
+-                      sx={{ color: 'white', fontWeight: 'bold' }}
+-                    >
+-                      {ev.evaluation}
+-                    </Typography>
+-                  </Avatar>
++                    {ev.evaluation}
++                  </Typography>
+                   {ev.comment && (
+                     <Typography variant="body2" sx={commentBoxSx}>
+                       {ev.comment}
+diff --git a/src/renderer/components/review/ReviewHistoryList.tsx b/src/renderer/components/review/ReviewHistoryList.tsx
+index fb5dfe52f..9e80ce0b0 100644
+--- a/src/renderer/components/review/ReviewHistoryList.tsx
++++ b/src/renderer/components/review/ReviewHistoryList.tsx
+@@ -18,11 +18,10 @@ import { MoreVert as MoreIcon } from '@mui/icons-material';
+ import AddCircleOutlineOutlinedIcon from '@mui/icons-material/AddCircleOutlineOutlined';
+ import { v4 as uuidv4 } from 'uuid';
+ import { useAlertStore } from '@/renderer/stores/alertStore';
++import { RevieHistory, IpcChannels } from '@/types';
+ import { getSafeErrorMessage } from '../../lib/error';
+-import type { ReviewHistory } from '../../../db/schema';
+ import { ReviewApi } from '../../service/reviewApi';
+ import { usePushChannel } from '../../hooks/usePushChannel';
+-import { IpcChannels } from '../../../types/ipc';
+ 
+ interface ReviewHistoryListProps {
+   selectedReviewHistoryId?: string | null;
+@@ -33,7 +32,7 @@ function ReviewHistoryList({
+   selectedReviewHistoryId = null,
+   onReviewHistorySelect,
+ }: ReviewHistoryListProps) {
+-  const [reviewHistories, setReviewHistories] = useState<ReviewHistory[]>([]);
++  const [reviewHistories, setReviewHistories] = useState<RevieHistory[]>([]);
+   const [loading, setLoading] = useState(true);
+   const [menuAnchorEl, setMenuAnchorEl] = useState<null | HTMLElement>(null);
+   // メニュー選択中のレビュー履歴ID
+diff --git a/src/renderer/components/review/ReviewSourceModal.tsx b/src/renderer/components/review/ReviewSourceModal.tsx
+index 283335d35..ae5f42d83 100644
+--- a/src/renderer/components/review/ReviewSourceModal.tsx
++++ b/src/renderer/components/review/ReviewSourceModal.tsx
+@@ -18,21 +18,29 @@ import {
+   IconButton,
+   Tooltip,
+   CircularProgress,
++  Stack,
++  Accordion,
++  AccordionSummary,
++  AccordionDetails,
+ } from '@mui/material';
+ import {
+   CloudUpload as UploadIcon,
+   Delete as DeleteIcon,
++  Edit as EditIcon,
+   Image as ImageIcon,
+   Description as TextIcon,
+   Help as HelpIcon,
+   ViewAgenda as MergedIcon,
+   ViewStream as PagesIcon,
++  Add as AddIcon,
++  ExpandMore as ExpandMoreIcon,
+ } from '@mui/icons-material';
+ import {
+   DocumentType,
+   UploadFile,
+   PdfProcessMode,
+   PdfImageMode,
++  EvaluationItem,
+ } from '@/types';
+ import { useAlertStore } from '@/renderer/stores/alertStore';
+ import { getSafeErrorMessage } from '../../lib/error';
+@@ -80,9 +88,11 @@ const getAlertMessage = ({
+       <>
+         ファイルを選択してチェックリスト抽出を実行できます
+         <br />
+-        {documentType === 'checklist'
+-          ? '選択されたチェックリストドキュメントから、AIが既存のチェック項目を抽出できます'
+-          : '選択された一般ドキュメントから、AIがレビュー用のチェックリストを新規作成できます'}
++        {documentType === 'checklist-csv'
++          ? '選択したExcelまたはCSVファイルの一列目の値を全てチェックリスト項目として抽出します'
++          : documentType === 'checklist-ai'
++            ? '選択されたチェックリストドキュメントから、AIが既存のチェック項目を抽出できます'
++            : '選択された一般ドキュメントから、AIがレビュー用のチェックリストを新規作成できます'}
+         <br />
+         ※
+         <br />
+@@ -115,11 +125,19 @@ function ReviewSourceModal({
+   setAdditionalInstructions,
+   commentFormat,
+   setCommentFormat,
++  evaluationSettings,
++  setEvaluationSettings,
+ }: ReviewSourceModalProps): React.ReactElement {
+   const [uploadedFiles, setUploadedFiles] = useState<UploadFile[]>([]);
+   const [processing, setProcessing] = useState(false); // ★ 送信処理やPDF変換の進行中フラグ
+-  const [documentType, setDocumentType] = useState<DocumentType>('checklist');
++  const [documentType, setDocumentType] =
++    useState<DocumentType>('checklist-ai');
+   const [checklistRequirements, setChecklistRequirements] = useState('');
++  const [editingItemIndex, setEditingItemIndex] = useState<number | null>(null);
++  const [editingItem, setEditingItem] = useState<EvaluationItem>({
++    label: '',
++    description: '',
++  });
+ 
+   const addAlert = useAlertStore((state) => state.addAlert);
+ 
+@@ -127,7 +145,7 @@ function ReviewSourceModal({
+   useEffect(() => {
+     const loadSavedData = async () => {
+       setUploadedFiles([]);
+-      setDocumentType('checklist');
++      setDocumentType('checklist-ai');
+       setChecklistRequirements('');
+     };
+ 
+@@ -152,6 +170,7 @@ function ReviewSourceModal({
+                 'ppt',
+                 'pptx',
+                 'txt',
++                'csv',
+               ],
+             },
+           ],
+@@ -221,6 +240,61 @@ function ReviewSourceModal({
+     );
+   };
+ 
++  // 評価項目の追加
++  const handleAddEvaluationItem = () => {
++    setEditingItemIndex(-1); // -1は新規追加を表す
++    setEditingItem({ label: '', description: '' });
++  };
++
++  // 評価項目の編集開始
++  const handleEditEvaluationItem = (index: number) => {
++    setEditingItemIndex(index);
++    setEditingItem({ ...evaluationSettings.items[index] });
++  };
++
++  // 評価項目の編集キャンセル
++  const handleCancelEditEvaluationItem = () => {
++    setEditingItemIndex(null);
++    setEditingItem({ label: '', description: '' });
++  };
++
++  // 評価項目の保存
++  const handleSaveEvaluationItem = () => {
++    if (!editingItem.label.trim() || !editingItem.description.trim()) {
++      addAlert({
++        message: 'すべての項目を入力してください',
++        severity: 'warning',
++      });
++      return;
++    }
++
++    const newItems = [...evaluationSettings.items];
++    if (editingItemIndex === -1) {
++      // 新規追加
++      newItems.push(editingItem);
++    } else if (editingItemIndex !== null) {
++      // 編集
++      newItems[editingItemIndex] = editingItem;
++    }
++
++    setEvaluationSettings({ items: newItems });
++    setEditingItemIndex(null);
++    setEditingItem({ label: '', description: '' });
++  };
++
++  // 評価項目の削除
++  const handleDeleteEvaluationItem = (index: number) => {
++    const newItems = evaluationSettings.items.filter((_, i) => i !== index);
++    if (newItems.length === 0) {
++      addAlert({
++        message: '少なくとも1つの評定項目が必要です',
++        severity: 'warning',
++      });
++      return;
++    }
++    setEvaluationSettings({ items: newItems });
++  };
++
+   // デバッグ専用：DataURLを即ダウンロード
+   // 本番環境ではコメントアウトすること
+   // const __dbgDownload = (dataUrl: string, name = 'converted.png') => {
+@@ -234,6 +308,24 @@ function ReviewSourceModal({
+   const handleSubmit = async () => {
+     if (disabled || processing || uploadedFiles.length === 0) return;
+ 
++    // CSVインポート選択時のファイル形式チェック
++    if (modalMode === 'extract' && documentType === 'checklist-csv') {
++      const nonCsvFiles = uploadedFiles.filter(
++        (file) =>
++          !file.name.toLowerCase().endsWith('.csv') &&
++          !file.name.toLowerCase().endsWith('.xlsx') &&
++          !file.name.toLowerCase().endsWith('.xls'),
 +      );
++      if (nonCsvFiles.length > 0) {
++        addAlert({
++          message:
++            'ファイルインポートを選択している場合はExcelまたはCSVファイルのみ指定可能です',
++          severity: 'error',
++        });
++        return;
++      }
++    }
++
+     setProcessing(true);
  
-       setUpdatedFlg(true);
+     try {
+@@ -298,6 +390,7 @@ function ReviewSourceModal({
+         modalMode === 'review' && commentFormat.trim() !== ''
+           ? commentFormat.trim()
+           : undefined,
++        modalMode === 'review' ? evaluationSettings : undefined,
+       );
+     } catch (e) {
+       console.error('送信処理中に失敗:', e);
+@@ -341,16 +434,27 @@ function ReviewSourceModal({
+             <FormControl component="fieldset" sx={{ mb: 2 }}>
+               <FormLabel component="legend">ドキュメント種別</FormLabel>
+               <RadioGroup
+-                row
+                 value={documentType}
+                 onChange={(e) =>
+                   setDocumentType(e.target.value as DocumentType)
+                 }
+               >
+                 <FormControlLabel
+-                  value="checklist"
++                  value="checklist-ai"
+                   control={<Radio />}
+-                  label="チェックリストドキュメント（既存項目を抽出）"
++                  label="チェックリストドキュメント（AI抽出）"
++                  disabled={processing}
++                />
++                <FormControlLabel
++                  value="checklist-csv"
++                  control={<Radio />}
++                  label={
++                    <Tooltip title="選択したファイル(Excel,CSV)の一列目の値を全てチェックリスト項目として抽出します">
++                      <span>
++                        チェックリストドキュメント（ファイルインポート）
++                      </span>
++                    </Tooltip>
++                  }
+                   disabled={processing}
+                 />
+                 <FormControlLabel
+@@ -405,6 +509,174 @@ function ReviewSourceModal({
+               sx={{ mb: 2 }}
+               helperText="AIがレビューコメントを記載する際のフォーマットを指定してください"
+             />
++
++            <Accordion sx={{ mb: 2 }}>
++              <AccordionSummary expandIcon={<ExpandMoreIcon />}>
++                <Typography variant="subtitle1">評定項目設定</Typography>
++              </AccordionSummary>
++              <AccordionDetails>
++                <Stack spacing={2}>
++                  <Typography variant="body2" color="text.secondary">
++                    レビューで使用する評定項目を設定できます
++                  </Typography>
++
++                  {/* 評定項目一覧 */}
++                  {evaluationSettings.items.map((item, index) => (
++                    <Paper key={index} variant="outlined" sx={{ p: 2 }}>
++                      {editingItemIndex === index ? (
++                        // 編集モード
++                        <Stack spacing={2}>
++                          <TextField
++                            label="評定ラベル"
++                            value={editingItem.label}
++                            onChange={(e) =>
++                              setEditingItem((prev) => ({
++                                ...prev,
++                                label: e.target.value,
++                              }))
++                            }
++                            size="small"
++                            helperText="例: 優秀, 良好, 要改善"
++                          />
++                          <TextField
++                            label="評定説明"
++                            value={editingItem.description}
++                            onChange={(e) =>
++                              setEditingItem((prev) => ({
++                                ...prev,
++                                description: e.target.value,
++                              }))
++                            }
++                            multiline
++                            rows={2}
++                            size="small"
++                            helperText="この評定の意味を説明してください"
++                          />
++                          <Stack direction="row" spacing={1}>
++                            <Button
++                              variant="contained"
++                              size="small"
++                              onClick={handleSaveEvaluationItem}
++                            >
++                              保存
++                            </Button>
++                            <Button
++                              variant="outlined"
++                              size="small"
++                              onClick={handleCancelEditEvaluationItem}
++                            >
++                              キャンセル
++                            </Button>
++                          </Stack>
++                        </Stack>
++                      ) : (
++                        // 表示モード
++                        <Stack
++                          direction="row"
++                          justifyContent="space-between"
++                          alignItems="center"
++                        >
++                          <Box>
++                            <Typography
++                              variant="body1"
++                              component="span"
++                              sx={{ fontWeight: 'bold', mr: 2 }}
++                            >
++                              {item.label}
++                            </Typography>
++                            <Typography variant="body2" color="text.secondary">
++                              {item.description}
++                            </Typography>
++                          </Box>
++                          <Stack direction="row" spacing={1}>
++                            <IconButton
++                              size="small"
++                              onClick={() => handleEditEvaluationItem(index)}
++                            >
++                              <EditIcon />
++                            </IconButton>
++                            <IconButton
++                              size="small"
++                              onClick={() => handleDeleteEvaluationItem(index)}
++                            >
++                              <DeleteIcon />
++                            </IconButton>
++                          </Stack>
++                        </Stack>
++                      )}
++                    </Paper>
++                  ))}
++
++                  {/* 新規追加編集フォーム */}
++                  {editingItemIndex === -1 && (
++                    <Paper
++                      variant="outlined"
++                      sx={{ p: 2, border: '2px dashed' }}
++                    >
++                      <Stack spacing={2}>
++                        <Typography variant="subtitle2">
++                          新しい評定項目を追加
++                        </Typography>
++                        <TextField
++                          label="評定ラベル"
++                          value={editingItem.label}
++                          onChange={(e) =>
++                            setEditingItem((prev) => ({
++                              ...prev,
++                              label: e.target.value,
++                            }))
++                          }
++                          size="small"
++                          helperText="例: 優秀, 良好, 要改善"
++                        />
++                        <TextField
++                          label="評定説明"
++                          value={editingItem.description}
++                          onChange={(e) =>
++                            setEditingItem((prev) => ({
++                              ...prev,
++                              description: e.target.value,
++                            }))
++                          }
++                          multiline
++                          rows={2}
++                          size="small"
++                          helperText="この評定の意味を説明してください"
++                        />
++                        <Stack direction="row" spacing={1}>
++                          <Button
++                            variant="contained"
++                            size="small"
++                            onClick={handleSaveEvaluationItem}
++                          >
++                            追加
++                          </Button>
++                          <Button
++                            variant="outlined"
++                            size="small"
++                            onClick={handleCancelEditEvaluationItem}
++                          >
++                            キャンセル
++                          </Button>
++                        </Stack>
++                      </Stack>
++                    </Paper>
++                  )}
++
++                  {/* 追加ボタン */}
++                  {editingItemIndex === null && (
++                    <Button
++                      variant="outlined"
++                      startIcon={<AddIcon />}
++                      onClick={handleAddEvaluationItem}
++                      disabled={processing}
++                    >
++                      評定項目を追加
++                    </Button>
++                  )}
++                </Stack>
++              </AccordionDetails>
++            </Accordion>
+           </>
+         )}
  
+diff --git a/src/renderer/components/review/types.ts b/src/renderer/components/review/types.ts
+index 6f14dff08..bc92859fd 100644
+--- a/src/renderer/components/review/types.ts
++++ b/src/renderer/components/review/types.ts
+@@ -1,11 +1,11 @@
+ import {
+   ReviewChecklistEdit,
+-  ReviewChecklistResultDisplay,
++  ReviewChecklistResult,
+   ModalMode,
+   UploadFile,
+   DocumentType,
++  CustomEvaluationSettings,
+ } from '@/types';
+-import { Source } from '@/db/schema';
+ 
+ // ReviewAreaのProps型
+ export interface ReviewAreaProps {
+@@ -14,7 +14,7 @@ export interface ReviewAreaProps {
+ 
+ // ReviewChecklistSectionのProps型
+ export interface ReviewChecklistSectionProps {
+-  checklistResults: ReviewChecklistResultDisplay[];
++  checklistResults: ReviewChecklistResult[];
+   isLoading: boolean;
+   onSave: (checklists: ReviewChecklistEdit[]) => Promise<void>;
+ }
+@@ -29,6 +29,7 @@ export interface ReviewSourceModalProps {
+     checklistRequirements?: string,
+     additionalInstructions?: string,
+     commentFormat?: string,
++    evaluationSettings?: CustomEvaluationSettings,
+   ) => void;
+   selectedReviewHistoryId: string | null;
+   disabled?: boolean;
+@@ -37,11 +38,6 @@ export interface ReviewSourceModalProps {
+   setAdditionalInstructions: (instructions: string) => void;
+   commentFormat: string;
+   setCommentFormat: (format: string) => void;
+-}
+-
+-// ソースファイルセレクタのProps型
+-export interface SourceSelectorProps {
+-  sources: Source[];
+-  selectedSourceIds: number[];
+-  onChange: (sourceIds: number[]) => void;
++  evaluationSettings: CustomEvaluationSettings;
++  setEvaluationSettings: (settings: CustomEvaluationSettings) => void;
+ }
+diff --git a/src/renderer/lib/csvUtils.ts b/src/renderer/lib/csvUtils.ts
+index 0820ead17..7cfdefb6c 100644
+--- a/src/renderer/lib/csvUtils.ts
++++ b/src/renderer/lib/csvUtils.ts
+@@ -1,4 +1,4 @@
+-import { ReviewChecklistResultDisplay } from '@/types';
++import { ReviewChecklistResult } from '@/types';
+ 
+ /**
+  * CSV用文字列のエスケープ処理
+@@ -30,7 +30,7 @@ const escapeCSVField = (field: string): string => {
+  * レビュー結果データをCSV形式に変換
+  */
+ export const convertReviewResultsToCSV = (
+-  checklistResults: ReviewChecklistResultDisplay[],
++  checklistResults: ReviewChecklistResult[],
+ ): string => {
+   if (!checklistResults || checklistResults.length === 0) {
+     return 'チェックリスト\n';
+diff --git a/src/renderer/service/reviewApi.ts b/src/renderer/service/reviewApi.ts
+index 50f98c17f..85fef3f91 100644
+--- a/src/renderer/service/reviewApi.ts
++++ b/src/renderer/service/reviewApi.ts
+@@ -1,21 +1,22 @@
+ import {
+-  ReviewChecklistResultDisplay,
++  ReviewChecklistResult,
+   UploadFile,
+   DocumentType,
+   ReviewChecklistEdit,
+   ChecklistExtractionResultStatus,
+   ReviewExecutionResultStatus,
++  CustomEvaluationSettings,
+ } from '@/types';
+ import { ApiServiceDefaultOptions } from '../types';
+ import { invokeApi } from '../lib/apiUtils';
+-import { ReviewHistory } from '@/db/schema';
++import { RevieHistory } from '@/types';
+ import { ElectronPushClient } from '../lib/ElectronPushClient';
+ import { IpcChannels } from '@/types';
+ 
+ export interface IReviewApi {
+   getHistories(
+     options?: ApiServiceDefaultOptions,
+-  ): Promise<ReviewHistory[] | null>;
++  ): Promise<RevieHistory[] | null>;
+   deleteHistory(
+     historyId: string,
+     options?: ApiServiceDefaultOptions,
+@@ -24,7 +25,7 @@ export interface IReviewApi {
+     historyId: string,
+     options?: ApiServiceDefaultOptions,
+   ): Promise<{
+-    checklistResults?: ReviewChecklistResultDisplay[];
++    checklistResults?: ReviewChecklistResult[];
+   } | null>;
+   getReviewInstruction(
+     historyId: string,
+@@ -32,6 +33,7 @@ export interface IReviewApi {
+   ): Promise<{
+     additionalInstructions?: string;
+     commentFormat?: string;
++    evaluationSettings?: CustomEvaluationSettings;
+   } | null>;
+   extractChecklist(
+     historyId: string,
+@@ -43,6 +45,7 @@ export interface IReviewApi {
+   executeReview(
+     historyId: string,
+     files: UploadFile[],
++    evaluationSettings: CustomEvaluationSettings,
+     additionalInstructions?: string,
+     commentFormat?: string,
+     options?: ApiServiceDefaultOptions,
+@@ -83,7 +86,7 @@ export class ReviewApi implements IReviewApi {
+ 
+   public async getHistories(
+     options?: ApiServiceDefaultOptions,
+-  ): Promise<ReviewHistory[] | null> {
++  ): Promise<RevieHistory[] | null> {
+     return invokeApi(() => window.electron.review.getHistories(), options);
+   }
+ 
+@@ -91,16 +94,22 @@ export class ReviewApi implements IReviewApi {
+     historyId: string,
+     options?: ApiServiceDefaultOptions,
+   ): Promise<void> {
+-    await invokeApi(() => window.electron.review.deleteHistory(historyId), options);
++    await invokeApi(
++      () => window.electron.review.deleteHistory(historyId),
++      options,
++    );
+   }
+ 
+   public async getReviewHistoryDetail(
+     historyId: string,
+     options?: ApiServiceDefaultOptions,
+   ): Promise<{
+-    checklistResults?: ReviewChecklistResultDisplay[];
++    checklistResults?: ReviewChecklistResult[];
+   } | null> {
+-    return invokeApi(() => window.electron.review.getHistoryDetail(historyId), options);
++    return invokeApi(
++      () => window.electron.review.getHistoryDetail(historyId),
++      options,
++    );
+   }
+ 
+   public async getReviewInstruction(
+@@ -109,8 +118,12 @@ export class ReviewApi implements IReviewApi {
+   ): Promise<{
+     additionalInstructions?: string;
+     commentFormat?: string;
++    evaluationSettings?: CustomEvaluationSettings;
+   } | null> {
+-    return invokeApi(() => window.electron.review.getHistoryInstruction(historyId), options);
++    return invokeApi(
++      () => window.electron.review.getHistoryInstruction(historyId),
++      options,
++    );
+   }
+ 
+   public async extractChecklist(
+@@ -120,27 +133,37 @@ export class ReviewApi implements IReviewApi {
+     checklistRequirements?: string,
+     options?: ApiServiceDefaultOptions,
+   ): Promise<void> {
+-    await invokeApi(() => window.electron.review.extractChecklist({
+-      reviewHistoryId: historyId,
+-      files,
+-      documentType,
+-      checklistRequirements,
+-    }), options);
++    await invokeApi(
++      () =>
++        window.electron.review.extractChecklist({
++          reviewHistoryId: historyId,
++          files,
++          documentType,
++          checklistRequirements,
++        }),
++      options,
++    );
+   }
+ 
+   public async executeReview(
+     historyId: string,
+     files: UploadFile[],
++    evaluationSettings: CustomEvaluationSettings,
+     additionalInstructions?: string,
+     commentFormat?: string,
+     options?: ApiServiceDefaultOptions,
+   ): Promise<void> {
+-    await invokeApi(() => window.electron.review.execute({
+-      reviewHistoryId: historyId,
+-      files,
+-      additionalInstructions,
+-      commentFormat,
+-    }), options);
++    await invokeApi(
++      () =>
++        window.electron.review.execute({
++          reviewHistoryId: historyId,
++          files,
++          additionalInstructions,
++          commentFormat,
++          evaluationSettings,
++        }),
++      options,
++    );
+   }
+ 
+   /**
+@@ -152,7 +175,10 @@ export class ReviewApi implements IReviewApi {
+     reviewHistoryId: string,
+     options?: ApiServiceDefaultOptions,
+   ): Promise<void> {
+-    await invokeApi(() => window.electron.review.abortExtractChecklist(reviewHistoryId), options);
++    await invokeApi(
++      () => window.electron.review.abortExtractChecklist(reviewHistoryId),
++      options,
++    );
+   }
+ 
+   /**
+@@ -164,7 +190,10 @@ export class ReviewApi implements IReviewApi {
+     reviewHistoryId: string,
+     options?: ApiServiceDefaultOptions,
+   ): Promise<void> {
+-    await invokeApi(() => window.electron.review.abortExecute(reviewHistoryId), options);
++    await invokeApi(
++      () => window.electron.review.abortExecute(reviewHistoryId),
++      options,
++    );
+   }
+ 
+   public subscribeChecklistExtractionFinished(
+@@ -202,9 +231,13 @@ export class ReviewApi implements IReviewApi {
+     checklistEdits: ReviewChecklistEdit[],
+     options?: ApiServiceDefaultOptions,
+   ): Promise<void> {
+-    await invokeApi(() => window.electron.review.updateChecklist({
+-      reviewHistoryId: historyId,
+-      checklistEdits,
+-    }), options);
++    await invokeApi(
++      () =>
++        window.electron.review.updateChecklist({
++          reviewHistoryId: historyId,
++          checklistEdits,
++        }),
++      options,
++    );
+   }
+ }
+diff --git a/src/renderer/service/sourceApi.ts b/src/renderer/service/sourceApi.ts
+index 89845f15f..14c315a5c 100644
+--- a/src/renderer/service/sourceApi.ts
++++ b/src/renderer/service/sourceApi.ts
+@@ -1,6 +1,6 @@
+ import { invokeApi } from '../lib/apiUtils';
+ import { ApiServiceDefaultOptions } from '../types';
+-import { Source } from '@/db/schema';
++import { Source } from '@/types';
+ import { ElectronPushClient } from '../lib/ElectronPushClient';
+ import { IpcChannels } from '@/types';
+ 
+diff --git a/src/types/ipc.ts b/src/types/ipc.ts
+index 9828e36d5..3e0dfa47b 100644
+--- a/src/types/ipc.ts
++++ b/src/types/ipc.ts
+@@ -4,13 +4,14 @@ import { AppErrorPayload } from './error';
+ import type {
+   DocumentType,
+   UploadFile,
+-  ReviewChecklistResultDisplay,
++  ReviewChecklistResult,
+   ReviewChecklistEdit,
+   ChecklistExtractionResultStatus,
+   ReviewExecutionResultStatus,
++  CustomEvaluationSettings,
+ } from './review';
+ import type { SettingsSavingStatus, Settings } from './setting';
+-import type { Source, ReviewHistory } from '@/db/schema';
++import type { Source, RevieHistory } from '@/types';
+ 
+ type IpcSuccess<T> = {
+   success: true;
+@@ -141,6 +142,7 @@ export type IpcRequestPayloadMap = {
+     files: UploadFile[];
+     additionalInstructions?: string;
+     commentFormat?: string;
++    evaluationSettings: CustomEvaluationSettings;
+   };
+   [IpcChannels.REVIEW_EXECUTE_ABORT]: string; // review history id
+ };
+@@ -178,13 +180,14 @@ export type IpcResponsePayloadMap = {
+   [IpcChannels.CHAT_DELETE_MESSAGES_BEFORE_SPECIFIC_ID]: IpcResult;
+ 
+   // ドキュメントレビュー関連
+-  [IpcChannels.REVIEW_GET_HISTORIES]: IpcResult<ReviewHistory[]>;
++  [IpcChannels.REVIEW_GET_HISTORIES]: IpcResult<RevieHistory[]>;
+   [IpcChannels.REVIEW_GET_HISTORY_DETAIL]: IpcResult<{
+-    checklistResults?: ReviewChecklistResultDisplay[];
++    checklistResults?: ReviewChecklistResult[];
+   }>;
+   [IpcChannels.REVIEW_GET_HISTORY_INSTRUCTION]: IpcResult<{
+     additionalInstructions?: string;
+     commentFormat?: string;
++    evaluationSettings?: CustomEvaluationSettings;
+   }>;
+   [IpcChannels.REVIEW_DELETE_HISTORY]: IpcResult;
+   [IpcChannels.REVIEW_EXTRACT_CHECKLIST_CALL]: IpcResult;
 diff --git a/src/types/message.ts b/src/types/message.ts
-index d114ead74..e91cd18f6 100644
+index e91cd18f6..4253fc363 100644
 --- a/src/types/message.ts
 +++ b/src/types/message.ts
-@@ -13,6 +13,7 @@ export type MessageCode =
-   | 'REDMINE_API_ERROR'
-   | 'FILE_TEXT_EXTRACTION_ERROR'
-   | 'SOURCE_REGISTRATION_DIR_READING_ERROR'
-+  | 'SOURCE_REGISTRATION_DIR_NOT_SET'
+@@ -17,6 +17,7 @@ export type MessageCode =
    | 'REVIEW_CHECKLIST_EXTRACTION_ERROR'
    | 'REVIEW_CHECKLIST_EXTRACTION_OVER_MAX_TOKENS'
    | 'REVIEW_CHECKLIST_EXTRACTION_NOT_CHECKLIST_DOCUMENT'
++  | 'REVIEW_CHECKLIST_EXTRACTION_FROM_CSV_ERROR'
+   | 'REVIEW_EXECUTION_ERROR'
+   | 'REVIEW_EXECUTION_NO_TARGET_CHECKLIST'
+   | 'AI_API_ERROR';
+diff --git a/src/types/review.ts b/src/types/review.ts
+index 0e957677d..bc99a1c2a 100644
+--- a/src/types/review.ts
++++ b/src/types/review.ts
+@@ -1,17 +1,47 @@
+-// レビュー評価の型定義
+-export type ReviewEvaluation = 'A' | 'B' | 'C' | '-';
++export interface RevieHistory {
++  id: string; // reviewHistoriesのid
++  title: string;
++  additionalInstructions: string | null;
++  commentFormat?: string | null;
++  evaluationSettings?: CustomEvaluationSettings | null; // カスタム評定項目設定
++  createdAt: string;
++  updatedAt: string;
++}
++
++export interface ReviewChecklist {
++  id: number;
++  reviewHistoryId: string;
++  content: string;
++  createdBy: ReviewChecklistCreatedBy;
++  createdAt: string;
++  updatedAt: string;
++}
++
++// カスタム評定項目の型定義
++export interface EvaluationItem {
++  label: string; // 評定ラベル（例: '優秀', '良好', '要改善', '対象外'）
++  description: string; // 評定の説明
++}
++
++// カスタム評定項目設定の型定義
++export interface CustomEvaluationSettings {
++  items: EvaluationItem[];
++}
++
++// 動的評価型の型定義（カスタム評定項目対応）
++export type ReviewEvaluation = string;
+ 
+ // チェックリストの作成元
+ export type ReviewChecklistCreatedBy = 'user' | 'system';
+ 
+ // 最終的に画面に表示するチェックリストの型
+-export type ReviewChecklistResultDisplay = {
++export type ReviewChecklistResult = {
+   id: number; // チェックリストのID
+   content: string;
+   sourceEvaluations?: {
+     fileId: string;
+     fileName: string;
+-    evaluation?: ReviewEvaluation;
++    evaluation?: ReviewEvaluation; // カスタム評定項目対応
+     comment?: string;
+   }[];
+ };
+@@ -26,7 +56,7 @@ export type ReviewChecklistEdit = {
+ export type ModalMode = 'extract' | 'review';
+ 
+ // ドキュメント種別の定義
+-export type DocumentType = 'checklist' | 'general';
++export type DocumentType = 'checklist-ai' | 'checklist-csv' | 'general';
+ 
+ // PDF処理方式の定義
+ export type PdfProcessMode = 'text' | 'image';
+diff --git a/src/types/sourceRegister.ts b/src/types/sourceRegister.ts
+index d982b1c63..626edb532 100644
+--- a/src/types/sourceRegister.ts
++++ b/src/types/sourceRegister.ts
+@@ -1,3 +1,24 @@
++export interface Source {
++  id: number;
++  path: string;
++  title: string;
++  summary: string;
++  createdAt: string;
++  updatedAt: string;
++  status: ProcessStatus;
++  error: string | null;
++  isEnabled: boolean;
++}
++
++export interface Topic {
++  id: number;
++  sourceId: number;
++  name: string;
++  summary: string;
++  createdAt: string;
++  updatedAt: string;
++}
++
+ /**
+  * プロセス状態を表す型
+  */
