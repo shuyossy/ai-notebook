@@ -4,6 +4,7 @@ import {
   ModalMode,
   UploadFile,
   DocumentType,
+  CustomEvaluationSettings,
 } from '@/types';
 
 // ReviewAreaのProps型
@@ -28,6 +29,7 @@ export interface ReviewSourceModalProps {
     checklistRequirements?: string,
     additionalInstructions?: string,
     commentFormat?: string,
+    evaluationSettings?: CustomEvaluationSettings,
   ) => void;
   selectedReviewHistoryId: string | null;
   disabled?: boolean;
@@ -36,4 +38,6 @@ export interface ReviewSourceModalProps {
   setAdditionalInstructions: (instructions: string) => void;
   commentFormat: string;
   setCommentFormat: (format: string) => void;
+  evaluationSettings: CustomEvaluationSettings;
+  setEvaluationSettings: (settings: CustomEvaluationSettings) => void;
 }

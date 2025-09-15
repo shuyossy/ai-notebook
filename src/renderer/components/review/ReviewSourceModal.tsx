@@ -18,21 +18,29 @@ import {
   IconButton,
   Tooltip,
   CircularProgress,
+  Stack,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
 } from '@mui/material';
 import {
   CloudUpload as UploadIcon,
   Delete as DeleteIcon,
+  Edit as EditIcon,
   Image as ImageIcon,
   Description as TextIcon,
   Help as HelpIcon,
   ViewAgenda as MergedIcon,
   ViewStream as PagesIcon,
+  Add as AddIcon,
+  ExpandMore as ExpandMoreIcon,
 } from '@mui/icons-material';
 import {
   DocumentType,
   UploadFile,
   PdfProcessMode,
   PdfImageMode,
+  EvaluationItem,
 } from '@/types';
 import { useAlertStore } from '@/renderer/stores/alertStore';
 import { getSafeErrorMessage } from '../../lib/error';
@@ -115,11 +123,18 @@ function ReviewSourceModal({
   setAdditionalInstructions,
   commentFormat,
   setCommentFormat,
+  evaluationSettings,
+  setEvaluationSettings,
 }: ReviewSourceModalProps): React.ReactElement {
   const [uploadedFiles, setUploadedFiles] = useState<UploadFile[]>([]);
   const [processing, setProcessing] = useState(false); // ★ 送信処理やPDF変換の進行中フラグ
   const [documentType, setDocumentType] = useState<DocumentType>('checklist');
   const [checklistRequirements, setChecklistRequirements] = useState('');
+  const [editingItemIndex, setEditingItemIndex] = useState<number | null>(null);
+  const [editingItem, setEditingItem] = useState<EvaluationItem>({
+    label: '',
+    description: '',
+  });
 
   const addAlert = useAlertStore((state) => state.addAlert);
 
@@ -221,6 +236,61 @@ function ReviewSourceModal({
     );
   };
 
+  // 評価項目の追加
+  const handleAddEvaluationItem = () => {
+    setEditingItemIndex(-1); // -1は新規追加を表す
+    setEditingItem({ label: '', description: '' });
+  };
+
+  // 評価項目の編集開始
+  const handleEditEvaluationItem = (index: number) => {
+    setEditingItemIndex(index);
+    setEditingItem({ ...evaluationSettings.items[index] });
+  };
+
+  // 評価項目の編集キャンセル
+  const handleCancelEditEvaluationItem = () => {
+    setEditingItemIndex(null);
+    setEditingItem({ label: '', description: '' });
+  };
+
+  // 評価項目の保存
+  const handleSaveEvaluationItem = () => {
+    if (!editingItem.label.trim() || !editingItem.description.trim()) {
+      addAlert({
+        message: 'すべての項目を入力してください',
+        severity: 'warning',
+      });
+      return;
+    }
+
+    const newItems = [...evaluationSettings.items];
+    if (editingItemIndex === -1) {
+      // 新規追加
+      newItems.push(editingItem);
+    } else if (editingItemIndex !== null) {
+      // 編集
+      newItems[editingItemIndex] = editingItem;
+    }
+
+    setEvaluationSettings({ items: newItems });
+    setEditingItemIndex(null);
+    setEditingItem({ label: '', description: '' });
+  };
+
+  // 評価項目の削除
+  const handleDeleteEvaluationItem = (index: number) => {
+    const newItems = evaluationSettings.items.filter((_, i) => i !== index);
+    if (newItems.length === 0) {
+      addAlert({
+        message: '少なくとも1つの評定項目が必要です',
+        severity: 'warning',
+      });
+      return;
+    }
+    setEvaluationSettings({ items: newItems });
+  };
+
   // デバッグ専用：DataURLを即ダウンロード
   // 本番環境ではコメントアウトすること
   // const __dbgDownload = (dataUrl: string, name = 'converted.png') => {
@@ -298,6 +368,7 @@ function ReviewSourceModal({
         modalMode === 'review' && commentFormat.trim() !== ''
           ? commentFormat.trim()
           : undefined,
+        modalMode === 'review' ? evaluationSettings : undefined,
       );
     } catch (e) {
       console.error('送信処理中に失敗:', e);
@@ -405,6 +476,174 @@ function ReviewSourceModal({
               sx={{ mb: 2 }}
               helperText="AIがレビューコメントを記載する際のフォーマットを指定してください"
             />
+
+            <Accordion sx={{ mb: 2 }}>
+              <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                <Typography variant="subtitle1">評定項目設定</Typography>
+              </AccordionSummary>
+              <AccordionDetails>
+                <Stack spacing={2}>
+                  <Typography variant="body2" color="text.secondary">
+                    レビューで使用する評定項目を設定できます
+                  </Typography>
+
+                  {/* 評定項目一覧 */}
+                  {evaluationSettings.items.map((item, index) => (
+                    <Paper key={index} variant="outlined" sx={{ p: 2 }}>
+                      {editingItemIndex === index ? (
+                        // 編集モード
+                        <Stack spacing={2}>
+                          <TextField
+                            label="評定ラベル"
+                            value={editingItem.label}
+                            onChange={(e) =>
+                              setEditingItem((prev) => ({
+                                ...prev,
+                                label: e.target.value,
+                              }))
+                            }
+                            size="small"
+                            helperText="例: 優秀, 良好, 要改善"
+                          />
+                          <TextField
+                            label="評定説明"
+                            value={editingItem.description}
+                            onChange={(e) =>
+                              setEditingItem((prev) => ({
+                                ...prev,
+                                description: e.target.value,
+                              }))
+                            }
+                            multiline
+                            rows={2}
+                            size="small"
+                            helperText="この評定の意味を説明してください"
+                          />
+                          <Stack direction="row" spacing={1}>
+                            <Button
+                              variant="contained"
+                              size="small"
+                              onClick={handleSaveEvaluationItem}
+                            >
+                              保存
+                            </Button>
+                            <Button
+                              variant="outlined"
+                              size="small"
+                              onClick={handleCancelEditEvaluationItem}
+                            >
+                              キャンセル
+                            </Button>
+                          </Stack>
+                        </Stack>
+                      ) : (
+                        // 表示モード
+                        <Stack
+                          direction="row"
+                          justifyContent="space-between"
+                          alignItems="center"
+                        >
+                          <Box>
+                            <Typography
+                              variant="body1"
+                              component="span"
+                              sx={{ fontWeight: 'bold', mr: 2 }}
+                            >
+                              {item.label}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              {item.description}
+                            </Typography>
+                          </Box>
+                          <Stack direction="row" spacing={1}>
+                            <IconButton
+                              size="small"
+                              onClick={() => handleEditEvaluationItem(index)}
+                            >
+                              <EditIcon />
+                            </IconButton>
+                            <IconButton
+                              size="small"
+                              onClick={() => handleDeleteEvaluationItem(index)}
+                            >
+                              <DeleteIcon />
+                            </IconButton>
+                          </Stack>
+                        </Stack>
+                      )}
+                    </Paper>
+                  ))}
+
+                  {/* 新規追加編集フォーム */}
+                  {editingItemIndex === -1 && (
+                    <Paper
+                      variant="outlined"
+                      sx={{ p: 2, border: '2px dashed' }}
+                    >
+                      <Stack spacing={2}>
+                        <Typography variant="subtitle2">
+                          新しい評定項目を追加
+                        </Typography>
+                        <TextField
+                          label="評定ラベル"
+                          value={editingItem.label}
+                          onChange={(e) =>
+                            setEditingItem((prev) => ({
+                              ...prev,
+                              label: e.target.value,
+                            }))
+                          }
+                          size="small"
+                          helperText="例: 優秀, 良好, 要改善"
+                        />
+                        <TextField
+                          label="評定説明"
+                          value={editingItem.description}
+                          onChange={(e) =>
+                            setEditingItem((prev) => ({
+                              ...prev,
+                              description: e.target.value,
+                            }))
+                          }
+                          multiline
+                          rows={2}
+                          size="small"
+                          helperText="この評定の意味を説明してください"
+                        />
+                        <Stack direction="row" spacing={1}>
+                          <Button
+                            variant="contained"
+                            size="small"
+                            onClick={handleSaveEvaluationItem}
+                          >
+                            追加
+                          </Button>
+                          <Button
+                            variant="outlined"
+                            size="small"
+                            onClick={handleCancelEditEvaluationItem}
+                          >
+                            キャンセル
+                          </Button>
+                        </Stack>
+                      </Stack>
+                    </Paper>
+                  )}
+
+                  {/* 追加ボタン */}
+                  {editingItemIndex === null && (
+                    <Button
+                      variant="outlined"
+                      startIcon={<AddIcon />}
+                      onClick={handleAddEvaluationItem}
+                      disabled={processing}
+                    >
+                      評定項目を追加
+                    </Button>
+                  )}
+                </Stack>
+              </AccordionDetails>
+            </Accordion>
           </>
         )}
 

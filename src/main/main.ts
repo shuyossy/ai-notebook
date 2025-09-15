@@ -448,18 +448,21 @@ const setupReviewHandlers = () => {
       files,
       additionalInstructions,
       commentFormat,
+      evaluationSettings,
     }) => {
       reviewService.updateReviewInstruction(
         reviewHistoryId,
         additionalInstructions,
         commentFormat,
       );
+      reviewService.updateReviewEvaluationSettings(reviewHistoryId, evaluationSettings);
       const manager = SourceReviewManager.getInstance();
 
       // 非同期でレビュー実行処理を実行
       const result = manager.executeReviewWithNotification(
         reviewHistoryId,
         files,
+        evaluationSettings,
         additionalInstructions,
         commentFormat,
       );

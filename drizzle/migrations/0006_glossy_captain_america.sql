@@ -1,0 +1,1 @@
+ALTER TABLE `review_histories` ADD `evaluation_settings` text;

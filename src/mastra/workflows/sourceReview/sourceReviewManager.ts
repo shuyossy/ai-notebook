@@ -1,7 +1,7 @@
 import { getReviewRepository } from '@/main/repository/reviewRepository';
 import { IpcChannels } from '@/types/ipc';
 import { generateReviewTitle } from './lib';
-import { RevieHistory } from '@/types';
+import { RevieHistory, CustomEvaluationSettings } from '@/types';
 import { mastra } from '../..';
 import {
   ChecklistExtractionResultStatus,
@@ -131,6 +131,7 @@ export default class SourceReviewManager {
   public async executeReview(
     reviewHistoryId: string,
     files: UploadFile[],
+    evaluationSettings: CustomEvaluationSettings,
     additionalInstructions?: string,
     commentFormat?: string,
   ): Promise<{ status: ReviewExecutionResultStatus; error?: string }> {
@@ -177,6 +178,7 @@ export default class SourceReviewManager {
         inputData: {
           reviewHistoryId,
           files,
+          evaluationSettings,
           additionalInstructions,
           commentFormat,
         },
@@ -285,6 +287,7 @@ export default class SourceReviewManager {
   public executeReviewWithNotification(
     reviewHistoryId: string,
     files: UploadFile[],
+    evaluationSettings: CustomEvaluationSettings,
     additionalInstructions?: string,
     commentFormat?: string,
   ): { success: boolean; error?: string } {
@@ -292,6 +295,7 @@ export default class SourceReviewManager {
       this.executeReview(
         reviewHistoryId,
         files,
+        evaluationSettings,
         additionalInstructions,
         commentFormat,
       )

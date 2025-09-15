@@ -3,6 +3,7 @@ export interface RevieHistory {
   title: string;
   additionalInstructions: string | null;
   commentFormat?: string | null;
+  evaluationSettings?: CustomEvaluationSettings | null; // カスタム評定項目設定
   createdAt: string;
   updatedAt: string;
 }
@@ -16,8 +17,19 @@ export interface ReviewChecklist {
   updatedAt: string;
 }
 
-// レビュー評価の型定義
-export type ReviewEvaluation = 'A' | 'B' | 'C' | '-';
+// カスタム評定項目の型定義
+export interface EvaluationItem {
+  label: string; // 評定ラベル（例: '優秀', '良好', '要改善', '対象外'）
+  description: string; // 評定の説明
+}
+
+// カスタム評定項目設定の型定義
+export interface CustomEvaluationSettings {
+  items: EvaluationItem[];
+}
+
+// 動的評価型の型定義（カスタム評定項目対応）
+export type ReviewEvaluation = string;
 
 // チェックリストの作成元
 export type ReviewChecklistCreatedBy = 'user' | 'system';
@@ -29,7 +41,7 @@ export type ReviewChecklistResult = {
   sourceEvaluations?: {
     fileId: string;
     fileName: string;
-    evaluation?: ReviewEvaluation;
+    evaluation?: ReviewEvaluation; // カスタム評定項目対応
     comment?: string;
   }[];
 };

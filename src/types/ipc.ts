@@ -8,6 +8,7 @@ import type {
   ReviewChecklistEdit,
   ChecklistExtractionResultStatus,
   ReviewExecutionResultStatus,
+  CustomEvaluationSettings,
 } from './review';
 import type { SettingsSavingStatus, Settings } from './setting';
 import type { Source, RevieHistory } from '@/types';
@@ -141,6 +142,7 @@ export type IpcRequestPayloadMap = {
     files: UploadFile[];
     additionalInstructions?: string;
     commentFormat?: string;
+    evaluationSettings: CustomEvaluationSettings;
   };
   [IpcChannels.REVIEW_EXECUTE_ABORT]: string; // review history id
 };
@@ -185,6 +187,7 @@ export type IpcResponsePayloadMap = {
   [IpcChannels.REVIEW_GET_HISTORY_INSTRUCTION]: IpcResult<{
     additionalInstructions?: string;
     commentFormat?: string;
+    evaluationSettings?: CustomEvaluationSettings;
   }>;
   [IpcChannels.REVIEW_DELETE_HISTORY]: IpcResult;
   [IpcChannels.REVIEW_EXTRACT_CHECKLIST_CALL]: IpcResult;

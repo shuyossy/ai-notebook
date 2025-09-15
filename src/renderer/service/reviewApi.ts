@@ -5,6 +5,7 @@ import {
   ReviewChecklistEdit,
   ChecklistExtractionResultStatus,
   ReviewExecutionResultStatus,
+  CustomEvaluationSettings,
 } from '@/types';
 import { ApiServiceDefaultOptions } from '../types';
 import { invokeApi } from '../lib/apiUtils';
@@ -32,6 +33,7 @@ export interface IReviewApi {
   ): Promise<{
     additionalInstructions?: string;
     commentFormat?: string;
+    evaluationSettings?: CustomEvaluationSettings;
   } | null>;
   extractChecklist(
     historyId: string,
@@ -43,6 +45,7 @@ export interface IReviewApi {
   executeReview(
     historyId: string,
     files: UploadFile[],
+    evaluationSettings: CustomEvaluationSettings,
     additionalInstructions?: string,
     commentFormat?: string,
     options?: ApiServiceDefaultOptions,
@@ -115,6 +118,7 @@ export class ReviewApi implements IReviewApi {
   ): Promise<{
     additionalInstructions?: string;
     commentFormat?: string;
+    evaluationSettings?: CustomEvaluationSettings;
   } | null> {
     return invokeApi(
       () => window.electron.review.getHistoryInstruction(historyId),
@@ -144,6 +148,7 @@ export class ReviewApi implements IReviewApi {
   public async executeReview(
     historyId: string,
     files: UploadFile[],
+    evaluationSettings: CustomEvaluationSettings,
     additionalInstructions?: string,
     commentFormat?: string,
     options?: ApiServiceDefaultOptions,
@@ -155,6 +160,7 @@ export class ReviewApi implements IReviewApi {
           files,
           additionalInstructions,
           commentFormat,
+          evaluationSettings,
         }),
       options,
     );

@@ -15,6 +15,7 @@ import {
 } from './prompts';
 import { getOpenAICompatibleModel } from './model/openAICompatible';
 import { BaseRuntimeContext } from './types';
+import type { CustomEvaluationSettings } from '@/types';
 
 export type ChecklistExtractionAgentRuntimeContext = BaseRuntimeContext & {
   extractedItems: string[];
@@ -29,6 +30,7 @@ export type ReviewExecuteAgentRuntimeContext = BaseRuntimeContext & {
   checklistItems: { id: number; content: string }[];
   additionalInstructions?: string;
   commentFormat?: string;
+  evaluationSettings?: CustomEvaluationSettings;
 };
 
 export type TopicExtractionAgentRuntimeContext = BaseRuntimeContext & {

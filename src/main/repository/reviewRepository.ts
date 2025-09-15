@@ -4,6 +4,7 @@ import {
   reviewChecklists,
   reviewChecklistResults,
   ReviewChecklistEntity,
+  ReviewHistoryEntity,
 } from '../../db/schema';
 import getDb from '../../db';
 import type {
@@ -12,6 +13,7 @@ import type {
   ReviewChecklistResult,
   ReviewEvaluation,
   ReviewChecklistCreatedBy,
+  CustomEvaluationSettings,
 } from '@/types';
 import { AppError } from '@/main/lib/error';
 import { repositoryError } from './error';
@@ -29,6 +31,10 @@ export interface IReviewRepository {
     id: string,
     additionalInstructions?: string,
     commentFormat?: string,
+  ): Promise<void>;
+  updateReviewHistoryEvaluationSettings(
+    id: string,
+    evaluationSettings?: CustomEvaluationSettings,
   ): Promise<void>;
   deleteReviewHistory(id: string): Promise<void>;
 
@@ -81,6 +87,31 @@ class DrizzleReviewRepository implements IReviewRepository {
       updatedAt: reviewChecklistEntity.updatedAt,
     };
   }
+
+  convertReviewHistoryEntityToReviewHistory(
+    reviewHistoryEntity: ReviewHistoryEntity,
+  ): RevieHistory {
+    const reviewHistory = {
+      id: reviewHistoryEntity.id,
+      title: reviewHistoryEntity.title,
+      additionalInstructions: reviewHistoryEntity.additionalInstructions,
+      commentFormat: reviewHistoryEntity.commentFormat,
+      evaluationSettings: null,
+      createdAt: reviewHistoryEntity.createdAt,
+      updatedAt: reviewHistoryEntity.updatedAt,
+    } as RevieHistory;
+    if (reviewHistoryEntity.evaluationSettings) {
+      try {
+        reviewHistory.evaluationSettings = JSON.parse(
+          reviewHistoryEntity.evaluationSettings,
+        ) as CustomEvaluationSettings;
+      } catch (err) {
+        // JSONパースエラーの場合はnullにフォールバック
+        reviewHistory.evaluationSettings = null;
+      }
+    }
+    return reviewHistory;
+  }
   /** レビュー履歴を作成 */
   async createReviewHistory(title: string, id?: string): Promise<RevieHistory> {
     try {
@@ -89,7 +120,7 @@ class DrizzleReviewRepository implements IReviewRepository {
         .insert(reviewHistories)
         .values({ title, id })
         .returning();
-      return history;
+      return this.convertReviewHistoryEntityToReviewHistory(history);
     } catch (err) {
       throw repositoryError('レビュー結果の作成に失敗しました', err);
     }
@@ -103,7 +134,9 @@ class DrizzleReviewRepository implements IReviewRepository {
         .select()
         .from(reviewHistories)
         .where(eq(reviewHistories.id, id));
-      return history || null;
+
+      if (!history) return null;
+      return this.convertReviewHistoryEntityToReviewHistory(history);
     } catch (err) {
       throw repositoryError('レビュー結果の取得に失敗しました', err);
     }
@@ -113,10 +146,13 @@ class DrizzleReviewRepository implements IReviewRepository {
   async getAllReviewHistories(): Promise<RevieHistory[]> {
     try {
       const db = await getDb();
-      return await db
+      const histories = await db
         .select()
         .from(reviewHistories)
         .orderBy(reviewHistories.updatedAt);
+      return histories.map((entity) =>
+        this.convertReviewHistoryEntityToReviewHistory(entity),
+      );
     } catch (err) {
       throw repositoryError('レビュー結果の取得に失敗しました', err);
     }
@@ -153,6 +189,32 @@ class DrizzleReviewRepository implements IReviewRepository {
     } catch (err) {
       throw repositoryError(
         'レビューの追加指示・フォーマットの更新に失敗しました',
+        err,
+      );
+    }
+  }
+
+  /** レビューの評定項目設定を更新 */
+  async updateReviewHistoryEvaluationSettings(
+    id: string,
+    evaluationSettings?: CustomEvaluationSettings,
+  ): Promise<void> {
+    try {
+      const db = await getDb();
+      // オブジェクトをJSON文字列に変換してDBに保存
+      const evaluationSettingsJson = evaluationSettings
+        ? JSON.stringify(evaluationSettings)
+        : null;
+
+      await db
+        .update(reviewHistories)
+        .set({
+          evaluationSettings: evaluationSettingsJson,
+        })
+        .where(eq(reviewHistories.id, id));
+    } catch (err) {
+      throw repositoryError(
+        'レビューの評定項目設定の更新に失敗しました',
         err,
       );
     }

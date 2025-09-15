@@ -425,6 +425,7 @@ export function getDocumentReviewExecutionPrompt({
   const checklists = runtimeContext.get('checklistItems');
   const additionalInstructions = runtimeContext.get('additionalInstructions');
   const commentFormat = runtimeContext.get('commentFormat');
+  const evaluationSettings = runtimeContext.get('evaluationSettings');
 
   // Build a human-readable list of checklist items
   const formattedList = checklists
@@ -443,17 +444,31 @@ export function getDocumentReviewExecutionPrompt({
       ? commentFormat
       : defaultFormat;
 
+  // 評定項目の設定を構築
+  let evaluationInstructions = '';
+  if (evaluationSettings && evaluationSettings.items && evaluationSettings.items.length > 0) {
+    // カスタム評定項目を使用
+    const evaluationList = evaluationSettings.items
+      .map((item) => `   - ${item.label}: ${item.description}`)
+      .join('\n');
+    evaluationInstructions = `1. For each checklist item, assign one of these ratings:
+${evaluationList}`;
+  } else {
+    // デフォルト評定項目を使用
+    evaluationInstructions = `1. For each checklist item, assign one of these ratings:
+   - A: 基準を完全に満たしている
+   - B: 基準を一部満たしている
+   - C: 基準を満たしていない
+   - –: 評価の対象外、または評価できない`;
+  }
+
   return `You are a professional document reviewer. Your job is to evaluate the user-provided document against a set of checklist items.
 
 Checklist items:
 ${formattedList}
 
 Instructions:
-1. For each checklist item, assign one of these ratings:
-   - A: Excellent — fully meets the criterion.
-   - B: Satisfactory — partially meets the criterion.
-   - C: Needs Improvement — does not meet the criterion.
-   - –: Not Applicable / Cannot Evaluate — outside the scope or cannot be assessed.
+${evaluationInstructions}
 2. For each item, write a comment in Japanese following this exact structure:
 
 ${actualFormat}

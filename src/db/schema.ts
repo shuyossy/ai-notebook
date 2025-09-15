@@ -61,6 +61,7 @@ export const reviewHistories = sqliteTable('review_histories', {
   title: text('title').notNull(), // ソースのtitleを/区切りで結合
   additionalInstructions: text('additional_instructions'), // レビューの追加指示
   commentFormat: text('comment_format'), // レビューのコメントフォーマット
+  evaluationSettings: text('evaluation_settings'), // 評定項目設定（JSON形式）
   createdAt: text('created_at')
     .notNull()
     .default(sql`(current_timestamp)`),

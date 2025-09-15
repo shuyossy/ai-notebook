@@ -1,5 +1,5 @@
 import { getReviewRepository } from '@/main/repository/reviewRepository';
-import { ReviewChecklistEdit, ReviewChecklistResult } from '@/types';
+import { ReviewChecklistEdit, ReviewChecklistResult, CustomEvaluationSettings } from '@/types';
 import { generateReviewTitle } from '@/mastra/workflows/sourceReview/lib';
 import { RevieHistory } from '@/types';
 
@@ -11,6 +11,7 @@ export interface IReviewService {
   getReviewInstruction(reviewHistoryId: string): Promise<{
     additionalInstructions?: string;
     commentFormat?: string;
+    evaluationSettings?: CustomEvaluationSettings;
   }>;
   deleteReviewHistory(reviewHistoryId: string): Promise<void>;
   updateChecklists(
@@ -22,6 +23,7 @@ export interface IReviewService {
     additionalInstructions: string | undefined,
     commentFormat: string | undefined,
   ): Promise<void>;
+  updateReviewEvaluationSettings(reviewHistoryId: string, evaluationSettings: CustomEvaluationSettings): Promise<void>;
 }
 
 export class ReviewService implements IReviewService {
@@ -57,7 +59,7 @@ export class ReviewService implements IReviewService {
   }
 
   /**
-   * レビュー履歴の追加指示とコメントフォーマットを取得
+   * レビュー履歴の追加指示、コメントフォーマット、評定項目設定を取得
    */
   public async getReviewInstruction(reviewHistoryId: string) {
     const reviewHistory =
@@ -66,6 +68,7 @@ export class ReviewService implements IReviewService {
       additionalInstructions:
         reviewHistory?.additionalInstructions || undefined,
       commentFormat: reviewHistory?.commentFormat || undefined,
+      evaluationSettings: reviewHistory?.evaluationSettings || undefined,
     };
   }
 
@@ -126,6 +129,16 @@ export class ReviewService implements IReviewService {
       reviewHistoryId,
       additionalInstructions,
       commentFormat,
+    );
+  }
+
+  /**
+   * レビュー履歴の評定項目設定を更新
+   */
+  public async updateReviewEvaluationSettings(reviewHistoryId: string, evaluationSettings: CustomEvaluationSettings): Promise<void> {
+    return this.repository.updateReviewHistoryEvaluationSettings(
+      reviewHistoryId,
+      evaluationSettings,
     );
   }
 }

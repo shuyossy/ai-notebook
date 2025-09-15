@@ -13,7 +13,6 @@ import {
   Button,
   TextField,
   Stack,
-  Avatar,
   Typography,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
@@ -30,12 +29,28 @@ import {
   generateCSVFilename,
 } from '../../lib/csvUtils';
 
-// 評価ごとの色マッピング
-const evaluationColors: Record<ReviewEvaluation, string> = {
+// 評価ごとの色マッピング（デフォルト）
+const defaultEvaluationColors = {
   A: '#4caf50', // 緑
   B: '#ffb74d', // オレンジ
   C: '#f44336', // 赤
   '-': '#9e9e9e', // グレー（評価対象外／評価不可能）
+};
+
+// 動的評価項目用の色取得関数
+const getEvaluationColor = (evaluation: ReviewEvaluation): string => {
+  // デフォルト色マッピングに存在する場合はそれを使用
+  if (evaluation in defaultEvaluationColors) {
+    // @ts-ignore
+    return defaultEvaluationColors[evaluation];
+  }
+  // 存在しない場合はハッシュ値から色を生成
+  let hash = 0;
+  for (let i = 0; i < evaluation.length; i++) {
+    hash = evaluation.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const hue = hash % 360;
+  return `hsl(${hue}, 70%, 50%)`;
 };
 
 const ReviewChecklistSection: React.FC<ReviewChecklistSectionProps> = ({
@@ -111,31 +126,26 @@ const ReviewChecklistSection: React.FC<ReviewChecklistSectionProps> = ({
   }, [checklistResults]);
 
   // --- ソート ---
-  const descOrder: ReviewEvaluation[] = ['A', 'B', 'C', '-'];
-  const ascOrder: ReviewEvaluation[] = ['C', 'A', 'B', '-'];
-
+  // 動的評価項目対応のため、文字列順ソートを使用
   const sortedResults = useMemo(() => {
     if (sortBy == null) return checklistResults;
 
-    // ソート方向に応じて使う配列を選択
-    const order = sortDirection === 'desc' ? descOrder : ascOrder;
-
     return [...checklistResults].sort((a, b) => {
-      // 対象ファイルの評価を取得。未評価は '-' 扱い
+      // 対象ファイルの評価を取得。未評価は空文字扱い
       const aEv =
         a.sourceEvaluations?.find((ev) => ev.fileId === sortBy)?.evaluation ??
-        '-';
+        '';
       const bEv =
         b.sourceEvaluations?.find((ev) => ev.fileId === sortBy)?.evaluation ??
-        '-';
+        '';
 
-      // 配列のインデックスで比較
-      const aIdx = order.indexOf(aEv);
-      const bIdx = order.indexOf(bEv);
-
-      return aIdx - bIdx;
+      // 文字列順で比較
+      if (sortDirection === 'desc') {
+        return bEv.localeCompare(aEv);
+      } else {
+        return aEv.localeCompare(bEv);
+      }
     });
-    // eslint-disable-next-line
   }, [checklistResults, sortBy, sortDirection]);
 
   // --- ボックス用スタイル ---
@@ -210,20 +220,19 @@ const ReviewChecklistSection: React.FC<ReviewChecklistSectionProps> = ({
             <Box>
               {ev?.evaluation && (
                 <Stack spacing={1} alignItems="center">
-                  <Avatar
+                  <Typography
+                    variant="body2"
                     sx={{
-                      bgcolor: evaluationColors[ev.evaluation],
-                      width: 32,
-                      height: 32,
+                      color: getEvaluationColor(ev.evaluation),
+                      fontWeight: 'bold',
+                      textDecoration: 'underline',
+                      textDecorationColor: getEvaluationColor(ev.evaluation),
+                      textDecorationThickness: '2px',
+                      textUnderlineOffset: '3px',
                     }}
                   >
-                    <Typography
-                      variant="caption"
-                      sx={{ color: 'white', fontWeight: 'bold' }}
-                    >
-                      {ev.evaluation}
-                    </Typography>
-                  </Avatar>
+                    {ev.evaluation}
+                  </Typography>
                   {ev.comment && (
                     <Typography variant="body2" sx={commentBoxSx}>
                       {ev.comment}

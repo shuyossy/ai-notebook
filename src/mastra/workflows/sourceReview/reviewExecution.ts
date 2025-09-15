@@ -66,6 +66,15 @@ const triggerSchema = z.object({
     .string()
     .optional()
     .describe('レビューコメントのフォーマット'),
+  evaluationSettings: z
+    .object({
+      items: z.array(z.object({
+        label: z.string(),
+        description: z.string(),
+      })),
+    })
+    .optional()
+    .describe('カスタム評定項目設定'),
 });
 
 // ステップ1: チェックリストをカテゴリごとに分類
@@ -235,7 +244,7 @@ const reviewExecutionStep = createStep({
   outputSchema: baseStepOutputSchema,
   execute: async ({ inputData, getInitData, mastra, abortSignal }) => {
     // レビュー対象のファイル
-    const { files, additionalInstructions, commentFormat } =
+    const { files, additionalInstructions, commentFormat, evaluationSettings } =
       getInitData() as z.infer<typeof triggerSchema>;
     // ステップ1からの入力を取得
     const { categories } = inputData;
@@ -320,13 +329,24 @@ const reviewExecutionStep = createStep({
           let reviewTargetChecklists = category.checklists;
           while (attempt < maxAttempts) {
             try {
+              // デフォルトの評定項目
+              const defaultEvaluationItems = ['A', 'B', 'C', '-'] as const;
+
+              // カスタム評定項目がある場合はそれを使用、なければデフォルトを使用
+              const evaluationItems = evaluationSettings?.items?.length
+                ? evaluationSettings.items.map(item => item.label)
+                : defaultEvaluationItems;
+
+              // 最初の要素が存在することを確認してenumを作成
+              const evaluationEnum = evaluationItems.length > 0
+                ? z.enum([evaluationItems[0], ...evaluationItems.slice(1)] as [string, ...string[]])
+                : z.enum(defaultEvaluationItems);
+
               const outputSchema = z.array(
                 z.object({
                   checklistId: z.number(),
                   comment: z.string().describe('evaluation comment'),
-                  evaluation: z
-                    .enum(['A', 'B', 'C', '-'])
-                    .describe('evaluation'),
+                  evaluation: evaluationEnum.describe('evaluation'),
                 }),
               );
               const runtimeContext =
@@ -337,6 +357,7 @@ const reviewExecutionStep = createStep({
                 additionalInstructions,
               );
               runtimeContext.set('commentFormat', commentFormat);
+              runtimeContext.set('evaluationSettings', evaluationSettings);
               // レビューエージェントを使用してレビューを実行
               const reviewResult = await reviewAgent.generate(message, {
                 output: outputSchema,

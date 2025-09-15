@@ -1,12 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import {
-  Box,
-  Button,
-  Paper,
-  CircularProgress,
-  Stack,
-  Typography,
-} from '@mui/material';
+import { Box, Button, Paper, Stack, Typography } from '@mui/material';
 import CheckBoxIcon from '@mui/icons-material/CheckBox';
 import RateReviewIcon from '@mui/icons-material/RateReview';
 import StopIcon from '@mui/icons-material/Stop';
@@ -16,6 +9,7 @@ import {
   ModalMode,
   DocumentType,
   UploadFile,
+  CustomEvaluationSettings,
 } from '@/types';
 import { ReviewAreaProps } from './types';
 import ReviewChecklistSection from './ReviewChecklistSection';
@@ -26,6 +20,16 @@ import { getSafeErrorMessage } from '../../lib/error';
 
 const defaultCommentFormat =
   '【評価理由・根拠】\n（具体的な理由と根拠を記載）\n\n【改善提案】\n（改善のための具体的な提案を記載）';
+
+// デフォルト評定項目
+const defaultEvaluationSettings: CustomEvaluationSettings = {
+  items: [
+    { label: 'A', description: '基準を完全に満たしている' },
+    { label: 'B', description: '基準を一部満たしている' },
+    { label: 'C', description: '基準を満たしていない' },
+    { label: '–', description: '評価の対象外、または評価できない' },
+  ],
+};
 
 const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
   // 状態管理
@@ -40,6 +44,8 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
   const [modalMode, setModalMode] = useState<ModalMode | null>(null);
   const [additionalInstructions, setAdditionalInstructions] = useState('');
   const [commentFormat, setCommentFormat] = useState(defaultCommentFormat);
+  const [evaluationSettings, setEvaluationSettings] =
+    useState<CustomEvaluationSettings>(defaultEvaluationSettings);
 
   const addAlert = useAlertStore((state) => state.addAlert);
 
@@ -78,6 +84,9 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
         );
         setAdditionalInstructions(result?.additionalInstructions || '');
         setCommentFormat(result?.commentFormat || defaultCommentFormat);
+        setEvaluationSettings(
+          result?.evaluationSettings || defaultEvaluationSettings,
+        );
 
         // 初期データ取得成功したらポーリングを停止
         if (intervalId) {
@@ -209,6 +218,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
         const result = await reviewApi.executeReview(
           selectedReviewHistoryId,
           files,
+          evaluationSettings,
           additionalInstructions || additionalInstructions,
           commentFormat || commentFormat,
           { throwError: true, showAlert: false },
@@ -257,6 +267,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
       additionalInstructions,
       commentFormat,
       fetchChecklistResults,
+      evaluationSettings,
     ],
   );
 
@@ -475,6 +486,8 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
             setAdditionalInstructions={setAdditionalInstructions}
             commentFormat={commentFormat}
             setCommentFormat={setCommentFormat}
+            evaluationSettings={evaluationSettings || defaultEvaluationSettings}
+            setEvaluationSettings={setEvaluationSettings}
           />
         </>
       )}
