@@ -29,5 +29,6 @@ export const template = {
   REVIEW_CHECKLIST_EXTRACTION_NOT_CHECKLIST_DOCUMENT: `チェックリスト抽出に適さないドキュメントとして判定されたため処理を終了しました`,
   REVIEW_CHECKLIST_EXTRACTION_NO_CHECKLIST_ITEM: `チェックリストが抽出されませんでした`,
   REVIEW_EXECUTION_NO_TARGET_CHECKLIST: `対象のチェックリストが存在しないためレビューを実行できませんでした`,
+  REVIEW_CHECKLIST_EXTRACTION_FROM_CSV_ERROR: `CSVファイルからのチェックリスト抽出中に予期せぬエラーが発生しました`,
   AI_API_ERROR: `AIのAPIと通信中にエラーが発生しました\n{detail}`,
 } as const;

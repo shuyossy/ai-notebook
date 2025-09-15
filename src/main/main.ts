@@ -412,6 +412,13 @@ const setupReviewHandlers = () => {
   handleIpc(
     IpcChannels.REVIEW_EXTRACT_CHECKLIST_CALL,
     async ({ reviewHistoryId, files, documentType, checklistRequirements }) => {
+      // CSVインポートの場合は直接ReviewServiceを使用
+      if (documentType === 'checklist-csv') {
+        reviewService.extractChecklistFromCsv(reviewHistoryId, files);
+        return undefined as never;
+      }
+
+      // AI処理の場合は既存のワークフロー処理を実行
       const manager = SourceReviewManager.getInstance();
       const result = manager.extractChecklistWithNotification(
         reviewHistoryId,

@@ -47,7 +47,7 @@ export default class SourceReviewManager {
   public async extractChecklist(
     reviewHistoryId: string,
     files: UploadFile[],
-    documentType: DocumentType = 'checklist',
+    documentType: DocumentType = 'checklist-ai',
     checklistRequirements?: string,
   ): Promise<{ status: ChecklistExtractionResultStatus; error?: string }> {
     try {
@@ -223,7 +223,7 @@ export default class SourceReviewManager {
   public extractChecklistWithNotification(
     reviewHistoryId: string,
     files: UploadFile[],
-    documentType: DocumentType = 'checklist',
+    documentType: DocumentType = 'checklist-ai',
     checklistRequirements?: string,
   ): { success: boolean; error?: string } {
     try {

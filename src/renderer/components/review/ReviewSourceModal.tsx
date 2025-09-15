@@ -88,9 +88,11 @@ const getAlertMessage = ({
       <>
         ファイルを選択してチェックリスト抽出を実行できます
         <br />
-        {documentType === 'checklist'
-          ? '選択されたチェックリストドキュメントから、AIが既存のチェック項目を抽出できます'
-          : '選択された一般ドキュメントから、AIがレビュー用のチェックリストを新規作成できます'}
+        {documentType === 'checklist-csv'
+          ? '選択したExcelまたはCSVファイルの一列目の値を全てチェックリスト項目として抽出します'
+          : documentType === 'checklist-ai'
+            ? '選択されたチェックリストドキュメントから、AIが既存のチェック項目を抽出できます'
+            : '選択された一般ドキュメントから、AIがレビュー用のチェックリストを新規作成できます'}
         <br />
         ※
         <br />
@@ -128,7 +130,8 @@ function ReviewSourceModal({
 }: ReviewSourceModalProps): React.ReactElement {
   const [uploadedFiles, setUploadedFiles] = useState<UploadFile[]>([]);
   const [processing, setProcessing] = useState(false); // ★ 送信処理やPDF変換の進行中フラグ
-  const [documentType, setDocumentType] = useState<DocumentType>('checklist');
+  const [documentType, setDocumentType] =
+    useState<DocumentType>('checklist-ai');
   const [checklistRequirements, setChecklistRequirements] = useState('');
   const [editingItemIndex, setEditingItemIndex] = useState<number | null>(null);
   const [editingItem, setEditingItem] = useState<EvaluationItem>({
@@ -142,7 +145,7 @@ function ReviewSourceModal({
   useEffect(() => {
     const loadSavedData = async () => {
       setUploadedFiles([]);
-      setDocumentType('checklist');
+      setDocumentType('checklist-ai');
       setChecklistRequirements('');
     };
 
@@ -167,6 +170,7 @@ function ReviewSourceModal({
                 'ppt',
                 'pptx',
                 'txt',
+                'csv',
               ],
             },
           ],
@@ -304,6 +308,24 @@ function ReviewSourceModal({
   const handleSubmit = async () => {
     if (disabled || processing || uploadedFiles.length === 0) return;
 
+    // CSVインポート選択時のファイル形式チェック
+    if (modalMode === 'extract' && documentType === 'checklist-csv') {
+      const nonCsvFiles = uploadedFiles.filter(
+        (file) =>
+          !file.name.toLowerCase().endsWith('.csv') &&
+          !file.name.toLowerCase().endsWith('.xlsx') &&
+          !file.name.toLowerCase().endsWith('.xls'),
+      );
+      if (nonCsvFiles.length > 0) {
+        addAlert({
+          message:
+            'ファイルインポートを選択している場合はExcelまたはCSVファイルのみ指定可能です',
+          severity: 'error',
+        });
+        return;
+      }
+    }
+
     setProcessing(true);
 
     try {
@@ -412,16 +434,27 @@ function ReviewSourceModal({
             <FormControl component="fieldset" sx={{ mb: 2 }}>
               <FormLabel component="legend">ドキュメント種別</FormLabel>
               <RadioGroup
-                row
                 value={documentType}
                 onChange={(e) =>
                   setDocumentType(e.target.value as DocumentType)
                 }
               >
                 <FormControlLabel
-                  value="checklist"
+                  value="checklist-ai"
                   control={<Radio />}
-                  label="チェックリストドキュメント（既存項目を抽出）"
+                  label="チェックリストドキュメント（AI抽出）"
+                  disabled={processing}
+                />
+                <FormControlLabel
+                  value="checklist-csv"
+                  control={<Radio />}
+                  label={
+                    <Tooltip title="選択したファイル(Excel,CSV)の一列目の値を全てチェックリスト項目として抽出します">
+                      <span>
+                        チェックリストドキュメント（ファイルインポート）
+                      </span>
+                    </Tooltip>
+                  }
                   disabled={processing}
                 />
                 <FormControlLabel

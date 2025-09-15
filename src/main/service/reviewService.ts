@@ -1,7 +1,16 @@
 import { getReviewRepository } from '@/main/repository/reviewRepository';
-import { ReviewChecklistEdit, ReviewChecklistResult, CustomEvaluationSettings } from '@/types';
+import {
+  ReviewChecklistEdit,
+  ReviewChecklistResult,
+  CustomEvaluationSettings,
+  UploadFile,
+  IpcChannels,
+} from '@/types';
 import { generateReviewTitle } from '@/mastra/workflows/sourceReview/lib';
 import { RevieHistory } from '@/types';
+import FileExtractor from '@/main/lib/fileExtractor';
+import { publishEvent } from '../lib/eventPayloadHelper';
+import { internalError, normalizeUnknownError, toPayload } from '../lib/error';
 
 export interface IReviewService {
   getReviewHistories(): Promise<RevieHistory[]>;
@@ -23,7 +32,14 @@ export interface IReviewService {
     additionalInstructions: string | undefined,
     commentFormat: string | undefined,
   ): Promise<void>;
-  updateReviewEvaluationSettings(reviewHistoryId: string, evaluationSettings: CustomEvaluationSettings): Promise<void>;
+  updateReviewEvaluationSettings(
+    reviewHistoryId: string,
+    evaluationSettings: CustomEvaluationSettings,
+  ): Promise<void>;
+  extractChecklistFromCsv(
+    reviewHistoryId: string,
+    files: UploadFile[],
+  ): Promise<void>;
 }
 
 export class ReviewService implements IReviewService {
@@ -135,10 +151,81 @@ export class ReviewService implements IReviewService {
   /**
    * レビュー履歴の評定項目設定を更新
    */
-  public async updateReviewEvaluationSettings(reviewHistoryId: string, evaluationSettings: CustomEvaluationSettings): Promise<void> {
+  public async updateReviewEvaluationSettings(
+    reviewHistoryId: string,
+    evaluationSettings: CustomEvaluationSettings,
+  ): Promise<void> {
     return this.repository.updateReviewHistoryEvaluationSettings(
       reviewHistoryId,
       evaluationSettings,
     );
+  }
+
+  /**
+   * CSVファイルからチェックリストを抽出してDBに保存
+   */
+  public async extractChecklistFromCsv(
+    reviewHistoryId: string,
+    files: UploadFile[],
+  ): Promise<void> {
+    try {
+    // レビュー履歴が存在しない場合は新規作成
+    let reviewHistory = await this.repository.getReviewHistory(reviewHistoryId);
+    if (reviewHistory === null) {
+      reviewHistory = await this.repository.createReviewHistory(
+        generateReviewTitle(),
+        reviewHistoryId,
+      );
+    }
+
+    // システム作成のチェックリストを削除（手動作成分は保持）
+    await this.repository.deleteSystemCreatedChecklists(reviewHistoryId);
+
+    const allChecklistItems: string[] = [];
+
+    // 各CSVファイルを処理
+    for (const file of files) {
+      // ファイルからテキストを抽出
+      const extractionResult = await FileExtractor.extractText(file.path);
+      const csvText = extractionResult.content;
+
+      // CSVテキストを行に分割
+      const lines = csvText.split('\n');
+
+      // 各行の1列目を取得（空行、空文字は除外）
+      for (const line of lines) {
+        const trimmedLine = line.trim();
+        if (trimmedLine) {
+          // CSVの1列目を取得（カンマ区切りの最初の値）
+          const firstColumn = trimmedLine.split(',')[0]?.trim();
+          if (firstColumn && firstColumn !== '') {
+            // ダブルクォートを除去
+            const cleanedItem = firstColumn.replace(/^"(.*)"$/, '$1');
+            if (cleanedItem) {
+              allChecklistItems.push(cleanedItem);
+            }
+          }
+        }
+      }
+    }
+
+    // 重複を除去
+    const uniqueChecklistItems = [...new Set(allChecklistItems)];
+
+    // チェックリスト項目をDBに保存
+    for (const item of uniqueChecklistItems) {
+      await this.repository.createChecklist(reviewHistoryId, item, 'system');
+    }
+    // AI処理と同様のイベント通知を発火
+    publishEvent(IpcChannels.REVIEW_EXTRACT_CHECKLIST_FINISHED, {
+      status: 'success' as const,
+    });
+    } catch (error) {
+      const normalizedError = normalizeUnknownError(error);
+      publishEvent(IpcChannels.REVIEW_EXTRACT_CHECKLIST_FINISHED, {
+        status: 'failed' as const,
+        error: toPayload(normalizedError).message,
+      });
+    }
   }
 }
