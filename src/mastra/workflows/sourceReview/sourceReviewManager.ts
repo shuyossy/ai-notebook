@@ -212,10 +212,7 @@ export default class SourceReviewManager {
           commentFormat,
         },
       });
-      console.log(
-        'Review Execution Workflow Result:',
-        JSON.stringify(result, null, 2),
-      );
+
       // 結果を確認
       const checkResult = checkWorkflowResult(result);
 
