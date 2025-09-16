@@ -200,12 +200,6 @@ ElectronのIPCを使用してフロントエンド・バックエンド間の通
 
 ## 依頼タスク
 ### 要件
-- レビュー機能について、レビュー実行中に別のレビューやチャット機能に移った後に元のレビューに戻っても、レビュー結果のポーリング取得を再開できる
-### 実装方法
-- review_historyテーブルに処理ステータス（チェックリスト抽出中、チェックリスト抽出完了、レビュー実行中、レビュー実行完了）を追加
-  - `ReviewArea`の初期化処理にて、レビュー処理ステータスをチェックし、処理中ステータスであれば、処理内容に合わせて、処理終了イベント購読する
-- チェックリスト抽出やレビュー実行の処理終了イベントについてはreviewHistoryIdをイベントのペイロードに含むように変更
-  - `ReviewArea`内のイベント受信時のコールバック関数ではもし、reviewHistoryIdが自身のselectedReviewHistoryIdと一致していた場合に、コールバック関数を実行するように変更
-### 実装時の注意点
-- 現状の実装内容を適切に把握して、実装計画を立てること
-- `ReviewArea`内での不要なコールバック関数の実行を避けるために、表示するレビューが変更（selectedReviewHistoryIdが更新）された場合は購読していた処理終了イベントを解除すること
+- sourceRegistration workflowの改善
+  - `src/mastra/workflows/sourceRegistration/sourceRegistrationManager.ts`内でファイルからのテキスト抽出を実行を実行するのではなく、`src/mastra/workflows/sourceRegistration/sourceRegistration.ts`内でテキスト抽出を行う
+    - テキスト抽出エラーについてもsourceテーブルのエラー情報に格納したいため

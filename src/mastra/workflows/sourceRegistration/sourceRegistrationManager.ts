@@ -159,14 +159,11 @@ export default class SourceRegistrationManager {
         (previousPromise, filePath) => {
           return previousPromise.then(async (resultList) => {
             try {
-              // ファイルからテキストを抽出
-              const { content } = await FileExtractor.extractText(filePath);
-
               // Mastraインスタンスからワークフローを取得して実行
               const workflow = mastra.getWorkflow('sourceRegistrationWorkflow');
               const run = workflow.createRun();
               const result = await run.start({
-                inputData: { filePath, content },
+                inputData: { filePath },
               });
 
               // 結果を確認
@@ -181,10 +178,7 @@ export default class SourceRegistrationManager {
                 error,
                 'ドキュメント登録用ワークフロー実行中にエラー',
               );
-              resultList.push({
-                success: false,
-                filePath,
-              });
+              throw error;
             }
             // 次のイテレーションに結果配列を渡す
             return resultList;
@@ -208,9 +202,6 @@ export default class SourceRegistrationManager {
         success: false,
         error: errorMessage,
       });
-
-      // エラーを再throw
-      throw error;
     }
   }
 

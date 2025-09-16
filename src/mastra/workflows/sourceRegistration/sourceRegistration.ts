@@ -8,12 +8,12 @@ import { getSourceRepository } from '../../../main/repository/sourceRepository';
 import { createRuntimeContext, judgeFinishReason } from '../../lib/agentUtils';
 import { normalizeUnknownError, internalError } from '@/main/lib/error';
 import { getMainLogger } from '@/main/lib/logger';
+import FileExtractor from '@/main/lib/fileExtractor';
 
 const logger = getMainLogger();
 
 const triggerSchema = z.object({
   filePath: z.string().describe('登録するソースのファイルパス'),
-  content: z.string().describe('登録するソースの内容'),
 });
 
 const analyzeSourceOutputSchema = baseStepOutputSchema.extend({
@@ -32,13 +32,14 @@ const analyzeSourceStep = createStep({
   outputSchema: analyzeSourceOutputSchema,
   execute: async ({ inputData, mastra }) => {
     // トリガーから変数を取得
-    const { content, filePath } = inputData;
+    const { filePath } = inputData;
 
     // 結果の初期値
     let status: stepStatus = 'failed';
     let sourceId = -1;
     let title = '';
     let summary = '';
+    let content = '';
     let errorMessage: string | undefined;
 
     try {
@@ -51,6 +52,9 @@ const analyzeSourceStep = createStep({
       });
 
       sourceId = insertResult.id;
+
+      const extractionResult = await FileExtractor.extractText(filePath);
+      content = extractionResult.content;
 
       // LLMを使用してタイトルと要約を生成
       const summarizeSourceAgent = mastra.getAgent('summarizeSourceAgent');
@@ -119,7 +123,7 @@ const extractTopicAndSummaryStep = createStep({
   inputSchema: analyzeSourceOutputSchema,
   outputSchema: baseStepOutputSchema,
   execute: async ({ inputData, getInitData, mastra }) => {
-    const { content } = getInitData() as z.infer<typeof triggerSchema>;
+    const { filePath } = getInitData() as z.infer<typeof triggerSchema>;
     const { sourceId } = inputData;
 
     // 前ステップがfailedの場合はそのまま返す
@@ -135,6 +139,9 @@ const extractTopicAndSummaryStep = createStep({
     let errorMessage: string | undefined;
 
     try {
+      const extractionResult = await FileExtractor.extractText(filePath);
+      const content = extractionResult.content;
+
       // LLMを使用してトピックと要約を生成
       const summarizeTopicAgent = mastra.getAgent('summarizeTopicAgent');
 
