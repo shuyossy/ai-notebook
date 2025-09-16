@@ -37,8 +37,8 @@ const triggerSchema = z.object({
     )
     .describe('アップロードファイルのリスト'),
   documentType: z
-    .enum(['checklist', 'general'])
-    .default('checklist')
+    .enum(['checklist-ai', 'general'])
+    .default('checklist-ai')
     .describe(
       'ドキュメント種別: checklist=チェックリストドキュメント, general=一般ドキュメント',
     ),
@@ -702,7 +702,7 @@ export const checklistExtractionWorkflow = createWorkflow({
   .branch([
     // チェックリストドキュメントの場合
     [
-      async ({ inputData }) => inputData.documentType === 'checklist',
+      async ({ inputData }) => inputData.documentType === 'checklist-ai',
       checklistDocumentExtractionStep,
     ],
     // 一般ドキュメントの場合
