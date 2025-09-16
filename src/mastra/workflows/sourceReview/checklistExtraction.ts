@@ -453,7 +453,7 @@ const topicExtractionStep = createStep({
       await Promise.all(extractionPromises);
 
       // エラーがあれば失敗として返す
-      if (errorMessages.length > 1) {
+      if (errorMessages.length > 0) {
         return bail({
           status: 'failed' as stepStatus,
           errorMessage: errorMessages.join('\n'),
