@@ -86,6 +86,12 @@ export default class SourceReviewManager {
         cancel: () => run.cancel(),
       });
 
+      // 処理ステータスを「抽出中」に更新
+      await this.reviewRepository.updateReviewHistoryProcessingStatus(
+        reviewHistoryId,
+        'extracting',
+      );
+
       const runResult = await run.start({
         inputData: {
           reviewHistoryId,
@@ -101,6 +107,13 @@ export default class SourceReviewManager {
       // クリーンアップ
       this.runningWorkflows.delete(reviewHistoryId);
 
+      // 処理ステータスを更新
+      const newStatus = checkResult.status === 'success' ? 'extracted' : 'idle';
+      await this.reviewRepository.updateReviewHistoryProcessingStatus(
+        reviewHistoryId,
+        newStatus,
+      );
+
       return {
         status: checkResult.status,
         error: checkResult.errorMessage,
@@ -110,6 +123,16 @@ export default class SourceReviewManager {
 
       // エラー時もクリーンアップ
       this.runningWorkflows.delete(reviewHistoryId);
+
+      // 処理ステータスを「アイドル」に戻す
+      try {
+        await this.reviewRepository.updateReviewHistoryProcessingStatus(
+          reviewHistoryId,
+          'idle',
+        );
+      } catch (statusUpdateError) {
+        logger.error(statusUpdateError, '処理ステータスの更新に失敗しました');
+      }
 
       const err = normalizeUnknownError(error);
       const errorMessage = err.message;
@@ -174,6 +197,12 @@ export default class SourceReviewManager {
         cancel: () => run.cancel(),
       });
 
+      // 処理ステータスを「レビュー中」に更新
+      await this.reviewRepository.updateReviewHistoryProcessingStatus(
+        reviewHistoryId,
+        'reviewing',
+      );
+
       const result = await run.start({
         inputData: {
           reviewHistoryId,
@@ -193,6 +222,13 @@ export default class SourceReviewManager {
       // クリーンアップ
       this.runningWorkflows.delete(reviewHistoryId);
 
+      // 処理ステータスを更新
+      const newStatus = checkResult.status === 'success' ? 'completed' : 'extracted';
+      await this.reviewRepository.updateReviewHistoryProcessingStatus(
+        reviewHistoryId,
+        newStatus,
+      );
+
       return {
         status: checkResult.status,
         error: checkResult.errorMessage,
@@ -202,6 +238,16 @@ export default class SourceReviewManager {
 
       // エラー時もクリーンアップ
       this.runningWorkflows.delete(reviewHistoryId);
+
+      // 処理ステータスを「抽出完了」に戻す
+      try {
+        await this.reviewRepository.updateReviewHistoryProcessingStatus(
+          reviewHistoryId,
+          'extracted',
+        );
+      } catch (statusUpdateError) {
+        logger.error(statusUpdateError, '処理ステータスの更新に失敗しました');
+      }
 
       const err = normalizeUnknownError(error);
       const errorMessage = err.message;
@@ -236,6 +282,7 @@ export default class SourceReviewManager {
         .then((res) => {
           // 完了イベントを送信
           publishEvent(IpcChannels.REVIEW_EXTRACT_CHECKLIST_FINISHED, {
+            reviewHistoryId,
             status: res.status,
             error: res.error,
           });
@@ -251,7 +298,7 @@ export default class SourceReviewManager {
           // エラーイベントを送信
           publishEvent(
             IpcChannels.REVIEW_EXTRACT_CHECKLIST_FINISHED,
-            errorResult,
+            { reviewHistoryId, ...errorResult },
           );
         });
       return {
@@ -266,6 +313,7 @@ export default class SourceReviewManager {
         error: errorMessage,
       };
       const payloadResult = {
+        reviewHistoryId,
         status: 'failed' as ChecklistExtractionResultStatus,
         error: errorMessage,
       };
@@ -302,6 +350,7 @@ export default class SourceReviewManager {
         .then((res) => {
           // 完了イベントを送信
           publishEvent(IpcChannels.REVIEW_EXECUTE_FINISHED, {
+            reviewHistoryId,
             status: res.status,
             error: res.error,
           });
@@ -315,7 +364,7 @@ export default class SourceReviewManager {
             error: errorMessage,
           };
           // エラーイベントを送信
-          publishEvent(IpcChannels.REVIEW_EXECUTE_FINISHED, errorResult);
+          publishEvent(IpcChannels.REVIEW_EXECUTE_FINISHED, { reviewHistoryId, ...errorResult });
         });
       return {
         success: true,
@@ -329,6 +378,7 @@ export default class SourceReviewManager {
         error: errorMessage,
       };
       const payloadResult = {
+        reviewHistoryId,
         status: 'failed' as ReviewExecutionResultStatus,
         error: errorMessage,
       };

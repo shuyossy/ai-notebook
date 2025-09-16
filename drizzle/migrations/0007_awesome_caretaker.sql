@@ -1,0 +1,1 @@
+ALTER TABLE `review_histories` ADD `processing_status` text DEFAULT 'idle' NOT NULL;

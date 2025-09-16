@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Box, Button, Paper, Stack, Typography } from '@mui/material';
 import CheckBoxIcon from '@mui/icons-material/CheckBox';
 import RateReviewIcon from '@mui/icons-material/RateReview';
@@ -10,6 +10,8 @@ import {
   DocumentType,
   UploadFile,
   CustomEvaluationSettings,
+  ChecklistExtractionResultStatus,
+  ReviewExecutionResultStatus,
 } from '@/types';
 import { ReviewAreaProps } from './types';
 import ReviewChecklistSection from './ReviewChecklistSection';
@@ -49,6 +51,9 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
 
   const addAlert = useAlertStore((state) => state.addAlert);
 
+  // イベント購読の解除関数を管理
+  const eventUnsubscribeRef = useRef<(() => void) | null>(null);
+
   // チェック履歴取得
   const fetchChecklistResults = useCallback(async () => {
     if (!selectedReviewHistoryId) return;
@@ -61,11 +66,117 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
     setChecklistResults(result?.checklistResults || []);
   }, [selectedReviewHistoryId]);
 
+  // チェックリスト抽出完了の共通処理ハンドラー
+  const handleChecklistExtractionFinished = useCallback(
+    (payload: {
+      reviewHistoryId: string;
+      status: ChecklistExtractionResultStatus;
+      error?: string;
+    }) => {
+      // 自分のレビュー履歴のイベントかチェック
+      if (payload.reviewHistoryId !== selectedReviewHistoryId) {
+        return;
+      }
+
+      // 抽出結果の再取得
+      fetchChecklistResults().catch((error) => {
+        addAlert({
+          message: getSafeErrorMessage(
+            error,
+            'チェックリストの取得に失敗しました',
+          ),
+          severity: 'error',
+        });
+      });
+
+      if (payload.status === 'success') {
+        addAlert({
+          message: 'チェックリストの抽出が完了しました',
+          severity: 'success',
+        });
+      } else if (payload.status === 'failed') {
+        addAlert({
+          message: `チェックリストの抽出に失敗しました\n${payload.error}`,
+          severity: 'error',
+        });
+      }
+
+      setIsExtracting(false);
+
+      // イベント購読解除
+      if (eventUnsubscribeRef.current) {
+        eventUnsubscribeRef.current();
+        eventUnsubscribeRef.current = null;
+      }
+    },
+    [selectedReviewHistoryId, fetchChecklistResults, addAlert],
+  );
+
+  // レビュー実行完了の共通処理ハンドラー
+  const handleReviewExecutionFinished = useCallback(
+    (payload: {
+      reviewHistoryId: string;
+      status: ReviewExecutionResultStatus;
+      error?: string;
+    }) => {
+      // 自分のレビュー履歴のイベントかチェック
+      if (payload.reviewHistoryId !== selectedReviewHistoryId) {
+        return;
+      }
+
+      // レビュー結果の再取得
+      fetchChecklistResults().catch((error) => {
+        addAlert({
+          message: getSafeErrorMessage(
+            error,
+            'チェックリストの取得に失敗しました',
+          ),
+          severity: 'error',
+        });
+      });
+
+      if (payload.status === 'success') {
+        addAlert({
+          message: 'レビューが完了しました',
+          severity: 'success',
+        });
+      } else if (payload.status === 'failed') {
+        addAlert({
+          message: `レビューに失敗しました\n${payload.error}`,
+          severity: 'error',
+        });
+      }
+
+      setIsReviewing(false);
+
+      // イベント購読解除
+      if (eventUnsubscribeRef.current) {
+        eventUnsubscribeRef.current();
+        eventUnsubscribeRef.current = null;
+      }
+    },
+    [selectedReviewHistoryId, fetchChecklistResults, addAlert],
+  );
+
   // 選択中の履歴が変更されたら、初期データ取得を実行
   useEffect(() => {
     if (!selectedReviewHistoryId) return;
 
     let intervalId: ReturnType<typeof setInterval> | null = null;
+
+    // 古いイベント購読を解除
+    if (eventUnsubscribeRef.current) {
+      eventUnsubscribeRef.current();
+      eventUnsubscribeRef.current = null;
+    }
+
+    // 状態リセット
+    setChecklistResults([]);
+    setIsExtracting(false);
+    setIsReviewing(false);
+    setAdditionalInstructions('');
+    setCommentFormat(defaultCommentFormat);
+    setEvaluationSettings(defaultEvaluationSettings);
 
     // 初期データ取得（エラーが発生しなくなるまでポーリング）
     const loadInitialData = async () => {
@@ -87,6 +198,42 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
         setEvaluationSettings(
           result?.evaluationSettings || defaultEvaluationSettings,
         );
+
+        // レビュー履歴の詳細から処理ステータスを取得
+        const histories = await reviewApi.getHistories({
+          throwError: true,
+          showAlert: true,
+        });
+        const currentHistory = histories?.find(
+          (h) => h.id === selectedReviewHistoryId,
+        );
+
+        if (currentHistory) {
+          // 処理ステータスに応じて状態とイベント購読を設定
+          switch (currentHistory.processingStatus) {
+            case 'extracting':
+              setIsExtracting(true);
+              // チェックリスト抽出完了イベントを購読
+              const extractUnsubscribe =
+                reviewApi.subscribeChecklistExtractionFinished(
+                  handleChecklistExtractionFinished,
+                );
+              eventUnsubscribeRef.current = extractUnsubscribe;
+              break;
+            case 'reviewing':
+              setIsReviewing(true);
+              // レビュー実行完了イベントを購読
+              const reviewUnsubscribe =
+                reviewApi.subscribeReviewExtractionFinished(
+                  handleReviewExecutionFinished,
+                );
+              eventUnsubscribeRef.current = reviewUnsubscribe;
+              break;
+            default:
+              // 処理中でない場合は何もしない
+              break;
+          }
+        }
 
         // 初期データ取得成功したらポーリングを停止
         if (intervalId) {
@@ -110,8 +257,16 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
       if (intervalId) {
         clearInterval(intervalId);
       }
+      if (eventUnsubscribeRef.current) {
+        eventUnsubscribeRef.current();
+      }
     };
-  }, [selectedReviewHistoryId, fetchChecklistResults]);
+  }, [
+    selectedReviewHistoryId,
+    fetchChecklistResults,
+    handleChecklistExtractionFinished,
+    handleReviewExecutionFinished,
+  ]);
 
   // 処理中のポーリング制御
   useEffect(() => {
@@ -160,34 +315,17 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
           { throwError: true, showAlert: false },
         );
 
+        // 既存のイベント購読を解除
+        if (eventUnsubscribeRef.current) {
+          eventUnsubscribeRef.current();
+          eventUnsubscribeRef.current = null;
+        }
+
         // 抽出完了イベントの購読を開始
         const unsubscribe = reviewApi.subscribeChecklistExtractionFinished(
-          (payload) => {
-            // 抽出結果の再取得
-            fetchChecklistResults().catch((error) => {
-              addAlert({
-                message: getSafeErrorMessage(
-                  error,
-                  'チェックリストの取得に失敗しました',
-                ),
-                severity: 'error',
-              });
-            });
-            if (payload.status === 'success') {
-              addAlert({
-                message: 'チェックリストの抽出が完了しました',
-                severity: 'success',
-              });
-            } else if (payload.status === 'failed') {
-              addAlert({
-                message: `チェックリストの抽出に失敗しました\n${payload.error}`,
-                severity: 'error',
-              });
-            }
-            setIsExtracting(false);
-            unsubscribe();
-          },
+          handleChecklistExtractionFinished,
         );
+        eventUnsubscribeRef.current = unsubscribe;
       } catch (error) {
         console.error(error);
         addAlert({
@@ -200,7 +338,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
         setIsExtracting(false);
       }
     },
-    [selectedReviewHistoryId, addAlert, fetchChecklistResults],
+    [selectedReviewHistoryId, addAlert, handleChecklistExtractionFinished],
   );
 
   // レビュー実行処理
@@ -214,8 +352,14 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
         setIsReviewing(true);
         setIsModalOpen(false);
 
+        // 既存のイベント購読を解除
+        if (eventUnsubscribeRef.current) {
+          eventUnsubscribeRef.current();
+          eventUnsubscribeRef.current = null;
+        }
+
         // レビュー実行処理を開始
-        const result = await reviewApi.executeReview(
+        await reviewApi.executeReview(
           selectedReviewHistoryId,
           files,
           evaluationSettings,
@@ -226,32 +370,9 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
 
         // レビュー完了イベントの購読を開始
         const unsubscribe = reviewApi.subscribeReviewExtractionFinished(
-          (payload) => {
-            // 抽出結果の再取得
-            fetchChecklistResults().catch((error) => {
-              addAlert({
-                message: getSafeErrorMessage(
-                  error,
-                  'チェックリストの取得に失敗しました',
-                ),
-                severity: 'error',
-              });
-            });
-            if (payload.status === 'success') {
-              addAlert({
-                message: 'レビューが完了しました',
-                severity: 'success',
-              });
-            } else if (payload.status === 'failed') {
-              addAlert({
-                message: `レビューに失敗しました\n${payload.error}`,
-                severity: 'error',
-              });
-            }
-            setIsReviewing(false);
-            unsubscribe();
-          },
+          handleReviewExecutionFinished as any,
         );
+        eventUnsubscribeRef.current = unsubscribe;
       } catch (error) {
         console.error(error);
         addAlert({
@@ -266,8 +387,8 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
       addAlert,
       additionalInstructions,
       commentFormat,
-      fetchChecklistResults,
       evaluationSettings,
+      handleReviewExecutionFinished,
     ],
   );
 

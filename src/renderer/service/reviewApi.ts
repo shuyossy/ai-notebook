@@ -52,12 +52,14 @@ export interface IReviewApi {
   ): Promise<void>;
   subscribeChecklistExtractionFinished(
     callback: (payload: {
+      reviewHistoryId: string;
       status: ChecklistExtractionResultStatus;
       error?: string;
     }) => void,
   ): () => void;
   subscribeReviewExtractionFinished(
     callback: (payload: {
+      reviewHistoryId: string;
       status: ReviewExecutionResultStatus;
       error?: string;
     }) => void,
@@ -198,6 +200,7 @@ export class ReviewApi implements IReviewApi {
 
   public subscribeChecklistExtractionFinished(
     callback: (payload: {
+      reviewHistoryId: string;
       status: ChecklistExtractionResultStatus;
       error?: string;
     }) => void,
@@ -213,6 +216,7 @@ export class ReviewApi implements IReviewApi {
 
   public subscribeReviewExtractionFinished(
     callback: (payload: {
+      reviewHistoryId: string;
       status: ReviewExecutionResultStatus;
       error?: string;
     }) => void,

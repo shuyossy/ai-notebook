@@ -4,6 +4,7 @@ export interface RevieHistory {
   additionalInstructions: string | null;
   commentFormat?: string | null;
   evaluationSettings?: CustomEvaluationSettings | null; // カスタム評定項目設定
+  processingStatus: ProcessingStatus; // 処理ステータス
   createdAt: string;
   updatedAt: string;
 }
@@ -86,3 +87,11 @@ export type ReviewExecutionResultStatus =
   | 'failed'
   | 'suspended'
   | 'canceled';
+
+// 処理ステータスの型定義
+export type ProcessingStatus =
+  | 'idle'        // アイドル状態
+  | 'extracting'  // チェックリスト抽出中
+  | 'extracted'   // チェックリスト抽出完了
+  | 'reviewing'   // レビュー実行中
+  | 'completed';  // レビュー完了

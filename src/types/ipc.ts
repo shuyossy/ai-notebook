@@ -204,10 +204,12 @@ export type IpcEventPayloadMap = {
   [IpcChannels.SETTINGS_UPDATE_FINISHED]: { success: boolean; error?: string }; // 設定更新処理完了通知
   [IpcChannels.SOURCE_RELOAD_FINISHED]: { success: boolean; error?: string }; // ドキュメント更新処理完了通知
   [IpcChannels.REVIEW_EXTRACT_CHECKLIST_FINISHED]: {
+    reviewHistoryId: string;
     status: ChecklistExtractionResultStatus;
     error?: string;
   };
   [IpcChannels.REVIEW_EXECUTE_FINISHED]: {
+    reviewHistoryId: string;
     status: ReviewExecutionResultStatus;
     error?: string;
   };

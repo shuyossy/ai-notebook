@@ -14,6 +14,7 @@ import type {
   ReviewEvaluation,
   ReviewChecklistCreatedBy,
   CustomEvaluationSettings,
+  ProcessingStatus,
 } from '@/types';
 import { AppError } from '@/main/lib/error';
 import { repositoryError } from './error';
@@ -35,6 +36,10 @@ export interface IReviewRepository {
   updateReviewHistoryEvaluationSettings(
     id: string,
     evaluationSettings?: CustomEvaluationSettings,
+  ): Promise<void>;
+  updateReviewHistoryProcessingStatus(
+    id: string,
+    processingStatus: ProcessingStatus,
   ): Promise<void>;
   deleteReviewHistory(id: string): Promise<void>;
 
@@ -97,6 +102,7 @@ class DrizzleReviewRepository implements IReviewRepository {
       additionalInstructions: reviewHistoryEntity.additionalInstructions,
       commentFormat: reviewHistoryEntity.commentFormat,
       evaluationSettings: null,
+      processingStatus: (reviewHistoryEntity.processingStatus || 'idle') as ProcessingStatus,
       createdAt: reviewHistoryEntity.createdAt,
       updatedAt: reviewHistoryEntity.updatedAt,
     } as RevieHistory;
@@ -215,6 +221,27 @@ class DrizzleReviewRepository implements IReviewRepository {
     } catch (err) {
       throw repositoryError(
         'レビューの評定項目設定の更新に失敗しました',
+        err,
+      );
+    }
+  }
+
+  /** 処理ステータスを更新 */
+  async updateReviewHistoryProcessingStatus(
+    id: string,
+    processingStatus: ProcessingStatus,
+  ): Promise<void> {
+    try {
+      const db = await getDb();
+      await db
+        .update(reviewHistories)
+        .set({
+          processingStatus,
+        })
+        .where(eq(reviewHistories.id, id));
+    } catch (err) {
+      throw repositoryError(
+        'レビューの処理ステータスの更新に失敗しました',
         err,
       );
     }
