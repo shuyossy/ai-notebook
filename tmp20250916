@@ -1,30 +1,25 @@
-// (1) 行末空白の削除  — 末尾の Zs（全てのUnicode空白）と Cf（ZWSP等）を丸ごと削除
-// 旧: /[ \t\u00A0\u3000]+$/u
-current = current.replace(/(?:[\p{Zs}\t]|\p{Cf})+$/gu, '');
+// 旧: current = current.replace(/(?:[\p{Zs}\t]|\p{Cf})+$/gu, '');
+current = current.replace(/(?:\p{White_Space}|\p{Cf})+$/gu, '');
 
-// (2) 連続空白の圧縮 — 圧縮対象を Zs（全Unicode空白）+ タブに拡張
-// 旧: /[ \t\u00A0\u3000]{2,}/gu
-const SPACE_RUN = /[\p{Zs}\t]{2,}/gu;
-if (policy.collapseConsecutiveWhitespaces) {
-  if (policy.collapsePreserveIndent) {
-    const indentMatch = current.match(/^[\p{Zs}\t]*/u);   // 旧: /^[ \t\u00A0\u3000]*/u
-    const indent = indentMatch ? indentMatch[0] : '';
-    const rest = current.slice(indent.length);
-    current = indent + rest.replace(SPACE_RUN, ' ');
-  } else {
-    current = current.replace(SPACE_RUN, ' ');
-  }
-}
+// 旧: const SPACE_RUN = /[\p{Zs}\t]{2,}/gu;
+const SPACE_RUN = /[\p{Zs}\t\f\v]{2,}/gu; // ← FF/VTも対象に
 
-// (3) カンマのみ行の削除 — Zs/Cf を無視して判定
-// 旧: /^[ \t\u00A0\u3000]*(?:,[ \t\u00A0\u3000]*)+$/u
+
+// 旧: const indentMatch = current.match(/^[ \t\u00A0\u3000]*/u);
+const indentMatch = current.match(/^[\p{Zs}\t\f\v]*/u);
+
 if (policy.removeCommaOnlyLines) {
-  const commaOnly = /^[\p{Zs}\p{Cf}]*(?:,[\p{Zs}\p{Cf}]*)+$/u;
+  // 旧: const commaOnly = /^[\p{Zs}\p{Cf}]*(?:,[\p{Zs}\p{Cf}]*)+$/u;
+  const commaOnly = /^[\p{White_Space}\p{Cf}]*(?:,[\p{White_Space}\p{Cf}]*)+$/u;
   if (commaOnly.test(current)) current = '';
 }
 
-// (4) 空白のみ行→空行 — Zs/Cf を空白扱いに
-// 旧: /^[ \t\u00A0\u3000]+$/u
-if (/^[\p{Zs}\p{Cf}]+$/u.test(current)) {
-  current = '';
-}
+// 旧: if (/^[\p{Zs}\p{Cf}]+$/u.test(current)) { current = ''; }
+if (/^[\p{White_Space}\p{Cf}]+$/u.test(current)) { current = ''; }
+
+// ① CRLF 正規化の前
+raw = raw.replace(/\f/g, '\n'); // FF→改行
+raw = raw.replace(/\r\n?/g, '\n');
+
+// 行頭の White_Space/Cf をすべて除去（強め）
+current = current.replace(/^[\p{White_Space}\p{Cf}]+/u, '');
