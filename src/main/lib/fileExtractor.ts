@@ -442,16 +442,15 @@ try {
     # Word 起動
     $word = New-Object -ComObject Word.Application
     $word.Visible = $false
-    $word.DisplayAlerts = 0  # ダイアログ抑止
+    $word.DisplayAlerts = 0
 
-    # 読み取り専用ではなく開く（本文を書き換えるため）
+    # 編集可能で開く（本文を書き換えてからテキスト抽出するため）
     $doc = $word.Documents.Open($Path, $false, $false)
 
-    # ===== CSV 変換ユーティリティ =====
+    # ===== CSV 変換（Range.Text ベース / 行列オブジェクト不使用）=====
 
     function Convert-ToCsvField {
       param([string]$Text, [string]$Delimiter)
-      # デリミタ or ダブルクオート or 改行を含むなら引用
       $needsQuote = $Text.Contains($Delimiter) -or
                     $Text.Contains('"') -or
                     ($Text.IndexOf([char]13) -ge 0) -or
@@ -460,58 +459,66 @@ try {
       if ($needsQuote) { return '"' + $escaped + '"' } else { return $escaped }
     }
 
-    function Get-CleanCellText {
-      param($Cell) # Word.Cell
-      # セル末尾の CR(13) + BEL(7) を除去
-      $t = $Cell.Range.Text.TrimEnd([char]13,[char]7)
-      # セル内の改行は見やすさのため空白 1 個に畳み込み
-      $t = [regex]::Replace($t, "(\\r?\\n)+", " ")
-      return $t
-    }
-
-    function Convert-TableToCsv {
+    function Convert-TableToCsv-FromRangeText {
       param($Table, [string]$Delimiter)
+
+      # 1) 表全体の生テキストを取得
+      $s = $Table.Range.Text
+
+      # 2) セル/行の終端パターンをプレースホルダに変換
+      $CELL_PAIR     = [string]([char]13) + [char]7                   # CR + BEL
+      $CELL_REGEX    = [regex]::Escape($CELL_PAIR)
+      $ROW_REGEX     = "({0}){{2,}}" -f $CELL_REGEX                   # 2回以上の連続 = 行境界
+      $PLACE_CELL    = '<<__CELL__>>'
+      $PLACE_ROW     = '<<__ROW__>>'
+
+      $s = [regex]::Replace($s, $ROW_REGEX,  $PLACE_ROW)
+      $s = [regex]::Replace($s, $CELL_REGEX, $PLACE_CELL)
+
+      # 3) セル内の残りの改行は空白へ
+      $s = $s.Replace([char]13,' ').Replace([char]10,' ')
+
+      # 4) 行ごとに分割 → セルごとに分割 → CSV 組立
       $sb = New-Object System.Text.StringBuilder
-      for ($r = 1; $r -le $Table.Rows.Count; $r++) {
-        $row = $Table.Rows.Item($r)
+      foreach ($line in ($s -split [regex]::Escape($PLACE_ROW))) {
+        if ([string]::IsNullOrWhiteSpace($line)) { continue }
+        $rawFields = $line -split [regex]::Escape($PLACE_CELL)
+
+        # 末尾に空要素が並ぶことがあるので、左右の空白を削りつつ列を作る
         $fields = New-Object System.Collections.Generic.List[string]
-        for ($ci = 1; $ci -le $row.Cells.Count; $ci++) {
-          $cell = $row.Cells.Item($ci)
-          $raw  = Get-CleanCellText -Cell $cell
-          $csvF = Convert-ToCsvField -Text $raw -Delimiter $Delimiter
-          [void]$fields.Add($csvF)
+        foreach ($f in $rawFields) {
+          $clean = ($f).Trim()
+          [void]$fields.Add( (Convert-ToCsvField -Text $clean -Delimiter $Delimiter) )
         }
-        [void]$sb.AppendLine([string]::Join(",", $fields))
+
+        [void]$sb.AppendLine([string]::Join($Delimiter, $fields))
       }
-      # 最終改行を削除（CR/LF を直接指定）
+
+      # 最後の改行を削って返す
       return $sb.ToString().TrimEnd([char]13, [char]10)
     }
 
     function Replace-TablesWithCsvInRange {
       param($Range)
-      # 逆順処理：置換で Tables コレクションが揺れるのを防ぐ
       $tables = $Range.Tables
       for ($i = $tables.Count; $i -ge 1; $i--) {
         $tbl = $tables.Item($i)
-        $csv = Convert-TableToCsv -Table $tbl -Delimiter ","
-        # 表の範囲そのものを CSV テキストに置換（元位置に埋め込み）
-        $tbl.Range.Text = $csv
+        # ★ 行/列 API を使わず、Range.Text から CSV を生成
+        $csv = Convert-TableToCsv-FromRangeText -Table $tbl -Delimiter ","
+        $tbl.Range.Text = $csv  # 元位置に置換
       }
     }
 
-    # ===== 本文（メインストーリー）だけを対象に置換 =====
+    # 本文（メインストーリー）のみ対象
     Replace-TablesWithCsvInRange -Range $doc.Content
 
     # 置換後の本文テキストを取得（ファイルは保存しない）
     $txt = $doc.Content.Text
-
-    # 出力
     Write-Output $txt
 }
 finally {
-    # 変更は保存せずにクローズ（0 = wdDoNotSaveChanges）
     try { if ($doc)  { $doc.Close(0) } } catch {}
-    try { if ($word) { $word.Quit() } } catch {}
+    try { if ($word) { $word.Quit()   } } catch {}
 }
 `
         );
