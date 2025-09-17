@@ -1,88 +1,30 @@
-case 'word':
-  return (
-    commonHeader +
-    `
-try {
-    # Word 起動
-    $word = New-Object -ComObject Word.Application
-    $word.Visible = $false
-    $word.DisplayAlerts = 0
+// (1) 行末空白の削除  — 末尾の Zs（全てのUnicode空白）と Cf（ZWSP等）を丸ごと削除
+// 旧: /[ \t\u00A0\u3000]+$/u
+current = current.replace(/(?:[\p{Zs}\t]|\p{Cf})+$/gu, '');
 
-    # 編集可能で開く（本文を書き換えてからテキスト抽出するため）
-    $doc = $word.Documents.Open($Path, $false, $false)
-
-    # ===== CSV 変換（Range.Text ベース / 行列オブジェクト不使用）=====
-
-    function Convert-ToCsvField {
-      param([string]$Text, [string]$Delimiter)
-      $needsQuote = $Text.Contains($Delimiter) -or
-                    $Text.Contains('"') -or
-                    ($Text.IndexOf([char]13) -ge 0) -or
-                    ($Text.IndexOf([char]10) -ge 0)
-      $escaped = $Text -replace '"','""'
-      if ($needsQuote) { return '"' + $escaped + '"' } else { return $escaped }
-    }
-
-    function Convert-TableToCsv-FromRangeText {
-      param($Table, [string]$Delimiter)
-
-      # 1) 表全体の生テキストを取得
-      $s = $Table.Range.Text
-
-      # 2) セル/行の終端パターンをプレースホルダに変換
-      $CELL_PAIR     = [string]([char]13) + [char]7                   # CR + BEL
-      $CELL_REGEX    = [regex]::Escape($CELL_PAIR)
-      $ROW_REGEX     = "({0}){{2,}}" -f $CELL_REGEX                   # 2回以上の連続 = 行境界
-      $PLACE_CELL    = '<<__CELL__>>'
-      $PLACE_ROW     = '<<__ROW__>>'
-
-      $s = [regex]::Replace($s, $ROW_REGEX,  $PLACE_ROW)
-      $s = [regex]::Replace($s, $CELL_REGEX, $PLACE_CELL)
-
-      # 3) セル内の残りの改行は空白へ
-      $s = $s.Replace([char]13,' ').Replace([char]10,' ')
-
-      # 4) 行ごとに分割 → セルごとに分割 → CSV 組立
-      $sb = New-Object System.Text.StringBuilder
-      foreach ($line in ($s -split [regex]::Escape($PLACE_ROW))) {
-        if ([string]::IsNullOrWhiteSpace($line)) { continue }
-        $rawFields = $line -split [regex]::Escape($PLACE_CELL)
-
-        # 末尾に空要素が並ぶことがあるので、左右の空白を削りつつ列を作る
-        $fields = New-Object System.Collections.Generic.List[string]
-        foreach ($f in $rawFields) {
-          $clean = ($f).Trim()
-          [void]$fields.Add( (Convert-ToCsvField -Text $clean -Delimiter $Delimiter) )
-        }
-
-        [void]$sb.AppendLine([string]::Join($Delimiter, $fields))
-      }
-
-      # 最後の改行を削って返す
-      return $sb.ToString().TrimEnd([char]13, [char]10)
-    }
-
-    function Replace-TablesWithCsvInRange {
-      param($Range)
-      $tables = $Range.Tables
-      for ($i = $tables.Count; $i -ge 1; $i--) {
-        $tbl = $tables.Item($i)
-        # ★ 行/列 API を使わず、Range.Text から CSV を生成
-        $csv = Convert-TableToCsv-FromRangeText -Table $tbl -Delimiter ","
-        $tbl.Range.Text = $csv  # 元位置に置換
-      }
-    }
-
-    # 本文（メインストーリー）のみ対象
-    Replace-TablesWithCsvInRange -Range $doc.Content
-
-    # 置換後の本文テキストを取得（ファイルは保存しない）
-    $txt = $doc.Content.Text
-    Write-Output $txt
+// (2) 連続空白の圧縮 — 圧縮対象を Zs（全Unicode空白）+ タブに拡張
+// 旧: /[ \t\u00A0\u3000]{2,}/gu
+const SPACE_RUN = /[\p{Zs}\t]{2,}/gu;
+if (policy.collapseConsecutiveWhitespaces) {
+  if (policy.collapsePreserveIndent) {
+    const indentMatch = current.match(/^[\p{Zs}\t]*/u);   // 旧: /^[ \t\u00A0\u3000]*/u
+    const indent = indentMatch ? indentMatch[0] : '';
+    const rest = current.slice(indent.length);
+    current = indent + rest.replace(SPACE_RUN, ' ');
+  } else {
+    current = current.replace(SPACE_RUN, ' ');
+  }
 }
-finally {
-    try { if ($doc)  { $doc.Close(0) } } catch {}
-    try { if ($word) { $word.Quit()   } } catch {}
+
+// (3) カンマのみ行の削除 — Zs/Cf を無視して判定
+// 旧: /^[ \t\u00A0\u3000]*(?:,[ \t\u00A0\u3000]*)+$/u
+if (policy.removeCommaOnlyLines) {
+  const commaOnly = /^[\p{Zs}\p{Cf}]*(?:,[\p{Zs}\p{Cf}]*)+$/u;
+  if (commaOnly.test(current)) current = '';
 }
-`
-  );
+
+// (4) 空白のみ行→空行 — Zs/Cf を空白扱いに
+// 旧: /^[ \t\u00A0\u3000]+$/u
+if (/^[\p{Zs}\p{Cf}]+$/u.test(current)) {
+  current = '';
+}
