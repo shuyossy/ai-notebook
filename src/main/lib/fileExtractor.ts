@@ -517,6 +517,7 @@ try {
     Write-Output $txt
 }
 finally {
+    # 変更は保存せずにクローズ（0 = wdDoNotSaveChanges）
     try { if ($doc)  { $doc.Close(0) } } catch {}
     try { if ($word) { $word.Quit()   } } catch {}
 }
