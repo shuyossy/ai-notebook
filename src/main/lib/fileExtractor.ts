@@ -263,30 +263,35 @@ export default class FileExtractor {
     // 改行を LF に正規化
     let text = raw.replace(/\r\n?/g, '\n');
 
+    // 制御文字を除去
+    text = text.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '');
+
     const lines = text.split('\n').map((line) => {
       let current = line;
 
       // (1) 行末空白削除
       if (policy.trimLineEndSpaces) {
-        current = current.replace(/[ \t\u00A0\u3000]+$/u, '');
+        current = current.replace(/(?:\p{White_Space}|\p{Cf})+$/gu, '');
       }
 
       // (2) 連続空白の圧縮（行頭インデント保護可）
+      const SPACE_RUN = /[\p{Zs}\t\f\v]{2,}/gu;
       if (policy.collapseConsecutiveWhitespaces) {
         if (policy.collapsePreserveIndent) {
-          const indentMatch = current.match(/^[ \t\u00A0\u3000]*/u);
+          const indentMatch = current.match(/^[\p{Zs}\t\f\v]*/u);
           const indent = indentMatch ? indentMatch[0] : '';
           const rest = current.slice(indent.length);
-          current = indent + rest.replace(/[ \t\u00A0\u3000]{2,}/gu, ' ');
+          current = indent + rest.replace(SPACE_RUN, ' ');
         } else {
-          current = current.replace(/[ \t\u00A0\u3000]{2,}/gu, ' ');
+          current = current.replace(SPACE_RUN, ' ');
         }
       }
 
       // (3) カンマのみ行（空白は無視）を削除
       //     例: ",,,", " , , , ", "\t,\t,\t"
       if (policy.removeCommaOnlyLines) {
-        const commaOnly = /^[ \t\u00A0\u3000]*(?:,[ \t\u00A0\u3000]*)+$/u; // カンマ+空白のみ（少なくとも1つのカンマ）
+        const commaOnly =
+          /^[\p{White_Space}\p{Cf}]*(?:,[\p{White_Space}\p{Cf}]*)+$/u; // カンマ+空白のみ（少なくとも1つのカンマ）
         if (commaOnly.test(current)) {
           current = '';
         }
@@ -310,7 +315,7 @@ export default class FileExtractor {
       }
 
       // (5) 空白のみ行は空行へ
-      if (/^[ \t\u00A0\u3000]+$/u.test(current)) {
+      if (/^[\p{White_Space}\p{Cf}]+$/u.test(current)) {
         current = '';
       }
 
