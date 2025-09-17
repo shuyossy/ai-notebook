@@ -1,1352 +1,1287 @@
-diff --git a/.serena/cache/typescript/document_symbols_cache_v23-06-25.pkl b/.serena/cache/typescript/document_symbols_cache_v23-06-25.pkl
-index 2c559adb9..7fcd93d32 100644
-Binary files a/.serena/cache/typescript/document_symbols_cache_v23-06-25.pkl and b/.serena/cache/typescript/document_symbols_cache_v23-06-25.pkl differ
 diff --git a/CLAUDE.md b/CLAUDE.md
-index 038b47943..dbc74a6c1 100644
+index dbc74a6c1..ca822f264 100644
 --- a/CLAUDE.md
 +++ b/CLAUDE.md
-@@ -200,15 +200,6 @@ ElectronのIPCを使用してフロントエンド・バックエンド間の通
+@@ -200,6 +200,39 @@ ElectronのIPCを使用してフロントエンド・バックエンド間の通
  
  ## 依頼タスク
  ### 要件
--- レビュー機能のチェックリスト抽出時に、(AIを利用せずに)CSVからチェックリストを直接インポートできるようにする
--  - CSVの一列目を全てチェックリストとしてインポートする
--### UI要件
--- `ReviewSourceModal`のチェックリスト抽出モード時にインポートできるようにする
--  - ドキュメント種別をチェックリストドキュメントを選択した際に、AI抽出かCSVファイルインポートか選択できるようにする
--    - CSVファイルインポートを選択した場合に、「選択したCSVファイルの一列目の値を全てチェックリスト項目として抽出します」とユーザに提示する
--  - Renderer側では、チェックリスト抽出ボタンを押下時に、選択されているファイル形式がCSVファイル以外かどうかチェックして、「CSVインポートを選択している場合はCSVファイルのみ指定可能です」とアラート表示する
--### 機能要件
--- CSVインポートが選択されている場合はAIにチェックリストを抽出するのではなく、機械的にチェックリストを以下手順で抽出する(複数CSVファイルが与えられた場合は、抽出したチェックリストを統合する)
--  1. CSVファイルを`fileExtractor.ts`でテキスト抽出(CSVの空行削除)
--  2. 抽出したCSVテキストの一列目からチェックリスト項目を抽出（空白のみ行、空文字は無視する）
--  3. 抽出完了したらAI抽出処理と同様にイベントを通知
-+- sourceRegistration workflowの改善
-+  - `src/mastra/workflows/sourceRegistration/sourceRegistrationManager.ts`内でファイルからのテキスト抽出を実行を実行するのではなく、`src/mastra/workflows/sourceRegistration/sourceRegistration.ts`内でテキスト抽出を行う
-+    - テキスト抽出エラーについてもsourceテーブルのエラー情報に格納したいため
-diff --git a/drizzle/migrations/0007_awesome_caretaker.sql b/drizzle/migrations/0007_awesome_caretaker.sql
-new file mode 100644
-index 000000000..1d748f5da
---- /dev/null
-+++ b/drizzle/migrations/0007_awesome_caretaker.sql
-@@ -0,0 +1 @@
-+ALTER TABLE `review_histories` ADD `processing_status` text DEFAULT 'idle' NOT NULL;
-\ No newline at end of file
-diff --git a/drizzle/migrations/meta/0007_snapshot.json b/drizzle/migrations/meta/0007_snapshot.json
-new file mode 100644
-index 000000000..334638458
---- /dev/null
-+++ b/drizzle/migrations/meta/0007_snapshot.json
-@@ -0,0 +1,391 @@
+-- sourceRegistration workflowの改善
+-  - `src/mastra/workflows/sourceRegistration/sourceRegistrationManager.ts`内でファイルからのテキスト抽出を実行を実行するのではなく、`src/mastra/workflows/sourceRegistration/sourceRegistration.ts`内でテキスト抽出を行う
+-    - テキスト抽出エラーについてもsourceテーブルのエラー情報に格納したいため
++- ドキュメントレビュー機能のチェクリスト抽出、レビュー実行時の複数ファイルが選択された場合の挙動を変更
++  - 従来は複数の独立したドキュメントとして扱っていたが、複数ファイルを統合した一つのドキュメントとして扱う
++### UI要件
++- 「複数ファイルを選択した場合、選択した順番で結合され一つのドキュメントとして扱われます」とアラート文に追記すること
++### 実装時の注意
++- ファイル結合の際は以下の形式で結合すること
++```
++# ファイルA.xlsx
++...
++...
++# ファイルB.docx
++...
++...
++```
++- AIに送信するメッセージは以下のようにすること(正しい型や形式については既存実装を参考にすること)
++```
 +{
-+  "version": "6",
-+  "dialect": "sqlite",
-+  "id": "f10b9ed0-007d-4b08-941a-030265d534ff",
-+  "prevId": "7a707cee-0297-4e9c-855c-2d2fa013e963",
-+  "tables": {
-+    "review_checklist_results": {
-+      "name": "review_checklist_results",
-+      "columns": {
-+        "review_checklist_id": {
-+          "name": "review_checklist_id",
-+          "type": "integer",
-+          "primaryKey": false,
-+          "notNull": true,
-+          "autoincrement": false
-+        },
-+        "file_id": {
-+          "name": "file_id",
-+          "type": "text",
-+          "primaryKey": false,
-+          "notNull": true,
-+          "autoincrement": false
-+        },
-+        "file_name": {
-+          "name": "file_name",
-+          "type": "text",
-+          "primaryKey": false,
-+          "notNull": true,
-+          "autoincrement": false
-+        },
-+        "evaluation": {
-+          "name": "evaluation",
-+          "type": "text",
-+          "primaryKey": false,
-+          "notNull": true,
-+          "autoincrement": false
-+        },
-+        "comment": {
-+          "name": "comment",
-+          "type": "text",
-+          "primaryKey": false,
-+          "notNull": false,
-+          "autoincrement": false
-+        },
-+        "created_at": {
-+          "name": "created_at",
-+          "type": "text",
-+          "primaryKey": false,
-+          "notNull": true,
-+          "autoincrement": false,
-+          "default": "(current_timestamp)"
-+        },
-+        "updated_at": {
-+          "name": "updated_at",
-+          "type": "text",
-+          "primaryKey": false,
-+          "notNull": true,
-+          "autoincrement": false,
-+          "default": "(current_timestamp)"
-+        }
-+      },
-+      "indexes": {},
-+      "foreignKeys": {
-+        "review_checklist_results_review_checklist_id_review_checklists_id_fk": {
-+          "name": "review_checklist_results_review_checklist_id_review_checklists_id_fk",
-+          "tableFrom": "review_checklist_results",
-+          "tableTo": "review_checklists",
-+          "columnsFrom": [
-+            "review_checklist_id"
-+          ],
-+          "columnsTo": [
-+            "id"
-+          ],
-+          "onDelete": "cascade",
-+          "onUpdate": "no action"
-+        }
-+      },
-+      "compositePrimaryKeys": {
-+        "review_checklist_results_review_checklist_id_file_id_pk": {
-+          "columns": [
-+            "review_checklist_id",
-+            "file_id"
-+          ],
-+          "name": "review_checklist_results_review_checklist_id_file_id_pk"
-+        }
-+      },
-+      "uniqueConstraints": {},
-+      "checkConstraints": {}
-+    },
-+    "review_checklists": {
-+      "name": "review_checklists",
-+      "columns": {
-+        "id": {
-+          "name": "id",
-+          "type": "integer",
-+          "primaryKey": true,
-+          "notNull": true,
-+          "autoincrement": true
-+        },
-+        "review_history_id": {
-+          "name": "review_history_id",
-+          "type": "text",
-+          "primaryKey": false,
-+          "notNull": true,
-+          "autoincrement": false
-+        },
-+        "content": {
-+          "name": "content",
-+          "type": "text",
-+          "primaryKey": false,
-+          "notNull": true,
-+          "autoincrement": false
-+        },
-+        "created_by": {
-+          "name": "created_by",
-+          "type": "text",
-+          "primaryKey": false,
-+          "notNull": true,
-+          "autoincrement": false
-+        },
-+        "created_at": {
-+          "name": "created_at",
-+          "type": "text",
-+          "primaryKey": false,
-+          "notNull": true,
-+          "autoincrement": false,
-+          "default": "(current_timestamp)"
-+        },
-+        "updated_at": {
-+          "name": "updated_at",
-+          "type": "text",
-+          "primaryKey": false,
-+          "notNull": true,
-+          "autoincrement": false,
-+          "default": "(current_timestamp)"
-+        }
-+      },
-+      "indexes": {},
-+      "foreignKeys": {
-+        "review_checklists_review_history_id_review_histories_id_fk": {
-+          "name": "review_checklists_review_history_id_review_histories_id_fk",
-+          "tableFrom": "review_checklists",
-+          "tableTo": "review_histories",
-+          "columnsFrom": [
-+            "review_history_id"
-+          ],
-+          "columnsTo": [
-+            "id"
-+          ],
-+          "onDelete": "cascade",
-+          "onUpdate": "no action"
-+        }
-+      },
-+      "compositePrimaryKeys": {},
-+      "uniqueConstraints": {},
-+      "checkConstraints": {}
-+    },
-+    "review_histories": {
-+      "name": "review_histories",
-+      "columns": {
-+        "id": {
-+          "name": "id",
-+          "type": "text",
-+          "primaryKey": true,
-+          "notNull": true,
-+          "autoincrement": false
-+        },
-+        "title": {
-+          "name": "title",
-+          "type": "text",
-+          "primaryKey": false,
-+          "notNull": true,
-+          "autoincrement": false
-+        },
-+        "additional_instructions": {
-+          "name": "additional_instructions",
-+          "type": "text",
-+          "primaryKey": false,
-+          "notNull": false,
-+          "autoincrement": false
-+        },
-+        "comment_format": {
-+          "name": "comment_format",
-+          "type": "text",
-+          "primaryKey": false,
-+          "notNull": false,
-+          "autoincrement": false
-+        },
-+        "evaluation_settings": {
-+          "name": "evaluation_settings",
-+          "type": "text",
-+          "primaryKey": false,
-+          "notNull": false,
-+          "autoincrement": false
-+        },
-+        "processing_status": {
-+          "name": "processing_status",
-+          "type": "text",
-+          "primaryKey": false,
-+          "notNull": true,
-+          "autoincrement": false,
-+          "default": "'idle'"
-+        },
-+        "created_at": {
-+          "name": "created_at",
-+          "type": "text",
-+          "primaryKey": false,
-+          "notNull": true,
-+          "autoincrement": false,
-+          "default": "(current_timestamp)"
-+        },
-+        "updated_at": {
-+          "name": "updated_at",
-+          "type": "text",
-+          "primaryKey": false,
-+          "notNull": true,
-+          "autoincrement": false,
-+          "default": "(current_timestamp)"
-+        }
-+      },
-+      "indexes": {},
-+      "foreignKeys": {},
-+      "compositePrimaryKeys": {},
-+      "uniqueConstraints": {},
-+      "checkConstraints": {}
-+    },
-+    "sources": {
-+      "name": "sources",
-+      "columns": {
-+        "id": {
-+          "name": "id",
-+          "type": "integer",
-+          "primaryKey": true,
-+          "notNull": true,
-+          "autoincrement": true
-+        },
-+        "path": {
-+          "name": "path",
-+          "type": "text",
-+          "primaryKey": false,
-+          "notNull": true,
-+          "autoincrement": false
-+        },
-+        "title": {
-+          "name": "title",
-+          "type": "text",
-+          "primaryKey": false,
-+          "notNull": true,
-+          "autoincrement": false
-+        },
-+        "summary": {
-+          "name": "summary",
-+          "type": "text",
-+          "primaryKey": false,
-+          "notNull": true,
-+          "autoincrement": false
-+        },
-+        "created_at": {
-+          "name": "created_at",
-+          "type": "text",
-+          "primaryKey": false,
-+          "notNull": true,
-+          "autoincrement": false,
-+          "default": "(current_timestamp)"
-+        },
-+        "updated_at": {
-+          "name": "updated_at",
-+          "type": "text",
-+          "primaryKey": false,
-+          "notNull": true,
-+          "autoincrement": false,
-+          "default": "(current_timestamp)"
-+        },
-+        "status": {
-+          "name": "status",
-+          "type": "text",
-+          "primaryKey": false,
-+          "notNull": true,
-+          "autoincrement": false,
-+          "default": "'idle'"
-+        },
-+        "error": {
-+          "name": "error",
-+          "type": "text",
-+          "primaryKey": false,
-+          "notNull": false,
-+          "autoincrement": false
-+        },
-+        "is_enabled": {
-+          "name": "is_enabled",
-+          "type": "integer",
-+          "primaryKey": false,
-+          "notNull": true,
-+          "autoincrement": false,
-+          "default": 1
-+        }
-+      },
-+      "indexes": {
-+        "sources_path_unique": {
-+          "name": "sources_path_unique",
-+          "columns": [
-+            "path"
-+          ],
-+          "isUnique": true
-+        }
-+      },
-+      "foreignKeys": {},
-+      "compositePrimaryKeys": {},
-+      "uniqueConstraints": {},
-+      "checkConstraints": {}
-+    },
-+    "topics": {
-+      "name": "topics",
-+      "columns": {
-+        "id": {
-+          "name": "id",
-+          "type": "integer",
-+          "primaryKey": true,
-+          "notNull": true,
-+          "autoincrement": true
-+        },
-+        "source_id": {
-+          "name": "source_id",
-+          "type": "integer",
-+          "primaryKey": false,
-+          "notNull": true,
-+          "autoincrement": false
-+        },
-+        "name": {
-+          "name": "name",
-+          "type": "text",
-+          "primaryKey": false,
-+          "notNull": true,
-+          "autoincrement": false
-+        },
-+        "summary": {
-+          "name": "summary",
-+          "type": "text",
-+          "primaryKey": false,
-+          "notNull": true,
-+          "autoincrement": false
-+        },
-+        "created_at": {
-+          "name": "created_at",
-+          "type": "text",
-+          "primaryKey": false,
-+          "notNull": true,
-+          "autoincrement": false,
-+          "default": "(current_timestamp)"
-+        },
-+        "updated_at": {
-+          "name": "updated_at",
-+          "type": "text",
-+          "primaryKey": false,
-+          "notNull": true,
-+          "autoincrement": false,
-+          "default": "(current_timestamp)"
-+        }
-+      },
-+      "indexes": {},
-+      "foreignKeys": {
-+        "topics_source_id_sources_id_fk": {
-+          "name": "topics_source_id_sources_id_fk",
-+          "tableFrom": "topics",
-+          "tableTo": "sources",
-+          "columnsFrom": [
-+            "source_id"
-+          ],
-+          "columnsTo": [
-+            "id"
-+          ],
-+          "onDelete": "cascade",
-+          "onUpdate": "no action"
-+        }
-+      },
-+      "compositePrimaryKeys": {},
-+      "uniqueConstraints": {},
-+      "checkConstraints": {}
-+    }
-+  },
-+  "views": {},
-+  "enums": {},
-+  "_meta": {
-+    "schemas": {},
-+    "tables": {},
-+    "columns": {}
-+  },
-+  "internal": {
-+    "indexes": {}
-+  }
-+}
-\ No newline at end of file
-diff --git a/drizzle/migrations/meta/_journal.json b/drizzle/migrations/meta/_journal.json
-index 2bfef1da6..18a6e2692 100644
---- a/drizzle/migrations/meta/_journal.json
-+++ b/drizzle/migrations/meta/_journal.json
-@@ -50,6 +50,13 @@
-       "when": 1757908369496,
-       "tag": "0006_glossy_captain_america",
-       "breakpoints": true
++  role: 'user'
++  content: [
++    {
++      type: 'text',
++      text: 'Please extract checklist items from this document: ${contentに含める全てのファイル名を展開}' # タスクによって文言は変える
 +    },
 +    {
-+      "idx": 7,
-+      "version": "6",
-+      "when": 1758023792722,
-+      "tag": "0007_awesome_caretaker",
-+      "breakpoints": true
-     }
-   ]
- }
-\ No newline at end of file
-diff --git a/src/db/index.ts b/src/db/index.ts
-index c4b4e290d..90d993f1e 100644
---- a/src/db/index.ts
-+++ b/src/db/index.ts
-@@ -29,21 +29,9 @@ const initializeDatabase = async () => {
-   // drizzle-ormインスタンス
-   const db = drizzle(client, { schema });
++      type: 'text'
++      text: `${単一、又は結合済みのファイル内容}`
++    },
++    { # PDFページ別画像変換モードの場合はページ分のimageメッセージが作成されるはず
++      type: 'image'
++      image: '~'
++    },
++  ]
++}
++```
++- `src/mastra/lib/util.ts`に共通で利用できるメッセージ作成関数を作成して、処理を効率化すること
++- 従来の独立した複数ドキュメントとして扱う形式からの変更により、workflowの処理が効率化できる部分も多いと思うので、既存実装を十分に理解した上で効率化できる部分はそうすること
+diff --git a/src/main/lib/fileExtractor.ts b/src/main/lib/fileExtractor.ts
+index db4de8bc3..3bd4c436f 100644
+--- a/src/main/lib/fileExtractor.ts
++++ b/src/main/lib/fileExtractor.ts
+@@ -222,21 +222,15 @@ export default class FileExtractor {
+           content = cachedContent;
+         } else {
+           content = await this.extractContentByType(filePath, extension);
+-          content = this.normalizeExtractedText(
+-            content,
+-            options?.textPostProcess,
+-          );
+           // 抽出したテキストをキャッシュに保存
+           await this.saveCache(filePath, content);
+         }
+       } else {
+         content = await this.extractContentByType(filePath, extension);
+-        content = this.normalizeExtractedText(
+-          content,
+-          options?.textPostProcess,
+-        );
+       }
  
--  try {
--    // データベースの存在チェック
--    await client.execute('SELECT 1 FROM sources LIMIT 1');
--    await client.execute('SELECT 1 FROM topics LIMIT 1');
--    await client.execute('SELECT 1 FROM review_histories LIMIT 1');
--    await client.execute('SELECT 1 FROM review_checklists LIMIT 1');
--    // eslint-disable-next-line
--  } catch (error) {
--    // データベースが存在しない場合、マイグレーションを実行
--    console.log('データベースが存在しないため、初期化を実行します');
--    await migrate(db, {
--      migrationsFolder: migrationsPath,
--    });
--    console.log('マイグレーションが完了しました');
--  }
-+  await migrate(db, {
-+    migrationsFolder: migrationsPath,
-+  });
++      content = this.normalizeExtractedText(content, options?.textPostProcess);
++
+       return {
+         content,
+         metadata: {
+@@ -269,30 +263,35 @@ export default class FileExtractor {
+     // 改行を LF に正規化
+     let text = raw.replace(/\r\n?/g, '\n');
  
-   return db;
- };
-diff --git a/src/db/schema.ts b/src/db/schema.ts
-index 619d3c393..39ffd9c64 100644
---- a/src/db/schema.ts
-+++ b/src/db/schema.ts
-@@ -62,6 +62,7 @@ export const reviewHistories = sqliteTable('review_histories', {
-   additionalInstructions: text('additional_instructions'), // レビューの追加指示
-   commentFormat: text('comment_format'), // レビューのコメントフォーマット
-   evaluationSettings: text('evaluation_settings'), // 評定項目設定（JSON形式）
-+  processingStatus: text('processing_status').notNull().default('idle'), // 処理ステータス: idle, extracting, extracted, reviewing, completed
-   createdAt: text('created_at')
-     .notNull()
-     .default(sql`(current_timestamp)`),
-diff --git a/src/main/repository/reviewRepository.ts b/src/main/repository/reviewRepository.ts
-index 4e462df93..a83432598 100644
---- a/src/main/repository/reviewRepository.ts
-+++ b/src/main/repository/reviewRepository.ts
-@@ -14,6 +14,7 @@ import type {
-   ReviewEvaluation,
-   ReviewChecklistCreatedBy,
-   CustomEvaluationSettings,
-+  ProcessingStatus,
- } from '@/types';
- import { AppError } from '@/main/lib/error';
- import { repositoryError } from './error';
-@@ -36,6 +37,10 @@ export interface IReviewRepository {
-     id: string,
-     evaluationSettings?: CustomEvaluationSettings,
-   ): Promise<void>;
-+  updateReviewHistoryProcessingStatus(
-+    id: string,
-+    processingStatus: ProcessingStatus,
-+  ): Promise<void>;
-   deleteReviewHistory(id: string): Promise<void>;
++    // 制御文字を除去
++    text = text.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '');
++
+     const lines = text.split('\n').map((line) => {
+       let current = line;
  
-   // チェックリスト
-@@ -97,6 +102,7 @@ class DrizzleReviewRepository implements IReviewRepository {
-       additionalInstructions: reviewHistoryEntity.additionalInstructions,
-       commentFormat: reviewHistoryEntity.commentFormat,
-       evaluationSettings: null,
-+      processingStatus: (reviewHistoryEntity.processingStatus || 'idle') as ProcessingStatus,
-       createdAt: reviewHistoryEntity.createdAt,
-       updatedAt: reviewHistoryEntity.updatedAt,
-     } as RevieHistory;
-@@ -220,6 +226,27 @@ class DrizzleReviewRepository implements IReviewRepository {
-     }
-   }
+       // (1) 行末空白削除
+       if (policy.trimLineEndSpaces) {
+-        current = current.replace(/[ \t\u00A0\u3000]+$/u, '');
++        current = current.replace(/(?:\p{White_Space}|\p{Cf})+$/gu, '');
+       }
  
-+  /** 処理ステータスを更新 */
-+  async updateReviewHistoryProcessingStatus(
-+    id: string,
-+    processingStatus: ProcessingStatus,
-+  ): Promise<void> {
-+    try {
-+      const db = await getDb();
-+      await db
-+        .update(reviewHistories)
-+        .set({
-+          processingStatus,
-+        })
-+        .where(eq(reviewHistories.id, id));
-+    } catch (err) {
-+      throw repositoryError(
-+        'レビューの処理ステータスの更新に失敗しました',
-+        err,
-+      );
+       // (2) 連続空白の圧縮（行頭インデント保護可）
++      const SPACE_RUN = /[\p{Zs}\t\f\v]{2,}/gu;
+       if (policy.collapseConsecutiveWhitespaces) {
+         if (policy.collapsePreserveIndent) {
+-          const indentMatch = current.match(/^[ \t\u00A0\u3000]*/u);
++          const indentMatch = current.match(/^[\p{Zs}\t\f\v]*/u);
+           const indent = indentMatch ? indentMatch[0] : '';
+           const rest = current.slice(indent.length);
+-          current = indent + rest.replace(/[ \t\u00A0\u3000]{2,}/gu, ' ');
++          current = indent + rest.replace(SPACE_RUN, ' ');
+         } else {
+-          current = current.replace(/[ \t\u00A0\u3000]{2,}/gu, ' ');
++          current = current.replace(SPACE_RUN, ' ');
+         }
+       }
+ 
+       // (3) カンマのみ行（空白は無視）を削除
+       //     例: ",,,", " , , , ", "\t,\t,\t"
+       if (policy.removeCommaOnlyLines) {
+-        const commaOnly = /^[ \t\u00A0\u3000]*(?:,[ \t\u00A0\u3000]*)+$/u; // カンマ+空白のみ（少なくとも1つのカンマ）
++        const commaOnly =
++          /^[\p{White_Space}\p{Cf}]*(?:,[\p{White_Space}\p{Cf}]*)+$/u; // カンマ+空白のみ（少なくとも1つのカンマ）
+         if (commaOnly.test(current)) {
+           current = '';
+         }
+@@ -316,7 +315,7 @@ export default class FileExtractor {
+       }
+ 
+       // (5) 空白のみ行は空行へ
+-      if (/^[ \t\u00A0\u3000]+$/u.test(current)) {
++      if (/^[\p{White_Space}\p{Cf}]+$/u.test(current)) {
+         current = '';
+       }
+ 
+diff --git a/src/main/service/reviewService.ts b/src/main/service/reviewService.ts
+index bae1878c8..78f694c4c 100644
+--- a/src/main/service/reviewService.ts
++++ b/src/main/service/reviewService.ts
+@@ -177,6 +177,8 @@ export class ReviewService implements IReviewService {
+           generateReviewTitle(),
+           reviewHistoryId,
+         );
++        // 新規作成時はレビュー履歴更新イベントを送信
++        publishEvent(IpcChannels.REVIEW_HISTORY_UPDATED, undefined);
+       }
+ 
+       // システム作成のチェックリストを削除（手動作成分は保持）
+diff --git a/src/mastra/lib/util.ts b/src/mastra/lib/util.ts
+new file mode 100644
+index 000000000..4fa49f112
+--- /dev/null
++++ b/src/mastra/lib/util.ts
+@@ -0,0 +1,72 @@
++import FileExtractor from '@/main/lib/fileExtractor';
++import { UploadFile } from '@/types';
++
++/**
++ * 複数ファイルを統合したメッセージオブジェクトを作成する
++ */
++export async function createCombinedMessage(
++  files: UploadFile[],
++  promptText: string,
++): Promise<{
++  role: 'user';
++  content: Array<
++    | { type: 'text'; text: string }
++    | { type: 'image'; image: string; mimeType: string }
++  >;
++}> {
++  // ファイル名一覧を作成
++  const fileNames = files.map((file) => file.name).join(', ');
++
++  // メッセージコンテンツを構築
++  const content: Array<
++    | { type: 'text'; text: string }
++    | { type: 'image'; image: string; mimeType: string }
++  > = [
++    {
++      type: 'text',
++      text: `${promptText}: ${fileNames}`,
++    },
++  ];
++
++  // ファイル選択順に処理
++  for (const file of files) {
++    // PDFで画像として処理する場合
++    if (
++      file.type === 'application/pdf' &&
++      file.pdfProcessMode === 'image' &&
++      file.imageData &&
++      file.imageData.length > 0
++    ) {
++      // 画像ファイル用のテキスト説明を追加
++      content.push({
++        type: 'text',
++        text: `# ${file.name}(Attached below as image)`,
++      });
++
++      // 画像データを追加
++      for (const imageData of file.imageData) {
++        content.push({
++          type: 'image',
++          image: imageData,
++          mimeType: 'image/png',
++        });
++      }
++    } else {
++      // テキスト抽出処理
++      const { content: fileContent } = await FileExtractor.extractText(file.path, {
++        useCache: true,
++      });
++
++      // ファイルごとに個別のcontent要素として追加
++      content.push({
++        type: 'text',
++        text: `# ${file.name}\n${fileContent}`,
++      });
 +    }
 +  }
 +
-   /** レビュー履歴を削除 */
-   async deleteReviewHistory(id: string): Promise<void> {
-     try {
-diff --git a/src/main/service/reviewService.ts b/src/main/service/reviewService.ts
-index dbbd7cd35..bae1878c8 100644
---- a/src/main/service/reviewService.ts
-+++ b/src/main/service/reviewService.ts
-@@ -169,60 +169,63 @@ export class ReviewService implements IReviewService {
-     files: UploadFile[],
-   ): Promise<void> {
-     try {
--    // レビュー履歴が存在しない場合は新規作成
--    let reviewHistory = await this.repository.getReviewHistory(reviewHistoryId);
--    if (reviewHistory === null) {
--      reviewHistory = await this.repository.createReviewHistory(
--        generateReviewTitle(),
--        reviewHistoryId,
--      );
--    }
-+      // レビュー履歴が存在しない場合は新規作成
-+      let reviewHistory =
-+        await this.repository.getReviewHistory(reviewHistoryId);
-+      if (reviewHistory === null) {
-+        reviewHistory = await this.repository.createReviewHistory(
-+          generateReviewTitle(),
-+          reviewHistoryId,
-+        );
-+      }
- 
--    // システム作成のチェックリストを削除（手動作成分は保持）
--    await this.repository.deleteSystemCreatedChecklists(reviewHistoryId);
--
--    const allChecklistItems: string[] = [];
--
--    // 各CSVファイルを処理
--    for (const file of files) {
--      // ファイルからテキストを抽出
--      const extractionResult = await FileExtractor.extractText(file.path);
--      const csvText = extractionResult.content;
--
--      // CSVテキストを行に分割
--      const lines = csvText.split('\n');
--
--      // 各行の1列目を取得（空行、空文字は除外）
--      for (const line of lines) {
--        const trimmedLine = line.trim();
--        if (trimmedLine) {
--          // CSVの1列目を取得（カンマ区切りの最初の値）
--          const firstColumn = trimmedLine.split(',')[0]?.trim();
--          if (firstColumn && firstColumn !== '') {
--            // ダブルクォートを除去
--            const cleanedItem = firstColumn.replace(/^"(.*)"$/, '$1');
--            if (cleanedItem) {
--              allChecklistItems.push(cleanedItem);
-+      // システム作成のチェックリストを削除（手動作成分は保持）
-+      await this.repository.deleteSystemCreatedChecklists(reviewHistoryId);
-+
-+      const allChecklistItems: string[] = [];
-+
-+      // 各CSVファイルを処理
-+      for (const file of files) {
-+        // ファイルからテキストを抽出
-+        const extractionResult = await FileExtractor.extractText(file.path);
-+        const csvText = extractionResult.content;
-+
-+        // CSVテキストを行に分割
-+        const lines = csvText.split('\n');
-+
-+        // 各行の1列目を取得（空行、空文字は除外）
-+        for (const line of lines) {
-+          const trimmedLine = line.trim();
-+          if (trimmedLine) {
-+            // CSVの1列目を取得（カンマ区切りの最初の値）
-+            const firstColumn = trimmedLine.split(',')[0]?.trim();
-+            if (firstColumn && firstColumn !== '') {
-+              // ダブルクォートを除去
-+              const cleanedItem = firstColumn.replace(/^"(.*)"$/, '$1');
-+              if (cleanedItem) {
-+                allChecklistItems.push(cleanedItem);
-+              }
-             }
-           }
-         }
-       }
--    }
- 
--    // 重複を除去
--    const uniqueChecklistItems = [...new Set(allChecklistItems)];
-+      // 重複を除去
-+      const uniqueChecklistItems = [...new Set(allChecklistItems)];
- 
--    // チェックリスト項目をDBに保存
--    for (const item of uniqueChecklistItems) {
--      await this.repository.createChecklist(reviewHistoryId, item, 'system');
--    }
--    // AI処理と同様のイベント通知を発火
--    publishEvent(IpcChannels.REVIEW_EXTRACT_CHECKLIST_FINISHED, {
--      status: 'success' as const,
--    });
-+      // チェックリスト項目をDBに保存
-+      for (const item of uniqueChecklistItems) {
-+        await this.repository.createChecklist(reviewHistoryId, item, 'system');
-+      }
-+      // AI処理と同様のイベント通知を発火
-+      publishEvent(IpcChannels.REVIEW_EXTRACT_CHECKLIST_FINISHED, {
-+        reviewHistoryId,
-+        status: 'success' as const,
-+      });
-     } catch (error) {
-       const normalizedError = normalizeUnknownError(error);
-       publishEvent(IpcChannels.REVIEW_EXTRACT_CHECKLIST_FINISHED, {
-+        reviewHistoryId,
-         status: 'failed' as const,
-         error: toPayload(normalizedError).message,
-       });
-diff --git a/src/mastra/workflows/sourceRegistration/sourceRegistration.ts b/src/mastra/workflows/sourceRegistration/sourceRegistration.ts
-index 3490732e5..af155c04e 100644
---- a/src/mastra/workflows/sourceRegistration/sourceRegistration.ts
-+++ b/src/mastra/workflows/sourceRegistration/sourceRegistration.ts
-@@ -8,12 +8,12 @@ import { getSourceRepository } from '../../../main/repository/sourceRepository';
- import { createRuntimeContext, judgeFinishReason } from '../../lib/agentUtils';
++  return {
++    role: 'user',
++    content,
++  };
++}
+diff --git a/src/mastra/workflows/sourceReview/checklistExtraction.ts b/src/mastra/workflows/sourceReview/checklistExtraction.ts
+index df2dd9517..0098a60c8 100644
+--- a/src/mastra/workflows/sourceReview/checklistExtraction.ts
++++ b/src/mastra/workflows/sourceReview/checklistExtraction.ts
+@@ -4,8 +4,6 @@ import { NoObjectGeneratedError } from 'ai';
+ import { createStep, createWorkflow } from '@mastra/core/workflows';
+ import { z } from 'zod';
+ import { getReviewRepository } from '@/main/repository/reviewRepository';
+-import { getSourceRepository } from '@/main/repository/sourceRepository';
+-import FileExtractor from '@/main/lib/fileExtractor';
+ import { baseStepOutputSchema } from '../schema';
+ import { stepStatus } from '../types';
+ import {
+@@ -14,9 +12,9 @@ import {
+   TopicChecklistAgentRuntimeContext,
+ } from '../../agents/workflowAgents';
+ import { createRuntimeContext } from '../../lib/agentUtils';
+-import { UploadFile } from '@/types';
  import { normalizeUnknownError, internalError } from '@/main/lib/error';
  import { getMainLogger } from '@/main/lib/logger';
-+import FileExtractor from '@/main/lib/fileExtractor';
++import { createCombinedMessage } from '../../lib/util';
  
  const logger = getMainLogger();
  
- const triggerSchema = z.object({
-   filePath: z.string().describe('登録するソースのファイルパス'),
--  content: z.string().describe('登録するソースの内容'),
- });
- 
- const analyzeSourceOutputSchema = baseStepOutputSchema.extend({
-@@ -32,13 +32,14 @@ const analyzeSourceStep = createStep({
-   outputSchema: analyzeSourceOutputSchema,
-   execute: async ({ inputData, mastra }) => {
-     // トリガーから変数を取得
--    const { content, filePath } = inputData;
-+    const { filePath } = inputData;
- 
-     // 結果の初期値
-     let status: stepStatus = 'failed';
-     let sourceId = -1;
-     let title = '';
-     let summary = '';
-+    let content = '';
-     let errorMessage: string | undefined;
- 
-     try {
-@@ -52,6 +53,9 @@ const analyzeSourceStep = createStep({
- 
-       sourceId = insertResult.id;
- 
-+      const extractionResult = await FileExtractor.extractText(filePath);
-+      content = extractionResult.content;
-+
-       // LLMを使用してタイトルと要約を生成
-       const summarizeSourceAgent = mastra.getAgent('summarizeSourceAgent');
- 
-@@ -119,7 +123,7 @@ const extractTopicAndSummaryStep = createStep({
-   inputSchema: analyzeSourceOutputSchema,
-   outputSchema: baseStepOutputSchema,
-   execute: async ({ inputData, getInitData, mastra }) => {
--    const { content } = getInitData() as z.infer<typeof triggerSchema>;
-+    const { filePath } = getInitData() as z.infer<typeof triggerSchema>;
-     const { sourceId } = inputData;
- 
-     // 前ステップがfailedの場合はそのまま返す
-@@ -135,6 +139,9 @@ const extractTopicAndSummaryStep = createStep({
-     let errorMessage: string | undefined;
- 
-     try {
-+      const extractionResult = await FileExtractor.extractText(filePath);
-+      const content = extractionResult.content;
-+
-       // LLMを使用してトピックと要約を生成
-       const summarizeTopicAgent = mastra.getAgent('summarizeTopicAgent');
- 
-diff --git a/src/mastra/workflows/sourceRegistration/sourceRegistrationManager.ts b/src/mastra/workflows/sourceRegistration/sourceRegistrationManager.ts
-index 7cdb548b2..b9b10753e 100644
---- a/src/mastra/workflows/sourceRegistration/sourceRegistrationManager.ts
-+++ b/src/mastra/workflows/sourceRegistration/sourceRegistrationManager.ts
-@@ -159,14 +159,11 @@ export default class SourceRegistrationManager {
-         (previousPromise, filePath) => {
-           return previousPromise.then(async (resultList) => {
-             try {
--              // ファイルからテキストを抽出
--              const { content } = await FileExtractor.extractText(filePath);
--
-               // Mastraインスタンスからワークフローを取得して実行
-               const workflow = mastra.getWorkflow('sourceRegistrationWorkflow');
-               const run = workflow.createRun();
-               const result = await run.start({
--                inputData: { filePath, content },
-+                inputData: { filePath },
-               });
- 
-               // 結果を確認
-@@ -181,10 +178,7 @@ export default class SourceRegistrationManager {
-                 error,
-                 'ドキュメント登録用ワークフロー実行中にエラー',
-               );
--              resultList.push({
--                success: false,
--                filePath,
--              });
-+              throw error;
-             }
-             // 次のイテレーションに結果配列を渡す
-             return resultList;
-@@ -208,9 +202,6 @@ export default class SourceRegistrationManager {
-         success: false,
-         error: errorMessage,
-       });
--
--      // エラーを再throw
--      throw error;
-     }
-   }
- 
-diff --git a/src/mastra/workflows/sourceReview/checklistExtraction.ts b/src/mastra/workflows/sourceReview/checklistExtraction.ts
-index 781b0c7b8..df2dd9517 100644
---- a/src/mastra/workflows/sourceReview/checklistExtraction.ts
-+++ b/src/mastra/workflows/sourceReview/checklistExtraction.ts
-@@ -37,8 +37,8 @@ const triggerSchema = z.object({
+@@ -59,8 +57,6 @@ const topicExtractionStepOutputSchema = baseStepOutputSchema.extend({
+     .array(
+       z.object({
+         title: z.string(),
+-        file: triggerSchema.shape.files.element,
+-        content: z.string().optional(),
+       }),
      )
-     .describe('アップロードファイルのリスト'),
-   documentType: z
--    .enum(['checklist', 'general'])
--    .default('checklist')
-+    .enum(['checklist-ai', 'general'])
-+    .default('checklist-ai')
-     .describe(
-       'ドキュメント種別: checklist=チェックリストドキュメント, general=一般ドキュメント',
-     ),
-@@ -453,7 +453,7 @@ const topicExtractionStep = createStep({
-       await Promise.all(extractionPromises);
+     .optional(),
+@@ -84,223 +80,139 @@ const checklistDocumentExtractionStep = createStep({
+   execute: async ({ inputData, mastra, abortSignal }) => {
+     // レビュー用のリポジトリを取得
+     const reviewRepository = getReviewRepository();
+-    const sourceRepository = getSourceRepository();
+     // トリガーから入力を取得
+     const { reviewHistoryId, files } = inputData;
+-    const errorMessages: string[] = [];
  
-       // エラーがあれば失敗として返す
--      if (errorMessages.length > 1) {
-+      if (errorMessages.length > 0) {
-         return bail({
-           status: 'failed' as stepStatus,
-           errorMessage: errorMessages.join('\n'),
-@@ -702,7 +702,7 @@ export const checklistExtractionWorkflow = createWorkflow({
-   .branch([
-     // チェックリストドキュメントの場合
-     [
--      async ({ inputData }) => inputData.documentType === 'checklist',
-+      async ({ inputData }) => inputData.documentType === 'checklist-ai',
-       checklistDocumentExtractionStep,
-     ],
-     // 一般ドキュメントの場合
-diff --git a/src/mastra/workflows/sourceReview/sourceReviewManager.ts b/src/mastra/workflows/sourceReview/sourceReviewManager.ts
-index 76f01bbb6..768b22367 100644
---- a/src/mastra/workflows/sourceReview/sourceReviewManager.ts
-+++ b/src/mastra/workflows/sourceReview/sourceReviewManager.ts
-@@ -86,6 +86,12 @@ export default class SourceReviewManager {
-         cancel: () => run.cancel(),
-       });
+     try {
+       // 既存のシステム作成チェックリストを削除
+       await reviewRepository.deleteSystemCreatedChecklists(reviewHistoryId);
  
-+      // 処理ステータスを「抽出中」に更新
-+      await this.reviewRepository.updateReviewHistoryProcessingStatus(
-+        reviewHistoryId,
-+        'extracting',
+-      // 各ファイルを並行して処理
+-      const extractionPromises = files.map(async (file: UploadFile) => {
+-        try {
+-          const checklistExtractionAgent = mastra.getAgent(
+-            'checklistExtractionAgent',
+-          );
+-          const outputSchema = z.object({
+-            isChecklistDocument: z
+-              .boolean()
+-              .describe('Whether the given source is a checklist document'),
+-            newChecklists: z
+-              .array(z.string().describe('Checklist item'))
+-              .describe('Newly extracted checklist items'),
+-          });
++      // 複数ファイルを統合してメッセージを作成
++      const message = await createCombinedMessage(
++        files,
++        'Please extract checklist items from this document',
 +      );
-+
-       const runResult = await run.start({
-         inputData: {
-           reviewHistoryId,
-@@ -101,6 +107,13 @@ export default class SourceReviewManager {
-       // クリーンアップ
-       this.runningWorkflows.delete(reviewHistoryId);
  
-+      // 処理ステータスを更新
-+      const newStatus = checkResult.status === 'success' ? 'extracted' : 'idle';
-+      await this.reviewRepository.updateReviewHistoryProcessingStatus(
-+        reviewHistoryId,
-+        newStatus,
+-          // これまでに抽出したチェックリスト項目を蓄積する配列
+-          const accumulated: string[] = [];
+-
+-          let message;
+-
+-          // PDFで画像として処理する場合
+-          if (
+-            file.type === 'application/pdf' &&
+-            file.pdfProcessMode === 'image' &&
+-            file.imageData &&
+-            file.imageData.length > 0
+-          ) {
+-            if (file.imageData.length > 1) {
+-              // ページ別画像モード: すべてのページを含むメッセージを作成
+-              const imageMessage = {
+-                role: 'user' as const,
+-                content: [
+-                  {
+-                    type: 'text' as const,
+-                    text: `Please extract checklist items from this document: ${file.name} (All ${file.imageData.length} pages)`,
+-                  },
+-                  // すべてのページ画像を含める
+-                  ...file.imageData.map((imageData) => ({
+-                    type: 'image' as const,
+-                    image: imageData,
+-                    mimeType: 'image/png',
+-                  })),
+-                ],
+-              };
+-
+-              message = imageMessage;
+-            } else {
+-              // 統合画像モード: 単一メッセージ
+-              const imageMessage = {
+-                role: 'user' as const,
+-                content: [
+-                  {
+-                    type: 'text' as const,
+-                    text: `Please extract checklist items from this document: ${file.name}`,
+-                  },
+-                  {
+-                    type: 'image' as const,
+-                    image: file.imageData[0],
+-                    mimeType: 'image/png',
+-                  },
+-                ],
+-              };
+-
+-              message = imageMessage;
+-            }
+-            // 画像化PDF以外はテキスト抽出処理
+-          } else {
+-            // テキスト抽出処理
+-            const { content } = await FileExtractor.extractText(file.path, {
+-              useCache: false,
+-            });
+-            message = content;
+-          }
++      const checklistExtractionAgent = mastra.getAgent(
++        'checklistExtractionAgent',
 +      );
-+
-       return {
-         status: checkResult.status,
-         error: checkResult.errorMessage,
-@@ -111,6 +124,16 @@ export default class SourceReviewManager {
-       // エラー時もクリーンアップ
-       this.runningWorkflows.delete(reviewHistoryId);
- 
-+      // 処理ステータスを「アイドル」に戻す
-+      try {
-+        await this.reviewRepository.updateReviewHistoryProcessingStatus(
-+          reviewHistoryId,
-+          'idle',
-+        );
-+      } catch (statusUpdateError) {
-+        logger.error(statusUpdateError, '処理ステータスの更新に失敗しました');
-+      }
-+
-       const err = normalizeUnknownError(error);
-       const errorMessage = err.message;
-       return {
-@@ -174,6 +197,12 @@ export default class SourceReviewManager {
-         cancel: () => run.cancel(),
-       });
- 
-+      // 処理ステータスを「レビュー中」に更新
-+      await this.reviewRepository.updateReviewHistoryProcessingStatus(
-+        reviewHistoryId,
-+        'reviewing',
-+      );
-+
-       const result = await run.start({
-         inputData: {
-           reviewHistoryId,
-@@ -183,16 +212,20 @@ export default class SourceReviewManager {
-           commentFormat,
-         },
-       });
--      console.log(
--        'Review Execution Workflow Result:',
--        JSON.stringify(result, null, 2),
--      );
-+
-       // 結果を確認
-       const checkResult = checkWorkflowResult(result);
- 
-       // クリーンアップ
-       this.runningWorkflows.delete(reviewHistoryId);
- 
-+      // 処理ステータスを更新
-+      const newStatus = checkResult.status === 'success' ? 'completed' : 'extracted';
-+      await this.reviewRepository.updateReviewHistoryProcessingStatus(
-+        reviewHistoryId,
-+        newStatus,
-+      );
-+
-       return {
-         status: checkResult.status,
-         error: checkResult.errorMessage,
-@@ -203,6 +236,16 @@ export default class SourceReviewManager {
-       // エラー時もクリーンアップ
-       this.runningWorkflows.delete(reviewHistoryId);
- 
-+      // 処理ステータスを「抽出完了」に戻す
-+      try {
-+        await this.reviewRepository.updateReviewHistoryProcessingStatus(
-+          reviewHistoryId,
-+          'extracted',
-+        );
-+      } catch (statusUpdateError) {
-+        logger.error(statusUpdateError, '処理ステータスの更新に失敗しました');
-+      }
-+
-       const err = normalizeUnknownError(error);
-       const errorMessage = err.message;
-       return {
-@@ -236,6 +279,7 @@ export default class SourceReviewManager {
-         .then((res) => {
-           // 完了イベントを送信
-           publishEvent(IpcChannels.REVIEW_EXTRACT_CHECKLIST_FINISHED, {
-+            reviewHistoryId,
-             status: res.status,
-             error: res.error,
-           });
-@@ -251,7 +295,7 @@ export default class SourceReviewManager {
-           // エラーイベントを送信
-           publishEvent(
-             IpcChannels.REVIEW_EXTRACT_CHECKLIST_FINISHED,
--            errorResult,
-+            { reviewHistoryId, ...errorResult },
-           );
-         });
-       return {
-@@ -266,6 +310,7 @@ export default class SourceReviewManager {
-         error: errorMessage,
-       };
-       const payloadResult = {
-+        reviewHistoryId,
-         status: 'failed' as ChecklistExtractionResultStatus,
-         error: errorMessage,
-       };
-@@ -302,6 +347,7 @@ export default class SourceReviewManager {
-         .then((res) => {
-           // 完了イベントを送信
-           publishEvent(IpcChannels.REVIEW_EXECUTE_FINISHED, {
-+            reviewHistoryId,
-             status: res.status,
-             error: res.error,
-           });
-@@ -315,7 +361,7 @@ export default class SourceReviewManager {
-             error: errorMessage,
-           };
-           // エラーイベントを送信
--          publishEvent(IpcChannels.REVIEW_EXECUTE_FINISHED, errorResult);
-+          publishEvent(IpcChannels.REVIEW_EXECUTE_FINISHED, { reviewHistoryId, ...errorResult });
-         });
-       return {
-         success: true,
-@@ -329,6 +375,7 @@ export default class SourceReviewManager {
-         error: errorMessage,
-       };
-       const payloadResult = {
-+        reviewHistoryId,
-         status: 'failed' as ReviewExecutionResultStatus,
-         error: errorMessage,
-       };
-diff --git a/src/renderer/components/review/ReviewArea.tsx b/src/renderer/components/review/ReviewArea.tsx
-index 5e2563c49..3af4dbbab 100644
---- a/src/renderer/components/review/ReviewArea.tsx
-+++ b/src/renderer/components/review/ReviewArea.tsx
-@@ -1,4 +1,4 @@
--import React, { useEffect, useState, useCallback } from 'react';
-+import React, { useEffect, useState, useCallback, useRef } from 'react';
- import { Box, Button, Paper, Stack, Typography } from '@mui/material';
- import CheckBoxIcon from '@mui/icons-material/CheckBox';
- import RateReviewIcon from '@mui/icons-material/RateReview';
-@@ -10,6 +10,8 @@ import {
-   DocumentType,
-   UploadFile,
-   CustomEvaluationSettings,
-+  ChecklistExtractionResultStatus,
-+  ReviewExecutionResultStatus,
- } from '@/types';
- import { ReviewAreaProps } from './types';
- import ReviewChecklistSection from './ReviewChecklistSection';
-@@ -49,6 +51,9 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
- 
-   const addAlert = useAlertStore((state) => state.addAlert);
- 
-+  // イベント購読の解除関数を管理
-+  const eventUnsubscribeRef = useRef<(() => void) | null>(null);
-+
-   // チェック履歴取得
-   const fetchChecklistResults = useCallback(async () => {
-     if (!selectedReviewHistoryId) return;
-@@ -61,12 +66,118 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
-     setChecklistResults(result?.checklistResults || []);
-   }, [selectedReviewHistoryId]);
- 
-+  // チェックリスト抽出完了の共通処理ハンドラー
-+  const handleChecklistExtractionFinished = useCallback(
-+    (payload: {
-+      reviewHistoryId: string;
-+      status: ChecklistExtractionResultStatus;
-+      error?: string;
-+    }) => {
-+      // 自分のレビュー履歴のイベントかチェック
-+      if (payload.reviewHistoryId !== selectedReviewHistoryId) {
-+        return;
-+      }
-+
-+      // 抽出結果の再取得
-+      fetchChecklistResults().catch((error) => {
-+        addAlert({
-+          message: getSafeErrorMessage(
-+            error,
-+            'チェックリストの取得に失敗しました',
-+          ),
-+          severity: 'error',
-+        });
++      const outputSchema = z.object({
++        isChecklistDocument: z
++          .boolean()
++          .describe('Whether the given source is a checklist document'),
++        newChecklists: z
++          .array(z.string().describe('Checklist item'))
++          .describe('Newly extracted checklist items'),
 +      });
-+
-+      if (payload.status === 'success') {
-+        addAlert({
-+          message: 'チェックリストの抽出が完了しました',
-+          severity: 'success',
-+        });
-+      } else if (payload.status === 'failed') {
-+        addAlert({
-+          message: `チェックリストの抽出に失敗しました\n${payload.error}`,
-+          severity: 'error',
-+        });
-+      }
-+
-+      setIsExtracting(false);
-+
-+      // イベント購読解除
-+      if (eventUnsubscribeRef.current) {
-+        eventUnsubscribeRef.current();
-+        eventUnsubscribeRef.current = null;
-+      }
-+    },
-+    [selectedReviewHistoryId, fetchChecklistResults, addAlert],
-+  );
-+
-+  // レビュー実行完了の共通処理ハンドラー
-+  const handleReviewExecutionFinished = useCallback(
-+    (payload: {
-+      reviewHistoryId: string;
-+      status: ReviewExecutionResultStatus;
-+      error?: string;
-+    }) => {
-+      // 自分のレビュー履歴のイベントかチェック
-+      if (payload.reviewHistoryId !== selectedReviewHistoryId) {
-+        return;
-+      }
-+
-+      // レビュー結果の再取得
-+      fetchChecklistResults().catch((error) => {
-+        addAlert({
-+          message: getSafeErrorMessage(
-+            error,
-+            'チェックリストの取得に失敗しました',
-+          ),
-+          severity: 'error',
-+        });
-+      });
-+
-+      if (payload.status === 'success') {
-+        addAlert({
-+          message: 'レビューが完了しました',
-+          severity: 'success',
-+        });
-+      } else if (payload.status === 'failed') {
-+        addAlert({
-+          message: `レビューに失敗しました\n${payload.error}`,
-+          severity: 'error',
-+        });
-+      }
-+
-+      setIsReviewing(false);
-+
-+      // イベント購読解除
-+      if (eventUnsubscribeRef.current) {
-+        eventUnsubscribeRef.current();
-+        eventUnsubscribeRef.current = null;
-+      }
-+    },
-+    [selectedReviewHistoryId, fetchChecklistResults, addAlert],
-+  );
-+
-   // 選択中の履歴が変更されたら、初期データ取得を実行
-   useEffect(() => {
-     if (!selectedReviewHistoryId) return;
  
-     let intervalId: ReturnType<typeof setInterval> | null = null;
- 
-+    // 古いイベント購読を解除
-+    if (eventUnsubscribeRef.current) {
-+      eventUnsubscribeRef.current();
-+      eventUnsubscribeRef.current = null;
-+    }
+-          // 最大試行回数
+-          const MAX_ATTEMPTS = 5;
+-          let attempts = 0;
+-
+-          while (attempts < MAX_ATTEMPTS) {
+-            let isCompleted = true;
+-            const runtimeContext =
+-              await createRuntimeContext<ChecklistExtractionAgentRuntimeContext>();
+-            // これまでに抽出したチェックリスト項目
+-            runtimeContext.set('extractedItems', accumulated);
+-            const extractionResult = await checklistExtractionAgent.generate(
+-              message,
+-              {
+-                output: outputSchema,
+-                runtimeContext,
+-                abortSignal,
+-                // AIの限界生成トークン数を超えた場合のエラーを回避するための設定
+-                experimental_repairText: async (options) => {
+-                  isCompleted = false;
+-                  const { text } = options;
+-                  let repairedText = text;
+-                  let deleteLastItemFlag = false;
+-                  try {
+-                    const lastChar = text.charAt(text.length - 1);
+-                    if (lastChar === '"') {
+-                      repairedText = text + ']}';
+-                    } else if (lastChar === ']') {
+-                      repairedText = text + '}';
+-                    } else if (lastChar === ',') {
+-                      // 最後のカンマを削除してから ']} を追加
+-                      repairedText = text.slice(0, -1) + ']}';
+-                    } else {
+-                      // その他のケースでは強制的に ']} を追加
+-                      repairedText = text + '"]}';
+-                      deleteLastItemFlag = true;
+-                    }
+-                    // JSONに変換してみて、エラーが出ないか確かめる
+-                    // deleteLastItemFlagがtrueの場合は最後の項目を削除する
+-                    const parsedJson = JSON.parse(repairedText) as z.infer<
+-                      typeof outputSchema
+-                    >;
+-                    if (deleteLastItemFlag) {
+-                      parsedJson.newChecklists.pop(); // 最後の項目を削除
+-                    }
+-                    repairedText = JSON.stringify(parsedJson);
+-                  } catch (error) {
+-                    console.error(
+-                      `チェックリスト抽出の修正に失敗しました: ${error}`,
+-                    );
+-                    throw internalError({
+-                      expose: true,
+-                      messageCode: 'REVIEW_CHECKLIST_EXTRACTION_OVER_MAX_TOKENS',
+-                    });
+-                  }
+-                  return repairedText;
+-                },
+-              },
+-            );
++      // これまでに抽出したチェックリスト項目を蓄積する配列
++      const accumulated: string[] = [];
 +
-+    // 状態リセット
-+    setChecklistResults([]);
-+    setIsExtracting(false);
-+    setIsReviewing(false);
-+    setAdditionalInstructions('');
-+    setCommentFormat(defaultCommentFormat);
-+    setEvaluationSettings(defaultEvaluationSettings);
++      // 最大試行回数
++      const MAX_ATTEMPTS = 5;
++      let attempts = 0;
 +
-     // 初期データ取得（エラーが発生しなくなるまでポーリング）
-     const loadInitialData = async () => {
-       try {
-@@ -88,6 +199,42 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
-           result?.evaluationSettings || defaultEvaluationSettings,
-         );
- 
-+        // レビュー履歴の詳細から処理ステータスを取得
-+        const histories = await reviewApi.getHistories({
-+          throwError: true,
-+          showAlert: true,
-+        });
-+        const currentHistory = histories?.find(
-+          (h) => h.id === selectedReviewHistoryId,
++      while (attempts < MAX_ATTEMPTS) {
++        let isCompleted = true;
++        const runtimeContext =
++          await createRuntimeContext<ChecklistExtractionAgentRuntimeContext>();
++        // これまでに抽出したチェックリスト項目
++        runtimeContext.set('extractedItems', accumulated);
++        const extractionResult = await checklistExtractionAgent.generate(
++          message,
++          {
++            output: outputSchema,
++            runtimeContext,
++            abortSignal,
++            // AIの限界生成トークン数を超えた場合のエラーを回避するための設定
++            experimental_repairText: async (options) => {
++              isCompleted = false;
++              const { text } = options;
++              let repairedText = text;
++              let deleteLastItemFlag = false;
++              try {
++                const lastChar = text.charAt(text.length - 1);
++                if (lastChar === '"') {
++                  repairedText = text + ']}';
++                } else if (lastChar === ']') {
++                  repairedText = text + '}';
++                } else if (lastChar === ',') {
++                  // 最後のカンマを削除してから ']} を追加
++                  repairedText = text.slice(0, -1) + ']}';
++                } else {
++                  // その他のケースでは強制的に ']} を追加
++                  repairedText = text + '"]}';
++                  deleteLastItemFlag = true;
++                }
++                // JSONに変換してみて、エラーが出ないか確かめる
++                // deleteLastItemFlagがtrueの場合は最後の項目を削除する
++                const parsedJson = JSON.parse(repairedText) as z.infer<
++                  typeof outputSchema
++                >;
++                if (deleteLastItemFlag) {
++                  parsedJson.newChecklists.pop(); // 最後の項目を削除
++                }
++                repairedText = JSON.stringify(parsedJson);
++              } catch (error) {
++                console.error(
++                  `チェックリスト抽出の修正に失敗しました: ${error}`,
++                );
++                throw internalError({
++                  expose: true,
++                  messageCode: 'REVIEW_CHECKLIST_EXTRACTION_OVER_MAX_TOKENS',
++                });
++              }
++              return repairedText;
++            },
++          },
 +        );
+ 
+-            // チェックリストドキュメントでない場合はエラー
+-            if (!extractionResult.object.isChecklistDocument) {
+-              throw internalError({
+-                expose: true,
+-                messageCode: 'REVIEW_CHECKLIST_EXTRACTION_NOT_CHECKLIST_DOCUMENT',
+-              });
+-            }
+-
+-            if (
+-              accumulated.length === 0 &&
+-              (!extractionResult.object.newChecklists ||
+-                extractionResult.object.newChecklists.length === 0)
+-            ) {
+-              throw internalError({
+-                expose: true,
+-                messageCode: 'AI_API_ERROR',
+-                messageParams: { detail: 'チェックリストが抽出されませんでした' },
+-              });
+-            }
+-
+-            // 抽出されたチェックリストから新規のものを蓄積
+-            const newChecklists =
+-              extractionResult.object.newChecklists?.filter(
+-                (item: string) => !accumulated.includes(item),
+-              ) || [];
+-            accumulated.push(...newChecklists);
+-
+-            // 抽出されたチェックリストをDBに保存
+-            for (const checklistItem of newChecklists) {
+-              await reviewRepository.createChecklist(
+-                reviewHistoryId,
+-                checklistItem,
+-                'system',
+-              );
+-            }
+-            // 抽出が完了した場合はループを抜ける
+-            if (isCompleted) {
+-              break;
+-            }
+-            attempts++;
+-            if (attempts >= MAX_ATTEMPTS) {
+-              throw internalError({
+-                expose: true,
+-                messageCode: 'REVIEW_CHECKLIST_EXTRACTION_OVER_MAX_TOKENS',
+-              });
+-            }
+-          }
+-        } catch (error) {
+-          logger.error(error, 'チェックリスト抽出処理に失敗しました');
+-          let errorMessage = '';
+-          let errorDetail: string;
+-          if (
+-            NoObjectGeneratedError.isInstance(error) &&
+-            error.finishReason === 'length'
+-          ) {
+-            errorDetail =
+-              'AIの大量出力の補正に失敗しました、チェックリストをファイルの分割を検討してください';
+-          } else {
+-            const normalizedError = normalizeUnknownError(error);
+-            errorDetail = normalizedError.message;
+-          }
+-          errorMessage = `${file.name}のチェックリスト抽出中にエラー: ${errorDetail}`;
+-          errorMessages.push(errorMessage);
++        // チェックリストドキュメントでない場合はエラー
++        if (!extractionResult.object.isChecklistDocument) {
++          throw internalError({
++            expose: true,
++            messageCode: 'REVIEW_CHECKLIST_EXTRACTION_NOT_CHECKLIST_DOCUMENT',
++          });
+         }
+-      });
+ 
+-      // 全ての抽出処理が完了するまで待機
+-      await Promise.all(extractionPromises);
++        if (
++          accumulated.length === 0 &&
++          (!extractionResult.object.newChecklists ||
++            extractionResult.object.newChecklists.length === 0)
++        ) {
++          throw internalError({
++            expose: true,
++            messageCode: 'AI_API_ERROR',
++            messageParams: { detail: 'チェックリストが抽出されませんでした' },
++          });
++        }
+ 
+-      // エラーがあれば失敗として返す
+-      if (errorMessages.length > 0) {
+-        return {
+-          status: 'failed' as stepStatus,
+-          errorMessage: errorMessages.join('\n'),
+-        };
++        // 抽出されたチェックリストから新規のものを蓄積
++        const newChecklists =
++          extractionResult.object.newChecklists?.filter(
++            (item: string) => !accumulated.includes(item),
++          ) || [];
++        accumulated.push(...newChecklists);
 +
-+        if (currentHistory) {
-+          // 処理ステータスに応じて状態とイベント購読を設定
-+          switch (currentHistory.processingStatus) {
-+            case 'extracting':
-+              setIsExtracting(true);
-+              // チェックリスト抽出完了イベントを購読
-+              const extractUnsubscribe =
-+                reviewApi.subscribeChecklistExtractionFinished(
-+                  handleChecklistExtractionFinished,
-+                );
-+              eventUnsubscribeRef.current = extractUnsubscribe;
-+              break;
-+            case 'reviewing':
-+              setIsReviewing(true);
-+              // レビュー実行完了イベントを購読
-+              const reviewUnsubscribe =
-+                reviewApi.subscribeReviewExtractionFinished(
-+                  handleReviewExecutionFinished,
-+                );
-+              eventUnsubscribeRef.current = reviewUnsubscribe;
-+              break;
-+            default:
-+              // 処理中でない場合は何もしない
-+              break;
++        // 抽出されたチェックリストをDBに保存
++        for (const checklistItem of newChecklists) {
++          await reviewRepository.createChecklist(
++            reviewHistoryId,
++            checklistItem,
++            'system',
++          );
++        }
++        // 抽出が完了した場合はループを抜ける
++        if (isCompleted) {
++          break;
++        }
++        attempts++;
++        if (attempts >= MAX_ATTEMPTS) {
++          throw internalError({
++            expose: true,
++            messageCode: 'REVIEW_CHECKLIST_EXTRACTION_OVER_MAX_TOKENS',
++          });
++        }
+       }
+ 
+       return {
+@@ -308,11 +220,20 @@ const checklistDocumentExtractionStep = createStep({
+       };
+     } catch (error) {
+       logger.error(error, 'チェックリスト抽出処理に失敗しました');
+-      const normalizedError = normalizeUnknownError(error);
+-      errorMessages.push(normalizedError.message);
++      let errorMessage = '';
++      if (
++        NoObjectGeneratedError.isInstance(error) &&
++        error.finishReason === 'length'
++      ) {
++        errorMessage =
++          'AIの大量出力の補正に失敗しました、チェックリストをファイルの分割を検討してください';
++      } else {
++        const normalizedError = normalizeUnknownError(error);
++        errorMessage = normalizedError.message;
++      }
+       return {
+         status: 'failed' as stepStatus,
+-        errorMessage: errorMessages.join('\n'),
++        errorMessage: errorMessage,
+       };
+     }
+   },
+@@ -329,136 +250,49 @@ const topicExtractionStep = createStep({
+   execute: async ({ inputData, mastra, bail, abortSignal }) => {
+     const reviewRepository = getReviewRepository();
+     const { files, reviewHistoryId, checklistRequirements } = inputData;
+-    const errorMessages: string[] = [];
+ 
+     try {
+-      const allTopics: Array<{
+-        title: string;
+-        file: z.infer<typeof triggerSchema.shape.files.element>;
+-        content?: string;
+-      }> = [];
+-
+-      // 各ファイルからトピックを抽出
+-      const extractionPromises = files.map(async (file: UploadFile) => {
+-        try {
+-          let message;
+-          let outputContent: string | undefined = undefined;
+-
+-          // PDFで画像として処理する場合
+-          if (
+-            file.type === 'application/pdf' &&
+-            file.pdfProcessMode === 'image' &&
+-            file.imageData &&
+-            file.imageData.length > 0
+-          ) {
+-            if (file.imageData.length > 1) {
+-              // ページ別画像モード: すべてのページを含むメッセージを作成
+-              const imageMessage = {
+-                role: 'user' as const,
+-                content: [
+-                  {
+-                    type: 'text' as const,
+-                    text: `Please extract topics from this document: ${file.name} (All ${file.imageData.length} pages)`,
+-                  },
+-                  // すべてのページ画像を含める
+-                  ...file.imageData.map((imageData) => ({
+-                    type: 'image' as const,
+-                    image: imageData,
+-                    mimeType: 'image/png',
+-                  })),
+-                ],
+-              };
+-              message = imageMessage;
+-            } else {
+-              // 統合画像モード: 単一メッセージ
+-              const imageMessage = {
+-                role: 'user' as const,
+-                content: [
+-                  {
+-                    type: 'text' as const,
+-                    text: `Please extract topics from this document: ${file.name}`,
+-                  },
+-                  {
+-                    type: 'image' as const,
+-                    image: file.imageData[0],
+-                    mimeType: 'image/png',
+-                  },
+-                ],
+-              };
+-              message = imageMessage;
+-            }
+-          } else {
+-            // テキスト抽出処理
+-            const { content } = await FileExtractor.extractText(file.path, {
+-              useCache: false,
+-            });
+-            message = content;
+-            outputContent = content;
+-          }
+-
+-          const topicExtractionAgent = mastra.getAgent('topicExtractionAgent');
+-          const outputSchema = z.object({
+-            topics: z
+-              .array(
+-                z.object({
+-                  topic: z.string().describe('Extracted topic'),
+-                  reason: z
+-                    .string()
+-                    .describe(
+-                      'The reason why that topic is necessary for creating checklist items',
+-                    ),
+-                }),
+-              )
+-              .describe('Extracted topics from the document'),
+-          });
+-          const runtimeContext =
+-            await createRuntimeContext<TopicExtractionAgentRuntimeContext>();
+-          if (checklistRequirements) {
+-            runtimeContext.set('checklistRequirements', checklistRequirements);
+-          }
+-
+-          const extractionResult = await topicExtractionAgent.generate(
+-            message,
+-            {
+-              output: outputSchema,
+-              runtimeContext,
+-              abortSignal,
+-            },
+-          );
++      // 複数ファイルを統合してトピックを抽出
++      const message = await createCombinedMessage(
++        files,
++        'Please extract topics from this document',
++      );
+ 
+-          logger.debug(
+-            `document(${file.name}) extracted topics for creating checklist:`,
+-            JSON.stringify(extractionResult.object.topics, null, 2),
+-          );
++      const topicExtractionAgent = mastra.getAgent('topicExtractionAgent');
++      const outputSchema = z.object({
++        topics: z
++          .array(
++            z.object({
++              topic: z.string().describe('Extracted topic'),
++              reason: z
++                .string()
++                .describe(
++                  'The reason why that topic is necessary for creating checklist items',
++                ),
++            }),
++          )
++          .describe('Extracted topics from the document'),
++      });
++      const runtimeContext =
++        await createRuntimeContext<TopicExtractionAgentRuntimeContext>();
++      if (checklistRequirements) {
++        runtimeContext.set('checklistRequirements', checklistRequirements);
++      }
+ 
+-          allTopics.push(
+-            ...extractionResult.object.topics.map((t) => ({
+-              title: t.topic,
+-              file,
+-              content: outputContent,
+-            })),
+-          );
+-        } catch (error) {
+-          logger.error(
+-            error,
+-            'チェックリスト作成のトピック抽出処理に失敗しました',
+-          );
+-          const normalizedError = normalizeUnknownError(error);
+-          errorMessages.push(
+-            `${file.name}のチェックリスト作成中にエラー: ${normalizedError.message}`,
+-          );
+-        }
++      const extractionResult = await topicExtractionAgent.generate(message, {
++        output: outputSchema,
++        runtimeContext,
++        abortSignal,
+       });
+ 
+-      await Promise.all(extractionPromises);
++      logger.debug(
++        `Combined document extracted topics for creating checklist:`,
++        JSON.stringify(extractionResult.object.topics, null, 2),
++      );
+ 
+-      // エラーがあれば失敗として返す
+-      if (errorMessages.length > 0) {
+-        return bail({
+-          status: 'failed' as stepStatus,
+-          errorMessage: errorMessages.join('\n'),
+-        });
+-      }
++      const allTopics = extractionResult.object.topics.map((t) => ({
++        title: t.topic,
++      }));
+ 
+       // 既存のシステム作成チェックリストを削除
+       await reviewRepository.deleteSystemCreatedChecklists(reviewHistoryId);
+@@ -470,10 +304,9 @@ const topicExtractionStep = createStep({
+     } catch (error) {
+       logger.error(error, 'チェックリスト作成のトピック抽出処理に失敗しました');
+       const normalizedError = normalizeUnknownError(error);
+-      errorMessages.push(`${normalizedError.message}`);
+       return bail({
+         status: 'failed' as stepStatus,
+-        errorMessage: errorMessages.join('\n'),
++        errorMessage: normalizedError.message,
+       });
+     }
+   },
+@@ -485,68 +318,21 @@ const topicChecklistCreationStep = createStep({
+   description: 'トピックに基づいてチェックリスト項目を作成するステップ',
+   inputSchema: z.object({
+     title: z.string(),
+-    file: triggerSchema.shape.files.element,
+-    content: z.string().optional(),
++    files: triggerSchema.shape.files,
+     reviewHistoryId: z.string(),
+     checklistRequirements: z.string().optional(),
+   }),
+   outputSchema: topicChecklistStepOutputSchema,
+   execute: async ({ inputData, mastra, bail, abortSignal }) => {
+-    const { title, file, content, reviewHistoryId, checklistRequirements } =
+-      inputData;
++    const { title, files, reviewHistoryId, checklistRequirements } = inputData;
+     const reviewRepository = getReviewRepository();
+ 
+     try {
+-      let message;
+-
+-      // PDFで画像として処理する場合
+-      if (
+-        file.type === 'application/pdf' &&
+-        file.pdfProcessMode === 'image' &&
+-        file.imageData &&
+-        file.imageData.length > 0
+-      ) {
+-        if (file.imageData.length > 1) {
+-          // ページ別画像モードの場合、すべてのページを統合したメッセージを作成
+-          // (このステップでは特定のトピックに基づいてチェックリスト作成するため、全ページを含める)
+-          const imageMessage = {
+-            role: 'user' as const,
+-            content: [
+-              {
+-                type: 'text' as const,
+-                text: `Please create checklist items from this document: ${file.name} (All ${file.imageData.length} pages) for topic: ${title}`,
+-              },
+-              // すべてのページ画像を含める
+-              ...file.imageData.map((imageData) => ({
+-                type: 'image' as const,
+-                image: imageData,
+-                mimeType: 'image/png',
+-              })),
+-            ],
+-          };
+-          message = imageMessage;
+-        } else {
+-          // 統合画像モード: 単一メッセージ
+-          const imageMessage = {
+-            role: 'user' as const,
+-            content: [
+-              {
+-                type: 'text' as const,
+-                text: `Please create checklist items from this document: ${file.name}`,
+-              },
+-              {
+-                type: 'image' as const,
+-                image: file.imageData[0],
+-                mimeType: 'image/png',
+-              },
+-            ],
+-          };
+-          message = imageMessage;
+-        }
+-      } else {
+-        // テキスト抽出処理
+-        message = content!;
+-      }
++      // 複数ファイルを統合してメッセージを作成
++      const message = await createCombinedMessage(
++        files,
++        `Please create checklist items from this document for topic: ${title}`,
++      );
+       const topicChecklistAgent = mastra.getAgent('topicChecklistAgent');
+       const outputSchema = z.object({
+         checklistItems: z
+@@ -578,7 +364,7 @@ const topicChecklistCreationStep = createStep({
+         abortSignal,
+       });
+       logger.debug(
+-        `document(${file.name}) topic(${title}) generated checklist items:`,
++        `Combined document topic(${title}) generated checklist items:`,
+         JSON.stringify(result.object.checklistItems, null, 2),
+       );
+ 
+@@ -616,7 +402,7 @@ const topicChecklistCreationStep = createStep({
+       const normalizedError = normalizeUnknownError(error);
+       return bail({
+         status: 'failed' as stepStatus,
+-        errorMessage: `${file.name}のチェックリスト作成中にエラー: ${normalizedError.message}`,
++        errorMessage: normalizedError.message,
+       });
+     }
+   },
+@@ -728,8 +514,7 @@ export const checklistExtractionWorkflow = createWorkflow({
+ 
+           return topicResult.topics.map((topic) => ({
+             title: topic.title,
+-            file: topic.file,
+-            content: topic.content,
++            files: initData.files, // 統合されたファイル群を渡す
+             reviewHistoryId: initData.reviewHistoryId,
+             checklistRequirements: initData.checklistRequirements,
+           }));
+diff --git a/src/mastra/workflows/sourceReview/reviewExecution.ts b/src/mastra/workflows/sourceReview/reviewExecution.ts
+index bca2c16d1..6c5ca2df7 100644
+--- a/src/mastra/workflows/sourceReview/reviewExecution.ts
++++ b/src/mastra/workflows/sourceReview/reviewExecution.ts
+@@ -5,7 +5,6 @@ import { createWorkflow, createStep } from '@mastra/core/workflows';
+ import { MastraError } from '@mastra/core/error';
+ import { z } from 'zod';
+ import { getReviewRepository } from '@/main/repository/reviewRepository';
+-import FileExtractor from '@/main/lib/fileExtractor';
+ import type { ReviewEvaluation } from '@/types';
+ import { baseStepOutputSchema } from '../schema';
+ import { stepStatus } from '../types';
+@@ -16,7 +15,13 @@ import {
+ } from '../../agents/workflowAgents';
+ import { createRuntimeContext, judgeFinishReason } from '../../lib/agentUtils';
+ import { getMainLogger } from '@/main/lib/logger';
+-import { normalizeUnknownError, extractAIAPISafeError, internalError } from '@/main/lib/error';
++import { createCombinedMessage } from '../../lib/util';
++import {
++  normalizeUnknownError,
++  extractAIAPISafeError,
++  internalError,
++} from '@/main/lib/error';
++import { createHash } from 'crypto';
+ 
+ const logger = getMainLogger();
+ 
+@@ -68,10 +73,12 @@ const triggerSchema = z.object({
+     .describe('レビューコメントのフォーマット'),
+   evaluationSettings: z
+     .object({
+-      items: z.array(z.object({
+-        label: z.string(),
+-        description: z.string(),
+-      })),
++      items: z.array(
++        z.object({
++          label: z.string(),
++          description: z.string(),
++        }),
++      ),
+     })
+     .optional()
+     .describe('カスタム評定項目設定'),
+@@ -242,7 +249,7 @@ const reviewExecutionStep = createStep({
+   description: 'チェックリストごとにレビューを実行するステップ',
+   inputSchema: classifyChecklistsByCategoryOutputSchema,
+   outputSchema: baseStepOutputSchema,
+-  execute: async ({ inputData, getInitData, mastra, abortSignal }) => {
++  execute: async ({ inputData, getInitData, mastra, abortSignal, bail }) => {
+     // レビュー対象のファイル
+     const { files, additionalInstructions, commentFormat, evaluationSettings } =
+       getInitData() as z.infer<typeof triggerSchema>;
+@@ -260,189 +267,109 @@ const reviewExecutionStep = createStep({
+     // リポジトリを取得
+     const reviewRepository = getReviewRepository();
+ 
+-    // チェックリストを全量チェックできなかったドキュメントを格納
+-    // key: ファイル名, value: エラー内容
+-    const errorDocuments = new Map<string, string>();
+-
+     try {
+       const reviewAgent = mastra.getAgent('reviewExecuteAgent');
+ 
+-      // 各カテゴリ、ファイルごとにレビューを実行
+-      for (const category of categories!) {
+-        for (const file of files) {
+-          // ファイルの内容を取得（画像またはテキスト）
+-          let message;
++      // 複数ファイルを統合してメッセージを作成（一度だけ）
++      const message = await createCombinedMessage(
++        files,
++        'Please review this document against the provided checklist items',
++      );
+ 
+-          if (
+-            file.type === 'application/pdf' &&
+-            file.pdfProcessMode === 'image' &&
+-            file.imageData &&
+-            file.imageData.length > 0
+-          ) {
+-            if (file.imageData.length > 1) {
+-              // ページ別画像モード: すべてのページを含むメッセージを作成
+-              const imageMessage = {
+-                role: 'user' as const,
+-                content: [
+-                  {
+-                    type: 'text' as const,
+-                    text: `Please review this document against the provided checklist items: ${file.name} (All ${file.imageData.length} pages)`,
+-                  },
+-                  // すべてのページ画像を含める
+-                  ...file.imageData.map((imageData) => ({
+-                    type: 'image' as const,
+-                    image: imageData,
+-                    mimeType: 'image/png',
+-                  })),
+-                ],
+-              };
+-              message = imageMessage;
+-            } else {
+-              // 統合画像モード: 単一メッセージ
+-              const imageMessage = {
+-                role: 'user' as const,
+-                content: [
+-                  {
+-                    type: 'text' as const,
+-                    text: `Please review this document against the provided checklist items: ${file.name}`,
+-                  },
+-                  {
+-                    type: 'image' as const,
+-                    image: file.imageData[0],
+-                    mimeType: 'image/png',
+-                  },
+-                ],
+-              };
+-              message = imageMessage;
+-            }
+-          } else {
+-            // テキスト抽出
+-            const { content } = await FileExtractor.extractText(file.path, {
+-              useCache: false,
+-            });
+-            message = content;
+-          }
+-          // レビューを実行(各カテゴリ内のチェックリストは一括でレビュー)
+-          // レビュー結果に含まれなかったチェックリストは再度レビューを実行する（最大試行回数は3回）
+-          const maxAttempts = 3;
+-          let attempt = 0;
+-          let reviewTargetChecklists = category.checklists;
+-          while (attempt < maxAttempts) {
+-            try {
+-              // デフォルトの評定項目
+-              const defaultEvaluationItems = ['A', 'B', 'C', '-'] as const;
++      // 各カテゴリごとに統合されたファイル内容をレビューする
++      for (const category of categories!) {
++        // レビューを実行(各カテゴリ内のチェックリストは一括でレビュー)
++        // レビュー結果に含まれなかったチェックリストは再度レビューを実行する（最大試行回数は3回）
++        const maxAttempts = 3;
++        let attempt = 0;
++        let reviewTargetChecklists = category.checklists;
++        while (attempt < maxAttempts) {
++          // デフォルトの評定項目
++          const defaultEvaluationItems = ['A', 'B', 'C', '-'] as const;
+ 
+-              // カスタム評定項目がある場合はそれを使用、なければデフォルトを使用
+-              const evaluationItems = evaluationSettings?.items?.length
+-                ? evaluationSettings.items.map(item => item.label)
+-                : defaultEvaluationItems;
++          // カスタム評定項目がある場合はそれを使用、なければデフォルトを使用
++          const evaluationItems = evaluationSettings?.items?.length
++            ? evaluationSettings.items.map((item) => item.label)
++            : defaultEvaluationItems;
+ 
+-              // 最初の要素が存在することを確認してenumを作成
+-              const evaluationEnum = evaluationItems.length > 0
+-                ? z.enum([evaluationItems[0], ...evaluationItems.slice(1)] as [string, ...string[]])
+-                : z.enum(defaultEvaluationItems);
++          // 最初の要素が存在することを確認してenumを作成
++          const evaluationEnum =
++            evaluationItems.length > 0
++              ? z.enum([evaluationItems[0], ...evaluationItems.slice(1)] as [
++                  string,
++                  ...string[],
++                ])
++              : z.enum(defaultEvaluationItems);
+ 
+-              const outputSchema = z.array(
+-                z.object({
+-                  checklistId: z.number(),
+-                  comment: z.string().describe('evaluation comment'),
+-                  evaluation: evaluationEnum.describe('evaluation'),
+-                }),
+-              );
+-              const runtimeContext =
+-                await createRuntimeContext<ReviewExecuteAgentRuntimeContext>();
+-              runtimeContext.set('checklistItems', reviewTargetChecklists);
+-              runtimeContext.set(
+-                'additionalInstructions',
+-                additionalInstructions,
+-              );
+-              runtimeContext.set('commentFormat', commentFormat);
+-              runtimeContext.set('evaluationSettings', evaluationSettings);
+-              // レビューエージェントを使用してレビューを実行
+-              const reviewResult = await reviewAgent.generate(message, {
+-                output: outputSchema,
+-                runtimeContext,
+-                abortSignal,
+-              });
+-              const { success, reason } = judgeFinishReason(
+-                reviewResult.finishReason,
+-              );
+-              if (!success) {
+-                throw internalError({
+-                  expose: true,
+-                  messageCode: 'AI_API_ERROR',
+-                  messageParams: { detail: reason },
+-                });
+-              }
+-              // レビュー結果をDBに保存
+-              if (reviewResult.object && Array.isArray(reviewResult.object)) {
+-                await reviewRepository.upsertReviewResult(
+-                  reviewResult.object.map((result) => ({
+-                    reviewChecklistId: result.checklistId,
+-                    evaluation: result.evaluation as ReviewEvaluation,
+-                    comment: result.comment,
+-                    fileId: file.id,
+-                    fileName: file.name,
+-                  })),
+-                );
+-              }
+-              // レビュー結果に含まれなかったチェックリストを抽出
+-              const reviewedChecklistIds = new Set(
+-                reviewResult.object && Array.isArray(reviewResult.object)
+-                  ? reviewResult.object.map((result) => result.checklistId)
+-                  : [],
+-              );
+-              reviewTargetChecklists = reviewTargetChecklists.filter(
+-                (checklist) => !reviewedChecklistIds.has(checklist.id),
+-              );
+-              if (reviewTargetChecklists.length === 0) {
+-                // 全てのチェックリストがレビューされた場合、成功
+-                break;
+-              }
+-            } catch (error) {
+-              logger.error(
+-                error,
+-                `${file.name}チェックリストのレビュー実行処理に失敗しました`,
+-              );
+-              let errorDetail: string;
+-              if (
+-                NoObjectGeneratedError.isInstance(error) &&
+-                error.finishReason === 'length'
+-              ) {
+-                // AIモデルが生成できる文字数を超えているため、手動でレビューを分割
+-                errorDetail = `AIモデルが生成できる文字数を超えています。チェックリスト量の削減を検討してください。`;
+-              } else {
+-                const normalizedError = normalizeUnknownError(error);
+-                errorDetail = normalizedError.message;
+-              }
+-              // レビューに失敗したチェックリストを記録
+-              // 最新のエラー内容に更新
+-              errorDocuments.set(file.name, errorDetail);
+-            } finally {
+-              attempt += 1;
+-            }
++          const outputSchema = z.array(
++            z.object({
++              checklistId: z.number(),
++              comment: z.string().describe('evaluation comment'),
++              evaluation: evaluationEnum.describe('evaluation'),
++            }),
++          );
++          const runtimeContext =
++            await createRuntimeContext<ReviewExecuteAgentRuntimeContext>();
++          runtimeContext.set('checklistItems', reviewTargetChecklists);
++          runtimeContext.set('additionalInstructions', additionalInstructions);
++          runtimeContext.set('commentFormat', commentFormat);
++          runtimeContext.set('evaluationSettings', evaluationSettings);
++          // レビューエージェントを使用してレビューを実行
++          const reviewResult = await reviewAgent.generate(message, {
++            output: outputSchema,
++            runtimeContext,
++            abortSignal,
++          });
++          const { success, reason } = judgeFinishReason(
++            reviewResult.finishReason,
++          );
++          if (!success) {
++            throw internalError({
++              expose: true,
++              messageCode: 'AI_API_ERROR',
++              messageParams: { detail: reason },
++            });
+           }
+-          if (attempt >= maxAttempts) {
+-            // 最大試行回数に達した場合、レビューに失敗したドキュメントを記録
+-            errorDocuments.set(
+-              file.name,
+-              `全てのチェックリストに対してレビューを完了することができませんでした`,
++          // レビュー結果をDBに保存（複数ファイルの情報を統合）
++          if (reviewResult.object && Array.isArray(reviewResult.object)) {
++            const combinedFileIds = files.map((f) => f.id).join('/');
++            const idsHash = createHash('md5')
++              .update(combinedFileIds)
++              .digest('hex');
++            const combinedFileNames = files.map((f) => f.name).join('/');
++            await reviewRepository.upsertReviewResult(
++              reviewResult.object.map((result) => ({
++                reviewChecklistId: result.checklistId,
++                evaluation: result.evaluation as ReviewEvaluation,
++                comment: result.comment,
++                fileId: idsHash,
++                fileName: combinedFileNames,
++              })),
+             );
+           }
++          // レビュー結果に含まれなかったチェックリストを抽出
++          const reviewedChecklistIds = new Set(
++            reviewResult.object && Array.isArray(reviewResult.object)
++              ? reviewResult.object.map((result) => result.checklistId)
++              : [],
++          );
++          reviewTargetChecklists = reviewTargetChecklists.filter(
++            (checklist) => !reviewedChecklistIds.has(checklist.id),
++          );
++          if (reviewTargetChecklists.length === 0) {
++            // 全てのチェックリストがレビューされた場合、成功
++            break;
 +          }
++          attempt += 1;
 +        }
-+
-         // 初期データ取得成功したらポーリングを停止
-         if (intervalId) {
-           clearInterval(intervalId);
-@@ -110,8 +257,16 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
-       if (intervalId) {
-         clearInterval(intervalId);
++        if (attempt >= maxAttempts) {
++          // 最大試行回数に達した場合、レビューに失敗したドキュメントを記録
++          bail({
++            status: 'failed' as stepStatus,
++            errorMessage:
++              '全てのチェックリストに対してレビューを完了することができませんでした\nもう一度お試しください',
++          });
+         }
+-      }
+-      // errorDocumentsが空でない場合、レビューに失敗したドキュメントを返す
+-      if (errorDocuments.size > 0) {
+-        const errorMessage = `${Array.from(errorDocuments.entries())
+-          .map(
+-            ([fileName, error]) =>
+-              `${fileName}のレビュー実行中にエラー: ${error}`,
+-          )
+-          .join('\n')}`;
+-        return {
+-          status: 'failed' as stepStatus,
+-          errorMessage,
+-        };
        }
-+      if (eventUnsubscribeRef.current) {
-+        eventUnsubscribeRef.current();
+       // 全てのレビューが成功した場合
+       return {
+@@ -453,11 +380,21 @@ const reviewExecutionStep = createStep({
+       };
+     } catch (error) {
+       logger.error(error, 'チェックリストのレビュー実行処理に失敗しました');
+-      const normalizedError = normalizeUnknownError(error);
++      let errorDetail: string;
++      if (
++        NoObjectGeneratedError.isInstance(error) &&
++        error.finishReason === 'length'
++      ) {
++        // AIモデルが生成できる文字数を超えているため、手動でレビューを分割
++        errorDetail = `AIモデルが生成できる文字数を超えています。チェックリスト量の削減を検討してください。`;
++      } else {
++        const normalizedError = normalizeUnknownError(error);
++        errorDetail = normalizedError.message;
 +      }
-     };
--  }, [selectedReviewHistoryId, fetchChecklistResults]);
-+  }, [
-+    selectedReviewHistoryId,
-+    fetchChecklistResults,
-+    handleChecklistExtractionFinished,
-+    handleReviewExecutionFinished,
-+  ]);
- 
-   // 処理中のポーリング制御
-   useEffect(() => {
-@@ -160,34 +315,17 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
-           { throwError: true, showAlert: false },
-         );
- 
-+        // 既存のイベント購読を解除
-+        if (eventUnsubscribeRef.current) {
-+          eventUnsubscribeRef.current();
-+          eventUnsubscribeRef.current = null;
-+        }
-+
-         // 抽出完了イベントの購読を開始
-         const unsubscribe = reviewApi.subscribeChecklistExtractionFinished(
--          (payload) => {
--            // 抽出結果の再取得
--            fetchChecklistResults().catch((error) => {
--              addAlert({
--                message: getSafeErrorMessage(
--                  error,
--                  'チェックリストの取得に失敗しました',
--                ),
--                severity: 'error',
--              });
--            });
--            if (payload.status === 'success') {
--              addAlert({
--                message: 'チェックリストの抽出が完了しました',
--                severity: 'success',
--              });
--            } else if (payload.status === 'failed') {
--              addAlert({
--                message: `チェックリストの抽出に失敗しました\n${payload.error}`,
--                severity: 'error',
--              });
--            }
--            setIsExtracting(false);
--            unsubscribe();
--          },
-+          handleChecklistExtractionFinished,
-         );
-+        eventUnsubscribeRef.current = unsubscribe;
-       } catch (error) {
-         console.error(error);
-         addAlert({
-@@ -200,7 +338,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
-         setIsExtracting(false);
-       }
-     },
--    [selectedReviewHistoryId, addAlert, fetchChecklistResults],
-+    [selectedReviewHistoryId, addAlert, handleChecklistExtractionFinished],
-   );
- 
-   // レビュー実行処理
-@@ -214,8 +352,14 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
-         setIsReviewing(true);
-         setIsModalOpen(false);
- 
-+        // 既存のイベント購読を解除
-+        if (eventUnsubscribeRef.current) {
-+          eventUnsubscribeRef.current();
-+          eventUnsubscribeRef.current = null;
-+        }
-+
-         // レビュー実行処理を開始
--        const result = await reviewApi.executeReview(
-+        await reviewApi.executeReview(
-           selectedReviewHistoryId,
-           files,
-           evaluationSettings,
-@@ -226,32 +370,9 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
- 
-         // レビュー完了イベントの購読を開始
-         const unsubscribe = reviewApi.subscribeReviewExtractionFinished(
--          (payload) => {
--            // 抽出結果の再取得
--            fetchChecklistResults().catch((error) => {
--              addAlert({
--                message: getSafeErrorMessage(
--                  error,
--                  'チェックリストの取得に失敗しました',
--                ),
--                severity: 'error',
--              });
--            });
--            if (payload.status === 'success') {
--              addAlert({
--                message: 'レビューが完了しました',
--                severity: 'success',
--              });
--            } else if (payload.status === 'failed') {
--              addAlert({
--                message: `レビューに失敗しました\n${payload.error}`,
--                severity: 'error',
--              });
--            }
--            setIsReviewing(false);
--            unsubscribe();
--          },
-+          handleReviewExecutionFinished as any,
-         );
-+        eventUnsubscribeRef.current = unsubscribe;
-       } catch (error) {
-         console.error(error);
-         addAlert({
-@@ -266,8 +387,8 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
-       addAlert,
-       additionalInstructions,
-       commentFormat,
--      fetchChecklistResults,
-       evaluationSettings,
-+      handleReviewExecutionFinished,
-     ],
-   );
- 
-diff --git a/src/renderer/service/reviewApi.ts b/src/renderer/service/reviewApi.ts
-index 85fef3f91..55a386a85 100644
---- a/src/renderer/service/reviewApi.ts
-+++ b/src/renderer/service/reviewApi.ts
-@@ -52,12 +52,14 @@ export interface IReviewApi {
-   ): Promise<void>;
-   subscribeChecklistExtractionFinished(
-     callback: (payload: {
-+      reviewHistoryId: string;
-       status: ChecklistExtractionResultStatus;
-       error?: string;
-     }) => void,
-   ): () => void;
-   subscribeReviewExtractionFinished(
-     callback: (payload: {
-+      reviewHistoryId: string;
-       status: ReviewExecutionResultStatus;
-       error?: string;
-     }) => void,
-@@ -198,6 +200,7 @@ export class ReviewApi implements IReviewApi {
- 
-   public subscribeChecklistExtractionFinished(
-     callback: (payload: {
-+      reviewHistoryId: string;
-       status: ChecklistExtractionResultStatus;
-       error?: string;
-     }) => void,
-@@ -213,6 +216,7 @@ export class ReviewApi implements IReviewApi {
- 
-   public subscribeReviewExtractionFinished(
-     callback: (payload: {
-+      reviewHistoryId: string;
-       status: ReviewExecutionResultStatus;
-       error?: string;
-     }) => void,
-diff --git a/src/types/ipc.ts b/src/types/ipc.ts
-index 3e0dfa47b..90adc42a6 100644
---- a/src/types/ipc.ts
-+++ b/src/types/ipc.ts
-@@ -204,10 +204,12 @@ export type IpcEventPayloadMap = {
-   [IpcChannels.SETTINGS_UPDATE_FINISHED]: { success: boolean; error?: string }; // 設定更新処理完了通知
-   [IpcChannels.SOURCE_RELOAD_FINISHED]: { success: boolean; error?: string }; // ドキュメント更新処理完了通知
-   [IpcChannels.REVIEW_EXTRACT_CHECKLIST_FINISHED]: {
-+    reviewHistoryId: string;
-     status: ChecklistExtractionResultStatus;
-     error?: string;
-   };
-   [IpcChannels.REVIEW_EXECUTE_FINISHED]: {
-+    reviewHistoryId: string;
-     status: ReviewExecutionResultStatus;
-     error?: string;
-   };
-diff --git a/src/types/review.ts b/src/types/review.ts
-index bc99a1c2a..f303e93b7 100644
---- a/src/types/review.ts
-+++ b/src/types/review.ts
-@@ -4,6 +4,7 @@ export interface RevieHistory {
-   additionalInstructions: string | null;
-   commentFormat?: string | null;
-   evaluationSettings?: CustomEvaluationSettings | null; // カスタム評定項目設定
-+  processingStatus: ProcessingStatus; // 処理ステータス
-   createdAt: string;
-   updatedAt: string;
- }
-@@ -86,3 +87,11 @@ export type ReviewExecutionResultStatus =
-   | 'failed'
-   | 'suspended'
-   | 'canceled';
-+
-+// 処理ステータスの型定義
-+export type ProcessingStatus =
-+  | 'idle'        // アイドル状態
-+  | 'extracting'  // チェックリスト抽出中
-+  | 'extracted'   // チェックリスト抽出完了
-+  | 'reviewing'   // レビュー実行中
-+  | 'completed';  // レビュー完了
+       // エラーが発生した場合はエラ
+       return {
+         status: 'failed' as stepStatus,
+-        errorMessage: `${normalizedError.message}`,
++        errorMessage: errorDetail,
+       };
+     }
+   },
+diff --git a/src/renderer/components/review/ReviewSourceModal.tsx b/src/renderer/components/review/ReviewSourceModal.tsx
+index ae5f42d83..374764d6a 100644
+--- a/src/renderer/components/review/ReviewSourceModal.tsx
++++ b/src/renderer/components/review/ReviewSourceModal.tsx
+@@ -94,6 +94,8 @@ const getAlertMessage = ({
+             ? '選択されたチェックリストドキュメントから、AIが既存のチェック項目を抽出できます'
+             : '選択された一般ドキュメントから、AIがレビュー用のチェックリストを新規作成できます'}
+         <br />
++        複数ファイルを選択した場合、選択した順番で結合され一つのドキュメントとして扱われます
++        <br />
+         ※
+         <br />
+         チェックリストは手動で編集・追加・削除が可能です
+@@ -108,6 +110,8 @@ const getAlertMessage = ({
+         レビュー対象ファイルを選択してください
+         <br />
+         選択されたドキュメントに対して、AIがチェックリストに基づいてレビューを行います
++        <br />
++        複数ファイルを選択した場合、選択した順番で結合され一つのドキュメントとして扱われます
+       </>
+     );
+   }
