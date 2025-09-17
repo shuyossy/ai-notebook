@@ -1,0 +1,118 @@
+#!/usr/bin/env node
+/**
+ * analyze-text.js
+ * 
+ * 指定したテキストファイルの中に含まれる「不可視文字」や
+ * 空白・制御文字を可視化して表示するツール
+ * 
+ * 使い方:
+ *   node analyze-text.js ./sample.txt
+ */
+
+import fs from "fs";
+
+// --- ユーティリティ関数群 -----------------------------------------
+
+const NAME_MAP = {
+  0x0020: "SPACE",
+  0x00a0: "NO-BREAK SPACE",
+  0x3000: "IDEOGRAPHIC SPACE (全角空白)",
+  0x200b: "ZERO WIDTH SPACE",
+  0x200c: "ZERO WIDTH NON-JOINER",
+  0x200d: "ZERO WIDTH JOINER",
+  0xfeff: "ZERO WIDTH NO-BREAK SPACE (BOM)",
+  0x00ad: "SOFT HYPHEN",
+};
+
+const reWhite = /\p{White_Space}/u;
+const reCc = /\p{Cc}/u;
+const reCf = /\p{Cf}/u;
+
+function cpToU(cp) {
+  return "U+" + cp.toString(16).toUpperCase().padStart(4, "0");
+}
+
+function visibleSymbol(cp) {
+  switch (cp) {
+    case 0x0020: return "␠"; // space
+    case 0x00a0: return "⍽"; // nbsp
+    case 0x3000: return "□"; // 全角空白
+    case 0x0009: return "␉"; // tab
+    case 0x000a: return "␊"; // LF
+    case 0x000d: return "␍"; // CR
+    case 0x200b: return "ZWSP";
+    case 0xfeff: return "BOM";
+  }
+  if (reCf.test(String.fromCodePoint(cp))) return "Cf";
+  if (reCc.test(String.fromCodePoint(cp))) return "Cc";
+  if (reWhite.test(String.fromCodePoint(cp))) return "WS";
+  return String.fromCodePoint(cp);
+}
+
+function categoryOf(ch) {
+  if (reWhite.test(ch)) return "White_Space";
+  if (reCf.test(ch)) return "Format";
+  if (reCc.test(ch)) return "Control";
+  return "Other";
+}
+
+function bytesHexOf(s) {
+  return Buffer.from(s, "utf8").toString("hex");
+}
+
+function analyzeString(s) {
+  const rows = [];
+  let i = 0;
+  for (const ch of s) {
+    const cp = ch.codePointAt(0);
+    rows.push({
+      index: i,
+      visual: visibleSymbol(cp),
+      codePoint: cpToU(cp),
+      bytesHex: bytesHexOf(ch),
+      category: categoryOf(ch),
+      name: NAME_MAP[cp] ?? "",
+    });
+    i++;
+  }
+  return rows;
+}
+
+function bracketize(s) {
+  const escaped = s
+    .replace(/\r/g, "\\r")
+    .replace(/\n/g, "\\n")
+    .replace(/\t/g, "\\t");
+  return `⟦${escaped
+    .replace(/\u00a0/g, "⍽")
+    .replace(/\u3000/g, "□")
+    .replace(/\u200b/g, "⟂")}⟧ (len=${[...s].length}, bytes=${Buffer.from(s, "utf8").length})`;
+}
+
+// --- メイン処理 ----------------------------------------------------
+
+const filePath = process.argv[2];
+if (!filePath) {
+  console.error("使い方: node analyze-text.js path/to/file.txt");
+  process.exit(1);
+}
+
+const content = fs.readFileSync(filePath, "utf8");
+
+console.log(`\n=== RAW ===`);
+console.log(content);
+
+console.log(`\n=== JSON.stringify ===`);
+console.log(JSON.stringify(content));
+
+console.log(`\n=== 行ごとの表示 ===`);
+const lines = content.split(/\r\n|\n|\r/);
+lines.forEach((line, idx) => {
+  console.log(`L${idx + 1}: ${bracketize(line)}`);
+});
+
+console.log(`\n=== 文字ごとの詳細 ===`);
+console.table(analyzeString(content));
+
+console.log(`\n=== 全体のUTF-8バイト列(hex) ===`);
+console.log(bytesHexOf(content));
