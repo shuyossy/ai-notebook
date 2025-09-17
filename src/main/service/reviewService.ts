@@ -177,6 +177,8 @@ export class ReviewService implements IReviewService {
           generateReviewTitle(),
           reviewHistoryId,
         );
+        // 新規作成時はレビュー履歴更新イベントを送信
+        publishEvent(IpcChannels.REVIEW_HISTORY_UPDATED, undefined);
       }
 
       // システム作成のチェックリストを削除（手動作成分は保持）
