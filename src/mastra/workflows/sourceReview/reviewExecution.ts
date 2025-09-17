@@ -5,7 +5,6 @@ import { createWorkflow, createStep } from '@mastra/core/workflows';
 import { MastraError } from '@mastra/core/error';
 import { z } from 'zod';
 import { getReviewRepository } from '@/main/repository/reviewRepository';
-import FileExtractor from '@/main/lib/fileExtractor';
 import type { ReviewEvaluation } from '@/types';
 import { baseStepOutputSchema } from '../schema';
 import { stepStatus } from '../types';
@@ -16,7 +15,13 @@ import {
 } from '../../agents/workflowAgents';
 import { createRuntimeContext, judgeFinishReason } from '../../lib/agentUtils';
 import { getMainLogger } from '@/main/lib/logger';
-import { normalizeUnknownError, extractAIAPISafeError, internalError } from '@/main/lib/error';
+import { createCombinedMessage } from '../../lib/util';
+import {
+  normalizeUnknownError,
+  extractAIAPISafeError,
+  internalError,
+} from '@/main/lib/error';
+import { createHash } from 'crypto';
 
 const logger = getMainLogger();
 
@@ -68,10 +73,12 @@ const triggerSchema = z.object({
     .describe('レビューコメントのフォーマット'),
   evaluationSettings: z
     .object({
-      items: z.array(z.object({
-        label: z.string(),
-        description: z.string(),
-      })),
+      items: z.array(
+        z.object({
+          label: z.string(),
+          description: z.string(),
+        }),
+      ),
     })
     .optional()
     .describe('カスタム評定項目設定'),
@@ -242,7 +249,7 @@ const reviewExecutionStep = createStep({
   description: 'チェックリストごとにレビューを実行するステップ',
   inputSchema: classifyChecklistsByCategoryOutputSchema,
   outputSchema: baseStepOutputSchema,
-  execute: async ({ inputData, getInitData, mastra, abortSignal }) => {
+  execute: async ({ inputData, getInitData, mastra, abortSignal, bail }) => {
     // レビュー対象のファイル
     const { files, additionalInstructions, commentFormat, evaluationSettings } =
       getInitData() as z.infer<typeof triggerSchema>;
@@ -260,189 +267,109 @@ const reviewExecutionStep = createStep({
     // リポジトリを取得
     const reviewRepository = getReviewRepository();
 
-    // チェックリストを全量チェックできなかったドキュメントを格納
-    // key: ファイル名, value: エラー内容
-    const errorDocuments = new Map<string, string>();
-
     try {
       const reviewAgent = mastra.getAgent('reviewExecuteAgent');
 
-      // 各カテゴリ、ファイルごとにレビューを実行
+      // 複数ファイルを統合してメッセージを作成（一度だけ）
+      const message = await createCombinedMessage(
+        files,
+        'Please review this document against the provided checklist items',
+      );
+
+      // 各カテゴリごとに統合されたファイル内容をレビューする
       for (const category of categories!) {
-        for (const file of files) {
-          // ファイルの内容を取得（画像またはテキスト）
-          let message;
+        // レビューを実行(各カテゴリ内のチェックリストは一括でレビュー)
+        // レビュー結果に含まれなかったチェックリストは再度レビューを実行する（最大試行回数は3回）
+        const maxAttempts = 3;
+        let attempt = 0;
+        let reviewTargetChecklists = category.checklists;
+        while (attempt < maxAttempts) {
+          // デフォルトの評定項目
+          const defaultEvaluationItems = ['A', 'B', 'C', '-'] as const;
 
-          if (
-            file.type === 'application/pdf' &&
-            file.pdfProcessMode === 'image' &&
-            file.imageData &&
-            file.imageData.length > 0
-          ) {
-            if (file.imageData.length > 1) {
-              // ページ別画像モード: すべてのページを含むメッセージを作成
-              const imageMessage = {
-                role: 'user' as const,
-                content: [
-                  {
-                    type: 'text' as const,
-                    text: `Please review this document against the provided checklist items: ${file.name} (All ${file.imageData.length} pages)`,
-                  },
-                  // すべてのページ画像を含める
-                  ...file.imageData.map((imageData) => ({
-                    type: 'image' as const,
-                    image: imageData,
-                    mimeType: 'image/png',
-                  })),
-                ],
-              };
-              message = imageMessage;
-            } else {
-              // 統合画像モード: 単一メッセージ
-              const imageMessage = {
-                role: 'user' as const,
-                content: [
-                  {
-                    type: 'text' as const,
-                    text: `Please review this document against the provided checklist items: ${file.name}`,
-                  },
-                  {
-                    type: 'image' as const,
-                    image: file.imageData[0],
-                    mimeType: 'image/png',
-                  },
-                ],
-              };
-              message = imageMessage;
-            }
-          } else {
-            // テキスト抽出
-            const { content } = await FileExtractor.extractText(file.path, {
-              useCache: false,
+          // カスタム評定項目がある場合はそれを使用、なければデフォルトを使用
+          const evaluationItems = evaluationSettings?.items?.length
+            ? evaluationSettings.items.map((item) => item.label)
+            : defaultEvaluationItems;
+
+          // 最初の要素が存在することを確認してenumを作成
+          const evaluationEnum =
+            evaluationItems.length > 0
+              ? z.enum([evaluationItems[0], ...evaluationItems.slice(1)] as [
+                  string,
+                  ...string[],
+                ])
+              : z.enum(defaultEvaluationItems);
+
+          const outputSchema = z.array(
+            z.object({
+              checklistId: z.number(),
+              comment: z.string().describe('evaluation comment'),
+              evaluation: evaluationEnum.describe('evaluation'),
+            }),
+          );
+          const runtimeContext =
+            await createRuntimeContext<ReviewExecuteAgentRuntimeContext>();
+          runtimeContext.set('checklistItems', reviewTargetChecklists);
+          runtimeContext.set('additionalInstructions', additionalInstructions);
+          runtimeContext.set('commentFormat', commentFormat);
+          runtimeContext.set('evaluationSettings', evaluationSettings);
+          // レビューエージェントを使用してレビューを実行
+          const reviewResult = await reviewAgent.generate(message, {
+            output: outputSchema,
+            runtimeContext,
+            abortSignal,
+          });
+          const { success, reason } = judgeFinishReason(
+            reviewResult.finishReason,
+          );
+          if (!success) {
+            throw internalError({
+              expose: true,
+              messageCode: 'AI_API_ERROR',
+              messageParams: { detail: reason },
             });
-            message = content;
           }
-          // レビューを実行(各カテゴリ内のチェックリストは一括でレビュー)
-          // レビュー結果に含まれなかったチェックリストは再度レビューを実行する（最大試行回数は3回）
-          const maxAttempts = 3;
-          let attempt = 0;
-          let reviewTargetChecklists = category.checklists;
-          while (attempt < maxAttempts) {
-            try {
-              // デフォルトの評定項目
-              const defaultEvaluationItems = ['A', 'B', 'C', '-'] as const;
-
-              // カスタム評定項目がある場合はそれを使用、なければデフォルトを使用
-              const evaluationItems = evaluationSettings?.items?.length
-                ? evaluationSettings.items.map(item => item.label)
-                : defaultEvaluationItems;
-
-              // 最初の要素が存在することを確認してenumを作成
-              const evaluationEnum = evaluationItems.length > 0
-                ? z.enum([evaluationItems[0], ...evaluationItems.slice(1)] as [string, ...string[]])
-                : z.enum(defaultEvaluationItems);
-
-              const outputSchema = z.array(
-                z.object({
-                  checklistId: z.number(),
-                  comment: z.string().describe('evaluation comment'),
-                  evaluation: evaluationEnum.describe('evaluation'),
-                }),
-              );
-              const runtimeContext =
-                await createRuntimeContext<ReviewExecuteAgentRuntimeContext>();
-              runtimeContext.set('checklistItems', reviewTargetChecklists);
-              runtimeContext.set(
-                'additionalInstructions',
-                additionalInstructions,
-              );
-              runtimeContext.set('commentFormat', commentFormat);
-              runtimeContext.set('evaluationSettings', evaluationSettings);
-              // レビューエージェントを使用してレビューを実行
-              const reviewResult = await reviewAgent.generate(message, {
-                output: outputSchema,
-                runtimeContext,
-                abortSignal,
-              });
-              const { success, reason } = judgeFinishReason(
-                reviewResult.finishReason,
-              );
-              if (!success) {
-                throw internalError({
-                  expose: true,
-                  messageCode: 'AI_API_ERROR',
-                  messageParams: { detail: reason },
-                });
-              }
-              // レビュー結果をDBに保存
-              if (reviewResult.object && Array.isArray(reviewResult.object)) {
-                await reviewRepository.upsertReviewResult(
-                  reviewResult.object.map((result) => ({
-                    reviewChecklistId: result.checklistId,
-                    evaluation: result.evaluation as ReviewEvaluation,
-                    comment: result.comment,
-                    fileId: file.id,
-                    fileName: file.name,
-                  })),
-                );
-              }
-              // レビュー結果に含まれなかったチェックリストを抽出
-              const reviewedChecklistIds = new Set(
-                reviewResult.object && Array.isArray(reviewResult.object)
-                  ? reviewResult.object.map((result) => result.checklistId)
-                  : [],
-              );
-              reviewTargetChecklists = reviewTargetChecklists.filter(
-                (checklist) => !reviewedChecklistIds.has(checklist.id),
-              );
-              if (reviewTargetChecklists.length === 0) {
-                // 全てのチェックリストがレビューされた場合、成功
-                break;
-              }
-            } catch (error) {
-              logger.error(
-                error,
-                `${file.name}チェックリストのレビュー実行処理に失敗しました`,
-              );
-              let errorDetail: string;
-              if (
-                NoObjectGeneratedError.isInstance(error) &&
-                error.finishReason === 'length'
-              ) {
-                // AIモデルが生成できる文字数を超えているため、手動でレビューを分割
-                errorDetail = `AIモデルが生成できる文字数を超えています。チェックリスト量の削減を検討してください。`;
-              } else {
-                const normalizedError = normalizeUnknownError(error);
-                errorDetail = normalizedError.message;
-              }
-              // レビューに失敗したチェックリストを記録
-              // 最新のエラー内容に更新
-              errorDocuments.set(file.name, errorDetail);
-            } finally {
-              attempt += 1;
-            }
-          }
-          if (attempt >= maxAttempts) {
-            // 最大試行回数に達した場合、レビューに失敗したドキュメントを記録
-            errorDocuments.set(
-              file.name,
-              `全てのチェックリストに対してレビューを完了することができませんでした`,
+          // レビュー結果をDBに保存（複数ファイルの情報を統合）
+          if (reviewResult.object && Array.isArray(reviewResult.object)) {
+            const combinedFileIds = files.map((f) => f.id).join('/');
+            const idsHash = createHash('md5')
+              .update(combinedFileIds)
+              .digest('hex');
+            const combinedFileNames = files.map((f) => f.name).join('/');
+            await reviewRepository.upsertReviewResult(
+              reviewResult.object.map((result) => ({
+                reviewChecklistId: result.checklistId,
+                evaluation: result.evaluation as ReviewEvaluation,
+                comment: result.comment,
+                fileId: idsHash,
+                fileName: combinedFileNames,
+              })),
             );
           }
+          // レビュー結果に含まれなかったチェックリストを抽出
+          const reviewedChecklistIds = new Set(
+            reviewResult.object && Array.isArray(reviewResult.object)
+              ? reviewResult.object.map((result) => result.checklistId)
+              : [],
+          );
+          reviewTargetChecklists = reviewTargetChecklists.filter(
+            (checklist) => !reviewedChecklistIds.has(checklist.id),
+          );
+          if (reviewTargetChecklists.length === 0) {
+            // 全てのチェックリストがレビューされた場合、成功
+            break;
+          }
+          attempt += 1;
         }
-      }
-      // errorDocumentsが空でない場合、レビューに失敗したドキュメントを返す
-      if (errorDocuments.size > 0) {
-        const errorMessage = `${Array.from(errorDocuments.entries())
-          .map(
-            ([fileName, error]) =>
-              `${fileName}のレビュー実行中にエラー: ${error}`,
-          )
-          .join('\n')}`;
-        return {
-          status: 'failed' as stepStatus,
-          errorMessage,
-        };
+        if (attempt >= maxAttempts) {
+          // 最大試行回数に達した場合、レビューに失敗したドキュメントを記録
+          bail({
+            status: 'failed' as stepStatus,
+            errorMessage:
+              '全てのチェックリストに対してレビューを完了することができませんでした\nもう一度お試しください',
+          });
+        }
       }
       // 全てのレビューが成功した場合
       return {
@@ -453,11 +380,21 @@ const reviewExecutionStep = createStep({
       };
     } catch (error) {
       logger.error(error, 'チェックリストのレビュー実行処理に失敗しました');
-      const normalizedError = normalizeUnknownError(error);
+      let errorDetail: string;
+      if (
+        NoObjectGeneratedError.isInstance(error) &&
+        error.finishReason === 'length'
+      ) {
+        // AIモデルが生成できる文字数を超えているため、手動でレビューを分割
+        errorDetail = `AIモデルが生成できる文字数を超えています。チェックリスト量の削減を検討してください。`;
+      } else {
+        const normalizedError = normalizeUnknownError(error);
+        errorDetail = normalizedError.message;
+      }
       // エラーが発生した場合はエラ
       return {
         status: 'failed' as stepStatus,
-        errorMessage: `${normalizedError.message}`,
+        errorMessage: errorDetail,
       };
     }
   },

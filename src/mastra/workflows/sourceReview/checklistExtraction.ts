@@ -4,8 +4,6 @@ import { NoObjectGeneratedError } from 'ai';
 import { createStep, createWorkflow } from '@mastra/core/workflows';
 import { z } from 'zod';
 import { getReviewRepository } from '@/main/repository/reviewRepository';
-import { getSourceRepository } from '@/main/repository/sourceRepository';
-import FileExtractor from '@/main/lib/fileExtractor';
 import { baseStepOutputSchema } from '../schema';
 import { stepStatus } from '../types';
 import {
@@ -14,9 +12,9 @@ import {
   TopicChecklistAgentRuntimeContext,
 } from '../../agents/workflowAgents';
 import { createRuntimeContext } from '../../lib/agentUtils';
-import { UploadFile } from '@/types';
 import { normalizeUnknownError, internalError } from '@/main/lib/error';
 import { getMainLogger } from '@/main/lib/logger';
+import { createCombinedMessage } from '../../lib/util';
 
 const logger = getMainLogger();
 
@@ -59,8 +57,6 @@ const topicExtractionStepOutputSchema = baseStepOutputSchema.extend({
     .array(
       z.object({
         title: z.string(),
-        file: triggerSchema.shape.files.element,
-        content: z.string().optional(),
       }),
     )
     .optional(),
@@ -84,223 +80,139 @@ const checklistDocumentExtractionStep = createStep({
   execute: async ({ inputData, mastra, abortSignal }) => {
     // レビュー用のリポジトリを取得
     const reviewRepository = getReviewRepository();
-    const sourceRepository = getSourceRepository();
     // トリガーから入力を取得
     const { reviewHistoryId, files } = inputData;
-    const errorMessages: string[] = [];
 
     try {
       // 既存のシステム作成チェックリストを削除
       await reviewRepository.deleteSystemCreatedChecklists(reviewHistoryId);
 
-      // 各ファイルを並行して処理
-      const extractionPromises = files.map(async (file: UploadFile) => {
-        try {
-          const checklistExtractionAgent = mastra.getAgent(
-            'checklistExtractionAgent',
-          );
-          const outputSchema = z.object({
-            isChecklistDocument: z
-              .boolean()
-              .describe('Whether the given source is a checklist document'),
-            newChecklists: z
-              .array(z.string().describe('Checklist item'))
-              .describe('Newly extracted checklist items'),
-          });
+      // 複数ファイルを統合してメッセージを作成
+      const message = await createCombinedMessage(
+        files,
+        'Please extract checklist items from this document',
+      );
 
-          // これまでに抽出したチェックリスト項目を蓄積する配列
-          const accumulated: string[] = [];
-
-          let message;
-
-          // PDFで画像として処理する場合
-          if (
-            file.type === 'application/pdf' &&
-            file.pdfProcessMode === 'image' &&
-            file.imageData &&
-            file.imageData.length > 0
-          ) {
-            if (file.imageData.length > 1) {
-              // ページ別画像モード: すべてのページを含むメッセージを作成
-              const imageMessage = {
-                role: 'user' as const,
-                content: [
-                  {
-                    type: 'text' as const,
-                    text: `Please extract checklist items from this document: ${file.name} (All ${file.imageData.length} pages)`,
-                  },
-                  // すべてのページ画像を含める
-                  ...file.imageData.map((imageData) => ({
-                    type: 'image' as const,
-                    image: imageData,
-                    mimeType: 'image/png',
-                  })),
-                ],
-              };
-
-              message = imageMessage;
-            } else {
-              // 統合画像モード: 単一メッセージ
-              const imageMessage = {
-                role: 'user' as const,
-                content: [
-                  {
-                    type: 'text' as const,
-                    text: `Please extract checklist items from this document: ${file.name}`,
-                  },
-                  {
-                    type: 'image' as const,
-                    image: file.imageData[0],
-                    mimeType: 'image/png',
-                  },
-                ],
-              };
-
-              message = imageMessage;
-            }
-            // 画像化PDF以外はテキスト抽出処理
-          } else {
-            // テキスト抽出処理
-            const { content } = await FileExtractor.extractText(file.path, {
-              useCache: false,
-            });
-            message = content;
-          }
-
-          // 最大試行回数
-          const MAX_ATTEMPTS = 5;
-          let attempts = 0;
-
-          while (attempts < MAX_ATTEMPTS) {
-            let isCompleted = true;
-            const runtimeContext =
-              await createRuntimeContext<ChecklistExtractionAgentRuntimeContext>();
-            // これまでに抽出したチェックリスト項目
-            runtimeContext.set('extractedItems', accumulated);
-            const extractionResult = await checklistExtractionAgent.generate(
-              message,
-              {
-                output: outputSchema,
-                runtimeContext,
-                abortSignal,
-                // AIの限界生成トークン数を超えた場合のエラーを回避するための設定
-                experimental_repairText: async (options) => {
-                  isCompleted = false;
-                  const { text } = options;
-                  let repairedText = text;
-                  let deleteLastItemFlag = false;
-                  try {
-                    const lastChar = text.charAt(text.length - 1);
-                    if (lastChar === '"') {
-                      repairedText = text + ']}';
-                    } else if (lastChar === ']') {
-                      repairedText = text + '}';
-                    } else if (lastChar === ',') {
-                      // 最後のカンマを削除してから ']} を追加
-                      repairedText = text.slice(0, -1) + ']}';
-                    } else {
-                      // その他のケースでは強制的に ']} を追加
-                      repairedText = text + '"]}';
-                      deleteLastItemFlag = true;
-                    }
-                    // JSONに変換してみて、エラーが出ないか確かめる
-                    // deleteLastItemFlagがtrueの場合は最後の項目を削除する
-                    const parsedJson = JSON.parse(repairedText) as z.infer<
-                      typeof outputSchema
-                    >;
-                    if (deleteLastItemFlag) {
-                      parsedJson.newChecklists.pop(); // 最後の項目を削除
-                    }
-                    repairedText = JSON.stringify(parsedJson);
-                  } catch (error) {
-                    console.error(
-                      `チェックリスト抽出の修正に失敗しました: ${error}`,
-                    );
-                    throw internalError({
-                      expose: true,
-                      messageCode: 'REVIEW_CHECKLIST_EXTRACTION_OVER_MAX_TOKENS',
-                    });
-                  }
-                  return repairedText;
-                },
-              },
-            );
-
-            // チェックリストドキュメントでない場合はエラー
-            if (!extractionResult.object.isChecklistDocument) {
-              throw internalError({
-                expose: true,
-                messageCode: 'REVIEW_CHECKLIST_EXTRACTION_NOT_CHECKLIST_DOCUMENT',
-              });
-            }
-
-            if (
-              accumulated.length === 0 &&
-              (!extractionResult.object.newChecklists ||
-                extractionResult.object.newChecklists.length === 0)
-            ) {
-              throw internalError({
-                expose: true,
-                messageCode: 'AI_API_ERROR',
-                messageParams: { detail: 'チェックリストが抽出されませんでした' },
-              });
-            }
-
-            // 抽出されたチェックリストから新規のものを蓄積
-            const newChecklists =
-              extractionResult.object.newChecklists?.filter(
-                (item: string) => !accumulated.includes(item),
-              ) || [];
-            accumulated.push(...newChecklists);
-
-            // 抽出されたチェックリストをDBに保存
-            for (const checklistItem of newChecklists) {
-              await reviewRepository.createChecklist(
-                reviewHistoryId,
-                checklistItem,
-                'system',
-              );
-            }
-            // 抽出が完了した場合はループを抜ける
-            if (isCompleted) {
-              break;
-            }
-            attempts++;
-            if (attempts >= MAX_ATTEMPTS) {
-              throw internalError({
-                expose: true,
-                messageCode: 'REVIEW_CHECKLIST_EXTRACTION_OVER_MAX_TOKENS',
-              });
-            }
-          }
-        } catch (error) {
-          logger.error(error, 'チェックリスト抽出処理に失敗しました');
-          let errorMessage = '';
-          let errorDetail: string;
-          if (
-            NoObjectGeneratedError.isInstance(error) &&
-            error.finishReason === 'length'
-          ) {
-            errorDetail =
-              'AIの大量出力の補正に失敗しました、チェックリストをファイルの分割を検討してください';
-          } else {
-            const normalizedError = normalizeUnknownError(error);
-            errorDetail = normalizedError.message;
-          }
-          errorMessage = `${file.name}のチェックリスト抽出中にエラー: ${errorDetail}`;
-          errorMessages.push(errorMessage);
-        }
+      const checklistExtractionAgent = mastra.getAgent(
+        'checklistExtractionAgent',
+      );
+      const outputSchema = z.object({
+        isChecklistDocument: z
+          .boolean()
+          .describe('Whether the given source is a checklist document'),
+        newChecklists: z
+          .array(z.string().describe('Checklist item'))
+          .describe('Newly extracted checklist items'),
       });
 
-      // 全ての抽出処理が完了するまで待機
-      await Promise.all(extractionPromises);
+      // これまでに抽出したチェックリスト項目を蓄積する配列
+      const accumulated: string[] = [];
 
-      // エラーがあれば失敗として返す
-      if (errorMessages.length > 0) {
-        return {
-          status: 'failed' as stepStatus,
-          errorMessage: errorMessages.join('\n'),
-        };
+      // 最大試行回数
+      const MAX_ATTEMPTS = 5;
+      let attempts = 0;
+
+      while (attempts < MAX_ATTEMPTS) {
+        let isCompleted = true;
+        const runtimeContext =
+          await createRuntimeContext<ChecklistExtractionAgentRuntimeContext>();
+        // これまでに抽出したチェックリスト項目
+        runtimeContext.set('extractedItems', accumulated);
+        const extractionResult = await checklistExtractionAgent.generate(
+          message,
+          {
+            output: outputSchema,
+            runtimeContext,
+            abortSignal,
+            // AIの限界生成トークン数を超えた場合のエラーを回避するための設定
+            experimental_repairText: async (options) => {
+              isCompleted = false;
+              const { text } = options;
+              let repairedText = text;
+              let deleteLastItemFlag = false;
+              try {
+                const lastChar = text.charAt(text.length - 1);
+                if (lastChar === '"') {
+                  repairedText = text + ']}';
+                } else if (lastChar === ']') {
+                  repairedText = text + '}';
+                } else if (lastChar === ',') {
+                  // 最後のカンマを削除してから ']} を追加
+                  repairedText = text.slice(0, -1) + ']}';
+                } else {
+                  // その他のケースでは強制的に ']} を追加
+                  repairedText = text + '"]}';
+                  deleteLastItemFlag = true;
+                }
+                // JSONに変換してみて、エラーが出ないか確かめる
+                // deleteLastItemFlagがtrueの場合は最後の項目を削除する
+                const parsedJson = JSON.parse(repairedText) as z.infer<
+                  typeof outputSchema
+                >;
+                if (deleteLastItemFlag) {
+                  parsedJson.newChecklists.pop(); // 最後の項目を削除
+                }
+                repairedText = JSON.stringify(parsedJson);
+              } catch (error) {
+                console.error(
+                  `チェックリスト抽出の修正に失敗しました: ${error}`,
+                );
+                throw internalError({
+                  expose: true,
+                  messageCode: 'REVIEW_CHECKLIST_EXTRACTION_OVER_MAX_TOKENS',
+                });
+              }
+              return repairedText;
+            },
+          },
+        );
+
+        // チェックリストドキュメントでない場合はエラー
+        if (!extractionResult.object.isChecklistDocument) {
+          throw internalError({
+            expose: true,
+            messageCode: 'REVIEW_CHECKLIST_EXTRACTION_NOT_CHECKLIST_DOCUMENT',
+          });
+        }
+
+        if (
+          accumulated.length === 0 &&
+          (!extractionResult.object.newChecklists ||
+            extractionResult.object.newChecklists.length === 0)
+        ) {
+          throw internalError({
+            expose: true,
+            messageCode: 'AI_API_ERROR',
+            messageParams: { detail: 'チェックリストが抽出されませんでした' },
+          });
+        }
+
+        // 抽出されたチェックリストから新規のものを蓄積
+        const newChecklists =
+          extractionResult.object.newChecklists?.filter(
+            (item: string) => !accumulated.includes(item),
+          ) || [];
+        accumulated.push(...newChecklists);
+
+        // 抽出されたチェックリストをDBに保存
+        for (const checklistItem of newChecklists) {
+          await reviewRepository.createChecklist(
+            reviewHistoryId,
+            checklistItem,
+            'system',
+          );
+        }
+        // 抽出が完了した場合はループを抜ける
+        if (isCompleted) {
+          break;
+        }
+        attempts++;
+        if (attempts >= MAX_ATTEMPTS) {
+          throw internalError({
+            expose: true,
+            messageCode: 'REVIEW_CHECKLIST_EXTRACTION_OVER_MAX_TOKENS',
+          });
+        }
       }
 
       return {
@@ -308,11 +220,20 @@ const checklistDocumentExtractionStep = createStep({
       };
     } catch (error) {
       logger.error(error, 'チェックリスト抽出処理に失敗しました');
-      const normalizedError = normalizeUnknownError(error);
-      errorMessages.push(normalizedError.message);
+      let errorMessage = '';
+      if (
+        NoObjectGeneratedError.isInstance(error) &&
+        error.finishReason === 'length'
+      ) {
+        errorMessage =
+          'AIの大量出力の補正に失敗しました、チェックリストをファイルの分割を検討してください';
+      } else {
+        const normalizedError = normalizeUnknownError(error);
+        errorMessage = normalizedError.message;
+      }
       return {
         status: 'failed' as stepStatus,
-        errorMessage: errorMessages.join('\n'),
+        errorMessage: errorMessage,
       };
     }
   },
@@ -329,136 +250,49 @@ const topicExtractionStep = createStep({
   execute: async ({ inputData, mastra, bail, abortSignal }) => {
     const reviewRepository = getReviewRepository();
     const { files, reviewHistoryId, checklistRequirements } = inputData;
-    const errorMessages: string[] = [];
 
     try {
-      const allTopics: Array<{
-        title: string;
-        file: z.infer<typeof triggerSchema.shape.files.element>;
-        content?: string;
-      }> = [];
+      // 複数ファイルを統合してトピックを抽出
+      const message = await createCombinedMessage(
+        files,
+        'Please extract topics from this document',
+      );
 
-      // 各ファイルからトピックを抽出
-      const extractionPromises = files.map(async (file: UploadFile) => {
-        try {
-          let message;
-          let outputContent: string | undefined = undefined;
+      const topicExtractionAgent = mastra.getAgent('topicExtractionAgent');
+      const outputSchema = z.object({
+        topics: z
+          .array(
+            z.object({
+              topic: z.string().describe('Extracted topic'),
+              reason: z
+                .string()
+                .describe(
+                  'The reason why that topic is necessary for creating checklist items',
+                ),
+            }),
+          )
+          .describe('Extracted topics from the document'),
+      });
+      const runtimeContext =
+        await createRuntimeContext<TopicExtractionAgentRuntimeContext>();
+      if (checklistRequirements) {
+        runtimeContext.set('checklistRequirements', checklistRequirements);
+      }
 
-          // PDFで画像として処理する場合
-          if (
-            file.type === 'application/pdf' &&
-            file.pdfProcessMode === 'image' &&
-            file.imageData &&
-            file.imageData.length > 0
-          ) {
-            if (file.imageData.length > 1) {
-              // ページ別画像モード: すべてのページを含むメッセージを作成
-              const imageMessage = {
-                role: 'user' as const,
-                content: [
-                  {
-                    type: 'text' as const,
-                    text: `Please extract topics from this document: ${file.name} (All ${file.imageData.length} pages)`,
-                  },
-                  // すべてのページ画像を含める
-                  ...file.imageData.map((imageData) => ({
-                    type: 'image' as const,
-                    image: imageData,
-                    mimeType: 'image/png',
-                  })),
-                ],
-              };
-              message = imageMessage;
-            } else {
-              // 統合画像モード: 単一メッセージ
-              const imageMessage = {
-                role: 'user' as const,
-                content: [
-                  {
-                    type: 'text' as const,
-                    text: `Please extract topics from this document: ${file.name}`,
-                  },
-                  {
-                    type: 'image' as const,
-                    image: file.imageData[0],
-                    mimeType: 'image/png',
-                  },
-                ],
-              };
-              message = imageMessage;
-            }
-          } else {
-            // テキスト抽出処理
-            const { content } = await FileExtractor.extractText(file.path, {
-              useCache: false,
-            });
-            message = content;
-            outputContent = content;
-          }
-
-          const topicExtractionAgent = mastra.getAgent('topicExtractionAgent');
-          const outputSchema = z.object({
-            topics: z
-              .array(
-                z.object({
-                  topic: z.string().describe('Extracted topic'),
-                  reason: z
-                    .string()
-                    .describe(
-                      'The reason why that topic is necessary for creating checklist items',
-                    ),
-                }),
-              )
-              .describe('Extracted topics from the document'),
-          });
-          const runtimeContext =
-            await createRuntimeContext<TopicExtractionAgentRuntimeContext>();
-          if (checklistRequirements) {
-            runtimeContext.set('checklistRequirements', checklistRequirements);
-          }
-
-          const extractionResult = await topicExtractionAgent.generate(
-            message,
-            {
-              output: outputSchema,
-              runtimeContext,
-              abortSignal,
-            },
-          );
-
-          logger.debug(
-            `document(${file.name}) extracted topics for creating checklist:`,
-            JSON.stringify(extractionResult.object.topics, null, 2),
-          );
-
-          allTopics.push(
-            ...extractionResult.object.topics.map((t) => ({
-              title: t.topic,
-              file,
-              content: outputContent,
-            })),
-          );
-        } catch (error) {
-          logger.error(
-            error,
-            'チェックリスト作成のトピック抽出処理に失敗しました',
-          );
-          const normalizedError = normalizeUnknownError(error);
-          errorMessages.push(
-            `${file.name}のチェックリスト作成中にエラー: ${normalizedError.message}`,
-          );
-        }
+      const extractionResult = await topicExtractionAgent.generate(message, {
+        output: outputSchema,
+        runtimeContext,
+        abortSignal,
       });
 
-      await Promise.all(extractionPromises);
+      logger.debug(
+        `Combined document extracted topics for creating checklist:`,
+        JSON.stringify(extractionResult.object.topics, null, 2),
+      );
 
-      // エラーがあれば失敗として返す
-      if (errorMessages.length > 0) {
-        return bail({
-          status: 'failed' as stepStatus,
-          errorMessage: errorMessages.join('\n'),
-        });
-      }
+      const allTopics = extractionResult.object.topics.map((t) => ({
+        title: t.topic,
+      }));
 
       // 既存のシステム作成チェックリストを削除
       await reviewRepository.deleteSystemCreatedChecklists(reviewHistoryId);
@@ -470,10 +304,9 @@ const topicExtractionStep = createStep({
     } catch (error) {
       logger.error(error, 'チェックリスト作成のトピック抽出処理に失敗しました');
       const normalizedError = normalizeUnknownError(error);
-      errorMessages.push(`${normalizedError.message}`);
       return bail({
         status: 'failed' as stepStatus,
-        errorMessage: errorMessages.join('\n'),
+        errorMessage: normalizedError.message,
       });
     }
   },
@@ -485,68 +318,21 @@ const topicChecklistCreationStep = createStep({
   description: 'トピックに基づいてチェックリスト項目を作成するステップ',
   inputSchema: z.object({
     title: z.string(),
-    file: triggerSchema.shape.files.element,
-    content: z.string().optional(),
+    files: triggerSchema.shape.files,
     reviewHistoryId: z.string(),
     checklistRequirements: z.string().optional(),
   }),
   outputSchema: topicChecklistStepOutputSchema,
   execute: async ({ inputData, mastra, bail, abortSignal }) => {
-    const { title, file, content, reviewHistoryId, checklistRequirements } =
-      inputData;
+    const { title, files, reviewHistoryId, checklistRequirements } = inputData;
     const reviewRepository = getReviewRepository();
 
     try {
-      let message;
-
-      // PDFで画像として処理する場合
-      if (
-        file.type === 'application/pdf' &&
-        file.pdfProcessMode === 'image' &&
-        file.imageData &&
-        file.imageData.length > 0
-      ) {
-        if (file.imageData.length > 1) {
-          // ページ別画像モードの場合、すべてのページを統合したメッセージを作成
-          // (このステップでは特定のトピックに基づいてチェックリスト作成するため、全ページを含める)
-          const imageMessage = {
-            role: 'user' as const,
-            content: [
-              {
-                type: 'text' as const,
-                text: `Please create checklist items from this document: ${file.name} (All ${file.imageData.length} pages) for topic: ${title}`,
-              },
-              // すべてのページ画像を含める
-              ...file.imageData.map((imageData) => ({
-                type: 'image' as const,
-                image: imageData,
-                mimeType: 'image/png',
-              })),
-            ],
-          };
-          message = imageMessage;
-        } else {
-          // 統合画像モード: 単一メッセージ
-          const imageMessage = {
-            role: 'user' as const,
-            content: [
-              {
-                type: 'text' as const,
-                text: `Please create checklist items from this document: ${file.name}`,
-              },
-              {
-                type: 'image' as const,
-                image: file.imageData[0],
-                mimeType: 'image/png',
-              },
-            ],
-          };
-          message = imageMessage;
-        }
-      } else {
-        // テキスト抽出処理
-        message = content!;
-      }
+      // 複数ファイルを統合してメッセージを作成
+      const message = await createCombinedMessage(
+        files,
+        `Please create checklist items from this document for topic: ${title}`,
+      );
       const topicChecklistAgent = mastra.getAgent('topicChecklistAgent');
       const outputSchema = z.object({
         checklistItems: z
@@ -578,7 +364,7 @@ const topicChecklistCreationStep = createStep({
         abortSignal,
       });
       logger.debug(
-        `document(${file.name}) topic(${title}) generated checklist items:`,
+        `Combined document topic(${title}) generated checklist items:`,
         JSON.stringify(result.object.checklistItems, null, 2),
       );
 
@@ -616,7 +402,7 @@ const topicChecklistCreationStep = createStep({
       const normalizedError = normalizeUnknownError(error);
       return bail({
         status: 'failed' as stepStatus,
-        errorMessage: `${file.name}のチェックリスト作成中にエラー: ${normalizedError.message}`,
+        errorMessage: normalizedError.message,
       });
     }
   },
@@ -728,8 +514,7 @@ export const checklistExtractionWorkflow = createWorkflow({
 
           return topicResult.topics.map((topic) => ({
             title: topic.title,
-            file: topic.file,
-            content: topic.content,
+            files: initData.files, // 統合されたファイル群を渡す
             reviewHistoryId: initData.reviewHistoryId,
             checklistRequirements: initData.checklistRequirements,
           }));

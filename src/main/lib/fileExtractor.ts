@@ -222,20 +222,14 @@ export default class FileExtractor {
           content = cachedContent;
         } else {
           content = await this.extractContentByType(filePath, extension);
-          content = this.normalizeExtractedText(
-            content,
-            options?.textPostProcess,
-          );
           // 抽出したテキストをキャッシュに保存
           await this.saveCache(filePath, content);
         }
       } else {
         content = await this.extractContentByType(filePath, extension);
-        content = this.normalizeExtractedText(
-          content,
-          options?.textPostProcess,
-        );
       }
+
+      content = this.normalizeExtractedText(content, options?.textPostProcess);
 
       return {
         content,

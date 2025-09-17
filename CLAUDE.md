@@ -200,6 +200,39 @@ ElectronのIPCを使用してフロントエンド・バックエンド間の通
 
 ## 依頼タスク
 ### 要件
-- sourceRegistration workflowの改善
-  - `src/mastra/workflows/sourceRegistration/sourceRegistrationManager.ts`内でファイルからのテキスト抽出を実行を実行するのではなく、`src/mastra/workflows/sourceRegistration/sourceRegistration.ts`内でテキスト抽出を行う
-    - テキスト抽出エラーについてもsourceテーブルのエラー情報に格納したいため
+- ドキュメントレビュー機能のチェクリスト抽出、レビュー実行時の複数ファイルが選択された場合の挙動を変更
+  - 従来は複数の独立したドキュメントとして扱っていたが、複数ファイルを統合した一つのドキュメントとして扱う
+### UI要件
+- 「複数ファイルを選択した場合、選択した順番で結合され一つのドキュメントとして扱われます」とアラート文に追記すること
+### 実装時の注意
+- ファイル結合の際は以下の形式で結合すること
+```
+# ファイルA.xlsx
+...
+...
+# ファイルB.docx
+...
+...
+```
+- AIに送信するメッセージは以下のようにすること(正しい型や形式については既存実装を参考にすること)
+```
+{
+  role: 'user'
+  content: [
+    {
+      type: 'text',
+      text: 'Please extract checklist items from this document: ${contentに含める全てのファイル名を展開}' # タスクによって文言は変える
+    },
+    {
+      type: 'text'
+      text: `${単一、又は結合済みのファイル内容}`
+    },
+    { # PDFページ別画像変換モードの場合はページ分のimageメッセージが作成されるはず
+      type: 'image'
+      image: '~'
+    },
+  ]
+}
+```
+- `src/mastra/lib/util.ts`に共通で利用できるメッセージ作成関数を作成して、処理を効率化すること
+- 従来の独立した複数ドキュメントとして扱う形式からの変更により、workflowの処理が効率化できる部分も多いと思うので、既存実装を十分に理解した上で効率化できる部分はそうすること
