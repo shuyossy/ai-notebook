@@ -4,7 +4,7 @@ import { ErrorCode, MessageCode } from '@/types';
 import { MessageParams } from './messages';
 import { formatMessage } from './messages';
 import { AppErrorPayload } from '@/types';
-import { APICallError, RetryError } from 'ai';
+import { APICallError, NoObjectGeneratedError, RetryError } from 'ai';
 // @ts-ignore
 import { MastraError } from '@mastra/core/error';
 import { error } from 'console';
@@ -90,6 +90,8 @@ export function normalizeUnknownError(err: unknown): AppError {
       aiApiSafeError.responseHeaders
     ) {
       errorMessage += `: ${aiApiSafeError.responseHeaders.errorMessage || aiApiSafeError.responseHeaders.errormessage || JSON.stringify(aiApiSafeError.responseBody, null, 2)}`;
+    } else if (NoObjectGeneratedError.isInstance(aiApiSafeError)) {
+      errorMessage = 'AIから不正な応答を検知したため処理を終了しました';
     }
     return new AppError('AI_API', {
       expose: true,
@@ -130,6 +132,7 @@ export function extractAIAPISafeError(error: unknown): Error | null {
   if (APICallError.isInstance(error)) return error;
   if (error instanceof MastraError) {
     if (APICallError.isInstance(error.cause)) return error.cause;
+    if (NoObjectGeneratedError.isInstance(error.cause)) return error.cause;
     if (RetryError.isInstance(error.cause)) {
       for (const e of error.cause.errors) {
         if (APICallError.isInstance(e)) return e;
