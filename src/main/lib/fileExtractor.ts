@@ -66,7 +66,7 @@ const DEFAULT_POST_PROCESS_POLICY: TextPostProcessPolicy = {
   collapsePreserveIndent: true,
   trimLineEndSpaces: true,
   removeTrailingCommas: true,
-  preserveCsvTrailingEmptyFields: true,
+  preserveCsvTrailingEmptyFields: false,
   maxConsecutiveBlankLines: 2,
   removeCommaOnlyLines: true,
 };
