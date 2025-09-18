@@ -37,17 +37,21 @@ export async function createCombinedMessage(
       file.imageData &&
       file.imageData.length > 0
     ) {
-      // 画像ファイル用のテキスト説明を追加
-      content.push({
-        type: 'text',
-        text: `# ${file.name}(Attached below as image)`,
-      });
+      // 各ページごとに個別の説明と画像を追加
+      const totalPages = file.imageData.length;
+      for (let pageIndex = 0; pageIndex < file.imageData.length; pageIndex++) {
+        const currentPage = pageIndex + 1;
 
-      // 画像データを追加
-      for (const imageData of file.imageData) {
+        // ページ番号を含むテキスト説明を追加
+        content.push({
+          type: 'text',
+          text: `# ${file.name}: Page ${currentPage}/${totalPages}`,
+        });
+
+        // 該当ページの画像データを追加
         content.push({
           type: 'image',
-          image: imageData,
+          image: file.imageData[pageIndex],
           mimeType: 'image/png',
         });
       }

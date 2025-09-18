@@ -380,21 +380,21 @@ const reviewExecutionStep = createStep({
       };
     } catch (error) {
       logger.error(error, 'チェックリストのレビュー実行処理に失敗しました');
-      let errorDetail: string;
+      let errorMessage: string;
       if (
         NoObjectGeneratedError.isInstance(error) &&
         error.finishReason === 'length'
       ) {
         // AIモデルが生成できる文字数を超えているため、手動でレビューを分割
-        errorDetail = `AIモデルが生成できる文字数を超えています。チェックリスト量の削減を検討してください。`;
+        errorMessage = `AIモデルが生成できる文字数を超えています。チェックリスト量の削減を検討してください。`;
       } else {
         const normalizedError = normalizeUnknownError(error);
-        errorDetail = normalizedError.message;
+        errorMessage = normalizedError.message;
       }
-      // エラーが発生した場合はエラ
+      // エラーが発生した場合はエラー情報を返す
       return {
         status: 'failed' as stepStatus,
-        errorMessage: errorDetail,
+        errorMessage,
       };
     }
   },
