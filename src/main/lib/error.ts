@@ -7,7 +7,6 @@ import { AppErrorPayload } from '@/types';
 import { APICallError, NoObjectGeneratedError, RetryError } from 'ai';
 // @ts-ignore
 import { MastraError } from '@mastra/core/error';
-import { error } from 'console';
 
 /**
  * 例外として扱うアプリケーションエラー。
