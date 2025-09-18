@@ -63,6 +63,42 @@ export default class SourceRegistrationManager {
   }
 
   /**
+   * DBに存在するが実ファイルが存在しないソースを削除
+   */
+  public async removeNonexistentSources(): Promise<void> {
+    const store = await this.settingsRepository.getSettings();
+    const { registerDir } = store.source;
+    if (!registerDir || registerDir.trim() === '') {
+      throw internalError({
+        expose: true,
+        messageCode: 'SOURCE_REGISTRATION_DIR_NOT_SET',
+      });
+    }
+    let files: string[] = [];
+    if (registerDir.trim() !== '') {
+      // フォルダ内のファイル一覧を取得
+      files = await this.readDirectoryRecursively(registerDir);
+    }
+
+    // DB接続を一度だけ確立
+    const allSources = await this.sourceRepository.getAllSources();
+
+    // DBに存在するが実ファイルが存在しないソースを削除
+    const existingPaths = new Set(files);
+    const toDeleteSources = allSources.filter(
+      (source) => !existingPaths.has(source.path),
+    );
+    if (toDeleteSources.length > 0) {
+      for (const source of toDeleteSources) {
+        await this.deleteSourceAndCache(source.path);
+      }
+      console.log(
+        `${toDeleteSources.length}件の存在しないファイルのソース情報を削除しました`,
+      );
+    }
+  }
+
+  /**
    * フォルダ内の全てのファイルを登録
    */
   public async registerAllFiles(excludeRegisteredFile = true): Promise<void> {

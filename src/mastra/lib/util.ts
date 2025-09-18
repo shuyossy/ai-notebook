@@ -57,9 +57,7 @@ export async function createCombinedMessage(
       }
     } else {
       // テキスト抽出処理
-      const { content: fileContent } = await FileExtractor.extractText(file.path, {
-        useCache: true,
-      });
+      const { content: fileContent } = await FileExtractor.extractText(file.path);
 
       // ファイルごとに個別のcontent要素として追加
       content.push({

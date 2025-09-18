@@ -93,6 +93,7 @@ import { getMainLogger } from './lib/logger';
 import { internalError, normalizeUnknownError, toPayload } from './lib/error';
 import { formatMessage } from './lib/messages';
 import { SourceService } from './service/sourceService';
+import FileExtractor from './lib/fileExtractor';
 import { ZodSchema } from 'zod';
 import { normalizeUnknownIpcError } from './lib/error';
 import { setupElectronPushBroker } from './push/electronPushBroker';
@@ -532,10 +533,9 @@ const initializeSourceRegistration = async () => {
   );
   await registrationManager.clearProcessingSources();
 
-  // ソース登録を実行
-  logger.debug('ドキュメントの登録を実行しています');
-  await registrationManager.registerAllFiles();
-  console.log('ソースファイルの初期登録が完了しました');
+  // 削除済みファイルに対応したDBレコードの削除
+  logger.debug('削除済みドキュメントの登録情報を削除しています');
+  await registrationManager.removeNonexistentSources();
 };
 
 let mainWindow: BrowserWindow | null = null;
@@ -650,6 +650,7 @@ const initialize = async () => {
   createWindow();
   await initializeAgentStatus();
   setupElectronPushBroker();
+  FileExtractor.cleanCacheDirectory();
   setupSettingsHandlers();
   setupChatHandlers();
   setupFsHandlers();

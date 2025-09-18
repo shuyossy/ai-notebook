@@ -71,6 +71,17 @@ const DEFAULT_POST_PROCESS_POLICY: TextPostProcessPolicy = {
   removeCommaOnlyLines: true,
 };
 
+/** キャッシュデータの型定義 */
+interface CacheData {
+  content: string;
+  metadata: {
+    filePath: string;
+    lastModified: number;
+    fileSize: number;
+    extractedAt: number;
+  };
+}
+
 /** 抽出結果の型定義 */
 export interface ExtractionResult {
   content: string;
@@ -84,7 +95,6 @@ export interface ExtractionResult {
 
 /** extractText オプション */
 type ExtractTextOptions = {
-  useCache?: boolean;
   textPostProcess?: Partial<TextPostProcessPolicy>;
 };
 
@@ -110,7 +120,7 @@ export default class FileExtractor {
    */
   private static getCacheFilePath(filePath: string): string {
     const hash = createHash('md5').update(filePath).digest('hex');
-    return path.join(this.getCacheDir(), `${hash}.txt`);
+    return path.join(this.getCacheDir(), `${hash}.json`);
   }
 
   /**
@@ -148,11 +158,22 @@ export default class FileExtractor {
   private static async tryReadCache(filePath: string): Promise<string | null> {
     try {
       const cachePath = this.getCacheFilePath(filePath);
-      const content = await fs.readFile(cachePath, 'utf-8');
-      return content;
+      const cacheContent = await fs.readFile(cachePath, 'utf-8');
+      const cacheData: CacheData = JSON.parse(cacheContent);
+
+      // ファイルの現在の情報を取得
+      const stats = await fs.stat(filePath);
+
+      // ファイルが更新されている場合はキャッシュを無効とする
+      if (stats.mtimeMs !== cacheData.metadata.lastModified) {
+        logger.debug({ filePath, cachePath }, 'ファイルが更新されているためキャッシュを無効化します');
+        await this.deleteCache(filePath);
+        return null;
+      }
+
+      return cacheData.content;
     } catch (error) {
-      // ファイルが存在しない場合は null を返す
-      // ファイルが存在するが、取り出せない場合(≠ENOENT)はログに出す
+      // ファイルが存在しない場合やJSONパースエラーの場合は null を返す
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
         logger.error({ error, filePath }, 'キャッシュの読み込みに失敗しました');
       }
@@ -166,10 +187,20 @@ export default class FileExtractor {
   private static async saveCache(
     filePath: string,
     content: string,
+    stats: { mtimeMs: number; size: number },
   ): Promise<void> {
     try {
       const cachePath = this.getCacheFilePath(filePath);
-      await fs.writeFile(cachePath, content, 'utf-8');
+      const cacheData: CacheData = {
+        content,
+        metadata: {
+          filePath,
+          lastModified: stats.mtimeMs,
+          fileSize: stats.size,
+          extractedAt: Date.now(),
+        },
+      };
+      await fs.writeFile(cachePath, JSON.stringify(cacheData, null, 2), 'utf-8');
     } catch (error) {
       // キャッシュが保存できない場合は大きな問題にならないのでエラーは握りつぶす
       logger.error({ error, filePath }, 'キャッシュの保存に失敗しました');
@@ -200,7 +231,6 @@ export default class FileExtractor {
     options?: ExtractTextOptions,
   ): Promise<ExtractionResult> {
     const extension = path.extname(filePath).toLowerCase();
-    const useCache = options?.useCache ?? true;
 
     // if (!this.SUPPORTED_EXTENSIONS.includes(extension)) {
     //   throw this.createError(
@@ -215,15 +245,15 @@ export default class FileExtractor {
       const stats = await fs.stat(filePath);
       let content: string;
 
-      // キャッシュ対象かつキャッシュ使用が有効の場合、キャッシュをチェック
-      if (useCache && this.isCacheTarget(filePath)) {
+      // キャッシュ対象の場合、キャッシュをチェック
+      if (this.isCacheTarget(filePath)) {
         const cachedContent = await this.tryReadCache(filePath);
         if (cachedContent) {
           content = cachedContent;
         } else {
           content = await this.extractContentByType(filePath, extension);
           // 抽出したテキストをキャッシュに保存
-          await this.saveCache(filePath, content);
+          await this.saveCache(filePath, content, stats);
         }
       } else {
         content = await this.extractContentByType(filePath, extension);
@@ -668,5 +698,71 @@ try {
 
     await pdf.destroy();
     return result.trim();
+  }
+
+  /**
+   * キャッシュディレクトリをクリーニングする
+   * - 元ファイルが存在しないキャッシュファイルを削除
+   * - ファイル更新日時が古いキャッシュファイルを削除
+   * - 不正なJSONキャッシュファイルを削除
+   */
+  public static async cleanCacheDirectory(): Promise<void> {
+    try {
+      const cacheDir = this.getCacheDir();
+      const cacheFiles = await fs.readdir(cacheDir);
+
+      logger.info(`キャッシュディレクトリのクリーニングを開始: ${cacheDir}`);
+
+      let deletedCount = 0;
+
+      for (const fileName of cacheFiles) {
+        const cacheFilePath = path.join(cacheDir, fileName);
+
+        try {
+          // .jsonファイル以外はスキップ
+          if (!fileName.endsWith('.json')) {
+            continue;
+          }
+
+          // JSONキャッシュファイルの内容を読み取り
+          const cacheContent = await fs.readFile(cacheFilePath, 'utf-8');
+          const cacheData: CacheData = JSON.parse(cacheContent);
+
+          // 元ファイルの存在確認
+          const originalFilePath = cacheData.metadata.filePath;
+
+          try {
+            const stats = await fs.stat(originalFilePath);
+
+            // ファイル更新日時が異なる場合は削除
+            if (stats.mtimeMs !== cacheData.metadata.lastModified) {
+              await fs.unlink(cacheFilePath);
+              deletedCount++;
+              logger.debug(`ファイル更新日時が古いキャッシュを削除: ${fileName}`);
+            }
+          } catch (statError) {
+            // 元ファイルが存在しない場合は削除
+            if ((statError as NodeJS.ErrnoException).code === 'ENOENT') {
+              await fs.unlink(cacheFilePath);
+              deletedCount++;
+              logger.debug(`元ファイルが存在しないキャッシュを削除: ${fileName}`);
+            }
+          }
+        } catch (processError) {
+          // JSONパースエラーなど、不正なキャッシュファイルは削除
+          try {
+            await fs.unlink(cacheFilePath);
+            deletedCount++;
+            logger.debug(`不正なキャッシュファイルを削除: ${fileName}`);
+          } catch (unlinkError) {
+            logger.error({ error: unlinkError, fileName }, 'キャッシュファイルの削除に失敗');
+          }
+        }
+      }
+
+      logger.info(`キャッシュクリーニング完了: ${deletedCount}個のファイルを削除`);
+    } catch (error) {
+      logger.error({ error }, 'キャッシュディレクトリのクリーニングに失敗しました');
+    }
   }
 }
