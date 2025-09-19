@@ -9,6 +9,7 @@ import {
 import { generateReviewTitle } from '@/mastra/workflows/sourceReview/lib';
 import { RevieHistory } from '@/types';
 import FileExtractor from '@/main/lib/fileExtractor';
+import { CsvParser } from '@/main/lib/csvParser';
 import { publishEvent } from '../lib/eventPayloadHelper';
 import { internalError, normalizeUnknownError, toPayload } from '../lib/error';
 
@@ -192,22 +193,13 @@ export class ReviewService implements IReviewService {
         const extractionResult = await FileExtractor.extractText(file.path);
         const csvText = extractionResult.content;
 
-        // CSVテキストを行に分割
-        const lines = csvText.split('\n');
+        // CSVパーサーを使用してセル内改行を保持しつつ1列目を抽出
+        const firstColumnItems = CsvParser.extractFirstColumn(csvText);
 
-        // 各行の1列目を取得（空行、空文字は除外）
-        for (const line of lines) {
-          const trimmedLine = line.trim();
-          if (trimmedLine) {
-            // CSVの1列目を取得（カンマ区切りの最初の値）
-            const firstColumn = trimmedLine.split(',')[0]?.trim();
-            if (firstColumn && firstColumn !== '') {
-              // ダブルクォートを除去
-              const cleanedItem = firstColumn.replace(/^"(.*)"$/, '$1');
-              if (cleanedItem) {
-                allChecklistItems.push(cleanedItem);
-              }
-            }
+        // 各項目をチェックリスト項目として追加
+        for (const item of firstColumnItems) {
+          if (item && item.trim() !== '') {
+            allChecklistItems.push(item.trim());
           }
         }
       }
