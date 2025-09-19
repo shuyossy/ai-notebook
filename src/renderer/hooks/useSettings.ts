@@ -44,11 +44,7 @@ const useSettingsStore = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const {
-    setUpdatedFlg,
-    setStatus: setAgentStatus,
-    status: agentStatus,
-  } = useAgentStatusStore();
+  const { setUpdatedFlg, setStatus: setAgentStatus } = useAgentStatusStore();
 
   // エージェント状態のポーリング制御
   const [agentStatusPolling, setAgentStatusPolling] = useState(false);
@@ -67,6 +63,7 @@ const useSettingsStore = () => {
     });
     if (data) {
       setAgentStatus(data);
+      return data;
     }
   }, [settingsApi, setAgentStatus]);
 
@@ -195,8 +192,8 @@ const useSettingsStore = () => {
 
     const loadAgentStatus = async () => {
       try {
-        await fetchAgentStatus();
-        if (agentStatus.state === 'saving') {
+        const status = await fetchAgentStatus();
+        if (status?.state === 'saving') {
           throw new Error('エージェント初期化中のため状態取得を再試行します');
         }
         if (intervalId) {
