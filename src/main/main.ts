@@ -49,7 +49,12 @@ export function getCustomAppDataDir(): string {
       return app.getPath('userData');
     }
     // Windows インストーラ版は exe と同階層 （Program Files でも書き込める）
-    return path.dirname(process.execPath);
+    // exe が格納されているディレクトリ
+    const exeDir = path.dirname(process.execPath);
+    // exeDir の親ディレクトリ
+    const parentDir = path.dirname(exeDir);
+    // 同階層に aikataAppData を配置
+    return path.join(parentDir, 'aikataAppData');
   }
 
   // --- ③ 開発時 (electron . / npm start) -----------------------
@@ -463,7 +468,10 @@ const setupReviewHandlers = () => {
         additionalInstructions,
         commentFormat,
       );
-      reviewService.updateReviewEvaluationSettings(reviewHistoryId, evaluationSettings);
+      reviewService.updateReviewEvaluationSettings(
+        reviewHistoryId,
+        evaluationSettings,
+      );
       const manager = SourceReviewManager.getInstance();
 
       // 非同期でレビュー実行処理を実行
