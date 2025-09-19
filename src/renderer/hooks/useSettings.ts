@@ -11,12 +11,16 @@ import { useAgentStatusStore } from '../stores/agentStatusStore';
 import { useAlertStore } from '../stores/alertStore';
 import { getSafeErrorMessage, internalError } from '../lib/error';
 
+type AppSettings = Omit<Settings, 'mcp'> & {
+  mcp: { serverConfig: string | undefined };
+};
+
 /**
  * 設定値の型安全な管理と検証を行うフック
  */
 const useSettingsStore = () => {
   // 設定値の状態管理
-  const [settings, setSettings] = useState<Settings>({
+  const [settings, setSettings] = useState<AppSettings>({
     database: { dir: '' },
     source: { registerDir: './source' },
     api: { key: '', url: '', model: '' },
@@ -40,7 +44,11 @@ const useSettingsStore = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const { setUpdatedFlg, setStatus: setAgentStatus } = useAgentStatusStore();
+  const {
+    setUpdatedFlg,
+    setStatus: setAgentStatus,
+    status: agentStatus,
+  } = useAgentStatusStore();
 
   // エージェント状態のポーリング制御
   const [agentStatusPolling, setAgentStatusPolling] = useState(false);
@@ -77,7 +85,10 @@ const useSettingsStore = () => {
    * セクション単位でのバリデーション実行
    */
   const validateSection = useCallback(
-    async (section: keyof Settings, value: Settings[keyof Settings]) => {
+    async (
+      section: keyof AppSettings,
+      value: AppSettings[keyof AppSettings],
+    ) => {
       try {
         // セクションごとのスキーマを取得
         const schema = SettingsSchema.shape[section];
@@ -135,11 +146,19 @@ const useSettingsStore = () => {
         });
 
         if (loadedSettings) {
-          setSettings(loadedSettings);
+          const loadedAppSettings = {
+            ...loadedSettings,
+            mcp: {
+              serverConfig: loadedSettings.mcp.serverConfig
+                ? JSON.stringify(loadedSettings.mcp.serverConfig, null, 2)
+                : undefined,
+            },
+          };
+          setSettings(loadedAppSettings);
 
           // 各セクションのバリデーションを実行
-          Object.entries(loadedSettings).forEach(([section, value]) => {
-            validateSection(section as keyof Settings, value);
+          Object.entries(loadedAppSettings).forEach(([section, value]) => {
+            validateSection(section as keyof AppSettings, value);
           });
         }
 
@@ -177,6 +196,9 @@ const useSettingsStore = () => {
     const loadAgentStatus = async () => {
       try {
         await fetchAgentStatus();
+        if (agentStatus.state === 'saving') {
+          throw new Error('エージェント初期化中のため状態取得を再試行します');
+        }
         if (intervalId) {
           clearInterval(intervalId);
           intervalId = null;

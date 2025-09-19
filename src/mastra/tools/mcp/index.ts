@@ -4,8 +4,10 @@ import { writeFileSync } from 'fs';
 import { z } from 'zod';
 import { McpSchema } from '@/types';
 import { getMainLogger } from '@/main/lib/logger';
+import { getCustomAppDataDir } from '@/main/main';
+import path from 'path';
 
-const LOG_FILE_PATH = './mcp.log';
+const LOG_FILE_PATH = path.join(getCustomAppDataDir(), 'mcp.log');
 
 const systemLogger = getMainLogger();
 
