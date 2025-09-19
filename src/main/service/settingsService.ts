@@ -209,7 +209,7 @@ export class SettingsService implements ISettingsService {
           this.status.messages.push({
             id: crypto.randomUUID(),
             type: 'error',
-            content: `MCPサーバとの接続に失敗しました\\nログについては${mcpResult.logPath}をご確認ください`,
+            content: `MCPサーバとの接続に失敗しました\nログについては${mcpResult.logPath}をご確認ください`,
           });
         }
       }
@@ -253,14 +253,14 @@ export class SettingsService implements ISettingsService {
       }
       // 初期化完了状態に更新
       this.status.state = 'done';
-      
+
       // 設定更新完了イベントを発行（成功）
       publishEvent(IpcChannels.SETTINGS_UPDATE_FINISHED, { success: true });
     } catch (error) {
       // 設定更新完了イベントを発行（失敗）
       const errorMessage = error instanceof Error ? error.message : '不明なエラーが発生しました';
       publishEvent(IpcChannels.SETTINGS_UPDATE_FINISHED, { success: false, error: errorMessage });
-      
+
       // エラーを再throw
       throw error;
     }

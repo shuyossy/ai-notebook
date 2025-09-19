@@ -84,6 +84,7 @@ export const initializeMCPClient = async ({
     await mcpClient.getToolsets();
     return {
       success: true,
+      mcpClient,
       logPath: LOG_FILE_PATH,
     };
   } catch (error) {
