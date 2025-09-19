@@ -1,393 +1,96 @@
-diff --git a/CLAUDE.md b/CLAUDE.md
-index ca822f264..3bd0f2205 100644
---- a/CLAUDE.md
-+++ b/CLAUDE.md
-@@ -200,39 +200,11 @@ ElectronのIPCを使用してフロントエンド・バックエンド間の通
+diff --git a/src/mastra/tools/mcp/index.ts b/src/mastra/tools/mcp/index.ts
+index 88a8f9491..3f77dc173 100644
+--- a/src/mastra/tools/mcp/index.ts
++++ b/src/mastra/tools/mcp/index.ts
+@@ -4,8 +4,10 @@ import { writeFileSync } from 'fs';
+ import { z } from 'zod';
+ import { McpSchema } from '@/types';
+ import { getMainLogger } from '@/main/lib/logger';
++import { getCustomAppDataDir } from '@/main/main';
++import path from 'path';
  
- ## 依頼タスク
- ### 要件
--- ドキュメントレビュー機能のチェクリスト抽出、レビュー実行時の複数ファイルが選択された場合の挙動を変更
--  - 従来は複数の独立したドキュメントとして扱っていたが、複数ファイルを統合した一つのドキュメントとして扱う
--### UI要件
--- 「複数ファイルを選択した場合、選択した順番で結合され一つのドキュメントとして扱われます」とアラート文に追記すること
--### 実装時の注意
--- ファイル結合の際は以下の形式で結合すること
--```
--# ファイルA.xlsx
--...
--...
--# ファイルB.docx
--...
--...
--```
--- AIに送信するメッセージは以下のようにすること(正しい型や形式については既存実装を参考にすること)
--```
--{
--  role: 'user'
--  content: [
--    {
--      type: 'text',
--      text: 'Please extract checklist items from this document: ${contentに含める全てのファイル名を展開}' # タスクによって文言は変える
--    },
--    {
--      type: 'text'
--      text: `${単一、又は結合済みのファイル内容}`
--    },
--    { # PDFページ別画像変換モードの場合はページ分のimageメッセージが作成されるはず
--      type: 'image'
--      image: '~'
--    },
--  ]
--}
--```
--- `src/mastra/lib/util.ts`に共通で利用できるメッセージ作成関数を作成して、処理を効率化すること
--- 従来の独立した複数ドキュメントとして扱う形式からの変更により、workflowの処理が効率化できる部分も多いと思うので、既存実装を十分に理解した上で効率化できる部分はそうすること
-+- テキスト抽出処理(`src/main/lib/fileExtractor.ts`)、キャッシュ有無のオプションを廃止、デフォルトでキャッシュするように変更
-+  - キャッシュはJsonオブジェクトに変更
-+    - オブジェクトにはメタデータ（ファイルパス、ファイルの最終更新日時）を付与する
-+    - ファイル名は現在と同様にファイルパスのハッシュ値をもとに生成した文字列とする
-+  - ファイルの最終更新日時が変更されていた場合はキャッシュを破棄し、再度テキスト抽出処理を実行する
-+  - 起動時のmain.tsでキャッシュディレクトリのクリーニング処理を実施
-+    - 抽出元のファイルが削除された場合、最新版と最終更新日時がずれているキャッシュについては削除
-+    - ただし、キャッシュディレクトリのパスは`src/main/lib/fileExtractor.ts`で一元管理すること
-diff --git a/src/main/lib/fileExtractor.ts b/src/main/lib/fileExtractor.ts
-index 3bd4c436f..6d041da14 100644
---- a/src/main/lib/fileExtractor.ts
-+++ b/src/main/lib/fileExtractor.ts
-@@ -71,6 +71,17 @@ const DEFAULT_POST_PROCESS_POLICY: TextPostProcessPolicy = {
-   removeCommaOnlyLines: true,
- };
+-const LOG_FILE_PATH = './mcp.log';
++const LOG_FILE_PATH = path.join(getCustomAppDataDir(), 'mcp.log');
  
-+/** キャッシュデータの型定義 */
-+interface CacheData {
-+  content: string;
-+  metadata: {
-+    filePath: string;
-+    lastModified: number;
-+    fileSize: number;
-+    extractedAt: number;
-+  };
-+}
+ const systemLogger = getMainLogger();
+ 
+diff --git a/src/renderer/hooks/useSettings.ts b/src/renderer/hooks/useSettings.ts
+index 85592c279..b71070dd8 100644
+--- a/src/renderer/hooks/useSettings.ts
++++ b/src/renderer/hooks/useSettings.ts
+@@ -11,12 +11,16 @@ import { useAgentStatusStore } from '../stores/agentStatusStore';
+ import { useAlertStore } from '../stores/alertStore';
+ import { getSafeErrorMessage, internalError } from '../lib/error';
+ 
++type AppSettings = Omit<Settings, 'mcp'> & {
++  mcp: { serverConfig: string | undefined };
++};
 +
- /** 抽出結果の型定義 */
- export interface ExtractionResult {
-   content: string;
-@@ -84,7 +95,6 @@ export interface ExtractionResult {
+ /**
+  * 設定値の型安全な管理と検証を行うフック
+  */
+ const useSettingsStore = () => {
+   // 設定値の状態管理
+-  const [settings, setSettings] = useState<Settings>({
++  const [settings, setSettings] = useState<AppSettings>({
+     database: { dir: '' },
+     source: { registerDir: './source' },
+     api: { key: '', url: '', model: '' },
+@@ -40,7 +44,11 @@ const useSettingsStore = () => {
+   const [loading, setLoading] = useState(true);
+   const [saving, setSaving] = useState(false);
+   const [saveError, setSaveError] = useState<string | null>(null);
+-  const { setUpdatedFlg, setStatus: setAgentStatus } = useAgentStatusStore();
++  const {
++    setUpdatedFlg,
++    setStatus: setAgentStatus,
++    status: agentStatus,
++  } = useAgentStatusStore();
  
- /** extractText オプション */
- type ExtractTextOptions = {
--  useCache?: boolean;
-   textPostProcess?: Partial<TextPostProcessPolicy>;
- };
- 
-@@ -110,7 +120,7 @@ export default class FileExtractor {
+   // エージェント状態のポーリング制御
+   const [agentStatusPolling, setAgentStatusPolling] = useState(false);
+@@ -77,7 +85,10 @@ const useSettingsStore = () => {
+    * セクション単位でのバリデーション実行
     */
-   private static getCacheFilePath(filePath: string): string {
-     const hash = createHash('md5').update(filePath).digest('hex');
--    return path.join(this.getCacheDir(), `${hash}.txt`);
-+    return path.join(this.getCacheDir(), `${hash}.json`);
-   }
- 
-   /**
-@@ -148,11 +158,22 @@ export default class FileExtractor {
-   private static async tryReadCache(filePath: string): Promise<string | null> {
-     try {
-       const cachePath = this.getCacheFilePath(filePath);
--      const content = await fs.readFile(cachePath, 'utf-8');
--      return content;
-+      const cacheContent = await fs.readFile(cachePath, 'utf-8');
-+      const cacheData: CacheData = JSON.parse(cacheContent);
-+
-+      // ファイルの現在の情報を取得
-+      const stats = await fs.stat(filePath);
-+
-+      // ファイルが更新されている場合はキャッシュを無効とする
-+      if (stats.mtimeMs !== cacheData.metadata.lastModified) {
-+        logger.debug({ filePath, cachePath }, 'ファイルが更新されているためキャッシュを無効化します');
-+        await this.deleteCache(filePath);
-+        return null;
-+      }
-+
-+      return cacheData.content;
-     } catch (error) {
--      // ファイルが存在しない場合は null を返す
--      // ファイルが存在するが、取り出せない場合(≠ENOENT)はログに出す
-+      // ファイルが存在しない場合やJSONパースエラーの場合は null を返す
-       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-         logger.error({ error, filePath }, 'キャッシュの読み込みに失敗しました');
-       }
-@@ -166,10 +187,20 @@ export default class FileExtractor {
-   private static async saveCache(
-     filePath: string,
-     content: string,
-+    stats: { mtimeMs: number; size: number },
-   ): Promise<void> {
-     try {
-       const cachePath = this.getCacheFilePath(filePath);
--      await fs.writeFile(cachePath, content, 'utf-8');
-+      const cacheData: CacheData = {
-+        content,
-+        metadata: {
-+          filePath,
-+          lastModified: stats.mtimeMs,
-+          fileSize: stats.size,
-+          extractedAt: Date.now(),
-+        },
-+      };
-+      await fs.writeFile(cachePath, JSON.stringify(cacheData, null, 2), 'utf-8');
-     } catch (error) {
-       // キャッシュが保存できない場合は大きな問題にならないのでエラーは握りつぶす
-       logger.error({ error, filePath }, 'キャッシュの保存に失敗しました');
-@@ -200,7 +231,6 @@ export default class FileExtractor {
-     options?: ExtractTextOptions,
-   ): Promise<ExtractionResult> {
-     const extension = path.extname(filePath).toLowerCase();
--    const useCache = options?.useCache ?? true;
- 
-     // if (!this.SUPPORTED_EXTENSIONS.includes(extension)) {
-     //   throw this.createError(
-@@ -215,15 +245,15 @@ export default class FileExtractor {
-       const stats = await fs.stat(filePath);
-       let content: string;
- 
--      // キャッシュ対象かつキャッシュ使用が有効の場合、キャッシュをチェック
--      if (useCache && this.isCacheTarget(filePath)) {
-+      // キャッシュ対象の場合、キャッシュをチェック
-+      if (this.isCacheTarget(filePath)) {
-         const cachedContent = await this.tryReadCache(filePath);
-         if (cachedContent) {
-           content = cachedContent;
-         } else {
-           content = await this.extractContentByType(filePath, extension);
-           // 抽出したテキストをキャッシュに保存
--          await this.saveCache(filePath, content);
-+          await this.saveCache(filePath, content, stats);
-         }
-       } else {
-         content = await this.extractContentByType(filePath, extension);
-@@ -669,4 +699,70 @@ try {
-     await pdf.destroy();
-     return result.trim();
-   }
-+
-+  /**
-+   * キャッシュディレクトリをクリーニングする
-+   * - 元ファイルが存在しないキャッシュファイルを削除
-+   * - ファイル更新日時が古いキャッシュファイルを削除
-+   * - 不正なJSONキャッシュファイルを削除
-+   */
-+  public static async cleanCacheDirectory(): Promise<void> {
-+    try {
-+      const cacheDir = this.getCacheDir();
-+      const cacheFiles = await fs.readdir(cacheDir);
-+
-+      logger.info(`キャッシュディレクトリのクリーニングを開始: ${cacheDir}`);
-+
-+      let deletedCount = 0;
-+
-+      for (const fileName of cacheFiles) {
-+        const cacheFilePath = path.join(cacheDir, fileName);
-+
-+        try {
-+          // .jsonファイル以外はスキップ
-+          if (!fileName.endsWith('.json')) {
-+            continue;
-+          }
-+
-+          // JSONキャッシュファイルの内容を読み取り
-+          const cacheContent = await fs.readFile(cacheFilePath, 'utf-8');
-+          const cacheData: CacheData = JSON.parse(cacheContent);
-+
-+          // 元ファイルの存在確認
-+          const originalFilePath = cacheData.metadata.filePath;
-+
-+          try {
-+            const stats = await fs.stat(originalFilePath);
-+
-+            // ファイル更新日時が異なる場合は削除
-+            if (stats.mtimeMs !== cacheData.metadata.lastModified) {
-+              await fs.unlink(cacheFilePath);
-+              deletedCount++;
-+              logger.debug(`ファイル更新日時が古いキャッシュを削除: ${fileName}`);
-+            }
-+          } catch (statError) {
-+            // 元ファイルが存在しない場合は削除
-+            if ((statError as NodeJS.ErrnoException).code === 'ENOENT') {
-+              await fs.unlink(cacheFilePath);
-+              deletedCount++;
-+              logger.debug(`元ファイルが存在しないキャッシュを削除: ${fileName}`);
-+            }
-+          }
-+        } catch (processError) {
-+          // JSONパースエラーなど、不正なキャッシュファイルは削除
-+          try {
-+            await fs.unlink(cacheFilePath);
-+            deletedCount++;
-+            logger.debug(`不正なキャッシュファイルを削除: ${fileName}`);
-+          } catch (unlinkError) {
-+            logger.error({ error: unlinkError, fileName }, 'キャッシュファイルの削除に失敗');
-+          }
-+        }
-+      }
-+
-+      logger.info(`キャッシュクリーニング完了: ${deletedCount}個のファイルを削除`);
-+    } catch (error) {
-+      logger.error({ error }, 'キャッシュディレクトリのクリーニングに失敗しました');
-+    }
-+  }
- }
-diff --git a/src/main/main.ts b/src/main/main.ts
-index 5a16af467..fe6c88515 100644
---- a/src/main/main.ts
-+++ b/src/main/main.ts
-@@ -93,6 +93,7 @@ import { getMainLogger } from './lib/logger';
- import { internalError, normalizeUnknownError, toPayload } from './lib/error';
- import { formatMessage } from './lib/messages';
- import { SourceService } from './service/sourceService';
-+import FileExtractor from './lib/fileExtractor';
- import { ZodSchema } from 'zod';
- import { normalizeUnknownIpcError } from './lib/error';
- import { setupElectronPushBroker } from './push/electronPushBroker';
-@@ -532,10 +533,9 @@ const initializeSourceRegistration = async () => {
-   );
-   await registrationManager.clearProcessingSources();
- 
--  // ソース登録を実行
--  logger.debug('ドキュメントの登録を実行しています');
--  await registrationManager.registerAllFiles();
--  console.log('ソースファイルの初期登録が完了しました');
-+  // 削除済みファイルに対応したDBレコードの削除
-+  logger.debug('削除済みドキュメントの登録情報を削除しています');
-+  await registrationManager.removeNonexistentSources();
- };
- 
- let mainWindow: BrowserWindow | null = null;
-@@ -650,6 +650,7 @@ const initialize = async () => {
-   createWindow();
-   await initializeAgentStatus();
-   setupElectronPushBroker();
-+  FileExtractor.cleanCacheDirectory();
-   setupSettingsHandlers();
-   setupChatHandlers();
-   setupFsHandlers();
-diff --git a/src/mastra/lib/util.ts b/src/mastra/lib/util.ts
-index 4fa49f112..e6092cf36 100644
---- a/src/mastra/lib/util.ts
-+++ b/src/mastra/lib/util.ts
-@@ -37,25 +37,27 @@ export async function createCombinedMessage(
-       file.imageData &&
-       file.imageData.length > 0
-     ) {
--      // 画像ファイル用のテキスト説明を追加
--      content.push({
--        type: 'text',
--        text: `# ${file.name}(Attached below as image)`,
--      });
-+      // 各ページごとに個別の説明と画像を追加
-+      const totalPages = file.imageData.length;
-+      for (let pageIndex = 0; pageIndex < file.imageData.length; pageIndex++) {
-+        const currentPage = pageIndex + 1;
- 
--      // 画像データを追加
--      for (const imageData of file.imageData) {
-+        // ページ番号を含むテキスト説明を追加
-+        content.push({
-+          type: 'text',
-+          text: `# ${file.name}: Page ${currentPage}/${totalPages}`,
-+        });
-+
-+        // 該当ページの画像データを追加
-         content.push({
-           type: 'image',
--          image: imageData,
-+          image: file.imageData[pageIndex],
-           mimeType: 'image/png',
+   const validateSection = useCallback(
+-    async (section: keyof Settings, value: Settings[keyof Settings]) => {
++    async (
++      section: keyof AppSettings,
++      value: AppSettings[keyof AppSettings],
++    ) => {
+       try {
+         // セクションごとのスキーマを取得
+         const schema = SettingsSchema.shape[section];
+@@ -135,11 +146,19 @@ const useSettingsStore = () => {
          });
-       }
-     } else {
-       // テキスト抽出処理
--      const { content: fileContent } = await FileExtractor.extractText(file.path, {
--        useCache: true,
--      });
-+      const { content: fileContent } = await FileExtractor.extractText(file.path);
  
-       // ファイルごとに個別のcontent要素として追加
-       content.push({
-diff --git a/src/mastra/workflows/sourceRegistration/sourceRegistrationManager.ts b/src/mastra/workflows/sourceRegistration/sourceRegistrationManager.ts
-index b9b10753e..ec41957e2 100644
---- a/src/mastra/workflows/sourceRegistration/sourceRegistrationManager.ts
-+++ b/src/mastra/workflows/sourceRegistration/sourceRegistrationManager.ts
-@@ -62,6 +62,42 @@ export default class SourceRegistrationManager {
-     }
-   }
+         if (loadedSettings) {
+-          setSettings(loadedSettings);
++          const loadedAppSettings = {
++            ...loadedSettings,
++            mcp: {
++              serverConfig: loadedSettings.mcp.serverConfig
++                ? JSON.stringify(loadedSettings.mcp.serverConfig, null, 2)
++                : undefined,
++            },
++          };
++          setSettings(loadedAppSettings);
  
-+  /**
-+   * DBに存在するが実ファイルが存在しないソースを削除
-+   */
-+  public async removeNonexistentSources(): Promise<void> {
-+    const store = await this.settingsRepository.getSettings();
-+    const { registerDir } = store.source;
-+    if (!registerDir || registerDir.trim() === '') {
-+      throw internalError({
-+        expose: true,
-+        messageCode: 'SOURCE_REGISTRATION_DIR_NOT_SET',
-+      });
-+    }
-+    let files: string[] = [];
-+    if (registerDir.trim() !== '') {
-+      // フォルダ内のファイル一覧を取得
-+      files = await this.readDirectoryRecursively(registerDir);
-+    }
-+
-+    // DB接続を一度だけ確立
-+    const allSources = await this.sourceRepository.getAllSources();
-+
-+    // DBに存在するが実ファイルが存在しないソースを削除
-+    const existingPaths = new Set(files);
-+    const toDeleteSources = allSources.filter(
-+      (source) => !existingPaths.has(source.path),
-+    );
-+    if (toDeleteSources.length > 0) {
-+      for (const source of toDeleteSources) {
-+        await this.deleteSourceAndCache(source.path);
-+      }
-+      console.log(
-+        `${toDeleteSources.length}件の存在しないファイルのソース情報を削除しました`,
-+      );
-+    }
-+  }
-+
-   /**
-    * フォルダ内の全てのファイルを登録
-    */
-diff --git a/src/mastra/workflows/sourceReview/reviewExecution.ts b/src/mastra/workflows/sourceReview/reviewExecution.ts
-index 6c5ca2df7..cbab9ece2 100644
---- a/src/mastra/workflows/sourceReview/reviewExecution.ts
-+++ b/src/mastra/workflows/sourceReview/reviewExecution.ts
-@@ -380,21 +380,21 @@ const reviewExecutionStep = createStep({
-       };
-     } catch (error) {
-       logger.error(error, 'チェックリストのレビュー実行処理に失敗しました');
--      let errorDetail: string;
-+      let errorMessage: string;
-       if (
-         NoObjectGeneratedError.isInstance(error) &&
-         error.finishReason === 'length'
-       ) {
-         // AIモデルが生成できる文字数を超えているため、手動でレビューを分割
--        errorDetail = `AIモデルが生成できる文字数を超えています。チェックリスト量の削減を検討してください。`;
-+        errorMessage = `AIモデルが生成できる文字数を超えています。チェックリスト量の削減を検討してください。`;
-       } else {
-         const normalizedError = normalizeUnknownError(error);
--        errorDetail = normalizedError.message;
-+        errorMessage = normalizedError.message;
-       }
--      // エラーが発生した場合はエラ
-+      // エラーが発生した場合はエラー情報を返す
-       return {
-         status: 'failed' as stepStatus,
--        errorMessage: errorDetail,
-+        errorMessage,
-       };
-     }
-   },
+           // 各セクションのバリデーションを実行
+-          Object.entries(loadedSettings).forEach(([section, value]) => {
+-            validateSection(section as keyof Settings, value);
++          Object.entries(loadedAppSettings).forEach(([section, value]) => {
++            validateSection(section as keyof AppSettings, value);
+           });
+         }
+ 
+@@ -177,6 +196,9 @@ const useSettingsStore = () => {
+     const loadAgentStatus = async () => {
+       try {
+         await fetchAgentStatus();
++        if (agentStatus.state === 'saving') {
++          throw new Error('エージェント初期化中のため状態取得を再試行します');
++        }
+         if (intervalId) {
+           clearInterval(intervalId);
+           intervalId = null;
