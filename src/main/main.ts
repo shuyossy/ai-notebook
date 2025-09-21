@@ -87,8 +87,6 @@ import {
   IpcNameMap,
   Source,
 } from '@/types';
-import SourceRegistrationManager from '../mastra/workflows/sourceRegistration/sourceRegistrationManager';
-import SourceReviewManager from '../mastra/workflows/sourceReview/sourceReviewManager';
 import MenuBuilder from './menu';
 import { resolveHtmlPath } from './lib/util';
 import { ReviewService } from './service/reviewService';
@@ -361,8 +359,7 @@ const setupFsHandlers = () => {
 const setupSourceHandlers = () => {
   // ソース再読み込みハンドラ
   handleIpc(IpcChannels.SOURCE_RELOAD, async () => {
-    const registrationManager = SourceRegistrationManager.getInstance();
-    await registrationManager.registerAllFiles();
+    await sourceService.registerAllFiles();
     return { message: 'ドキュメントの再読み込みが完了しました' };
   });
 
@@ -425,8 +422,7 @@ const setupReviewHandlers = () => {
       }
 
       // AI処理の場合は既存のワークフロー処理を実行
-      const manager = SourceReviewManager.getInstance();
-      const result = manager.extractChecklistWithNotification(
+      const result = reviewService.extractChecklistWithNotification(
         reviewHistoryId,
         files,
         documentType,
@@ -472,10 +468,9 @@ const setupReviewHandlers = () => {
         reviewHistoryId,
         evaluationSettings,
       );
-      const manager = SourceReviewManager.getInstance();
 
       // 非同期でレビュー実行処理を実行
-      const result = manager.executeReviewWithNotification(
+      const result = reviewService.executeReviewWithNotification(
         reviewHistoryId,
         files,
         evaluationSettings,
@@ -500,8 +495,7 @@ const setupReviewHandlers = () => {
   handleIpc(
     IpcChannels.REVIEW_EXTRACT_CHECKLIST_ABORT,
     async (reviewHistoryId) => {
-      const manager = SourceReviewManager.getInstance();
-      const result = manager.abortExtractChecklist(reviewHistoryId);
+      const result = reviewService.abortExtractChecklist(reviewHistoryId);
       if (!result.success) {
         throw internalError({
           expose: true,
@@ -516,8 +510,7 @@ const setupReviewHandlers = () => {
 
   // レビュー実行キャンセルハンドラ
   handleIpc(IpcChannels.REVIEW_EXECUTE_ABORT, async (reviewHistoryId) => {
-    const manager = SourceReviewManager.getInstance();
-    const result = manager.abortExecuteReview(reviewHistoryId);
+    const result = reviewService.abortExecuteReview(reviewHistoryId);
     if (!result.success) {
       throw internalError({
         expose: true,
@@ -533,17 +526,16 @@ const setupReviewHandlers = () => {
 // ソース登録処理の実行
 const initializeSourceRegistration = async () => {
   logger.debug('ドキュメントの初期登録を開始します');
-  const registrationManager = SourceRegistrationManager.getInstance();
 
   // 処理中のソースを削除
   logger.debug(
     '処理中及び失敗しているドキュメントの実行履歴をクリアしています',
   );
-  await registrationManager.clearProcessingSources();
+  await sourceService.clearProcessingSources();
 
   // 削除済みファイルに対応したDBレコードの削除
   logger.debug('削除済みドキュメントの登録情報を削除しています');
-  await registrationManager.removeNonexistentSources();
+  await sourceService.removeNonexistentSources();
 };
 
 let mainWindow: BrowserWindow | null = null;
