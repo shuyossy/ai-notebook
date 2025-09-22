@@ -26,9 +26,9 @@ import { createHash } from 'crypto';
 const logger = getMainLogger();
 
 // 一つのカテゴリに含めるチェックリストの最大数
-const MAX_CHECKLISTS_PER_CATEGORY = 3;
+const MAX_CHECKLISTS_PER_CATEGORY = 2;
 // 分割カテゴリの最大数
-const MAX_CATEGORIES = 20;
+const MAX_CATEGORIES = 50;
 
 // カテゴリ分類ステップの出力スキーマ
 const classifyChecklistsByCategoryOutputSchema = baseStepOutputSchema.extend({
@@ -304,6 +304,29 @@ const reviewExecutionStep = createStep({
           const outputSchema = z.array(
             z.object({
               checklistId: z.number(),
+              reviewSections: z
+                .array(
+                  z.object({
+                    fileName: z.string().describe('file name to review'),
+                    sections: z
+                      .array(
+                        z.object({
+                          sectionName: z
+                            .string()
+                            .describe('section name within the file'),
+                          reviewAspect: z
+                            .string()
+                            .describe(
+                              'specific aspect to review in this section',
+                            ),
+                        }),
+                      )
+                      .describe('sections to review within the file'),
+                  }),
+                )
+                .describe(
+                  'files and sections that should be reviewed for evaluation and commenting',
+                ),
               comment: z.string().describe('evaluation comment'),
               evaluation: evaluationEnum.describe('evaluation'),
             }),
@@ -314,8 +337,27 @@ const reviewExecutionStep = createStep({
           runtimeContext.set('additionalInstructions', additionalInstructions);
           runtimeContext.set('commentFormat', commentFormat);
           runtimeContext.set('evaluationSettings', evaluationSettings);
+
+          // チェックリスト一覧をメッセージの最後にリマインドとして追加
+          const checklistReminder = `## Checklist Items to Review:
+${reviewTargetChecklists.map((item) => `- ID: ${item.id} - ${item.content}`).join('\n')}
+
+Please review the document against the above checklist items.`;
+
+          // メッセージのcontentの最後にリマインダーを追加
+          const messageWithReminder = {
+            ...message,
+            content: [
+              ...message.content,
+              {
+                type: 'text' as const,
+                text: checklistReminder,
+              },
+            ],
+          };
+
           // レビューエージェントを使用してレビューを実行
-          const reviewResult = await reviewAgent.generate(message, {
+          const reviewResult = await reviewAgent.generate(messageWithReminder, {
             output: outputSchema,
             runtimeContext,
             abortSignal,

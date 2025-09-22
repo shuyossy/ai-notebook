@@ -473,11 +473,15 @@ ${evaluationInstructions}
 
 ${actualFormat}
 
-3. In your comments, be sure to:
+3. For each checklist item, specify the review sections that should be examined for evaluation and commenting:
+   a) Identify the specific file names that need to be reviewed.
+   b) For each file, list the relevant sections within that file.
+   c) For each section, specify the particular aspect or viewpoint that should be reviewed.
+4. In your comments, be sure to:
    a) Cite specific parts of the document as evidence.
    b) Separate discussions by section if some parts meet the item and others do not.
    c) Cover every relevant occurrence—do not offer only a general summary.
-4. Do not omit any checklist item; review the entire document against each criterion before finalizing your evaluation.
+5. Do not omit any checklist item; review the entire document against each criterion before finalizing your evaluation.
 ${
   additionalInstructions && additionalInstructions.trim() !== ''
     ? `
