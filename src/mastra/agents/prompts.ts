@@ -469,14 +469,13 @@ ${formattedList}
 
 Instructions:
 ${evaluationInstructions}
-2. For each item, write a comment in Japanese following this exact structure:
+2. For each item, write a comment in Japanese following this format:
 
 ${actualFormat}
 
 3. For each checklist item, specify the review sections that should be examined for evaluation and commenting:
    a) Identify the specific file names that need to be reviewed.
    b) For each file, list the relevant sections within that file.
-   c) For each section, specify the particular aspect or viewpoint that should be reviewed.
 4. In your comments, be sure to:
    a) Cite specific parts of the document as evidence.
    b) Separate discussions by section if some parts meet the item and others do not.

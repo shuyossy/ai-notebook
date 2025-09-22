@@ -26,7 +26,7 @@ import { createHash } from 'crypto';
 const logger = getMainLogger();
 
 // 一つのカテゴリに含めるチェックリストの最大数
-const MAX_CHECKLISTS_PER_CATEGORY = 2;
+const MAX_CHECKLISTS_PER_CATEGORY = 1;
 // 分割カテゴリの最大数
 const MAX_CATEGORIES = 50;
 
@@ -112,6 +112,17 @@ const classifyChecklistsByCategoryStep = createStep({
         id: c.id,
         content: c.content,
       }));
+
+      // MAX_CHECKLISTS_PER_CATEGORY が1の場合は早期return
+      if (MAX_CHECKLISTS_PER_CATEGORY <= 1) {
+        return {
+          status: 'success' as stepStatus,
+          categories: splitChecklistEquallyByMaxSize(
+            checklistsResult,
+            MAX_CHECKLISTS_PER_CATEGORY,
+          ),
+        };
+      }
 
       // カテゴリ分類エージェントを使用して分類
       const classifiCategoryAgent = mastra.getAgent('classifyCategoryAgent');
@@ -308,20 +319,10 @@ const reviewExecutionStep = createStep({
                 .array(
                   z.object({
                     fileName: z.string().describe('file name to review'),
-                    sections: z
+                    sectionNames: z
                       .array(
-                        z.object({
-                          sectionName: z
-                            .string()
-                            .describe('section name within the file'),
-                          reviewAspect: z
-                            .string()
-                            .describe(
-                              'specific aspect to review in this section',
-                            ),
-                        }),
+                        z.string().describe('section name within the file'),
                       )
-                      .describe('sections to review within the file'),
                   }),
                 )
                 .describe(
