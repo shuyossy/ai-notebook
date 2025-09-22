@@ -1,191 +1,1796 @@
-diff --git a/src/main/lib/csvParser.ts b/src/main/lib/csvParser.ts
-new file mode 100644
-index 000000000..5a7817356
---- /dev/null
-+++ b/src/main/lib/csvParser.ts
-@@ -0,0 +1,142 @@
-+/**
-+ * CSV解析のためのユーティリティクラス
-+ * RFC 4180準拠の基本的なCSVパース機能を提供
-+ * セル内改行や特殊文字を適切に処理する
-+ */
-+export class CsvParser {
-+  /**
-+   * CSVテキストを解析して2次元配列として返す
-+   * @param csvText CSVテキスト
-+   * @returns 2次元配列（行ごとのセル配列）
-+   */
-+  public static parse(csvText: string): string[][] {
-+    const rows: string[][] = [];
-+    let currentRow: string[] = [];
-+    let currentCell = '';
-+    let inQuotes = false;
-+    let i = 0;
-+
-+    while (i < csvText.length) {
-+      const char = csvText[i];
-+      const nextChar = i + 1 < csvText.length ? csvText[i + 1] : null;
-+
-+      if (!inQuotes) {
-+        // クォート外の処理
-+        if (char === '"') {
-+          // クォート開始
-+          inQuotes = true;
-+        } else if (char === ',') {
-+          // セル区切り
-+          currentRow.push(currentCell.trim());
-+          currentCell = '';
-+        } else if (char === '\n' || char === '\r') {
-+          // 行区切り
-+          if (char === '\r' && nextChar === '\n') {
-+            // CRLF の場合は次の文字もスキップ
-+            i++;
-+          }
-+          currentRow.push(currentCell.trim());
-+          if (currentRow.length > 0 && !this.isEmptyRow(currentRow)) {
-+            rows.push(currentRow);
-+          }
-+          currentRow = [];
-+          currentCell = '';
-+        } else {
-+          // 通常の文字
-+          currentCell += char;
-+        }
-+      } else {
-+        // クォート内の処理
-+        if (char === '"') {
-+          if (nextChar === '"') {
-+            // エスケープされたクォート（""）
-+            currentCell += '"';
-+            i++; // 次の文字もスキップ
-+          } else {
-+            // クォート終了
-+            inQuotes = false;
-+          }
-+        } else {
-+          // クォート内の文字（改行も含む）
-+          currentCell += char;
-+        }
-+      }
-+
-+      i++;
-+    }
-+
-+    // 最後のセルと行を追加
-+    currentRow.push(currentCell.trim());
-+    if (currentRow.length > 0 && !this.isEmptyRow(currentRow)) {
-+      rows.push(currentRow);
-+    }
-+
-+    return rows;
-+  }
-+
-+  /**
-+   * CSVの1列目の値のみを抽出する
-+   * @param csvText CSVテキスト
-+   * @returns 1列目の値の配列（空でない値のみ）
-+   */
-+  public static extractFirstColumn(csvText: string): string[] {
-+    const rows = this.parse(csvText);
-+    const firstColumnValues: string[] = [];
-+
-+    for (const row of rows) {
-+      if (row.length > 0) {
-+        const firstCell = row[0];
-+        if (firstCell && firstCell.trim() !== '') {
-+          firstColumnValues.push(firstCell.trim());
-+        }
-+      }
-+    }
-+
-+    return firstColumnValues;
-+  }
-+
-+  /**
-+   * 行が空かどうかを判定する
-+   * @param row 行データ
-+   * @returns 空行の場合true
-+   */
-+  private static isEmptyRow(row: string[]): boolean {
-+    return row.every(cell => cell.trim() === '');
-+  }
-+
-+  /**
-+   * CSVの形式が正しいかを簡易的に検証する
-+   * @param csvText CSVテキスト
-+   * @returns 検証結果
-+   */
-+  public static validate(csvText: string): { isValid: boolean; error?: string } {
-+    try {
-+      let inQuotes = false;
-+      let quoteCount = 0;
-+
-+      for (let i = 0; i < csvText.length; i++) {
-+        const char = csvText[i];
-+        const nextChar = i + 1 < csvText.length ? csvText[i + 1] : null;
-+
-+        if (char === '"') {
-+          if (inQuotes && nextChar === '"') {
-+            // エスケープされたクォート
-+            i++; // 次の文字もスキップ
-+          } else {
-+            inQuotes = !inQuotes;
-+            quoteCount++;
-+          }
-+        }
-+      }
-+
-+      // クォートが閉じられていない場合
-+      if (inQuotes) {
-+        return { isValid: false, error: 'クォートが正しく閉じられていません' };
-+      }
-+
-+      return { isValid: true };
-+    } catch (error) {
-+      return { isValid: false, error: `CSV解析エラー: ${error}` };
-+    }
-+  }
-+}
-\ No newline at end of file
+diff --git a/src/main/main.ts b/src/main/main.ts
+index e2bdfc125..7d05bf1aa 100644
+--- a/src/main/main.ts
++++ b/src/main/main.ts
+@@ -87,8 +87,6 @@ import {
+   IpcNameMap,
+   Source,
+ } from '@/types';
+-import SourceRegistrationManager from '../mastra/workflows/sourceRegistration/sourceRegistrationManager';
+-import SourceReviewManager from '../mastra/workflows/sourceReview/sourceReviewManager';
+ import MenuBuilder from './menu';
+ import { resolveHtmlPath } from './lib/util';
+ import { ReviewService } from './service/reviewService';
+@@ -361,8 +359,7 @@ const setupFsHandlers = () => {
+ const setupSourceHandlers = () => {
+   // ソース再読み込みハンドラ
+   handleIpc(IpcChannels.SOURCE_RELOAD, async () => {
+-    const registrationManager = SourceRegistrationManager.getInstance();
+-    await registrationManager.registerAllFiles();
++    await sourceService.registerAllFiles();
+     return { message: 'ドキュメントの再読み込みが完了しました' };
+   });
+ 
+@@ -425,8 +422,7 @@ const setupReviewHandlers = () => {
+       }
+ 
+       // AI処理の場合は既存のワークフロー処理を実行
+-      const manager = SourceReviewManager.getInstance();
+-      const result = manager.extractChecklistWithNotification(
++      const result = reviewService.extractChecklistWithNotification(
+         reviewHistoryId,
+         files,
+         documentType,
+@@ -472,10 +468,9 @@ const setupReviewHandlers = () => {
+         reviewHistoryId,
+         evaluationSettings,
+       );
+-      const manager = SourceReviewManager.getInstance();
+ 
+       // 非同期でレビュー実行処理を実行
+-      const result = manager.executeReviewWithNotification(
++      const result = reviewService.executeReviewWithNotification(
+         reviewHistoryId,
+         files,
+         evaluationSettings,
+@@ -500,8 +495,7 @@ const setupReviewHandlers = () => {
+   handleIpc(
+     IpcChannels.REVIEW_EXTRACT_CHECKLIST_ABORT,
+     async (reviewHistoryId) => {
+-      const manager = SourceReviewManager.getInstance();
+-      const result = manager.abortExtractChecklist(reviewHistoryId);
++      const result = reviewService.abortExtractChecklist(reviewHistoryId);
+       if (!result.success) {
+         throw internalError({
+           expose: true,
+@@ -516,8 +510,7 @@ const setupReviewHandlers = () => {
+ 
+   // レビュー実行キャンセルハンドラ
+   handleIpc(IpcChannels.REVIEW_EXECUTE_ABORT, async (reviewHistoryId) => {
+-    const manager = SourceReviewManager.getInstance();
+-    const result = manager.abortExecuteReview(reviewHistoryId);
++    const result = reviewService.abortExecuteReview(reviewHistoryId);
+     if (!result.success) {
+       throw internalError({
+         expose: true,
+@@ -533,17 +526,16 @@ const setupReviewHandlers = () => {
+ // ソース登録処理の実行
+ const initializeSourceRegistration = async () => {
+   logger.debug('ドキュメントの初期登録を開始します');
+-  const registrationManager = SourceRegistrationManager.getInstance();
+ 
+   // 処理中のソースを削除
+   logger.debug(
+     '処理中及び失敗しているドキュメントの実行履歴をクリアしています',
+   );
+-  await registrationManager.clearProcessingSources();
++  await sourceService.clearProcessingSources();
+ 
+   // 削除済みファイルに対応したDBレコードの削除
+   logger.debug('削除済みドキュメントの登録情報を削除しています');
+-  await registrationManager.removeNonexistentSources();
++  await sourceService.removeNonexistentSources();
+ };
+ 
+ let mainWindow: BrowserWindow | null = null;
 diff --git a/src/main/service/reviewService.ts b/src/main/service/reviewService.ts
-index 78f694c4c..e845433d3 100644
+index e845433d3..5a21d1a22 100644
 --- a/src/main/service/reviewService.ts
 +++ b/src/main/service/reviewService.ts
-@@ -9,6 +9,7 @@ import {
+@@ -5,6 +5,9 @@ import {
+   CustomEvaluationSettings,
+   UploadFile,
+   IpcChannels,
++  DocumentType,
++  ChecklistExtractionResultStatus,
++  ReviewExecutionResultStatus,
+ } from '@/types';
  import { generateReviewTitle } from '@/mastra/workflows/sourceReview/lib';
  import { RevieHistory } from '@/types';
- import FileExtractor from '@/main/lib/fileExtractor';
-+import { CsvParser } from '@/main/lib/csvParser';
+@@ -12,6 +15,10 @@ import FileExtractor from '@/main/lib/fileExtractor';
+ import { CsvParser } from '@/main/lib/csvParser';
  import { publishEvent } from '../lib/eventPayloadHelper';
  import { internalError, normalizeUnknownError, toPayload } from '../lib/error';
++import { getMainLogger } from '../lib/logger';
++import { mastra } from '@/mastra';
++import { checkWorkflowResult } from '@/mastra/lib/workflowUtils';
++import { formatMessage } from '../lib/messages';
  
-@@ -192,22 +193,13 @@ export class ReviewService implements IReviewService {
-         const extractionResult = await FileExtractor.extractText(file.path);
-         const csvText = extractionResult.content;
+ export interface IReviewService {
+   getReviewHistories(): Promise<RevieHistory[]>;
+@@ -43,6 +50,7 @@ export interface IReviewService {
+   ): Promise<void>;
+ }
  
--        // CSVテキストを行に分割
--        const lines = csvText.split('\n');
--
--        // 各行の1列目を取得（空行、空文字は除外）
--        for (const line of lines) {
--          const trimmedLine = line.trim();
--          if (trimmedLine) {
--            // CSVの1列目を取得（カンマ区切りの最初の値）
--            const firstColumn = trimmedLine.split(',')[0]?.trim();
--            if (firstColumn && firstColumn !== '') {
--              // ダブルクォートを除去
--              const cleanedItem = firstColumn.replace(/^"(.*)"$/, '$1');
--              if (cleanedItem) {
--                allChecklistItems.push(cleanedItem);
--              }
--            }
-+        // CSVパーサーを使用してセル内改行を保持しつつ1列目を抽出
-+        const firstColumnItems = CsvParser.extractFirstColumn(csvText);
++const logger = getMainLogger();
+ export class ReviewService implements IReviewService {
+   // シングルトン変数
+   private static instance: ReviewService;
+@@ -55,13 +63,16 @@ export class ReviewService implements IReviewService {
+     return ReviewService.instance;
+   }
+ 
+-  private repository = getReviewRepository();
++  private reviewRepository = getReviewRepository();
 +
-+        // 各項目をチェックリスト項目として追加
-+        for (const item of firstColumnItems) {
-+          if (item && item.trim() !== '') {
-+            allChecklistItems.push(item.trim());
-           }
++  // 実行中のワークフロー管理
++  private runningWorkflows = new Map<string, { cancel: () => void }>();
+ 
+   /**
+    * レビュー履歴一覧を取得
+    */
+   public async getReviewHistories() {
+-    return this.repository.getAllReviewHistories();
++    return this.reviewRepository.getAllReviewHistories();
+   }
+ 
+   /**
+@@ -69,7 +80,7 @@ export class ReviewService implements IReviewService {
+    */
+   public async getReviewHistoryDetail(reviewHistoryId: string) {
+     const checklistResults =
+-      await this.repository.getReviewChecklistResults(reviewHistoryId);
++      await this.reviewRepository.getReviewChecklistResults(reviewHistoryId);
+     return {
+       checklistResults: checklistResults,
+     };
+@@ -80,7 +91,7 @@ export class ReviewService implements IReviewService {
+    */
+   public async getReviewInstruction(reviewHistoryId: string) {
+     const reviewHistory =
+-      await this.repository.getReviewHistory(reviewHistoryId);
++      await this.reviewRepository.getReviewHistory(reviewHistoryId);
+     return {
+       additionalInstructions:
+         reviewHistory?.additionalInstructions || undefined,
+@@ -93,7 +104,7 @@ export class ReviewService implements IReviewService {
+    * レビュー履歴を削除
+    */
+   public async deleteReviewHistory(reviewHistoryId: string) {
+-    return this.repository.deleteReviewHistory(reviewHistoryId);
++    return this.reviewRepository.deleteReviewHistory(reviewHistoryId);
+   }
+ 
+   /**
+@@ -104,9 +115,9 @@ export class ReviewService implements IReviewService {
+     checklistEdits: ReviewChecklistEdit[],
+   ) {
+     // レビュー履歴が存在しない場合は新規作成
+-    let reviewHistory = await this.repository.getReviewHistory(reviewHistoryId);
++    let reviewHistory = await this.reviewRepository.getReviewHistory(reviewHistoryId);
+     if (reviewHistory === null) {
+-      reviewHistory = await this.repository.createReviewHistory(
++      reviewHistory = await this.reviewRepository.createReviewHistory(
+         generateReviewTitle(),
+         reviewHistoryId,
+       );
+@@ -118,7 +129,7 @@ export class ReviewService implements IReviewService {
+       if (edit.id === null) {
+         // 新規作成
+         if (edit.content) {
+-          await this.repository.createChecklist(
++          await this.reviewRepository.createChecklist(
+             reviewHistoryId,
+             edit.content,
+             'user',
+@@ -126,10 +137,10 @@ export class ReviewService implements IReviewService {
          }
+       } else if (edit.delete) {
+         // 削除
+-        await this.repository.deleteChecklist(edit.id);
++        await this.reviewRepository.deleteChecklist(edit.id);
+       } else if (edit.content) {
+         // 更新
+-        await this.repository.updateChecklist(edit.id, edit.content);
++        await this.reviewRepository.updateChecklist(edit.id, edit.content);
        }
+     }
+   }
+@@ -142,7 +153,7 @@ export class ReviewService implements IReviewService {
+     additionalInstructions: string | undefined,
+     commentFormat: string | undefined,
+   ) {
+-    return this.repository.updateReviewHistoryAdditionalInstructionsAndCommentFormat(
++    return this.reviewRepository.updateReviewHistoryAdditionalInstructionsAndCommentFormat(
+       reviewHistoryId,
+       additionalInstructions,
+       commentFormat,
+@@ -156,7 +167,7 @@ export class ReviewService implements IReviewService {
+     reviewHistoryId: string,
+     evaluationSettings: CustomEvaluationSettings,
+   ): Promise<void> {
+-    return this.repository.updateReviewHistoryEvaluationSettings(
++    return this.reviewRepository.updateReviewHistoryEvaluationSettings(
+       reviewHistoryId,
+       evaluationSettings,
+     );
+@@ -172,9 +183,9 @@ export class ReviewService implements IReviewService {
+     try {
+       // レビュー履歴が存在しない場合は新規作成
+       let reviewHistory =
+-        await this.repository.getReviewHistory(reviewHistoryId);
++        await this.reviewRepository.getReviewHistory(reviewHistoryId);
+       if (reviewHistory === null) {
+-        reviewHistory = await this.repository.createReviewHistory(
++        reviewHistory = await this.reviewRepository.createReviewHistory(
+           generateReviewTitle(),
+           reviewHistoryId,
+         );
+@@ -183,7 +194,7 @@ export class ReviewService implements IReviewService {
+       }
+ 
+       // システム作成のチェックリストを削除（手動作成分は保持）
+-      await this.repository.deleteSystemCreatedChecklists(reviewHistoryId);
++      await this.reviewRepository.deleteSystemCreatedChecklists(reviewHistoryId);
+ 
+       const allChecklistItems: string[] = [];
+ 
+@@ -209,7 +220,7 @@ export class ReviewService implements IReviewService {
+ 
+       // チェックリスト項目をDBに保存
+       for (const item of uniqueChecklistItems) {
+-        await this.repository.createChecklist(reviewHistoryId, item, 'system');
++        await this.reviewRepository.createChecklist(reviewHistoryId, item, 'system');
+       }
+       // AI処理と同様のイベント通知を発火
+       publishEvent(IpcChannels.REVIEW_EXTRACT_CHECKLIST_FINISHED, {
+@@ -225,4 +236,421 @@ export class ReviewService implements IReviewService {
+       });
+     }
+   }
++
++  /**
++   * アップロードファイルからチェックリスト抽出処理を実行
++   * @param reviewHistoryId レビュー履歴ID（新規の場合は生成）
++   * @param files アップロードファイルの配列
++   * @returns 処理結果
++   */
++  public async extractChecklist(
++    reviewHistoryId: string,
++    files: UploadFile[],
++    documentType: DocumentType = 'checklist-ai',
++    checklistRequirements?: string,
++  ): Promise<{ status: ChecklistExtractionResultStatus; error?: string }> {
++    try {
++      let reviewHistory: RevieHistory | null;
++      reviewHistory =
++        await this.reviewRepository.getReviewHistory(reviewHistoryId);
++      // レビュー履歴が存在しない場合は新規作成
++      if (reviewHistory === null) {
++        reviewHistory = await this.reviewRepository.createReviewHistory(
++          generateReviewTitle(),
++          reviewHistoryId,
++        );
++        // 新規作成時はレビュー履歴更新イベントを送信
++        publishEvent(IpcChannels.REVIEW_HISTORY_UPDATED, undefined);
++      } else {
++        // 既存のレビュー履歴がある場合は、システム作成チェックリストを削除
++        await this.reviewRepository.deleteSystemCreatedChecklists(
++          reviewHistory.id,
++        );
++      }
++
++      // Mastraワークフローを実行
++      const workflow = mastra.getWorkflow('checklistExtractionWorkflow');
++
++      if (!workflow) {
++        logger.error('レビュー実行ワークフローが見つかりません');
++        throw internalError({
++          expose: false,
++        });
++      }
++
++      const run = await workflow.createRunAsync();
++
++      // 実行中のワークフローを管理
++      this.runningWorkflows.set(reviewHistoryId, {
++        cancel: () => run.cancel(),
++      });
++
++      // 処理ステータスを「抽出中」に更新
++      await this.reviewRepository.updateReviewHistoryProcessingStatus(
++        reviewHistoryId,
++        'extracting',
++      );
++
++      const runResult = await run.start({
++        inputData: {
++          reviewHistoryId,
++          files,
++          documentType,
++          checklistRequirements,
++        },
++      });
++
++      // 結果を確認
++      const checkResult = checkWorkflowResult(runResult);
++
++      // クリーンアップ
++      this.runningWorkflows.delete(reviewHistoryId);
++
++      // 処理ステータスを更新
++      const newStatus = checkResult.status === 'success' ? 'extracted' : 'idle';
++      await this.reviewRepository.updateReviewHistoryProcessingStatus(
++        reviewHistoryId,
++        newStatus,
++      );
++
++      return {
++        status: checkResult.status,
++        error: checkResult.errorMessage,
++      };
++    } catch (error) {
++      logger.error(error, 'チェックリスト抽出処理に失敗しました');
++
++      // エラー時もクリーンアップ
++      this.runningWorkflows.delete(reviewHistoryId);
++
++      // 処理ステータスを「アイドル」に戻す
++      try {
++        await this.reviewRepository.updateReviewHistoryProcessingStatus(
++          reviewHistoryId,
++          'idle',
++        );
++      } catch (statusUpdateError) {
++        logger.error(statusUpdateError, '処理ステータスの更新に失敗しました');
++      }
++
++      const err = normalizeUnknownError(error);
++      const errorMessage = err.message;
++      return {
++        status: 'failed',
++        error: formatMessage('REVIEW_CHECKLIST_EXTRACTION_ERROR', {
++          detail: errorMessage,
++        }),
++      };
++    }
++  }
++
++  /**
++   * アップロードファイルからレビュー実行処理を実行
++   * @param reviewHistoryId レビュー履歴ID
++   * @param files アップロードファイルの配列
++   * @returns 処理結果
++   */
++  public async executeReview(
++    reviewHistoryId: string,
++    files: UploadFile[],
++    evaluationSettings: CustomEvaluationSettings,
++    additionalInstructions?: string,
++    commentFormat?: string,
++  ): Promise<{ status: ReviewExecutionResultStatus; error?: string }> {
++    try {
++      // レビュー履歴の存在確認
++      const reviewHistory =
++        await this.reviewRepository.getReviewHistory(reviewHistoryId);
++      if (!reviewHistory) {
++        return {
++          status: 'failed',
++          error: `チェックリストが一度も作成されていません`,
++        };
++      }
++
++      // Mastraワークフローを実行
++      const workflow = mastra.getWorkflow('reviewExecutionWorkflow');
++
++      if (!workflow) {
++        logger.error('レビュー実行ワークフローが見つかりません');
++        throw internalError({
++          expose: false,
++        });
++      }
++
++      // タイトルの変更
++      const fileNames = files.map((f) => f.name.replace(/\.[^/.]+$/, '')); // 拡張子を除いたファイル名
++      const reviewTitle = generateReviewTitle(fileNames);
++      // レビュー履歴のタイトルと追加データを更新
++      await this.reviewRepository.updateReviewHistoryTitle(
++        reviewHistory.id,
++        reviewTitle,
++      );
++      // タイトル更新時はレビュー履歴更新イベントを送信
++      publishEvent(IpcChannels.REVIEW_HISTORY_UPDATED, undefined);
++
++      const run = await workflow.createRunAsync();
++
++      // 実行中のワークフローを管理
++      this.runningWorkflows.set(reviewHistoryId, {
++        cancel: () => run.cancel(),
++      });
++
++      // 処理ステータスを「レビュー中」に更新
++      await this.reviewRepository.updateReviewHistoryProcessingStatus(
++        reviewHistoryId,
++        'reviewing',
++      );
++
++      const result = await run.start({
++        inputData: {
++          reviewHistoryId,
++          files,
++          evaluationSettings,
++          additionalInstructions,
++          commentFormat,
++        },
++      });
++
++      // 結果を確認
++      const checkResult = checkWorkflowResult(result);
++
++      // クリーンアップ
++      this.runningWorkflows.delete(reviewHistoryId);
++
++      // 処理ステータスを更新
++      const newStatus =
++        checkResult.status === 'success' ? 'completed' : 'extracted';
++      await this.reviewRepository.updateReviewHistoryProcessingStatus(
++        reviewHistoryId,
++        newStatus,
++      );
++
++      return {
++        status: checkResult.status,
++        error: checkResult.errorMessage,
++      };
++    } catch (error) {
++      logger.error(error, 'レビュー実行処理に失敗しました');
++
++      // エラー時もクリーンアップ
++      this.runningWorkflows.delete(reviewHistoryId);
++
++      // 処理ステータスを「抽出完了」に戻す
++      try {
++        await this.reviewRepository.updateReviewHistoryProcessingStatus(
++          reviewHistoryId,
++          'extracted',
++        );
++      } catch (statusUpdateError) {
++        logger.error(statusUpdateError, '処理ステータスの更新に失敗しました');
++      }
++
++      const err = normalizeUnknownError(error);
++      const errorMessage = err.message;
++      return {
++        status: 'failed',
++        error: formatMessage('REVIEW_EXECUTION_ERROR', {
++          detail: errorMessage,
++        }),
++      };
++    }
++  }
++
++  /**
++   * IPC通信でチェックリスト抽出処理を実行し、完了時にイベントを送信
++   * @param reviewHistoryId レビュー履歴ID
++   * @param sourceIds ソースIDの配列
++   * @param mainWindow メインウィンドウ
++   */
++  public extractChecklistWithNotification(
++    reviewHistoryId: string,
++    files: UploadFile[],
++    documentType: DocumentType = 'checklist-ai',
++    checklistRequirements?: string,
++  ): { success: boolean; error?: string } {
++    try {
++      this.extractChecklist(
++        reviewHistoryId,
++        files,
++        documentType,
++        checklistRequirements,
++      )
++        .then((res) => {
++          // 完了イベントを送信
++          publishEvent(IpcChannels.REVIEW_EXTRACT_CHECKLIST_FINISHED, {
++            reviewHistoryId,
++            status: res.status,
++            error: res.error,
++          });
++          return true;
++        })
++        .catch((error) => {
++          const errorMessage =
++            error instanceof Error ? error.message : '不明なエラー';
++          const errorResult = {
++            status: 'failed' as ChecklistExtractionResultStatus,
++            error: errorMessage,
++          };
++          // エラーイベントを送信
++          publishEvent(IpcChannels.REVIEW_EXTRACT_CHECKLIST_FINISHED, {
++            reviewHistoryId,
++            ...errorResult,
++          });
++        });
++      return {
++        success: true,
++      };
++    } catch (error) {
++      logger.error(error, 'チェックリスト抽出処理に失敗しました');
++      const err = normalizeUnknownError(error);
++      const errorMessage = err.message;
++      const errorResult = {
++        success: false,
++        error: errorMessage,
++      };
++      const payloadResult = {
++        reviewHistoryId,
++        status: 'failed' as ChecklistExtractionResultStatus,
++        error: errorMessage,
++      };
++      // エラーイベントを送信
++      publishEvent(
++        IpcChannels.REVIEW_EXTRACT_CHECKLIST_FINISHED,
++        payloadResult,
++      );
++      return errorResult;
++    }
++  }
++
++  /**
++   * IPC通信でレビュー実行処理を実行し、完了時にイベントを送信
++   * @param reviewHistoryId レビュー履歴ID
++   * @param sourceIds ソースIDの配列
++   * @param mainWindow メインウィンドウ
++   */
++  public executeReviewWithNotification(
++    reviewHistoryId: string,
++    files: UploadFile[],
++    evaluationSettings: CustomEvaluationSettings,
++    additionalInstructions?: string,
++    commentFormat?: string,
++  ): { success: boolean; error?: string } {
++    try {
++      this.executeReview(
++        reviewHistoryId,
++        files,
++        evaluationSettings,
++        additionalInstructions,
++        commentFormat,
++      )
++        .then((res) => {
++          // 完了イベントを送信
++          publishEvent(IpcChannels.REVIEW_EXECUTE_FINISHED, {
++            reviewHistoryId,
++            status: res.status,
++            error: res.error,
++          });
++          return true;
++        })
++        .catch((error) => {
++          const errorMessage =
++            error instanceof Error ? error.message : '不明なエラー';
++          const errorResult = {
++            status: 'failed' as ReviewExecutionResultStatus,
++            error: errorMessage,
++          };
++          // エラーイベントを送信
++          publishEvent(IpcChannels.REVIEW_EXECUTE_FINISHED, {
++            reviewHistoryId,
++            ...errorResult,
++          });
++        });
++      return {
++        success: true,
++      };
++    } catch (error) {
++      logger.error(error, 'レビュー実行処理に失敗しました');
++      const err = normalizeUnknownError(error);
++      const errorMessage = err.message;
++      const errorResult = {
++        success: false,
++        error: errorMessage,
++      };
++      const payloadResult = {
++        reviewHistoryId,
++        status: 'failed' as ReviewExecutionResultStatus,
++        error: errorMessage,
++      };
++
++      // エラーイベントを送信
++      publishEvent(IpcChannels.REVIEW_EXECUTE_FINISHED, payloadResult);
++
++      return errorResult;
++    }
++  }
++
++  /**
++   * チェックリスト抽出処理をキャンセル
++   * @param reviewHistoryId レビュー履歴ID
++   */
++  public abortExtractChecklist(reviewHistoryId: string): {
++    success: boolean;
++    error?: string;
++  } {
++    try {
++      const runningWorkflow = this.runningWorkflows.get(reviewHistoryId);
++      if (runningWorkflow) {
++        runningWorkflow.cancel();
++        this.runningWorkflows.delete(reviewHistoryId);
++        logger.info(
++          `チェックリスト抽出処理をキャンセルしました: ${reviewHistoryId}`,
++        );
++        return { success: true };
++      } else {
++        logger.warn(
++          `キャンセル対象のチェックリスト抽出処理が見つかりません: ${reviewHistoryId}`,
++        );
++        return {
++          success: false,
++          error: 'キャンセル対象の処理が見つかりません',
++        };
++      }
++    } catch (error) {
++      logger.error(error, 'チェックリスト抽出のキャンセルに失敗しました');
++      const err = normalizeUnknownError(error);
++      return { success: false, error: err.message };
++    }
++  }
++
++  /**
++   * レビュー実行処理をキャンセル
++   * @param reviewHistoryId レビュー履歴ID
++   */
++  public abortExecuteReview(reviewHistoryId: string): {
++    success: boolean;
++    error?: string;
++  } {
++    try {
++      const runningWorkflow = this.runningWorkflows.get(reviewHistoryId);
++      if (runningWorkflow) {
++        runningWorkflow.cancel();
++        this.runningWorkflows.delete(reviewHistoryId);
++        logger.info(`レビュー実行処理をキャンセルしました: ${reviewHistoryId}`);
++        return { success: true };
++      } else {
++        logger.warn(
++          `キャンセル対象のレビュー実行処理が見つかりません: ${reviewHistoryId}`,
++        );
++        return {
++          success: false,
++          error: 'キャンセル対象の処理が見つかりません',
++        };
++      }
++    } catch (error) {
++      logger.error(error, 'レビュー実行のキャンセルに失敗しました');
++      const err = normalizeUnknownError(error);
++      return { success: false, error: err.message };
++    }
++  }
+ }
+diff --git a/src/main/service/sourceService.ts b/src/main/service/sourceService.ts
+index fd760ef57..daa09d337 100644
+--- a/src/main/service/sourceService.ts
++++ b/src/main/service/sourceService.ts
+@@ -1,9 +1,23 @@
++import path from 'path';
++import fs from 'fs/promises';
++import { internalError, normalizeUnknownError } from '../lib/error';
++import { publishEvent } from '../lib/eventPayloadHelper';
++import FileExtractor from '../lib/fileExtractor';
++import { getMainLogger } from '../lib/logger';
++import { getSettingsRepository } from '../repository/settingsRepository';
+ import { getSourceRepository } from '../repository/sourceRepository';
+-import { Source } from '@/types';
++import { IpcChannels, Source } from '@/types';
++import { mastra } from '@/mastra';
++import { checkWorkflowResult } from '@/mastra/lib/workflowUtils';
++
++const logger = getMainLogger();
+ 
+ export interface ISourceService {
+   getAllSources(): Promise<Source[]>;
+   updateSourceEnabled(sourceId: number, enabled: boolean): Promise<void>;
++  clearProcessingSources(): Promise<void>;
++  removeNonexistentSources(): Promise<void>;
++  registerAllFiles(excludeRegisteredFile?: boolean): Promise<void>;
+ }
+ 
+ export class SourceService implements ISourceService {
+@@ -13,6 +27,9 @@ export class SourceService implements ISourceService {
+   // ドキュメント関連リポジトリ
+   private sourceRepository = getSourceRepository();
+ 
++  // 設定関連リポジトリ
++  private settingsRepository = getSettingsRepository();
++
+   // シングルトンインスタンスを取得
+   public static getInstance(): SourceService {
+     if (!SourceService.instance) {
+@@ -40,4 +57,248 @@ export class SourceService implements ISourceService {
+   ): Promise<void> {
+     await this.sourceRepository.updateSourceEnabled(sourceId, enabled);
+   }
++
++  /**
++   * ソースとそのキャッシュを削除
++   * @param sourcePath ソースのパス
++   */
++  private async deleteSourceAndCache(sourcePath: string): Promise<void> {
++    const result = await this.sourceRepository.deleteSourceByPath(sourcePath);
++    if (result) {
++      if (FileExtractor.isCacheTarget(sourcePath)) {
++        await FileExtractor.deleteCache(sourcePath);
++      }
++    }
++  }
++
++  /**
++   * アプリ起動時に、処理中のソースを全て削除する
++   */
++  public async clearProcessingSources(): Promise<void> {
++    // 削除対象のソースを取得
++    const targetSources = await this.sourceRepository.getSouorceInStatus([
++      'processing',
++      'idle',
++      'failed',
++    ]);
++
++    // 各ソースを削除
++    for (const source of targetSources) {
++      await this.deleteSourceAndCache(source.path);
++    }
++  }
++
++  /**
++   * DBに存在するが実ファイルが存在しないソースを削除
++   */
++  public async removeNonexistentSources(): Promise<void> {
++    const store = await this.settingsRepository.getSettings();
++    const { registerDir } = store.source;
++    if (!registerDir || registerDir.trim() === '') {
++      throw internalError({
++        expose: true,
++        messageCode: 'SOURCE_REGISTRATION_DIR_NOT_SET',
++      });
++    }
++    let files: string[] = [];
++    if (registerDir.trim() !== '') {
++      // フォルダ内のファイル一覧を取得
++      files = await this.readDirectoryRecursively(registerDir);
++    }
++
++    // DB接続を一度だけ確立
++    const allSources = await this.sourceRepository.getAllSources();
++
++    // DBに存在するが実ファイルが存在しないソースを削除
++    const existingPaths = new Set(files);
++    const toDeleteSources = allSources.filter(
++      (source) => !existingPaths.has(source.path),
++    );
++    if (toDeleteSources.length > 0) {
++      for (const source of toDeleteSources) {
++        await this.deleteSourceAndCache(source.path);
++      }
++      console.log(
++        `${toDeleteSources.length}件の存在しないファイルのソース情報を削除しました`,
++      );
++    }
++  }
++
++  /**
++   * フォルダ内の全てのファイルを登録
++   */
++  public async registerAllFiles(excludeRegisteredFile = true): Promise<void> {
++    try {
++      const store = await this.settingsRepository.getSettings();
++      const { registerDir } = store.source;
++      if (!registerDir || registerDir.trim() === '') {
++        throw internalError({
++          expose: true,
++          messageCode: 'SOURCE_REGISTRATION_DIR_NOT_SET',
++        });
++      }
++      let files: string[] = [];
++      if (registerDir.trim() !== '') {
++        // フォルダ内のファイル一覧を取得
++        files = await this.readDirectoryRecursively(registerDir);
++      }
++
++      // DB接続を一度だけ確立
++      const allSources = await this.sourceRepository.getAllSources();
++
++      // DBに存在するが実ファイルが存在しないソースを削除
++      const existingPaths = new Set(files);
++      const toDeleteSources = allSources.filter(
++        (source) => !existingPaths.has(source.path),
++      );
++      if (toDeleteSources.length > 0) {
++        for (const source of toDeleteSources) {
++          await this.deleteSourceAndCache(source.path);
++        }
++        console.log(
++          `${toDeleteSources.length}件の存在しないファイルのソース情報を削除しました`,
++        );
++      }
++
++      // フォルダ内のファイルが存在しない場合は早期リターン
++      if (files.length === 0) {
++        console.log('登録するファイルが見つかりませんでした');
++        // ドキュメント更新完了イベントを発行（成功）
++        publishEvent(IpcChannels.SOURCE_RELOAD_FINISHED, { success: true });
++        return;
++      }
++
++      // 登録対象のファイルをフィルタリング（直列版）
++      if (excludeRegisteredFile) {
++        const filteredFiles: string[] = []; // 最終的に残すファイルを格納する配列
++
++        // files 配列を１つずつ順番に処理
++        for (const filePath of files) {
++          // DB に同じパスで status が idle/processing のレコードがあるか問い合わせ
++          const existingSource =
++            await this.sourceRepository.getSourceByPathInStatus(filePath, [
++              'completed',
++            ]);
++
++          // レコードが見つからなかった（＝未登録 or ステータス未完了）ファイルだけ残す
++          if (existingSource.length === 0) {
++            filteredFiles.push(filePath);
++          }
++          // あれば何もしない（除外）
++        }
++
++        files = filteredFiles;
++      }
++
++      // 登録対象のファイルが存在しない場合は早期リターン
++      if (files.length === 0) {
++        console.log('登録するファイルが見つかりませんでした');
++        // ドキュメント更新完了イベントを発行（成功）
++        publishEvent(IpcChannels.SOURCE_RELOAD_FINISHED, { success: true });
++        return;
++      }
++
++      // 既存のソースを削除
++      for (const filePath of files) {
++        await this.deleteSourceAndCache(filePath);
++      }
++
++      // ソースをDBに登録
++      const rows = files.map((filePath) => ({
++        path: filePath,
++        title: path.basename(filePath),
++        summary: '',
++        status: 'idle' as const,
++      }));
++      await this.sourceRepository.insertSources(rows);
++
++      // files配列を reduce でたたみ込み、逐次処理を実現する
++      const registrationResults = await files.reduce<
++        Promise<{ success: boolean; filePath: string }[]>
++      >(
++        // previousPromise: これまでの処理結果を含む Promise
++        // filePath: 現在処理するファイルパス
++        (previousPromise, filePath) => {
++          return previousPromise.then(async (resultList) => {
++            try {
++              // Mastraインスタンスからワークフローを取得して実行
++              const workflow = mastra.getWorkflow('sourceRegistrationWorkflow');
++              const run = workflow.createRun();
++              const result = await run.start({
++                inputData: { filePath },
++              });
++
++              // 結果を確認
++              const checkResult = checkWorkflowResult(result);
++
++              resultList.push({
++                success: checkResult.status == 'success',
++                filePath,
++              });
++            } catch (error) {
++              logger.error(
++                error,
++                'ドキュメント登録用ワークフロー実行中にエラー',
++              );
++              throw error;
++            }
++            // 次のイテレーションに結果配列を渡す
++            return resultList;
++          });
++        },
++        // 初期値：空の配列を返す Promise
++        Promise.resolve([]),
++      );
++
++      // 成功件数をカウント
++      const successCount = registrationResults.filter((r) => r.success).length;
++      logger.debug(`${successCount}件のファイルの登録が完了しました`);
++
++      // ドキュメント更新完了イベントを発行（成功）
++      publishEvent(IpcChannels.SOURCE_RELOAD_FINISHED, { success: true });
++    } catch (error) {
++      // ドキュメント更新完了イベントを発行（失敗）
++      const normalizedError = normalizeUnknownError(error);
++      let errorMessage = normalizedError.message;
++      publishEvent(IpcChannels.SOURCE_RELOAD_FINISHED, {
++        success: false,
++        error: errorMessage,
++      });
++    }
++  }
++
++  /**
++   * フォルダを再帰的に読み込み、全てのファイルパスを取得
++   * @param dirPath ディレクトリパス
++   * @returns ファイルパスの配列
++   */
++  private async readDirectoryRecursively(dirPath: string): Promise<string[]> {
++    try {
++      const items = await fs.readdir(dirPath, { withFileTypes: true });
++
++      // map して Promise<string[]> の配列を作成
++      const nested = await Promise.all(
++        items.map(async (item) => {
++          const fullPath = path.resolve(path.join(dirPath, item.name));
++          if (item.isDirectory()) {
++            return this.readDirectoryRecursively(fullPath);
++          }
++          return [fullPath];
++        }),
++      );
++
++      // 配列の配列を平坦化して返却
++      return nested.flat();
++    } catch (error) {
++      logger.error(
++        error,
++        'ドキュメント登録用ディレクトリの読み込みに失敗しました',
++      );
++      throw internalError({
++        expose: true,
++        messageCode: 'SOURCE_REGISTRATION_DIR_READING_ERROR',
++        cause: error,
++      });
++    }
++  }
+ }
+diff --git a/src/mastra/agents/prompts.ts b/src/mastra/agents/prompts.ts
+index 019490841..0d739d46b 100644
+--- a/src/mastra/agents/prompts.ts
++++ b/src/mastra/agents/prompts.ts
+@@ -473,11 +473,15 @@ ${evaluationInstructions}
+ 
+ ${actualFormat}
+ 
+-3. In your comments, be sure to:
++3. For each checklist item, specify the review sections that should be examined for evaluation and commenting:
++   a) Identify the specific file names that need to be reviewed.
++   b) For each file, list the relevant sections within that file.
++   c) For each section, specify the particular aspect or viewpoint that should be reviewed.
++4. In your comments, be sure to:
+    a) Cite specific parts of the document as evidence.
+    b) Separate discussions by section if some parts meet the item and others do not.
+    c) Cover every relevant occurrence—do not offer only a general summary.
+-4. Do not omit any checklist item; review the entire document against each criterion before finalizing your evaluation.
++5. Do not omit any checklist item; review the entire document against each criterion before finalizing your evaluation.
+ ${
+   additionalInstructions && additionalInstructions.trim() !== ''
+     ? `
+diff --git a/src/mastra/workflows/sourceRegistration/sourceRegistrationManager.ts b/src/mastra/workflows/sourceRegistration/sourceRegistrationManager.ts
+deleted file mode 100644
+index ec41957e2..000000000
+--- a/src/mastra/workflows/sourceRegistration/sourceRegistrationManager.ts
++++ /dev/null
+@@ -1,278 +0,0 @@
+-import fs from 'fs/promises';
+-import path from 'path';
+-import FileExtractor from '../../../main/lib/fileExtractor';
+-import { mastra } from '../..';
+-import { getSourceRepository } from '../../../main/repository/sourceRepository';
+-import { checkWorkflowResult } from '../../lib/workflowUtils';
+-import { getMainLogger } from '@/main/lib/logger';
+-import { internalError, normalizeUnknownError } from '@/main/lib/error';
+-import { getSettingsRepository } from '@/main/repository/settingsRepository';
+-import { publishEvent } from '@/main/lib/eventPayloadHelper';
+-import { IpcChannels } from '@/types';
+-
+-const logger = getMainLogger();
+-
+-/**
+- * フォルダ内の全てのファイルを登録するワークフロー
+- */
+-export default class SourceRegistrationManager {
+-  private static instance: SourceRegistrationManager | null = null;
+-
+-  private sourceRepository = getSourceRepository();
+-
+-  private settingsRepository = getSettingsRepository();
+-
+-  /**
+-   * シングルトンインスタンスを取得するメソッド
+-   */
+-  public static getInstance(): SourceRegistrationManager {
+-    if (!SourceRegistrationManager.instance) {
+-      SourceRegistrationManager.instance = new SourceRegistrationManager();
+-    }
+-    return SourceRegistrationManager.instance;
+-  }
+-
+-  /**
+-   * ソースとそのキャッシュを削除
+-   * @param sourcePath ソースのパス
+-   */
+-  private async deleteSourceAndCache(sourcePath: string): Promise<void> {
+-    const result = await this.sourceRepository.deleteSourceByPath(sourcePath);
+-    if (result) {
+-      if (FileExtractor.isCacheTarget(sourcePath)) {
+-        await FileExtractor.deleteCache(sourcePath);
+-      }
+-    }
+-  }
+-
+-  /**
+-   * アプリ起動時に、処理中のソースを全て削除する
+-   */
+-  public async clearProcessingSources(): Promise<void> {
+-    // 削除対象のソースを取得
+-    const targetSources = await this.sourceRepository.getSouorceInStatus([
+-      'processing',
+-      'idle',
+-      'failed',
+-    ]);
+-
+-    // 各ソースを削除
+-    for (const source of targetSources) {
+-      await this.deleteSourceAndCache(source.path);
+-    }
+-  }
+-
+-  /**
+-   * DBに存在するが実ファイルが存在しないソースを削除
+-   */
+-  public async removeNonexistentSources(): Promise<void> {
+-    const store = await this.settingsRepository.getSettings();
+-    const { registerDir } = store.source;
+-    if (!registerDir || registerDir.trim() === '') {
+-      throw internalError({
+-        expose: true,
+-        messageCode: 'SOURCE_REGISTRATION_DIR_NOT_SET',
+-      });
+-    }
+-    let files: string[] = [];
+-    if (registerDir.trim() !== '') {
+-      // フォルダ内のファイル一覧を取得
+-      files = await this.readDirectoryRecursively(registerDir);
+-    }
+-
+-    // DB接続を一度だけ確立
+-    const allSources = await this.sourceRepository.getAllSources();
+-
+-    // DBに存在するが実ファイルが存在しないソースを削除
+-    const existingPaths = new Set(files);
+-    const toDeleteSources = allSources.filter(
+-      (source) => !existingPaths.has(source.path),
+-    );
+-    if (toDeleteSources.length > 0) {
+-      for (const source of toDeleteSources) {
+-        await this.deleteSourceAndCache(source.path);
+-      }
+-      console.log(
+-        `${toDeleteSources.length}件の存在しないファイルのソース情報を削除しました`,
+-      );
+-    }
+-  }
+-
+-  /**
+-   * フォルダ内の全てのファイルを登録
+-   */
+-  public async registerAllFiles(excludeRegisteredFile = true): Promise<void> {
+-    try {
+-      const store = await this.settingsRepository.getSettings();
+-      const { registerDir } = store.source;
+-      if (!registerDir || registerDir.trim() === '') {
+-        throw internalError({
+-          expose: true,
+-          messageCode: 'SOURCE_REGISTRATION_DIR_NOT_SET',
+-        });
+-      }
+-      let files: string[] = [];
+-      if (registerDir.trim() !== '') {
+-        // フォルダ内のファイル一覧を取得
+-        files = await this.readDirectoryRecursively(registerDir);
+-      }
+-
+-      // DB接続を一度だけ確立
+-      const allSources = await this.sourceRepository.getAllSources();
+-
+-      // DBに存在するが実ファイルが存在しないソースを削除
+-      const existingPaths = new Set(files);
+-      const toDeleteSources = allSources.filter(
+-        (source) => !existingPaths.has(source.path),
+-      );
+-      if (toDeleteSources.length > 0) {
+-        for (const source of toDeleteSources) {
+-          await this.deleteSourceAndCache(source.path);
+-        }
+-        console.log(
+-          `${toDeleteSources.length}件の存在しないファイルのソース情報を削除しました`,
+-        );
+-      }
+-
+-      // フォルダ内のファイルが存在しない場合は早期リターン
+-      if (files.length === 0) {
+-        console.log('登録するファイルが見つかりませんでした');
+-        // ドキュメント更新完了イベントを発行（成功）
+-        publishEvent(IpcChannels.SOURCE_RELOAD_FINISHED, { success: true });
+-        return;
+-      }
+-
+-      // 登録対象のファイルをフィルタリング（直列版）
+-      if (excludeRegisteredFile) {
+-        const filteredFiles: string[] = []; // 最終的に残すファイルを格納する配列
+-
+-        // files 配列を１つずつ順番に処理
+-        for (const filePath of files) {
+-          // DB に同じパスで status が idle/processing のレコードがあるか問い合わせ
+-          const existingSource =
+-            await this.sourceRepository.getSourceByPathInStatus(filePath, [
+-              'completed',
+-            ]);
+-
+-          // レコードが見つからなかった（＝未登録 or ステータス未完了）ファイルだけ残す
+-          if (existingSource.length === 0) {
+-            filteredFiles.push(filePath);
+-          }
+-          // あれば何もしない（除外）
+-        }
+-
+-        files = filteredFiles;
+-      }
+-
+-      // 登録対象のファイルが存在しない場合は早期リターン
+-      if (files.length === 0) {
+-        console.log('登録するファイルが見つかりませんでした');
+-        // ドキュメント更新完了イベントを発行（成功）
+-        publishEvent(IpcChannels.SOURCE_RELOAD_FINISHED, { success: true });
+-        return;
+-      }
+-
+-      // 既存のソースを削除
+-      for (const filePath of files) {
+-        await this.deleteSourceAndCache(filePath);
+-      }
+-
+-      // ソースをDBに登録
+-      const rows = files.map((filePath) => ({
+-        path: filePath,
+-        title: path.basename(filePath),
+-        summary: '',
+-        status: 'idle' as const,
+-      }));
+-      await this.sourceRepository.insertSources(rows);
+-
+-      // files配列を reduce でたたみ込み、逐次処理を実現する
+-      const registrationResults = await files.reduce<
+-        Promise<{ success: boolean; filePath: string }[]>
+-      >(
+-        // previousPromise: これまでの処理結果を含む Promise
+-        // filePath: 現在処理するファイルパス
+-        (previousPromise, filePath) => {
+-          return previousPromise.then(async (resultList) => {
+-            try {
+-              // Mastraインスタンスからワークフローを取得して実行
+-              const workflow = mastra.getWorkflow('sourceRegistrationWorkflow');
+-              const run = workflow.createRun();
+-              const result = await run.start({
+-                inputData: { filePath },
+-              });
+-
+-              // 結果を確認
+-              const checkResult = checkWorkflowResult(result);
+-
+-              resultList.push({
+-                success: checkResult.status == 'success',
+-                filePath,
+-              });
+-            } catch (error) {
+-              logger.error(
+-                error,
+-                'ドキュメント登録用ワークフロー実行中にエラー',
+-              );
+-              throw error;
+-            }
+-            // 次のイテレーションに結果配列を渡す
+-            return resultList;
+-          });
+-        },
+-        // 初期値：空の配列を返す Promise
+-        Promise.resolve([]),
+-      );
+-
+-      // 成功件数をカウント
+-      const successCount = registrationResults.filter((r) => r.success).length;
+-      logger.debug(`${successCount}件のファイルの登録が完了しました`);
+-
+-      // ドキュメント更新完了イベントを発行（成功）
+-      publishEvent(IpcChannels.SOURCE_RELOAD_FINISHED, { success: true });
+-    } catch (error) {
+-      // ドキュメント更新完了イベントを発行（失敗）
+-      const normalizedError = normalizeUnknownError(error);
+-      let errorMessage = normalizedError.message;
+-      publishEvent(IpcChannels.SOURCE_RELOAD_FINISHED, {
+-        success: false,
+-        error: errorMessage,
+-      });
+-    }
+-  }
+-
+-  /**
+-   * フォルダを再帰的に読み込み、全てのファイルパスを取得
+-   * @param dirPath ディレクトリパス
+-   * @returns ファイルパスの配列
+-   */
+-  private async readDirectoryRecursively(dirPath: string): Promise<string[]> {
+-    try {
+-      const items = await fs.readdir(dirPath, { withFileTypes: true });
+-
+-      // map して Promise<string[]> の配列を作成
+-      const nested = await Promise.all(
+-        items.map(async (item) => {
+-          const fullPath = path.resolve(path.join(dirPath, item.name));
+-          if (item.isDirectory()) {
+-            return this.readDirectoryRecursively(fullPath);
+-          }
+-          return [fullPath];
+-        }),
+-      );
+-
+-      // 配列の配列を平坦化して返却
+-      return nested.flat();
+-    } catch (error) {
+-      logger.error(
+-        error,
+-        'ドキュメント登録用ディレクトリの読み込みに失敗しました',
+-      );
+-      throw internalError({
+-        expose: true,
+-        messageCode: 'SOURCE_REGISTRATION_DIR_READING_ERROR',
+-        cause: error,
+-      });
+-    }
+-  }
+-}
+diff --git a/src/mastra/workflows/sourceReview/reviewExecution.ts b/src/mastra/workflows/sourceReview/reviewExecution.ts
+index cbab9ece2..22ebbc5ab 100644
+--- a/src/mastra/workflows/sourceReview/reviewExecution.ts
++++ b/src/mastra/workflows/sourceReview/reviewExecution.ts
+@@ -26,9 +26,9 @@ import { createHash } from 'crypto';
+ const logger = getMainLogger();
+ 
+ // 一つのカテゴリに含めるチェックリストの最大数
+-const MAX_CHECKLISTS_PER_CATEGORY = 3;
++const MAX_CHECKLISTS_PER_CATEGORY = 2;
+ // 分割カテゴリの最大数
+-const MAX_CATEGORIES = 20;
++const MAX_CATEGORIES = 50;
+ 
+ // カテゴリ分類ステップの出力スキーマ
+ const classifyChecklistsByCategoryOutputSchema = baseStepOutputSchema.extend({
+@@ -304,6 +304,29 @@ const reviewExecutionStep = createStep({
+           const outputSchema = z.array(
+             z.object({
+               checklistId: z.number(),
++              reviewSections: z
++                .array(
++                  z.object({
++                    fileName: z.string().describe('file name to review'),
++                    sections: z
++                      .array(
++                        z.object({
++                          sectionName: z
++                            .string()
++                            .describe('section name within the file'),
++                          reviewAspect: z
++                            .string()
++                            .describe(
++                              'specific aspect to review in this section',
++                            ),
++                        }),
++                      )
++                      .describe('sections to review within the file'),
++                  }),
++                )
++                .describe(
++                  'files and sections that should be reviewed for evaluation and commenting',
++                ),
+               comment: z.string().describe('evaluation comment'),
+               evaluation: evaluationEnum.describe('evaluation'),
+             }),
+@@ -314,8 +337,27 @@ const reviewExecutionStep = createStep({
+           runtimeContext.set('additionalInstructions', additionalInstructions);
+           runtimeContext.set('commentFormat', commentFormat);
+           runtimeContext.set('evaluationSettings', evaluationSettings);
++
++          // チェックリスト一覧をメッセージの最後にリマインドとして追加
++          const checklistReminder = `## Checklist Items to Review:
++${reviewTargetChecklists.map((item) => `- ID: ${item.id} - ${item.content}`).join('\n')}
++
++Please review the document against the above checklist items.`;
++
++          // メッセージのcontentの最後にリマインダーを追加
++          const messageWithReminder = {
++            ...message,
++            content: [
++              ...message.content,
++              {
++                type: 'text' as const,
++                text: checklistReminder,
++              },
++            ],
++          };
++
+           // レビューエージェントを使用してレビューを実行
+-          const reviewResult = await reviewAgent.generate(message, {
++          const reviewResult = await reviewAgent.generate(messageWithReminder, {
+             output: outputSchema,
+             runtimeContext,
+             abortSignal,
+diff --git a/src/mastra/workflows/sourceReview/sourceReviewManager.ts b/src/mastra/workflows/sourceReview/sourceReviewManager.ts
+deleted file mode 100644
+index 768b22367..000000000
+--- a/src/mastra/workflows/sourceReview/sourceReviewManager.ts
++++ /dev/null
+@@ -1,453 +0,0 @@
+-import { getReviewRepository } from '@/main/repository/reviewRepository';
+-import { IpcChannels } from '@/types/ipc';
+-import { generateReviewTitle } from './lib';
+-import { RevieHistory, CustomEvaluationSettings } from '@/types';
+-import { mastra } from '../..';
+-import {
+-  ChecklistExtractionResultStatus,
+-  DocumentType,
+-  ReviewExecutionResultStatus,
+-  UploadFile,
+-} from '@/types';
+-import { checkWorkflowResult } from '../../lib/workflowUtils';
+-import { internalError, normalizeUnknownError } from '@/main/lib/error';
+-import { getMainLogger } from '@/main/lib/logger';
+-import { formatMessage } from '@/main/lib/messages';
+-import { publishEvent } from '@/main/lib/eventPayloadHelper';
+-
+-const logger = getMainLogger();
+-
+-/**
+- * ソースレビュー処理を管理するクラス
+- */
+-export default class SourceReviewManager {
+-  private static instance: SourceReviewManager | null = null;
+-
+-  private reviewRepository = getReviewRepository();
+-
+-  // 実行中のワークフロー管理
+-  private runningWorkflows = new Map<string, { cancel: () => void }>();
+-
+-  /**
+-   * シングルトンインスタンスを取得
+-   */
+-  public static getInstance(): SourceReviewManager {
+-    if (!SourceReviewManager.instance) {
+-      SourceReviewManager.instance = new SourceReviewManager();
+-    }
+-    return SourceReviewManager.instance;
+-  }
+-
+-  /**
+-   * アップロードファイルからチェックリスト抽出処理を実行
+-   * @param reviewHistoryId レビュー履歴ID（新規の場合は生成）
+-   * @param files アップロードファイルの配列
+-   * @returns 処理結果
+-   */
+-  public async extractChecklist(
+-    reviewHistoryId: string,
+-    files: UploadFile[],
+-    documentType: DocumentType = 'checklist-ai',
+-    checklistRequirements?: string,
+-  ): Promise<{ status: ChecklistExtractionResultStatus; error?: string }> {
+-    try {
+-      let reviewHistory: RevieHistory | null;
+-      reviewHistory =
+-        await this.reviewRepository.getReviewHistory(reviewHistoryId);
+-      // レビュー履歴が存在しない場合は新規作成
+-      if (reviewHistory === null) {
+-        reviewHistory = await this.reviewRepository.createReviewHistory(
+-          generateReviewTitle(),
+-          reviewHistoryId,
+-        );
+-        // 新規作成時はレビュー履歴更新イベントを送信
+-        publishEvent(IpcChannels.REVIEW_HISTORY_UPDATED, undefined);
+-      } else {
+-        // 既存のレビュー履歴がある場合は、システム作成チェックリストを削除
+-        await this.reviewRepository.deleteSystemCreatedChecklists(
+-          reviewHistory.id,
+-        );
+-      }
+-
+-      // Mastraワークフローを実行
+-      const workflow = mastra.getWorkflow('checklistExtractionWorkflow');
+-
+-      if (!workflow) {
+-        logger.error('レビュー実行ワークフローが見つかりません');
+-        throw internalError({
+-          expose: false,
+-        });
+-      }
+-
+-      const run = await workflow.createRunAsync();
+-
+-      // 実行中のワークフローを管理
+-      this.runningWorkflows.set(reviewHistoryId, {
+-        cancel: () => run.cancel(),
+-      });
+-
+-      // 処理ステータスを「抽出中」に更新
+-      await this.reviewRepository.updateReviewHistoryProcessingStatus(
+-        reviewHistoryId,
+-        'extracting',
+-      );
+-
+-      const runResult = await run.start({
+-        inputData: {
+-          reviewHistoryId,
+-          files,
+-          documentType,
+-          checklistRequirements,
+-        },
+-      });
+-
+-      // 結果を確認
+-      const checkResult = checkWorkflowResult(runResult);
+-
+-      // クリーンアップ
+-      this.runningWorkflows.delete(reviewHistoryId);
+-
+-      // 処理ステータスを更新
+-      const newStatus = checkResult.status === 'success' ? 'extracted' : 'idle';
+-      await this.reviewRepository.updateReviewHistoryProcessingStatus(
+-        reviewHistoryId,
+-        newStatus,
+-      );
+-
+-      return {
+-        status: checkResult.status,
+-        error: checkResult.errorMessage,
+-      };
+-    } catch (error) {
+-      logger.error(error, 'チェックリスト抽出処理に失敗しました');
+-
+-      // エラー時もクリーンアップ
+-      this.runningWorkflows.delete(reviewHistoryId);
+-
+-      // 処理ステータスを「アイドル」に戻す
+-      try {
+-        await this.reviewRepository.updateReviewHistoryProcessingStatus(
+-          reviewHistoryId,
+-          'idle',
+-        );
+-      } catch (statusUpdateError) {
+-        logger.error(statusUpdateError, '処理ステータスの更新に失敗しました');
+-      }
+-
+-      const err = normalizeUnknownError(error);
+-      const errorMessage = err.message;
+-      return {
+-        status: 'failed',
+-        error: formatMessage('REVIEW_CHECKLIST_EXTRACTION_ERROR', {
+-          detail: errorMessage,
+-        }),
+-      };
+-    }
+-  }
+-
+-  /**
+-   * アップロードファイルからレビュー実行処理を実行
+-   * @param reviewHistoryId レビュー履歴ID
+-   * @param files アップロードファイルの配列
+-   * @returns 処理結果
+-   */
+-  public async executeReview(
+-    reviewHistoryId: string,
+-    files: UploadFile[],
+-    evaluationSettings: CustomEvaluationSettings,
+-    additionalInstructions?: string,
+-    commentFormat?: string,
+-  ): Promise<{ status: ReviewExecutionResultStatus; error?: string }> {
+-    try {
+-      // レビュー履歴の存在確認
+-      const reviewHistory =
+-        await this.reviewRepository.getReviewHistory(reviewHistoryId);
+-      if (!reviewHistory) {
+-        return {
+-          status: 'failed',
+-          error: `チェックリストが一度も作成されていません`,
+-        };
+-      }
+-
+-      // Mastraワークフローを実行
+-      const workflow = mastra.getWorkflow('reviewExecutionWorkflow');
+-
+-      if (!workflow) {
+-        logger.error('レビュー実行ワークフローが見つかりません');
+-        throw internalError({
+-          expose: false,
+-        });
+-      }
+-
+-      // タイトルの変更
+-      const fileNames = files.map((f) => f.name.replace(/\.[^/.]+$/, '')); // 拡張子を除いたファイル名
+-      const reviewTitle = generateReviewTitle(fileNames);
+-      // レビュー履歴のタイトルと追加データを更新
+-      await this.reviewRepository.updateReviewHistoryTitle(
+-        reviewHistory.id,
+-        reviewTitle,
+-      );
+-      // タイトル更新時はレビュー履歴更新イベントを送信
+-      publishEvent(IpcChannels.REVIEW_HISTORY_UPDATED, undefined);
+-
+-      const run = await workflow.createRunAsync();
+-
+-      // 実行中のワークフローを管理
+-      this.runningWorkflows.set(reviewHistoryId, {
+-        cancel: () => run.cancel(),
+-      });
+-
+-      // 処理ステータスを「レビュー中」に更新
+-      await this.reviewRepository.updateReviewHistoryProcessingStatus(
+-        reviewHistoryId,
+-        'reviewing',
+-      );
+-
+-      const result = await run.start({
+-        inputData: {
+-          reviewHistoryId,
+-          files,
+-          evaluationSettings,
+-          additionalInstructions,
+-          commentFormat,
+-        },
+-      });
+-
+-      // 結果を確認
+-      const checkResult = checkWorkflowResult(result);
+-
+-      // クリーンアップ
+-      this.runningWorkflows.delete(reviewHistoryId);
+-
+-      // 処理ステータスを更新
+-      const newStatus = checkResult.status === 'success' ? 'completed' : 'extracted';
+-      await this.reviewRepository.updateReviewHistoryProcessingStatus(
+-        reviewHistoryId,
+-        newStatus,
+-      );
+-
+-      return {
+-        status: checkResult.status,
+-        error: checkResult.errorMessage,
+-      };
+-    } catch (error) {
+-      logger.error(error, 'レビュー実行処理に失敗しました');
+-
+-      // エラー時もクリーンアップ
+-      this.runningWorkflows.delete(reviewHistoryId);
+-
+-      // 処理ステータスを「抽出完了」に戻す
+-      try {
+-        await this.reviewRepository.updateReviewHistoryProcessingStatus(
+-          reviewHistoryId,
+-          'extracted',
+-        );
+-      } catch (statusUpdateError) {
+-        logger.error(statusUpdateError, '処理ステータスの更新に失敗しました');
+-      }
+-
+-      const err = normalizeUnknownError(error);
+-      const errorMessage = err.message;
+-      return {
+-        status: 'failed',
+-        error: formatMessage('REVIEW_EXECUTION_ERROR', {
+-          detail: errorMessage,
+-        }),
+-      };
+-    }
+-  }
+-
+-  /**
+-   * IPC通信でチェックリスト抽出処理を実行し、完了時にイベントを送信
+-   * @param reviewHistoryId レビュー履歴ID
+-   * @param sourceIds ソースIDの配列
+-   * @param mainWindow メインウィンドウ
+-   */
+-  public extractChecklistWithNotification(
+-    reviewHistoryId: string,
+-    files: UploadFile[],
+-    documentType: DocumentType = 'checklist-ai',
+-    checklistRequirements?: string,
+-  ): { success: boolean; error?: string } {
+-    try {
+-      this.extractChecklist(
+-        reviewHistoryId,
+-        files,
+-        documentType,
+-        checklistRequirements,
+-      )
+-        .then((res) => {
+-          // 完了イベントを送信
+-          publishEvent(IpcChannels.REVIEW_EXTRACT_CHECKLIST_FINISHED, {
+-            reviewHistoryId,
+-            status: res.status,
+-            error: res.error,
+-          });
+-          return true;
+-        })
+-        .catch((error) => {
+-          const errorMessage =
+-            error instanceof Error ? error.message : '不明なエラー';
+-          const errorResult = {
+-            status: 'failed' as ChecklistExtractionResultStatus,
+-            error: errorMessage,
+-          };
+-          // エラーイベントを送信
+-          publishEvent(
+-            IpcChannels.REVIEW_EXTRACT_CHECKLIST_FINISHED,
+-            { reviewHistoryId, ...errorResult },
+-          );
+-        });
+-      return {
+-        success: true,
+-      };
+-    } catch (error) {
+-      logger.error(error, 'チェックリスト抽出処理に失敗しました');
+-      const err = normalizeUnknownError(error);
+-      const errorMessage = err.message;
+-      const errorResult = {
+-        success: false,
+-        error: errorMessage,
+-      };
+-      const payloadResult = {
+-        reviewHistoryId,
+-        status: 'failed' as ChecklistExtractionResultStatus,
+-        error: errorMessage,
+-      };
+-      // エラーイベントを送信
+-      publishEvent(
+-        IpcChannels.REVIEW_EXTRACT_CHECKLIST_FINISHED,
+-        payloadResult,
+-      );
+-      return errorResult;
+-    }
+-  }
+-
+-  /**
+-   * IPC通信でレビュー実行処理を実行し、完了時にイベントを送信
+-   * @param reviewHistoryId レビュー履歴ID
+-   * @param sourceIds ソースIDの配列
+-   * @param mainWindow メインウィンドウ
+-   */
+-  public executeReviewWithNotification(
+-    reviewHistoryId: string,
+-    files: UploadFile[],
+-    evaluationSettings: CustomEvaluationSettings,
+-    additionalInstructions?: string,
+-    commentFormat?: string,
+-  ): { success: boolean; error?: string } {
+-    try {
+-      this.executeReview(
+-        reviewHistoryId,
+-        files,
+-        evaluationSettings,
+-        additionalInstructions,
+-        commentFormat,
+-      )
+-        .then((res) => {
+-          // 完了イベントを送信
+-          publishEvent(IpcChannels.REVIEW_EXECUTE_FINISHED, {
+-            reviewHistoryId,
+-            status: res.status,
+-            error: res.error,
+-          });
+-          return true;
+-        })
+-        .catch((error) => {
+-          const errorMessage =
+-            error instanceof Error ? error.message : '不明なエラー';
+-          const errorResult = {
+-            status: 'failed' as ReviewExecutionResultStatus,
+-            error: errorMessage,
+-          };
+-          // エラーイベントを送信
+-          publishEvent(IpcChannels.REVIEW_EXECUTE_FINISHED, { reviewHistoryId, ...errorResult });
+-        });
+-      return {
+-        success: true,
+-      };
+-    } catch (error) {
+-      logger.error(error, 'レビュー実行処理に失敗しました');
+-      const err = normalizeUnknownError(error);
+-      const errorMessage = err.message;
+-      const errorResult = {
+-        success: false,
+-        error: errorMessage,
+-      };
+-      const payloadResult = {
+-        reviewHistoryId,
+-        status: 'failed' as ReviewExecutionResultStatus,
+-        error: errorMessage,
+-      };
+-
+-      // エラーイベントを送信
+-      publishEvent(IpcChannels.REVIEW_EXECUTE_FINISHED, payloadResult);
+-
+-      return errorResult;
+-    }
+-  }
+-
+-  /**
+-   * チェックリスト抽出処理をキャンセル
+-   * @param reviewHistoryId レビュー履歴ID
+-   */
+-  public abortExtractChecklist(reviewHistoryId: string): {
+-    success: boolean;
+-    error?: string;
+-  } {
+-    try {
+-      const runningWorkflow = this.runningWorkflows.get(reviewHistoryId);
+-      if (runningWorkflow) {
+-        runningWorkflow.cancel();
+-        this.runningWorkflows.delete(reviewHistoryId);
+-        logger.info(
+-          `チェックリスト抽出処理をキャンセルしました: ${reviewHistoryId}`,
+-        );
+-        return { success: true };
+-      } else {
+-        logger.warn(
+-          `キャンセル対象のチェックリスト抽出処理が見つかりません: ${reviewHistoryId}`,
+-        );
+-        return {
+-          success: false,
+-          error: 'キャンセル対象の処理が見つかりません',
+-        };
+-      }
+-    } catch (error) {
+-      logger.error(error, 'チェックリスト抽出のキャンセルに失敗しました');
+-      const err = normalizeUnknownError(error);
+-      return { success: false, error: err.message };
+-    }
+-  }
+-
+-  /**
+-   * レビュー実行処理をキャンセル
+-   * @param reviewHistoryId レビュー履歴ID
+-   */
+-  public abortExecuteReview(reviewHistoryId: string): {
+-    success: boolean;
+-    error?: string;
+-  } {
+-    try {
+-      const runningWorkflow = this.runningWorkflows.get(reviewHistoryId);
+-      if (runningWorkflow) {
+-        runningWorkflow.cancel();
+-        this.runningWorkflows.delete(reviewHistoryId);
+-        logger.info(`レビュー実行処理をキャンセルしました: ${reviewHistoryId}`);
+-        return { success: true };
+-      } else {
+-        logger.warn(
+-          `キャンセル対象のレビュー実行処理が見つかりません: ${reviewHistoryId}`,
+-        );
+-        return {
+-          success: false,
+-          error: 'キャンセル対象の処理が見つかりません',
+-        };
+-      }
+-    } catch (error) {
+-      logger.error(error, 'レビュー実行のキャンセルに失敗しました');
+-      const err = normalizeUnknownError(error);
+-      return { success: false, error: err.message };
+-    }
+-  }
+-}
