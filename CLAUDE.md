@@ -20,15 +20,6 @@ npm run check # TypeScriptの型チェック
 npm test
 ```
 
-### データベース関連
-```bash
-npm run db:generate
-npm run db:push
-npm run db:migrate
-npm run db:prepare
-npm run db:studio
-```
-
 ## アーキテクチャ概要
 
 ### プロジェクト構成
@@ -200,11 +191,19 @@ ElectronのIPCを使用してフロントエンド・バックエンド間の通
 
 ## 依頼タスク
 ### 要件
-- テキスト抽出処理(`src/main/lib/fileExtractor.ts`)、キャッシュ有無のオプションを廃止、デフォルトでキャッシュするように変更
-  - キャッシュはJsonオブジェクトに変更
-    - オブジェクトにはメタデータ（ファイルパス、ファイルの最終更新日時）を付与する
-    - ファイル名は現在と同様にファイルパスのハッシュ値をもとに生成した文字列とする
-  - ファイルの最終更新日時が変更されていた場合はキャッシュを破棄し、再度テキスト抽出処理を実行する
-  - 起動時のmain.tsでキャッシュディレクトリのクリーニング処理を実施
-    - 抽出元のファイルが削除された場合、最新版と最終更新日時がずれているキャッシュについては削除
-    - ただし、キャッシュディレクトリのパスは`src/main/lib/fileExtractor.ts`で一元管理すること
+- レビュー実行workflowのreviewExecutionStepにて、AI構造化出力のoutputSchema(reviewAgent.generateに渡す出力スキーマ)を以下のように変更する
+  - checklistIdの下に以下を追加(意図が伝わりやすい日本語で記載するが、実装の際の変数名やzodのdescribeは私の意図が正しく伝わるような自然で一般的な英語にすること)
+    - 評価・コメントする上で確認すべき箇所: [
+      {
+        ファイル: "~"
+        セクション: [
+          {
+            セクション名: "~"
+            確認観点: "~"
+          }
+        ]
+      }
+    ]
+### 関連ファイル
+- `src/mastra/workflows/sourceReview/checklistExtraction.ts`
+- `src/mastra/agents/prompts.ts`
