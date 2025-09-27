@@ -18,7 +18,7 @@ import type {
 } from '@/types';
 import { AppError } from '@/main/lib/error';
 import { repositoryError } from '@/main/lib/error';
-import { IReviewRepository } from '@/main/service/port';
+import { IReviewRepository } from '@/main/service/port/repository';
 
 /**
  * Drizzle ORM を使用したレビューリポジトリの実装
@@ -46,7 +46,8 @@ export class DrizzleReviewRepository implements IReviewRepository {
       additionalInstructions: reviewHistoryEntity.additionalInstructions,
       commentFormat: reviewHistoryEntity.commentFormat,
       evaluationSettings: null,
-      processingStatus: (reviewHistoryEntity.processingStatus || 'idle') as ProcessingStatus,
+      processingStatus: (reviewHistoryEntity.processingStatus ||
+        'idle') as ProcessingStatus,
       createdAt: reviewHistoryEntity.createdAt,
       updatedAt: reviewHistoryEntity.updatedAt,
     } as RevieHistory;
@@ -163,10 +164,7 @@ export class DrizzleReviewRepository implements IReviewRepository {
         })
         .where(eq(reviewHistories.id, id));
     } catch (err) {
-      throw repositoryError(
-        'レビューの評定項目設定の更新に失敗しました',
-        err,
-      );
+      throw repositoryError('レビューの評定項目設定の更新に失敗しました', err);
     }
   }
 

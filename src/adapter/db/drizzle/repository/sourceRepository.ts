@@ -4,7 +4,11 @@ import type { SourceEntity } from '../schema';
 import { sources, topics } from '../schema';
 import { Source, ProcessStatus } from '@/types';
 import { repositoryError } from '@/main/lib/error';
-import { ISourceRepository, InsertSource, InsertTopic } from '@/main/service/port';
+import {
+  ISourceRepository,
+  InsertSource,
+  InsertTopic,
+} from '@/main/service/port/repository';
 
 export class DrizzleSourceRepository implements ISourceRepository {
   convertSourceEntityToSource(entity: SourceEntity): Source {
@@ -41,8 +45,13 @@ export class DrizzleSourceRepository implements ISourceRepository {
   async getSourcesByIds(sourceIds: number[]): Promise<Source[]> {
     try {
       const db = await getDb();
-      const sourceEntities =  await db.select().from(sources).where(inArray(sources.id, sourceIds));
-      return sourceEntities.map((entity) => this.convertSourceEntityToSource(entity));
+      const sourceEntities = await db
+        .select()
+        .from(sources)
+        .where(inArray(sources.id, sourceIds));
+      return sourceEntities.map((entity) =>
+        this.convertSourceEntityToSource(entity),
+      );
     } catch (err) {
       throw repositoryError('ドキュメント情報の取得に失敗しました', err);
     }
@@ -218,8 +227,13 @@ export class DrizzleSourceRepository implements ISourceRepository {
   async getSouorceInStatus(status: ProcessStatus[]): Promise<Source[]> {
     try {
       const db = await getDb();
-      const sourceEntities = await db.select().from(sources).where(inArray(sources.status, status));
-      return sourceEntities.map((entity) => this.convertSourceEntityToSource(entity));
+      const sourceEntities = await db
+        .select()
+        .from(sources)
+        .where(inArray(sources.status, status));
+      return sourceEntities.map((entity) =>
+        this.convertSourceEntityToSource(entity),
+      );
     } catch (err) {
       throw repositoryError('ドキュメント情報の取得に失敗しました', err);
     }
@@ -235,7 +249,9 @@ export class DrizzleSourceRepository implements ISourceRepository {
         .select()
         .from(sources)
         .where(and(eq(sources.path, path), inArray(sources.status, status)));
-      return sourcesInStatus.map((entity) => this.convertSourceEntityToSource(entity));
+      return sourcesInStatus.map((entity) =>
+        this.convertSourceEntityToSource(entity),
+      );
     } catch (err) {
       throw repositoryError('ドキュメント情報の取得に失敗しました', err);
     }
@@ -245,7 +261,9 @@ export class DrizzleSourceRepository implements ISourceRepository {
     try {
       const db = await getDb();
       const sourceEntities = await db.select().from(sources);
-      return sourceEntities.map((entity) => this.convertSourceEntityToSource(entity));
+      return sourceEntities.map((entity) =>
+        this.convertSourceEntityToSource(entity),
+      );
     } catch (err) {
       throw repositoryError('ドキュメント情報の取得に失敗しました', err);
     }

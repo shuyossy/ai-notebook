@@ -100,12 +100,15 @@ ElectronのIPCを使用してフロントエンド・バックエンド間の通
   - `src/types/index.ts`：アプリ全体で利用する型定義のエントリーポイント（ただし、個別の機能等で型を定義する場合は各機能ディレクトリに作成しているので別途参照が必要）
   - `src/types/ipc.ts`：Electron IPC通信で利用する型定義
   - `src/types/eventPush.ts`: Main側からのイベントプッシュで利用する型定義
-- `src/db`: データベース定義（スキーマやDB接続情報）
-- `src/repository`: データアクセス層
+- `src/adapters`: portの実装
+  - `src/adapters/db/drizzle`: drizzleのスキーマ定義、repository実装
 - `src/main`: Electronのメインプロセス関連のコード
   - `src/main.ts`: Electronのメインプロセスのエントリポイント、IPC通信のハンドラの具体的な処理の定義やアプリケーションの初期化処理などを含む
   - `src/main/preload.ts`: ElectronのPreloadスクリプト、レンダラープロセスに公開するハンドラを定義(rendererとの境界にあたるため、ここで一元的にエラーハンドリングを実施している)
   - `src/main/store.ts`: electron-storeを利用してアプリケーションの設定や状態の保存・取得を行う、ここではstoreの初期化や設定の定義を行う
+  - `src/main/service`: サービス（コア）ロジック
+  - `src/mian/service/port`: 外部通信の抽象
+    - `src/mian/service/port/repository`: 外部DB通信（リポジトリ）の抽象
   - `src/main/push`: Main側からのイベントプッシュ関連コード
     - `src/main/push/InProcBroker.ts`: イベントを蓄積するBroker
     - `src/main/push/electronPushBroker.ts`: イベント購読についてelectron固有の差異を吸収するBroker
@@ -186,7 +189,7 @@ ElectronのIPCを使用してフロントエンド・バックエンド間の通
   - コンポーネントで常にSSEの通信を張ってデータを取得したい場合は`usePushChannel`を、一時的にSSEの通信を貼りたい場合は`ElectronPushClient`を利用
 - フロントエンドでエラーメッセージを表示する(addAlertで出す想定)場合はcatchしたエラーを`src/renderer/lib/error.ts`で定義しているgetSafeErrorMessage関数に適用してエラーメッセージを取り出すこと
 - このアプリでは基本的にエラーメッセージは独自例外(`src/renderer/lib/error.ts`,`src/main/lib/error.ts`)をthrowしないとユーザにエラーメッセージが表示されないため、注意すること
-- DB用の型(`src/db/schema.ts`)とシステム内部で利用する型(`src/types`)は将来の保守性や移植性を考慮して適切に分離し、これらの差分はrepositoryで吸収すること
+- DB用の型(`src/adapter/db/drizzle/schema.ts`)とシステム内部で利用する型(`src/types`)は将来の保守性や移植性を考慮して適切に分離し、これらの差分はrepositoryで吸収すること
 - テストについては指示されない限り、実行も修正もしなくてよい
 
 ## 依頼タスク

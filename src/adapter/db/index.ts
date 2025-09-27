@@ -2,7 +2,7 @@ import {
   ISourceRepository,
   IReviewRepository,
   ISettingsRepository,
-} from '@/main/service/port';
+} from '@/main/service/port/repository';
 import {
   DrizzleReviewRepository,
   DrizzleSourceRepository,

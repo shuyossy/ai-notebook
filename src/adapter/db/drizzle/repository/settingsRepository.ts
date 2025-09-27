@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { Settings, SettingsSchema } from '@/types';
 import { getStore } from '@/main/store';
 import { repositoryError } from '@/main/lib/error';
-import { ISettingsRepository } from '@/main/service/port';
+import { ISettingsRepository } from '@/main/service/port/repository';
 
 /** undefined を保存したら例外になるため、delete に切り替える */
 function setOrDelete<T>(store: any, key: string, value: T | undefined) {
@@ -40,7 +40,11 @@ export class ElectronStoreSettingsRepository implements ISettingsRepository {
       this.store.set('api.url', settings.api.url);
 
       // 任意系は undefined の可能性があるため setOrDelete で処理
-      setOrDelete(this.store, 'source.registerDir', settings.source.registerDir);
+      setOrDelete(
+        this.store,
+        'source.registerDir',
+        settings.source.registerDir,
+      );
 
       setOrDelete(this.store, 'redmine.endpoint', settings.redmine.endpoint);
       setOrDelete(this.store, 'redmine.apiKey', settings.redmine.apiKey);
