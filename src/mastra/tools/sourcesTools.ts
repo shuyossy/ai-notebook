@@ -2,8 +2,8 @@ import { z } from 'zod';
 // @ts-ignore
 import { createTool } from '@mastra/core/tools';
 import { eq, and } from 'drizzle-orm';
-import { sources } from '@/db/schema';
-import getDb from '@/db/index';
+import { sources } from '@/adapter/db/drizzle/schema';
+import getDb from '@/adapter/db/drizzle';
 import FileExtractor from '@/main/lib/fileExtractor';
 import { createBaseToolResponseSchema, RunToolStatus } from './types';
 import { DocumentExpertAgentRuntimeContext } from '../agents/toolAgents';

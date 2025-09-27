@@ -3,7 +3,7 @@ import { NoObjectGeneratedError } from 'ai';
 // @ts-ignore
 import { createStep, createWorkflow } from '@mastra/core/workflows';
 import { z } from 'zod';
-import { getReviewRepository } from '@/main/repository/reviewRepository';
+import { getReviewRepository } from '@/adapter/db';
 import { baseStepOutputSchema } from '../schema';
 import { stepStatus } from '../types';
 import {

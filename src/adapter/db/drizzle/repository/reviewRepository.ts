@@ -5,8 +5,8 @@ import {
   reviewChecklistResults,
   ReviewChecklistEntity,
   ReviewHistoryEntity,
-} from '../../db/schema';
-import getDb from '../../db';
+} from '../schema';
+import getDb from '..';
 import type {
   RevieHistory,
   ReviewChecklist,
@@ -17,69 +17,13 @@ import type {
   ProcessingStatus,
 } from '@/types';
 import { AppError } from '@/main/lib/error';
-import { repositoryError } from './error';
-
-/**
- * ドキュメントレビューで利用するDBアクセス用のインターフェース
- */
-export interface IReviewRepository {
-  // レビュー履歴
-  createReviewHistory(title: string, id?: string): Promise<RevieHistory>;
-  getReviewHistory(id: string): Promise<RevieHistory | null>;
-  getAllReviewHistories(): Promise<RevieHistory[]>;
-  updateReviewHistoryTitle(id: string, title: string): Promise<void>;
-  updateReviewHistoryAdditionalInstructionsAndCommentFormat(
-    id: string,
-    additionalInstructions?: string,
-    commentFormat?: string,
-  ): Promise<void>;
-  updateReviewHistoryEvaluationSettings(
-    id: string,
-    evaluationSettings?: CustomEvaluationSettings,
-  ): Promise<void>;
-  updateReviewHistoryProcessingStatus(
-    id: string,
-    processingStatus: ProcessingStatus,
-  ): Promise<void>;
-  deleteReviewHistory(id: string): Promise<void>;
-
-  // チェックリスト
-  createChecklist(
-    reviewHistoryId: string,
-    content: string,
-    createdBy: ReviewChecklistCreatedBy,
-  ): Promise<void>;
-  getChecklists(reviewHistoryId: string): Promise<ReviewChecklist[]>;
-  updateChecklist(id: number, content: string): Promise<void>;
-  deleteChecklist(id: number): Promise<void>;
-  deleteSystemCreatedChecklists(reviewHistoryId: string): Promise<void>;
-
-  // レビュー結果
-  upsertReviewResult(
-    results: {
-      reviewChecklistId: number;
-      evaluation: ReviewEvaluation;
-      comment: string;
-      fileId: string;
-      fileName: string;
-    }[],
-  ): Promise<void>;
-  deleteReviewResults(
-    reviewChecklistId: number,
-    sourceId: number,
-  ): Promise<void>;
-  getReviewChecklistResults(
-    reviewHistoryId: string,
-  ): Promise<ReviewChecklistResult[]>;
-  deleteAllReviewResults(reviewHistoryId: string): Promise<void>;
-}
-
-let reviewRepository: IReviewRepository | null = null;
+import { repositoryError } from '@/main/lib/error';
+import { IReviewRepository } from '@/main/service/port';
 
 /**
  * Drizzle ORM を使用したレビューリポジトリの実装
  */
-class DrizzleReviewRepository implements IReviewRepository {
+export class DrizzleReviewRepository implements IReviewRepository {
   convertReviewChecklistEntityToReviewChecklist(
     reviewChecklistEntity: ReviewChecklistEntity,
   ): ReviewChecklist {
@@ -459,15 +403,4 @@ class DrizzleReviewRepository implements IReviewRepository {
       throw repositoryError('レビュー結果の削除に失敗しました', err);
     }
   }
-}
-
-/**
- * ドキュメントレビュー用のリポジトリを取得
- * @returns ReviewRepositoryのインスタンス
- */
-export function getReviewRepository(): IReviewRepository {
-  if (!reviewRepository) {
-    reviewRepository = new DrizzleReviewRepository();
-  }
-  return reviewRepository;
 }

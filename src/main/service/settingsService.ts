@@ -14,9 +14,8 @@ import { InitializeToolsConfig, initializeTools } from '@/mastra/tools';
 import { RedmineBaseInfo } from '@/mastra/tools/redmine';
 import { initializeMCPClient } from '@/mastra/tools/mcp';
 import { OrchestratorRuntimeContext } from '@/mastra/agents/orchestrator';
-import { getSourceRepository } from '@/main/repository/sourceRepository';
+import { getSourceRepository, getSettingsRepository } from '@/adapter/db';
 import { createRuntimeContext } from '@/mastra/lib/agentUtils';
-import { getSettingsRepository } from '../repository/settingsRepository';
 import { publishEvent } from '@/main/lib/eventPayloadHelper';
 import { IpcChannels } from '@/types';
 

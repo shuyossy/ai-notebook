@@ -1,30 +1,8 @@
 import { z } from 'zod';
 import { Settings, SettingsSchema } from '@/types';
-import { getStore } from '../store';
-import { repositoryError } from './error';
-
-export interface ISettingsRepository {
-  /**
-   * 設定を取得する
-   * @returns 設定情報
-   */
-  getSettings(): Promise<Settings>;
-
-  /**
-   * 設定を保存する
-   * @param settings 保存する設定情報
-   */
-  saveSettings(settings: Settings): Promise<void>;
-}
-
-let SettingsRepository: ISettingsRepository | null = null;
-
-export const getSettingsRepository = (): ISettingsRepository => {
-  if (!SettingsRepository) {
-    SettingsRepository = new ElectronStoreSettingsRepository();
-  }
-  return SettingsRepository;
-};
+import { getStore } from '@/main/store';
+import { repositoryError } from '@/main/lib/error';
+import { ISettingsRepository } from '@/main/service/port';
 
 /** undefined を保存したら例外になるため、delete に切り替える */
 function setOrDelete<T>(store: any, key: string, value: T | undefined) {
@@ -38,7 +16,7 @@ function setOrDelete<T>(store: any, key: string, value: T | undefined) {
 /**
  * Electron Storeを使用した設定リポジトリの実装
  */
-class ElectronStoreSettingsRepository implements ISettingsRepository {
+export class ElectronStoreSettingsRepository implements ISettingsRepository {
   private store = getStore();
 
   async getSettings(): Promise<Settings> {

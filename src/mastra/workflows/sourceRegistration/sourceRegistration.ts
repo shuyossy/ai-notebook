@@ -4,7 +4,7 @@ import { createWorkflow, createStep } from '@mastra/core/workflows';
 import { z } from 'zod';
 import { stepStatus } from '../types';
 import { baseStepOutputSchema } from '../schema';
-import { getSourceRepository } from '../../../main/repository/sourceRepository';
+import { getSourceRepository } from '@/adapter/db';
 import { createRuntimeContext, judgeFinishReason } from '../../lib/agentUtils';
 import { normalizeUnknownError, internalError } from '@/main/lib/error';
 import { getMainLogger } from '@/main/lib/logger';

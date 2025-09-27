@@ -1,7 +1,7 @@
 // @ts-ignore
 import { RuntimeContext } from '@mastra/core/runtime-context';
 import { FinishReason } from 'ai';
-import { getSettingsRepository } from '@/main/repository/settingsRepository';
+import { getSettingsRepository } from '@/adapter/db';
 import { BaseRuntimeContext } from '../agents/types';
 
 // BaseRuntimeConotextに値を入れた上で、指定したRuntimeContextを返す関数

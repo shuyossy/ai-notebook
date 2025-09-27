@@ -55,6 +55,15 @@ export const internalError = (options?: {
   messageParams?: MessageParams;
 }) => new AppError('INTERNAL', options);
 
+export function repositoryError(detail: string, error: unknown) {
+  return internalError({
+    expose: true,
+    messageCode: 'DATA_ACCESS_ERROR',
+    messageParams: { detail },
+    cause: error,
+  });
+}
+
 /**
  * Zod のエラー → クライアントに安全に出せる形へ
  */

@@ -1,4 +1,4 @@
-import { getReviewRepository } from '@/main/repository/reviewRepository';
+import { getReviewRepository } from '@/adapter/db';
 import {
   ReviewChecklistEdit,
   ReviewChecklistResult,

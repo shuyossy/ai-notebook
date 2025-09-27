@@ -4,7 +4,7 @@ import { createWorkflow, createStep } from '@mastra/core/workflows';
 // @ts-ignore
 import { MastraError } from '@mastra/core/error';
 import { z } from 'zod';
-import { getReviewRepository } from '@/main/repository/reviewRepository';
+import { getReviewRepository } from '@/adapter/db';
 import type { ReviewEvaluation } from '@/types';
 import { baseStepOutputSchema } from '../schema';
 import { stepStatus } from '../types';
