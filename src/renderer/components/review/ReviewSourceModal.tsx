@@ -504,14 +504,24 @@ function ReviewSourceModal({
                 <FormControlLabel
                   value="small"
                   control={<Radio />}
-                  label="少量ドキュメント"
+                  label={
+                    <Tooltip title="選択されたドキュメントを全てそのままAIの入力コンテキストに与えてレビューを行います。ドキュメント量が少ない場合に選択してください。">
+                      <span>
+                        少量ドキュメント
+                        <HelpIcon
+                          fontSize="small"
+                          sx={{ ml: 0.5, color: 'text.secondary' }}
+                        />
+                      </span>
+                    </Tooltip>
+                  }
                   disabled={processing}
                 />
                 <FormControlLabel
                   value="large"
                   control={<Radio />}
                   label={
-                    <Tooltip title="ドキュメントが大量でAIのコンテキスト長を超える可能性がある場合に選択してください。個々のドキュメントの要約を生成し、質問ベースのレビューを行います。">
+                    <Tooltip title="ドキュメントを直接AIに入力するのではなく、個々のドキュメントの要約や分析を実行して整理し、最終的にレビューを行います。ドキュメント量が多い場合に選択してください。">
                       <span>
                         大量ドキュメント
                         <HelpIcon
