@@ -14,6 +14,7 @@ import {
   TextField,
   Stack,
   Typography,
+  Tooltip,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -169,14 +170,33 @@ const ReviewChecklistSection: React.FC<ReviewChecklistSectionProps> = ({
           チェックリスト
         </TableCell>
         {uniqueSources.map((src) => (
-          <TableCell key={src.id} align="center" sx={{ minWidth: 200 }}>
-            <TableSortLabel
-              active={sortBy === src.id}
-              direction={sortBy === src.id ? sortDirection : 'desc'}
-              onClick={() => handleSort(src.id)}
-            >
-              {src.fileName}
-            </TableSortLabel>
+          <TableCell
+            key={src.id}
+            align="center"
+            sx={{
+              minWidth: 200,
+              maxHeight: '4.5em',
+              overflow: 'hidden',
+              overflowY: 'auto',
+              lineHeight: '1.5em',
+              whiteSpace: 'normal',
+              wordBreak: 'break-all',
+              '&:hover': {
+                overflowY: 'auto',
+              },
+            }}
+          >
+            <Tooltip title={src.fileName} placement="top">
+              <div>
+                <TableSortLabel
+                  active={sortBy === src.id}
+                  direction={sortBy === src.id ? sortDirection : 'desc'}
+                  onClick={() => handleSort(src.id)}
+                >
+                  {src.fileName}
+                </TableSortLabel>
+              </div>
+            </Tooltip>
           </TableCell>
         ))}
         <TableCell align="center" sx={{ minWidth: 120 }}>
