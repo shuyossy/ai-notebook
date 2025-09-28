@@ -12,6 +12,7 @@ import {
   // getChecklistIntegrationPrompt,
   getChecklistCategolizePrompt,
   getDocumentReviewExecutionPrompt,
+  getLargeDocumentReviewExecutionPrompt,
   REVIEW_DOCUMENT_SUMMARIZATION_SYSTEM_PROMPT,
   getReviewReadinessFirstRunPrompt,
   getReviewCheckReadinessSubsequentPrompt,
@@ -94,6 +95,13 @@ export const classifyCategoryAgent = new Agent({
 export const reviewExecuteAgent = new Agent({
   name: 'reviewExecuteAgent',
   instructions: getDocumentReviewExecutionPrompt,
+  model: getOpenAICompatibleModel,
+});
+
+// 大量ドキュメントレビュー専用エージェント（要約・Q&A情報に特化）
+export const largeDocumentReviewExecuteAgent = new Agent({
+  name: 'largeDocumentReviewExecuteAgent',
+  instructions: getLargeDocumentReviewExecutionPrompt,
   model: getOpenAICompatibleModel,
 });
 

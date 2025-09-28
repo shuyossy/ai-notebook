@@ -624,10 +624,106 @@ Read the document carefully and provide detailed, accurate answers to each quest
 
 1. Be factually accurate and based solely on the document content
 2. Be comprehensive and include all relevant details
-3. Quote specific sections when helpful for verification
-4. Indicate if information is not available in the document
-5. Be written in the same language as the document (default to Japanese if unclear)
+3. Cite specific parts of the document as evidence:
+   a) Quote relevant sections with clear section/chapter references
+   b) Separate discussions by section if some parts address the question differently
+   c) Cover every relevant occurrence—do not offer only a general summary
+4. Specify document sections that are relevant to each answer:
+   a) Identify specific file names, chapter titles, or section headers
+   b) Reference page numbers or section numbers when available
+5. Indicate if information is not available in the document
+6. Be written in the same language as the document (default to Japanese if unclear)
 
-Provide complete answers that will enable a thorough review of the document against the checklist items.
+Provide complete, section-specific answers that will enable a thorough review of the document against the checklist items.
 `;
 };
+
+// 大量ドキュメントレビュー実行用のプロンプト（要約・Q&A情報に特化）
+export function getLargeDocumentReviewExecutionPrompt({
+  runtimeContext,
+}: {
+  runtimeContext: RuntimeContext<ReviewExecuteAgentRuntimeContext>;
+}): string {
+  const checklists = runtimeContext.get('checklistItems');
+  const additionalInstructions = runtimeContext.get('additionalInstructions');
+  const commentFormat = runtimeContext.get('commentFormat');
+  const evaluationSettings = runtimeContext.get('evaluationSettings');
+
+  // Build a human-readable list of checklist items
+  const formattedList = checklists
+    .map((item) => `ID: ${item.id} - ${item.content}`)
+    .join('\n');
+
+  // デフォルトのフォーマット
+  const defaultFormat = `【評価理由・根拠】
+   Provide the reasoning and evidence here (cite specific sections or examples in the document).
+
+   【改善提案】
+   Provide actionable suggestions here (how to better satisfy the criterion).`;
+
+  const actualFormat =
+    commentFormat && commentFormat.trim() !== ''
+      ? commentFormat
+      : defaultFormat;
+
+  // 評定項目の設定を構築
+  let evaluationInstructions = '';
+  if (
+    evaluationSettings &&
+    evaluationSettings.items &&
+    evaluationSettings.items.length > 0
+  ) {
+    // カスタム評定項目を使用
+    const evaluationList = evaluationSettings.items
+      .map((item) => `   - ${item.label}: ${item.description}`)
+      .join('\n');
+    evaluationInstructions = `1. For each checklist item, assign one of these ratings:\n${evaluationList}`;
+  } else {
+    // デフォルト評定項目を使用
+    evaluationInstructions = `1. For each checklist item, assign one of these ratings:
+   - A: 基準を完全に満たしている
+   - B: 基準を一部満たしている
+   - C: 基準を満たしていない
+   - –: 評価の対象外、または評価できない`;
+  }
+
+  return `You are a professional document reviewer specializing in large document analysis. Your job is to evaluate documents against a set of checklist items based on provided topic summaries and Q&A information.
+
+Important Context:
+- You are reviewing LARGE DOCUMENTS that have been pre-processed into topic summaries and Q&A responses
+- Your evaluation is based on SUMMARIZED INFORMATION, not the full original document
+- The topics and Q&A responses represent key aspects of the original document(s)
+- Multiple documents may have been combined and analyzed together
+
+Checklist items:
+${formattedList}
+
+Instructions:
+${evaluationInstructions}
+2. For each item, write a comment in Japanese following this format:
+
+${actualFormat}
+
+3. For each checklist item, specify the review sections that should be examined for evaluation and commenting:
+   a) Identify the specific file names that need to be reviewed.
+   b) For each file, list the relevant sections within that file.
+4. In your comments, be sure to:
+   a) Cite specific parts of the document as evidence (use section names, chapter titles, page references from the Q&A information).
+   b) Separate discussions by section if some parts meet the item and others do not.
+   c) Cover every relevant occurrence—do not offer only a general summary.
+   d) Write comments as if you directly reviewed the original document (do not mention "topic summaries", "Q&A responses", or internal processing).
+5. Do not omit any checklist item; review the entire document against each criterion before finalizing your evaluation.
+6. Important: Write natural comments that reference document sections directly:
+   - Use phrases like "文書のX章では..." or "Y部分に記載されている..."
+   - Avoid mentioning internal processing like "要約によると" or "Q&Aで確認したところ"
+   - Make comments appear as if you read the original document directly
+${
+  additionalInstructions && additionalInstructions.trim() !== ''
+    ? `
+Special Instructions:
+${additionalInstructions}
+`
+    : ``
+}
+Please ensure clarity, conciseness, and a professional tone. Write comments that appear natural and comprehensive, as if you directly reviewed the complete original document.`;
+}

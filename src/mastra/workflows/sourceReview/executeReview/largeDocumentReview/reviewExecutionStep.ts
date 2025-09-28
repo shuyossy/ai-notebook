@@ -99,7 +99,7 @@ export const largeDocumentReviewExecutionStep = createStep({
     const reviewRepository = getReviewRepository();
 
     try {
-      const reviewAgent = mastra.getAgent('reviewExecuteAgent');
+      const reviewAgent = mastra.getAgent('largeDocumentReviewExecuteAgent');
 
       // ドキュメント情報を整理したメッセージを作成
       const documentInfo = documents.map(doc => {
