@@ -138,7 +138,8 @@ function ReviewSourceModal({
   const [documentType, setDocumentType] =
     useState<DocumentType>('checklist-ai');
   const [checklistRequirements, setChecklistRequirements] = useState('');
-  const [documentVolumeType, setDocumentVolumeType] = useState<DocumentMode>('small');
+  const [documentVolumeType, setDocumentVolumeType] =
+    useState<DocumentMode>('small');
   const [editingItemIndex, setEditingItemIndex] = useState<number | null>(null);
   const [editingItem, setEditingItem] = useState<EvaluationItem>({
     label: '',

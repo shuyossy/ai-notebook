@@ -177,7 +177,14 @@ function App() {
                       <Alert
                         key={message.id}
                         severity={message.type}
-                        sx={{ whiteSpace: 'pre-line', boxShadow: 3 }}
+                        sx={{
+                          whiteSpace: 'pre-line',
+                          boxShadow: 3,
+                          maxHeight: '200px',
+                          overflowY: 'auto',
+                          overflowX: 'hidden',
+                          wordBreak: 'break-word',
+                        }}
                         onClose={() => closeMessage(message.id)}
                       >
                         {message.content}
@@ -191,6 +198,10 @@ function App() {
                         sx={{
                           whiteSpace: 'pre-line',
                           boxShadow: 3,
+                          maxHeight: '200px',
+                          overflowY: 'auto',
+                          overflowX: 'hidden',
+                          wordBreak: 'break-word',
                         }}
                       >
                         {error.message}
