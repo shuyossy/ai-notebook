@@ -9,6 +9,7 @@ import type {
   ChecklistExtractionResultStatus,
   ReviewExecutionResultStatus,
   CustomEvaluationSettings,
+  DocumentMode,
 } from './review';
 import type { SettingsSavingStatus, Settings } from './setting';
 import type { Source, RevieHistory } from '@/types';
@@ -143,6 +144,7 @@ export type IpcRequestPayloadMap = {
     additionalInstructions?: string;
     commentFormat?: string;
     evaluationSettings: CustomEvaluationSettings;
+    documentMode: DocumentMode;
   };
   [IpcChannels.REVIEW_EXECUTE_ABORT]: string; // review history id
 };

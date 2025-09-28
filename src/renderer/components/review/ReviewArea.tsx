@@ -12,6 +12,7 @@ import {
   CustomEvaluationSettings,
   ChecklistExtractionResultStatus,
   ReviewExecutionResultStatus,
+  DocumentMode,
 } from '@/types';
 import { ReviewAreaProps } from './types';
 import ReviewChecklistSection from './ReviewChecklistSection';
@@ -343,7 +344,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
 
   // レビュー実行処理
   const handleExecuteReview = useCallback(
-    async (files: UploadFile[]) => {
+    async (files: UploadFile[], documentMode?: DocumentMode) => {
       if (!selectedReviewHistoryId) return;
 
       const reviewApi = ReviewApi.getInstance();
@@ -363,6 +364,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
           selectedReviewHistoryId,
           files,
           evaluationSettings,
+          documentMode,
           additionalInstructions || additionalInstructions,
           commentFormat || commentFormat,
           { throwError: true, showAlert: false },
@@ -466,6 +468,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
       files: UploadFile[],
       documentType?: DocumentType,
       checklistRequirements?: string,
+      documentMode?: DocumentMode,
     ) => {
       if (modalMode === 'extract') {
         await handleExtractChecklist(
@@ -474,7 +477,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
           checklistRequirements,
         );
       } else if (modalMode === 'review') {
-        await handleExecuteReview(files);
+        await handleExecuteReview(files, documentMode);
       }
     },
     [modalMode, handleExtractChecklist, handleExecuteReview],

@@ -8,6 +8,7 @@ import {
   DocumentType,
   ChecklistExtractionResultStatus,
   ReviewExecutionResultStatus,
+  DocumentMode,
 } from '@/types';
 import { generateReviewTitle } from '@/mastra/workflows/sourceReview/lib';
 import { RevieHistory } from '@/types';
@@ -121,6 +122,8 @@ export class ReviewService implements IReviewService {
         generateReviewTitle(),
         reviewHistoryId,
       );
+      // 新規作成時はレビュー履歴更新イベントを送信
+      publishEvent(IpcChannels.REVIEW_HISTORY_UPDATED, undefined);
     }
 
     // チェックリストの編集を実行
@@ -356,6 +359,7 @@ export class ReviewService implements IReviewService {
     evaluationSettings: CustomEvaluationSettings,
     additionalInstructions?: string,
     commentFormat?: string,
+    documentMode?: DocumentMode,
   ): Promise<{ status: ReviewExecutionResultStatus; error?: string }> {
     try {
       // レビュー履歴の存在確認
@@ -369,7 +373,7 @@ export class ReviewService implements IReviewService {
       }
 
       // Mastraワークフローを実行
-      const workflow = mastra.getWorkflow('reviewExecutionWorkflow');
+      const workflow = mastra.getWorkflow('executeReviewWorkflow');
 
       if (!workflow) {
         logger.error('レビュー実行ワークフローが見つかりません');
@@ -409,8 +413,11 @@ export class ReviewService implements IReviewService {
           evaluationSettings,
           additionalInstructions,
           commentFormat,
+          documentMode: documentMode || 'small', // デフォルトは少量ドキュメント
         },
       });
+
+      console.log('レビュー実行結果:', JSON.stringify(result, null, 2));
 
       // 結果を確認
       const checkResult = checkWorkflowResult(result);
@@ -535,6 +542,7 @@ export class ReviewService implements IReviewService {
     evaluationSettings: CustomEvaluationSettings,
     additionalInstructions?: string,
     commentFormat?: string,
+    documentMode?: DocumentMode,
   ): { success: boolean; error?: string } {
     try {
       this.executeReview(
@@ -543,6 +551,7 @@ export class ReviewService implements IReviewService {
         evaluationSettings,
         additionalInstructions,
         commentFormat,
+        documentMode,
       )
         .then((res) => {
           // 完了イベントを送信

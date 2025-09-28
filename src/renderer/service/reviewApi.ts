@@ -6,6 +6,7 @@ import {
   ChecklistExtractionResultStatus,
   ReviewExecutionResultStatus,
   CustomEvaluationSettings,
+  DocumentMode,
 } from '@/types';
 import { ApiServiceDefaultOptions } from '../types';
 import { invokeApi } from '../lib/apiUtils';
@@ -46,6 +47,7 @@ export interface IReviewApi {
     historyId: string,
     files: UploadFile[],
     evaluationSettings: CustomEvaluationSettings,
+    documentMode: DocumentMode,
     additionalInstructions?: string,
     commentFormat?: string,
     options?: ApiServiceDefaultOptions,
@@ -151,6 +153,7 @@ export class ReviewApi implements IReviewApi {
     historyId: string,
     files: UploadFile[],
     evaluationSettings: CustomEvaluationSettings,
+    documentMode?: DocumentMode,
     additionalInstructions?: string,
     commentFormat?: string,
     options?: ApiServiceDefaultOptions,
@@ -163,6 +166,7 @@ export class ReviewApi implements IReviewApi {
           additionalInstructions,
           commentFormat,
           evaluationSettings,
+          documentMode: documentMode ? documentMode : 'small',
         }),
       options,
     );

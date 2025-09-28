@@ -41,6 +41,7 @@ import {
   PdfProcessMode,
   PdfImageMode,
   EvaluationItem,
+  DocumentMode,
 } from '@/types';
 import { useAlertStore } from '@/renderer/stores/alertStore';
 import { getSafeErrorMessage } from '../../lib/error';
@@ -137,6 +138,7 @@ function ReviewSourceModal({
   const [documentType, setDocumentType] =
     useState<DocumentType>('checklist-ai');
   const [checklistRequirements, setChecklistRequirements] = useState('');
+  const [documentVolumeType, setDocumentVolumeType] = useState<DocumentMode>('small');
   const [editingItemIndex, setEditingItemIndex] = useState<number | null>(null);
   const [editingItem, setEditingItem] = useState<EvaluationItem>({
     label: '',
@@ -151,6 +153,7 @@ function ReviewSourceModal({
       setUploadedFiles([]);
       setDocumentType('checklist-ai');
       setChecklistRequirements('');
+      setDocumentVolumeType('small');
     };
 
     loadSavedData();
@@ -388,6 +391,7 @@ function ReviewSourceModal({
           checklistRequirements.trim() !== ''
           ? checklistRequirements.trim()
           : undefined,
+        modalMode === 'review' ? documentVolumeType : undefined,
         modalMode === 'review' && additionalInstructions.trim() !== ''
           ? additionalInstructions.trim()
           : undefined,
@@ -489,6 +493,39 @@ function ReviewSourceModal({
 
         {modalMode === 'review' && (
           <>
+            <FormControl component="fieldset" sx={{ mb: 2 }}>
+              <FormLabel component="legend">ドキュメント量</FormLabel>
+              <RadioGroup
+                value={documentVolumeType}
+                onChange={(e) =>
+                  setDocumentVolumeType(e.target.value as 'small' | 'large')
+                }
+              >
+                <FormControlLabel
+                  value="small"
+                  control={<Radio />}
+                  label="少量ドキュメント"
+                  disabled={processing}
+                />
+                <FormControlLabel
+                  value="large"
+                  control={<Radio />}
+                  label={
+                    <Tooltip title="ドキュメントが大量でAIのコンテキスト長を超える可能性がある場合に選択してください。個々のドキュメントの要約を生成し、質問ベースのレビューを行います。">
+                      <span>
+                        大量ドキュメント
+                        <HelpIcon
+                          fontSize="small"
+                          sx={{ ml: 0.5, color: 'text.secondary' }}
+                        />
+                      </span>
+                    </Tooltip>
+                  }
+                  disabled={processing}
+                />
+              </RadioGroup>
+            </FormControl>
+
             <TextField
               fullWidth
               multiline

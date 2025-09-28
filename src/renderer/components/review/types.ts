@@ -5,6 +5,7 @@ import {
   UploadFile,
   DocumentType,
   CustomEvaluationSettings,
+  DocumentMode,
 } from '@/types';
 
 // ReviewAreaのProps型
@@ -27,6 +28,7 @@ export interface ReviewSourceModalProps {
     files: UploadFile[],
     documentType?: DocumentType,
     checklistRequirements?: string,
+    documentMode?: DocumentMode,
     additionalInstructions?: string,
     commentFormat?: string,
     evaluationSettings?: CustomEvaluationSettings,

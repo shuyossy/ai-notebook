@@ -65,3 +65,81 @@ export function splitChecklistEquallyByMaxSize(
 
   return result;
 }
+
+/**
+ * 抽出されたドキュメント情報
+ */
+export interface ExtractedDocument {
+  name: string;
+  type: string;
+  textContent?: string;
+  imageData?: string[];
+}
+
+/**
+ * 複数ファイルを統合したメッセージオブジェクトを作成する（テキスト抽出済み版）
+ */
+export function createCombinedMessage(
+  extractedDocuments: ExtractedDocument[],
+  promptText: string,
+): {
+  role: 'user';
+  content: Array<
+    | { type: 'text'; text: string }
+    | { type: 'image'; image: string; mimeType: string }
+  >;
+} {
+  // ファイル名一覧を作成
+  const fileNames = extractedDocuments.map((doc) => doc.name).join(', ');
+
+  // メッセージコンテンツを構築
+  const content: Array<
+    | { type: 'text'; text: string }
+    | { type: 'image'; image: string; mimeType: string }
+  > = [
+    {
+      type: 'text',
+      text: `${promptText}: ${fileNames}`,
+    },
+  ];
+
+  // ドキュメント順に処理
+  for (const document of extractedDocuments) {
+    // PDFで画像として処理する場合
+    if (
+      document.type === 'application/pdf' &&
+      document.imageData &&
+      document.imageData.length > 0
+    ) {
+      // 各ページごとに個別の説明と画像を追加
+      const totalPages = document.imageData.length;
+      for (let pageIndex = 0; pageIndex < document.imageData.length; pageIndex++) {
+        const currentPage = pageIndex + 1;
+
+        // ページ番号を含むテキスト説明を追加
+        content.push({
+          type: 'text',
+          text: `# ${document.name}: Page ${currentPage}/${totalPages}`,
+        });
+
+        // 該当ページの画像データを追加
+        content.push({
+          type: 'image',
+          image: document.imageData[pageIndex],
+          mimeType: 'image/png',
+        });
+      }
+    } else {
+      // 抽出済みテキストを使用
+      content.push({
+        type: 'text',
+        text: `# ${document.name}\n${document.textContent}`,
+      });
+    }
+  }
+
+  return {
+    role: 'user',
+    content,
+  };
+}

@@ -17,10 +17,14 @@ import {
   reviewExecuteAgent,
   topicExtractionAgent,
   topicChecklistAgent,
+  reviewDocumentSummarizationAgent,
+  reviewCheckReviewReadinessFirstRunAgent,
+  reviewCheckReviewReadinessSubsequentRunAgent,
+  reviewAnswerQuestionAgent,
 } from './agents/workflowAgents';
 import { sourceRegistrationWorkflow } from './workflows/sourceRegistration/sourceRegistration';
 import { checklistExtractionWorkflow } from './workflows/sourceReview/checklistExtraction';
-import { reviewExecutionWorkflow } from './workflows/sourceReview/reviewExecution';
+import { executeReviewWorkflow } from './workflows/sourceReview/executeReview';
 import fs from 'fs';
 import path from 'path';
 import { getLogLevel } from '@/main/lib/logger';
@@ -69,11 +73,15 @@ export const mastra: Mastra = new Mastra({
     reviewExecuteAgent,
     topicExtractionAgent,
     topicChecklistAgent,
+    reviewDocumentSummarizationAgent,
+    reviewCheckReviewReadinessFirstRunAgent,
+    reviewCheckReviewReadinessSubsequentRunAgent,
+    reviewAnswerQuestionAgent,
   },
   workflows: {
     sourceRegistrationWorkflow,
     checklistExtractionWorkflow,
-    reviewExecutionWorkflow,
+    executeReviewWorkflow,
   },
   logger,
 });

@@ -458,6 +458,7 @@ const setupReviewHandlers = () => {
       additionalInstructions,
       commentFormat,
       evaluationSettings,
+      documentMode,
     }) => {
       reviewService.updateReviewInstruction(
         reviewHistoryId,
@@ -476,6 +477,7 @@ const setupReviewHandlers = () => {
         evaluationSettings,
         additionalInstructions,
         commentFormat,
+        documentMode,
       );
 
       if (!result.success) {

@@ -56,7 +56,6 @@ export type ReviewChecklistEdit = {
 
 export type ModalMode = 'extract' | 'review';
 
-// ドキュメント種別の定義
 export type DocumentType = 'checklist-ai' | 'checklist-csv' | 'general';
 
 // PDF処理方式の定義
@@ -64,6 +63,9 @@ export type PdfProcessMode = 'text' | 'image';
 
 // PDF画像化方式の定義
 export type PdfImageMode = 'merged' | 'pages';
+
+// ドキュメントレビューのモード定義
+export type DocumentMode = 'small' | 'large';
 
 // アップロードファイル情報の型定義
 export interface UploadFile {

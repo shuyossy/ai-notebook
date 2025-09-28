@@ -2,6 +2,10 @@
 import { WorkflowResult } from '@mastra/core';
 import { baseStepOutputSchema } from '../workflows/schema';
 import { z } from 'zod';
+import { normalizeUnknownError } from '@/main/lib/error';
+import { getMainLogger } from '@/main/lib/logger';
+
+const logger = getMainLogger();
 
 // workflowの結果を確認するための関数
 export function checkWorkflowResult(result: WorkflowResult<any, any>): {
@@ -10,9 +14,16 @@ export function checkWorkflowResult(result: WorkflowResult<any, any>): {
 } {
   // ワークフロー全体がfailedの場合(本アプリについてはエラーの場合、stepとしては成功させ、outputのstatusをfailedと指定するため、発生しないはず)
   if (result.status === 'failed') {
+    let errorMessage;
+    if (result.error instanceof Error) {
+      errorMessage = normalizeUnknownError(result.error).message;
+    } else {
+      logger.error('Unknown error in workflow', { error: result.error });
+      errorMessage = '不明なエラー';
+    }
     return {
       status: 'failed',
-      errorMessage: result.error.message,
+      errorMessage,
     };
   }
 

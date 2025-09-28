@@ -1,3 +1,3 @@
-export * from '../IReviewRepository';
-export * from '../ISourceRepository';
-export * from '../ISettingsRepository';
+export * from './IReviewRepository';
+export * from './ISourceRepository';
+export * from './ISettingsRepository';

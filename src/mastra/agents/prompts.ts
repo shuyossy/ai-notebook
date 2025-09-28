@@ -8,6 +8,9 @@ import {
   ReviewExecuteAgentRuntimeContext,
   TopicExtractionAgentRuntimeContext,
   TopicChecklistAgentRuntimeContext,
+  ReviewCheckReviewReadinessFirstRunAgentRuntimeContext,
+  ReviewCheckReviewReadinessSubsequentAgentRuntimeContext,
+  ReviewAnswerQuestionAgentRuntimeContext,
 } from './workflowAgents';
 
 /**
@@ -446,7 +449,11 @@ export function getDocumentReviewExecutionPrompt({
 
   // 評定項目の設定を構築
   let evaluationInstructions = '';
-  if (evaluationSettings && evaluationSettings.items && evaluationSettings.items.length > 0) {
+  if (
+    evaluationSettings &&
+    evaluationSettings.items &&
+    evaluationSettings.items.length > 0
+  ) {
     // カスタム評定項目を使用
     const evaluationList = evaluationSettings.items
       .map((item) => `   - ${item.label}: ${item.description}`)
@@ -491,3 +498,136 @@ ${additionalInstructions}
 }
 Please ensure clarity, conciseness, and a professional tone.`;
 }
+
+// レビュー時ドキュメント要約生成用のシステムプロンプト
+export const REVIEW_DOCUMENT_SUMMARIZATION_SYSTEM_PROMPT = `
+You are an expert document analyst. Your job is to carefully analyze the given document and identify all the key topics without missing anything important.
+
+Your task is to analyze the provided document and:
+1. Identify between 5 and 15 distinct topics that cover the full range of the text.
+2. For each topic, write a  title and a concise summary.
+3. Ensure the topics are comprehensive, non-overlapping, and together capture the entire meaning of the text.
+
+Guidelines:
+- Topics should be specific, independent, and cover different aspects of the document
+- Each topic should be substantial enough to warrant separate attention during review
+- The summary should be concise but comprehensive, covering all important points
+- Write topics and summary in the same language as the document (default to Japanese if unclear)
+`;
+
+// レビュー準備確認用のシステムプロンプト（初回実行用）
+export const getReviewReadinessFirstRunPrompt = ({
+  runtimeContext,
+}: {
+  runtimeContext: RuntimeContext<ReviewCheckReviewReadinessFirstRunAgentRuntimeContext>;
+}) => {
+  const checklistItems = runtimeContext.get('checklistItems') as {
+    id: number;
+    content: string;
+  }[];
+  const additionalInstructions = runtimeContext.get(
+    'additionalInstructions',
+  ) as string | undefined;
+
+  return `
+You are a review planning expert. Your task is to generate comprehensive questions that need to be answered to conduct a thorough review of documents based on the provided checklist items.
+
+## Context
+You will review documents based on the following checklist items:
+${checklistItems.map((item) => `- [${item.id}] ${item.content}`).join('\n')}
+
+${additionalInstructions ? `Additional review instructions: ${additionalInstructions}` : ''}
+
+## Your Task
+Based on the document summaries and topics provided, generate specific questions that need to be answered to ensure each checklist item can be properly evaluated. The questions should:
+
+1. Be specific and focused on information needed for checklist evaluation
+2. Cover all aspects necessary to assess each checklist item
+3. Be answerable based on the document content
+4. Help gather detailed information that might not be apparent from just the summaries
+
+Generate questions for each document that will help collect the necessary information for a comprehensive review.
+`;
+};
+
+// レビュー準備確認用のシステムプロンプト（2回目以降実行用）
+export const getReviewCheckReadinessSubsequentPrompt = ({
+  runtimeContext,
+}: {
+  runtimeContext: RuntimeContext<ReviewCheckReviewReadinessSubsequentAgentRuntimeContext>;
+}) => {
+  const checklistItems = runtimeContext.get('checklistItems') as {
+    id: number;
+    content: string;
+  }[];
+  const additionalInstructions = runtimeContext.get(
+    'additionalInstructions',
+  ) as string | undefined;
+  const priorQnA = runtimeContext.get('priorQnA') as Array<{
+    documentId: string;
+    documentName: string;
+    qna: Array<{ question: string; answer: string }>;
+  }>;
+
+  return `
+You are a review readiness assessor. Your task is to determine whether sufficient information has been gathered to conduct a thorough review based on the provided checklist items.
+
+## Context
+You will review documents based on the following checklist items:
+${checklistItems.map((item) => `- [${item.id}] ${item.content}`).join('\n')}
+
+${additionalInstructions ? `Additional review instructions: ${additionalInstructions}` : ''}
+
+## Previous Q&A Information
+${priorQnA
+  .map(
+    (doc) => `
+### Document: ${doc.documentName} (ID: ${doc.documentId})
+${doc.qna.map((qa) => `Q: ${qa.question}\nA: ${qa.answer}`).join('\n\n')}
+`,
+  )
+  .join('\n')}
+
+## Your Task
+1. Assess whether the provided document summaries, topics, and Q&A information are sufficient to properly evaluate each checklist item
+2. If sufficient information is available, set "ready" to true
+3. If more information is needed, set "ready" to false and generate specific additional questions that will help complete the review
+
+The questions should:
+- Fill gaps in information needed for checklist evaluation
+- Be specific and targeted to missing information
+- Be answerable based on the document content
+- Avoid redundancy with already answered questions
+`;
+};
+
+// 質問回答生成用のシステムプロンプト
+export const getReviewAnswerQuestionPrompt = ({
+  runtimeContext,
+}: {
+  runtimeContext: RuntimeContext<ReviewAnswerQuestionAgentRuntimeContext>;
+}) => {
+  const checklistItems = runtimeContext.get('checklistItems') as {
+    id: number;
+    content: string;
+  }[];
+
+  return `
+You are a document analysis expert. Your task is to carefully read the provided document and answer specific questions accurately and comprehensively.
+
+## Context
+The questions are designed to gather information needed for reviewing the document against these checklist items:
+${checklistItems.map((item) => `- [${item.id}] ${item.content}`).join('\n')}
+
+## Your Task
+Read the document carefully and provide detailed, accurate answers to each question. Your answers should:
+
+1. Be factually accurate and based solely on the document content
+2. Be comprehensive and include all relevant details
+3. Quote specific sections when helpful for verification
+4. Indicate if information is not available in the document
+5. Be written in the same language as the document (default to Japanese if unclear)
+
+Provide complete answers that will enable a thorough review of the document against the checklist items.
+`;
+};

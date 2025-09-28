@@ -12,6 +12,10 @@ import {
   // getChecklistIntegrationPrompt,
   getChecklistCategolizePrompt,
   getDocumentReviewExecutionPrompt,
+  REVIEW_DOCUMENT_SUMMARIZATION_SYSTEM_PROMPT,
+  getReviewReadinessFirstRunPrompt,
+  getReviewCheckReadinessSubsequentPrompt,
+  getReviewAnswerQuestionPrompt,
 } from './prompts';
 import { getOpenAICompatibleModel } from './model/openAICompatible';
 import { BaseRuntimeContext } from './types';
@@ -40,6 +44,21 @@ export type TopicExtractionAgentRuntimeContext = BaseRuntimeContext & {
 export type TopicChecklistAgentRuntimeContext = BaseRuntimeContext & {
   topic: { title: string };
   checklistRequirements?: string;
+};
+
+export type ReviewCheckReviewReadinessFirstRunAgentRuntimeContext = BaseRuntimeContext & {
+  checklistItems: { id: number; content: string }[];
+  additionalInstructions?: string;
+};
+
+export type ReviewCheckReviewReadinessSubsequentAgentRuntimeContext = BaseRuntimeContext & {
+  checklistItems: { id: number; content: string }[];
+  additionalInstructions?: string;
+  priorQnA: { documentId: string; documentName: string; qna: { question: string; answer: string }[] }[];
+};
+
+export type ReviewAnswerQuestionAgentRuntimeContext = BaseRuntimeContext & {
+  checklistItems: { id: number; content: string }[];
 };
 
 export const summarizeSourceAgent = new Agent({
@@ -95,3 +114,27 @@ export const topicChecklistAgent = new Agent({
 //   instructions: getChecklistIntegrationPrompt,
 //   model: getOpenAICompatibleModel,
 // });
+
+export const reviewDocumentSummarizationAgent = new Agent({
+  name: 'reviewDocumentSummarizationAgent',
+  instructions: REVIEW_DOCUMENT_SUMMARIZATION_SYSTEM_PROMPT,
+  model: getOpenAICompatibleModel,
+});
+
+export const reviewCheckReviewReadinessFirstRunAgent = new Agent({
+  name: 'reviewCheckReviewReadinessFirstRunAgent',
+  instructions: getReviewReadinessFirstRunPrompt,
+  model: getOpenAICompatibleModel,
+});
+
+export const reviewCheckReviewReadinessSubsequentRunAgent = new Agent({
+  name: 'reviewCheckReviewReadinessSubsequentRunAgent',
+  instructions: getReviewCheckReadinessSubsequentPrompt,
+  model: getOpenAICompatibleModel,
+});
+
+export const reviewAnswerQuestionAgent = new Agent({
+  name: 'reviewAnswerQuestionAgent',
+  instructions: getReviewAnswerQuestionPrompt,
+  model: getOpenAICompatibleModel,
+});
