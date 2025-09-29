@@ -17,6 +17,8 @@ import {
   getReviewReadinessFirstRunPrompt,
   getReviewCheckReadinessSubsequentPrompt,
   getReviewAnswerQuestionPrompt,
+  getIndividualDocumentReviewPrompt,
+  getConsolidateReviewPrompt,
 } from './prompts';
 import { getOpenAICompatibleModel } from './model/openAICompatible';
 import { BaseRuntimeContext } from './types';
@@ -60,6 +62,19 @@ export type ReviewCheckReviewReadinessSubsequentAgentRuntimeContext = BaseRuntim
 
 export type ReviewAnswerQuestionAgentRuntimeContext = BaseRuntimeContext & {
   checklistItems: { id: number; content: string }[];
+};
+
+export type IndividualDocumentReviewAgentRuntimeContext = BaseRuntimeContext & {
+  checklistItems: { id: number; content: string }[];
+  additionalInstructions?: string;
+  commentFormat?: string;
+};
+
+export type ConsolidateReviewAgentRuntimeContext = BaseRuntimeContext & {
+  checklistItems: { id: number; content: string }[];
+  additionalInstructions?: string;
+  commentFormat?: string;
+  evaluationSettings?: CustomEvaluationSettings;
 };
 
 export const summarizeSourceAgent = new Agent({
@@ -144,5 +159,19 @@ export const reviewCheckReviewReadinessSubsequentRunAgent = new Agent({
 export const reviewAnswerQuestionAgent = new Agent({
   name: 'reviewAnswerQuestionAgent',
   instructions: getReviewAnswerQuestionPrompt,
+  model: getOpenAICompatibleModel,
+});
+
+// 個別ドキュメントレビュー用エージェント（効率化版）
+export const individualDocumentReviewAgent = new Agent({
+  name: 'individualDocumentReviewAgent',
+  instructions: getIndividualDocumentReviewPrompt,
+  model: getOpenAICompatibleModel,
+});
+
+// レビュー結果統合用エージェント
+export const consolidateReviewAgent = new Agent({
+  name: 'consolidateReviewAgent',
+  instructions: getConsolidateReviewPrompt,
   model: getOpenAICompatibleModel,
 });

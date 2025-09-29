@@ -22,6 +22,8 @@ import {
   reviewCheckReviewReadinessFirstRunAgent,
   reviewCheckReviewReadinessSubsequentRunAgent,
   reviewAnswerQuestionAgent,
+  individualDocumentReviewAgent,
+  consolidateReviewAgent,
 } from './agents/workflowAgents';
 import { sourceRegistrationWorkflow } from './workflows/sourceRegistration/sourceRegistration';
 import { checklistExtractionWorkflow } from './workflows/sourceReview/checklistExtraction';
@@ -79,6 +81,8 @@ export const mastra: Mastra = new Mastra({
     reviewCheckReviewReadinessFirstRunAgent,
     reviewCheckReviewReadinessSubsequentRunAgent,
     reviewAnswerQuestionAgent,
+    individualDocumentReviewAgent,
+    consolidateReviewAgent,
   },
   workflows: {
     sourceRegistrationWorkflow,

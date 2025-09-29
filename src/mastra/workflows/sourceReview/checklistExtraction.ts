@@ -219,6 +219,7 @@ const checklistDocumentExtractionStep = createStep({
         status: 'success' as stepStatus,
       };
     } catch (error) {
+      console.error(error);
       logger.error(error, 'チェックリスト抽出処理に失敗しました');
       let errorMessage = '';
       if (

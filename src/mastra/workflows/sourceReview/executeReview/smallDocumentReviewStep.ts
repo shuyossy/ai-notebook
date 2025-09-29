@@ -1,6 +1,4 @@
 import { z } from 'zod';
-import { baseStepOutputSchema } from '../../schema';
-import { NoObjectGeneratedError } from 'ai';
 // @ts-ignore
 import { createStep } from '@mastra/core/workflows';
 import { getReviewRepository } from '@/adapter/db';
@@ -77,6 +75,7 @@ export const smallDocumentReviewExecutionStep = createStep({
         const outputSchema = z.array(
           z.object({
             checklistId: z.number(),
+            // CoTのようにAIにどのファイルのどのセクションをレビューするべきかを考えさせるための隠しフィールド
             reviewSections: z
               .array(
                 z.object({

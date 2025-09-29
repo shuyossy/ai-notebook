@@ -11,6 +11,8 @@ import {
   ReviewCheckReviewReadinessFirstRunAgentRuntimeContext,
   ReviewCheckReviewReadinessSubsequentAgentRuntimeContext,
   ReviewAnswerQuestionAgentRuntimeContext,
+  IndividualDocumentReviewAgentRuntimeContext,
+  ConsolidateReviewAgentRuntimeContext,
 } from './workflowAgents';
 
 /**
@@ -726,4 +728,183 @@ ${additionalInstructions}
     : ``
 }
 Please ensure clarity, conciseness, and a professional tone. Write comments that appear natural and comprehensive, as if you directly reviewed the complete original document.`;
+}
+
+// 個別ドキュメントレビュー用のプロンプト
+export function getIndividualDocumentReviewPrompt({
+  runtimeContext,
+}: {
+  runtimeContext: RuntimeContext<IndividualDocumentReviewAgentRuntimeContext>;
+}): string {
+  const checklistItems = runtimeContext.get('checklistItems');
+  const additionalInstructions = runtimeContext.get('additionalInstructions');
+  const commentFormat = runtimeContext.get('commentFormat');
+
+  // Build a human-readable list of checklist items
+  const formattedList = checklistItems
+    .map((item) => `ID: ${item.id} - ${item.content}`)
+    .join('\n');
+
+  // デフォルトのフォーマット
+  const defaultFormat = `【評価理由・根拠】
+   Provide the reasoning and evidence here (cite specific sections or examples in the document).
+
+   【改善提案】
+   Provide actionable suggestions here (how to better satisfy the criterion).`;
+
+  const actualFormat =
+    commentFormat && commentFormat.trim() !== ''
+      ? commentFormat
+      : defaultFormat;
+
+  return `You are a professional document reviewer specializing in individual document analysis. Your task is to review a single document (or document part) against specified checklist items.
+
+IMPORTANT CONTEXT:
+- You are reviewing part of a LARGER DOCUMENT SET that may be split across multiple parts due to length constraints
+- This document part you're reviewing is one portion of the complete documentation
+- Your evaluation will later be consolidated with other document parts to form a comprehensive review
+- Include ALL relevant information in your comments that will help in final consolidation
+
+DOCUMENT PART CONTEXT:
+- If the document name contains "(part X)" or similar indicators, you are reviewing a split portion
+- Focus on what's available in this specific part while being aware it's part of a larger whole
+- Look for incomplete information that might be continued in other parts
+
+Checklist items to evaluate:
+${formattedList}
+
+REVIEW INSTRUCTIONS:
+1. Carefully analyze the provided document content against each checklist item
+2. For each item, write a detailed comment in Japanese following this format:
+
+${actualFormat}
+
+3. For each checklist item, specify the review sections that should be examined:
+   a) Identify the specific file names or document sections reviewed
+   b) List the relevant sections within the document part
+4. In your comments, ensure to:
+   a) Cite specific parts of the document as evidence (use section names, chapter titles, page references)
+   b) Be comprehensive about what you found in THIS document part
+   c) Note if information appears incomplete (might continue in other parts)
+   d) Document ALL relevant findings - don't summarize or omit details
+   e) Include information that will be valuable for final consolidation across all document parts
+5. Important for consolidation: Your comments should provide sufficient detail so that:
+   - A consolidation agent can understand what was found in this specific part
+   - Missing or partial information can be identified and addressed
+   - The relationship between this part and the overall document assessment is clear
+${
+  additionalInstructions && additionalInstructions.trim() !== ''
+    ? `
+
+Special Instructions:
+${additionalInstructions}
+`
+    : ``
+}
+
+Remember: Your thorough analysis of this document part is crucial for achieving an excellent final consolidated review. Include all relevant details that will contribute to the overall document assessment.`;
+}
+
+// レビュー結果統合用のプロンプト
+export function getConsolidateReviewPrompt({
+  runtimeContext,
+}: {
+  runtimeContext: RuntimeContext<ConsolidateReviewAgentRuntimeContext>;
+}): string {
+  const checklistItems = runtimeContext.get('checklistItems');
+  const additionalInstructions = runtimeContext.get('additionalInstructions');
+  const commentFormat = runtimeContext.get('commentFormat');
+  const evaluationSettings = runtimeContext.get('evaluationSettings');
+
+  // Build a human-readable list of checklist items
+  const formattedList = checklistItems
+    .map((item) => `ID: ${item.id} - ${item.content}`)
+    .join('\n');
+
+  // デフォルトのフォーマット
+  const defaultFormat = `【評価理由・根拠】
+   Provide the reasoning and evidence here (cite specific sections or examples in the document).
+
+   【改善提案】
+   Provide actionable suggestions here (how to better satisfy the criterion).`;
+
+  const actualFormat =
+    commentFormat && commentFormat.trim() !== ''
+      ? commentFormat
+      : defaultFormat;
+
+  // 評定項目の設定を構築
+  let evaluationInstructions = '';
+  if (
+    evaluationSettings &&
+    evaluationSettings.items &&
+    evaluationSettings.items.length > 0
+  ) {
+    // カスタム評定項目を使用
+    const evaluationList = evaluationSettings.items
+      .map((item) => `   - ${item.label}: ${item.description}`)
+      .join('\n');
+    evaluationInstructions = `1. For each checklist item, assign one of these ratings:\n${evaluationList}`;
+  } else {
+    // デフォルト評定項目を使用
+    evaluationInstructions = `1. For each checklist item, assign one of these ratings:
+   - A: 基準を完全に満たしている
+   - B: 基準を一部満たしている
+   - C: 基準を満たしていない
+   - –: 評価の対象外、または評価できない`;
+  }
+
+  return `You are a senior document reviewer specializing in consolidating individual document reviews into comprehensive final assessments.
+
+CONSOLIDATION CONTEXT:
+- You are reviewing multiple individual document review results from different parts of a document set
+- Each individual review provides detailed analysis of specific document portions
+- Your task is to synthesize these individual reviews into a unified, comprehensive assessment
+- Some documents may have been split into parts due to length constraints
+
+Checklist items for final evaluation:
+${formattedList}
+
+CONSOLIDATION INSTRUCTIONS:
+${evaluationInstructions}
+2. For each item, write a consolidated comment in Japanese following this format:
+
+${actualFormat}
+
+3. Consolidation methodology:
+   a) Analyze all individual review results for each checklist item
+   b) Synthesize findings across all document parts into a unified assessment
+   c) Resolve any apparent contradictions by considering the full context
+   d) Ensure the final rating reflects the overall document set performance
+   e) Combine evidence from all parts to create comprehensive justification
+
+4. In your consolidated comments, ensure to:
+   a) Reference specific sections across ALL reviewed documents/parts using ORIGINAL FILE NAMES
+   b) Provide a holistic view that considers the entire document set
+   c) Highlight both strengths and weaknesses found across all parts
+   d) Give actionable improvement suggestions based on the complete analysis
+   e) Write as if you reviewed the complete original document set directly
+   f) Always use the original file names when mentioning documents in your consolidated comments
+
+5. Rating assignment logic:
+   - Consider the cumulative evidence from all document parts
+   - If different parts show varying compliance levels, weigh them appropriately
+   - Prioritize the overall ability to meet the checklist criterion across the entire document set
+   - Document any significant variations between different document sections
+
+6. Final comment quality standards:
+   - Must appear as a natural, comprehensive review of the complete document set
+   - Should not reveal the internal consolidation process
+   - Should demonstrate thorough understanding of the entire document scope
+${
+  additionalInstructions && additionalInstructions.trim() !== ''
+    ? `
+
+Special Instructions:
+${additionalInstructions}
+`
+    : ``
+}
+
+Your consolidated review represents the final authoritative assessment. Ensure it provides comprehensive, actionable insights that reflect a complete understanding of the entire document set.`;
 }

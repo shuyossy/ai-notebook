@@ -2,79 +2,281 @@
 import { createWorkflow } from '@mastra/core';
 import { z } from 'zod';
 import { stepStatus } from '../../../types';
-import { documentSummarizationStep } from './documentSummarizationStep';
-import { checkReviewReadinessStep } from './checkReviewReadinessStep';
-import { answerQuestionStep } from './answerQuestionStep';
-import { largeDocumentReviewExecutionStep } from './reviewExecutionStep';
+import { individualDocumentReviewStep } from './individualDocumentReviewStep';
+import { consolidateReviewStep } from './consolidateReviewStep';
 import { getMainLogger } from '@/main/lib/logger';
 import {
   documentReviewExecutionInputSchema,
   documentReviewExecutionOutputSchema,
 } from '..';
+import { baseStepOutputSchema } from '@/mastra/workflows/schema';
 
 const logger = getMainLogger();
 
-//QnA生成と質問応答のサブワークフロー定義
-const qnALoopWorkflow = createWorkflow({
-  id: 'qnALoopWorkflow',
-  inputSchema: checkReviewReadinessStep.outputSchema.extend(
-    checkReviewReadinessStep.inputSchema.shape,
-  ), // loopのためinputとoutputを統合
-  outputSchema: checkReviewReadinessStep.outputSchema.extend(
-    checkReviewReadinessStep.inputSchema.shape,
-  ),
+const individualDocumentReviewRetryWorkflowInputSchema =
+  individualDocumentReviewStep.outputSchema.extend({
+    originalDocument: individualDocumentReviewStep.inputSchema.shape.document,
+    reviewInput: z.array(individualDocumentReviewStep.inputSchema),
+    retryCount: z.number(),
+  });
+
+const individualDocumentReviewWorkflowOutputSchema =
+  baseStepOutputSchema.extend({
+    documentsWithReviewResults: z
+      .array(
+        z.object({
+          id: z.string(),
+          originalName: z.string(),
+          name: z.string(),
+          path: z.string(),
+          type: z.string(),
+          pdfProcessMode: z.enum(['text', 'image']).optional(),
+          pdfImageMode: z.enum(['merged', 'pages']).optional(),
+          textContent: z.string().optional(),
+          imageData: z.array(z.string()).optional(),
+          reviewResults: z.array(
+            z.object({
+              checklistId: z.number(),
+              comment: z.string().describe('evaluation comment'),
+            }),
+          ),
+        }),
+      )
+      .optional(),
+  });
+
+/**
+ * 個別ドキュメントレビューワークフロー
+ * 個別ドキュメントレビューを実行し、コンテキスト長エラーになった時のみ分割してリトライする
+ */
+const individualDocumentReviewWorkflow = createWorkflow({
+  id: 'individualDocumentReviewWorkflow',
+  inputSchema: individualDocumentReviewStep.inputSchema,
+  outputSchema: individualDocumentReviewWorkflowOutputSchema,
 })
   .map(async ({ inputData }) => {
     return {
-      documents: inputData.documents,
-      checklists: inputData.checklists,
-      additionalInstructions: inputData.additionalInstructions,
-    } as z.infer<typeof checkReviewReadinessStep.inputSchema>;
+      originalDocument: inputData.document,
+      reviewInput: [inputData],
+      retryCount: 0,
+      finishReason: 'error' as const,
+    } as z.infer<typeof individualDocumentReviewRetryWorkflowInputSchema>;
   })
-  .then(checkReviewReadinessStep)
-  .map(async ({ inputData, bail, getInitData }) => {
-    // 前stepはthenかつbailで終了しているので、失敗した場合はここには到達しないはず
+  .dountil(
+    createWorkflow({
+      id: 'individualDocumentReviewRetryWorkflow',
+      inputSchema: individualDocumentReviewRetryWorkflowInputSchema,
+      outputSchema: individualDocumentReviewRetryWorkflowInputSchema,
+    })
+      .map(async ({ inputData }) => {
+        return inputData.reviewInput as z.infer<
+          typeof individualDocumentReviewStep.inputSchema
+        >[];
+      })
+      .foreach(individualDocumentReviewStep, { concurrency: 5 })
+      .map(async ({ inputData, getInitData }) => {
+        const initData = (await getInitData()) as z.infer<
+          typeof individualDocumentReviewRetryWorkflowInputSchema
+        >;
+        // リトライ回数をインクリメント
+        const nextRetryCount = initData.retryCount + 1;
+
+        // 全て成功している場合は成功として返す
+        if (inputData.every((item) => item.status === 'success')) {
+          return {
+            originalDocument: initData.originalDocument,
+            reviewInput: initData.reviewInput,
+            reviewResults: inputData.flatMap(
+              (item) => item.reviewResults || [],
+            ),
+            retryCount: nextRetryCount,
+            status: 'success' as stepStatus,
+            finishReason: 'success' as const,
+          } as z.infer<typeof individualDocumentReviewRetryWorkflowInputSchema>;
+        }
+
+        // どれかの個別レビューがコンテキスト長エラーで失敗していた場合は再度分割してリトライする
+        // リトライ対象かどうかを判定
+        const isRetryNeeded = inputData.some(
+          (item) =>
+            item.status === 'failed' && item.finishReason === 'content_length',
+        );
+        if (!isRetryNeeded) {
+          // 失敗が一つでもある場合は失敗として返す
+          const isFailed = inputData.some((item) => item.status === 'failed');
+          // エラーメッセージは最初の失敗から取得
+          let errorMessage: string | undefined = undefined;
+          for (const item of inputData) {
+            if (item.status === 'failed' && item.errorMessage) {
+              errorMessage = item.errorMessage;
+              break;
+            }
+          }
+          return {
+            originalDocument: initData.originalDocument,
+            reviewInput: [],
+            retryCount: nextRetryCount,
+            status: isFailed
+              ? ('failed' as stepStatus)
+              : ('succeeded' as stepStatus),
+            errorMessage,
+            finishReason: isFailed
+              ? ('error' as const)
+              : ('succeeded' as const),
+          } as z.infer<typeof individualDocumentReviewRetryWorkflowInputSchema>;
+        }
+
+        // リトライ回数が5回を超えたら終了
+        if (initData.retryCount >= 4) {
+          return {
+            originalDocument: initData.originalDocument,
+            reviewInput: [],
+            retryCount: nextRetryCount,
+            status: 'failed' as stepStatus,
+            errorMessage:
+              'ドキュメント分割を複数回実行しましたが、コンテキスト長エラーが解消されませんでした',
+            finishReason: 'error' as const,
+          } as z.infer<typeof individualDocumentReviewRetryWorkflowInputSchema>;
+        }
+
+        // ドキュメント分割処理を実行
+        // 分割方針は、originalDocumentを単純に${nextRetryCount + 1}に分割し、テキストドキュメントであればオーバーラップを300文字、PDF画像ドキュメントであれば3画像分オーバーラップさせる
+        const splitCount = nextRetryCount + 1;
+        // テキストドキュメントの場合
+        if (initData.originalDocument.textContent) {
+          const text = initData.originalDocument.textContent;
+          const chunkSize = Math.ceil(text.length / splitCount);
+          const overlap = 300;
+          const chunks: string[] = [];
+          for (let i = 0; i < splitCount; i++) {
+            const start = i * chunkSize - (i > 0 ? overlap : 0);
+            const end = start + chunkSize + (i < splitCount - 1 ? overlap : 0);
+            chunks.push(text.slice(start, end));
+          }
+          return {
+            originalDocument: initData.originalDocument,
+            reviewInput: chunks.map((chunk, index) => ({
+              ...initData.reviewInput[0],
+              document: {
+                ...initData.originalDocument,
+                id: `${initData.originalDocument.id}_part${index + 1}`,
+                name: `${initData.originalDocument.name} (part ${index + 1})  (split into parts because the full content did not fit into context)`,
+                textContent: chunk,
+              },
+            })),
+            retryCount: nextRetryCount,
+            status: 'success' as stepStatus,
+            finishReason: 'content_length' as const,
+          } as z.infer<typeof individualDocumentReviewRetryWorkflowInputSchema>;
+        }
+        // PDF画像ドキュメントの場合
+        // imageDataはbase64の配列であるため、3画像分オーバーラップさせる
+        else if (initData.originalDocument.imageData) {
+          const imageData = initData.originalDocument.imageData;
+          const splitCount = nextRetryCount + 1;
+          const chunkSize = Math.ceil(imageData.length / splitCount);
+          const overlap = 3;
+          const chunks: string[][] = [];
+          for (let i = 0; i < splitCount; i++) {
+            const start = i * chunkSize - (i > 0 ? overlap : 0);
+            const end = start + chunkSize + (i < splitCount - 1 ? overlap : 0);
+            chunks.push(imageData.slice(start, end));
+          }
+          return {
+            originalDocument: initData.originalDocument,
+            reviewInput: chunks.map((chunk, index) => ({
+              ...initData.reviewInput[0],
+              document: {
+                ...initData.originalDocument,
+                id: `${initData.originalDocument.id}_part${index + 1}`,
+                name: `${initData.originalDocument.name} (part ${index + 1})  (split into parts because the full content did not fit into context)`,
+                imageData: chunk,
+              },
+            })),
+            retryCount: nextRetryCount,
+            status: 'success' as stepStatus,
+            finishReason: 'content_length' as const,
+          } as z.infer<typeof individualDocumentReviewRetryWorkflowInputSchema>;
+        }
+
+        // ここには到達しないはず
+        return {
+          originalDocument: initData.originalDocument,
+          reviewInput: [],
+          retryCount: nextRetryCount,
+          status: 'failed' as stepStatus,
+          errorMessage: '予期せぬエラーが発生しました',
+          finishReason: 'error' as const,
+        } as z.infer<typeof individualDocumentReviewRetryWorkflowInputSchema>;
+      })
+      .commit(),
+    async ({ inputData }) => {
+      if (inputData.retryCount >= 4) {
+        return true;
+      }
+      if (inputData.finishReason !== 'content_length') {
+        return true;
+      }
+      return false;
+    },
+  )
+  .map(async ({ inputData }) => {
+    // 個別ドキュメントレビューの結果をまとめて返す
     if (inputData.status === 'failed') {
-      return bail({
+      return {
         status: 'failed' as stepStatus,
         errorMessage: inputData.errorMessage,
-      });
+      } as z.infer<typeof individualDocumentReviewWorkflowOutputSchema>;
     }
-    const initData = (await getInitData()) as z.infer<
-      typeof checkReviewReadinessStep.inputSchema
-    >;
-    // readyがtrueまたは質問がない場合はループを終了する
-    if (inputData.ready || !inputData.additionalQuestions) {
-      return bail({
-        status: 'success' as stepStatus,
-        ready: true,
-        additionalQuestions: [],
-        documents: initData.documents,
-        checklists: initData.checklists,
-        additionalInstructions: initData.additionalInstructions,
-      });
-    }
-    return inputData.additionalQuestions.map((questionGroup) => {
-      const document = initData.documents.find(
-        (d) => d.id === questionGroup.documentId,
-      );
-      if (document && questionGroup.questions.length > 0) {
+    return {
+      status: 'success' as stepStatus,
+      documentsWithReviewResults: inputData.reviewInput.map((input) => {
+        const reviewResult = inputData.reviewResults?.filter(
+          (result) => result.documentId === input.document.id,
+        );
         return {
-          document,
-          checklists: initData.checklists,
-          questions: questionGroup.questions,
-        } as z.infer<typeof answerQuestionStep.inputSchema>;
-      }
-    });
+          ...input.document,
+          reviewResults: reviewResult || [],
+        };
+      }),
+    } as z.infer<typeof individualDocumentReviewWorkflowOutputSchema>;
   })
-  .foreach(answerQuestionStep, { concurrency: 5 })
-  .map(async ({ inputData, bail, getInitData, getStepResult }) => {
+  .commit();
+
+/**
+ * 大量ドキュメントレビューワークフロー
+ * 個別ドキュメントレビュー（並列実行） → レビュー結果統合の流れ
+ */
+export const largeDocumentReviewWorkflow = createWorkflow({
+  id: 'largeDocumentReviewWorkflow',
+  inputSchema: documentReviewExecutionInputSchema,
+  outputSchema: documentReviewExecutionOutputSchema,
+})
+  .map(async ({ inputData }) => {
+    // 各ドキュメントに対する個別レビューのタスクを作成
+    return inputData.documents.map(
+      (document) =>
+        ({
+          document: {
+            ...document,
+            originalName: document.name, // 分割された場合に元の名前を保持するため
+          },
+          checklists: inputData.checklists,
+          additionalInstructions: inputData.additionalInstructions,
+          commentFormat: inputData.commentFormat,
+          evaluationSettings: inputData.evaluationSettings,
+        }) as z.infer<typeof individualDocumentReviewStep.inputSchema>,
+    );
+  })
+  .foreach(individualDocumentReviewWorkflow, { concurrency: 5 })
+  .map(async ({ inputData, bail, getInitData }) => {
     const initData = (await getInitData()) as z.infer<
-      typeof checkReviewReadinessStep.inputSchema
+      typeof documentReviewExecutionInputSchema
     >;
-    // 全て失敗していた場合、ここで終了させる
-    if (inputData.every((item) => item.status === 'failed')) {
-      // 最初の要素からエラーメッセージを取得
+
+    // どれかの個別レビューが失敗していた場合は全体を失敗とする
+    if (inputData.some((item) => item.status === 'failed')) {
+      // 最初の失敗からエラーメッセージを取得
       let errorMessage: string = '予期せぬエラーが発生しました';
       for (const item of inputData) {
         if (item.status === 'failed' && item.errorMessage) {
@@ -87,86 +289,17 @@ const qnALoopWorkflow = createWorkflow({
         errorMessage,
       });
     }
-    // 各ドキュメントのpriorQnAに回答を追加して返す
-    const updatedDocuments = initData.documents.map((doc) => {
-      const answersForDoc = inputData
-        .filter(
-          (item) => item.status === 'success' && item.documentId === doc.id,
-        )
-        .flatMap((item) => item.answers || []);
-      return {
-        ...doc,
-        priorQnA: [...(doc.priorQnA || []), ...answersForDoc],
-      };
-    });
-    return {
-      documents: updatedDocuments,
-      checklists: initData.checklists,
-      additionalInstructions: initData.additionalInstructions,
-      ready: getStepResult(checkReviewReadinessStep).ready,
-    } as z.infer<typeof checkReviewReadinessStep.inputSchema>;
-  })
-  .commit();
 
-// 大量ドキュメント用レビューサブワークフロー
-export const largeDocumentReviewWorkflow = createWorkflow({
-  id: 'largeDocumentReviewWorkflow',
-  inputSchema: documentReviewExecutionInputSchema,
-  outputSchema: documentReviewExecutionOutputSchema,
-})
-  .map(async ({ inputData }) => {
+    // レビュー結果統合のためのデータを準備
     return {
-      documents: inputData.documents,
-      checklists: inputData.checklists,
-    } as z.infer<typeof documentSummarizationStep.inputSchema>;
-  })
-  .then(documentSummarizationStep)
-  .map(async ({ inputData, bail, getInitData }) => {
-    // 前stepはthenかつbailで終了しているので、失敗した場合はここには到達しないはず
-    if (inputData.status === 'failed') {
-      return bail({
-        status: 'failed' as stepStatus,
-        errorMessages: inputData.errorMessage,
-      });
-    }
-    const initData = (await getInitData()) as z.infer<
-      typeof largeDocumentReviewExecutionStep.inputSchema
-    >;
-    return {
-      documents:
-        inputData.documents?.map((doc) => ({
-          ...doc,
-          priorQnA: [] as Array<{ question: string; answer: string }>, // 初回は空
-        })) || [],
+      documentsWithReviewResults: inputData.flatMap(
+        (item) => item.documentsWithReviewResults,
+      ),
       checklists: initData.checklists,
       additionalInstructions: initData.additionalInstructions,
-      ready: false, // 初回はfalseでスタート
-    } as z.infer<typeof qnALoopWorkflow.inputSchema>;
-  })
-  .dountil(qnALoopWorkflow, async ({ inputData: { ready, status } }) => {
-    return ready === true || status === 'failed';
-  })
-  .map(async ({ inputData, bail, getInitData }) => {
-    // 前stepが失敗していた場合はここで終了させる
-    if (inputData.status === 'failed') {
-      return bail({
-        status: 'failed' as stepStatus,
-        errorMessage: inputData.errorMessage,
-      });
-    }
-    const initData = (await getInitData()) as z.infer<
-      typeof largeDocumentReviewExecutionStep.inputSchema
-    >;
-    return {
-      documents: inputData.documents.map((doc) => ({
-        ...doc,
-        qnA: doc.priorQnA || [],
-      })),
-      checklists: inputData.checklists,
-      additionalInstructions: inputData.additionalInstructions,
       commentFormat: initData.commentFormat,
       evaluationSettings: initData.evaluationSettings,
-    } as z.infer<typeof largeDocumentReviewExecutionStep.inputSchema>;
+    } as z.infer<typeof consolidateReviewStep.inputSchema>;
   })
-  .then(largeDocumentReviewExecutionStep)
+  .then(consolidateReviewStep)
   .commit();
