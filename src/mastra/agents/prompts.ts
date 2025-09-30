@@ -551,7 +551,7 @@ REVIEW INSTRUCTIONS:
 ${actualFormat}
 
 3. For each checklist item, specify the review sections that should be examined:
-   a) Identify the specific file names or document sections reviewed
+   a) Identify the specific document sections reviewed
    b) List the relevant sections within the document part
 4. In your comments, ensure to:
    a) Cite specific parts of the document as evidence (use section names, chapter titles, page references)
