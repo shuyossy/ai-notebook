@@ -417,8 +417,6 @@ export class ReviewService implements IReviewService {
         },
       });
 
-      console.log('レビュー実行結果:', JSON.stringify(result, null, 2));
-
       // 結果を確認
       const checkResult = checkWorkflowResult(result);
 

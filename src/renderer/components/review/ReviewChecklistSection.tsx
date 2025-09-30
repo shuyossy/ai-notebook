@@ -175,28 +175,33 @@ const ReviewChecklistSection: React.FC<ReviewChecklistSectionProps> = ({
             align="center"
             sx={{
               minWidth: 200,
-              maxHeight: '4.5em',
-              overflow: 'hidden',
-              overflowY: 'auto',
-              lineHeight: '1.5em',
-              whiteSpace: 'normal',
-              wordBreak: 'break-all',
-              '&:hover': {
-                overflowY: 'auto',
-              },
             }}
           >
-            <Tooltip title={src.fileName} placement="top">
-              <div>
-                <TableSortLabel
-                  active={sortBy === src.id}
-                  direction={sortBy === src.id ? sortDirection : 'desc'}
-                  onClick={() => handleSort(src.id)}
-                >
-                  {src.fileName}
-                </TableSortLabel>
-              </div>
-            </Tooltip>
+            <Box
+              sx={{
+                maxHeight: '4.5em',
+                overflow: 'hidden',
+                overflowY: 'auto',
+                lineHeight: '1.5em',
+                whiteSpace: 'normal',
+                wordBreak: 'break-all',
+                '&:hover': {
+                  overflowY: 'auto',
+                },
+              }}
+            >
+              <Tooltip title={src.fileName} placement="top">
+                <div>
+                  <TableSortLabel
+                    active={sortBy === src.id}
+                    direction={sortBy === src.id ? sortDirection : 'desc'}
+                    onClick={() => handleSort(src.id)}
+                  >
+                    {src.fileName}
+                  </TableSortLabel>
+                </div>
+              </Tooltip>
+            </Box>
           </TableCell>
         ))}
         <TableCell align="center" sx={{ minWidth: 120 }}>
