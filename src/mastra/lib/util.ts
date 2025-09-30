@@ -1,74 +1,53 @@
-import FileExtractor from '@/main/lib/fileExtractor';
-import { UploadFile } from '@/types';
-
 /**
- * 複数ファイルを統合したメッセージオブジェクトを作成する
+ * 文書を等分ベースで分割し、指定のオーバーラップを安全に付与する関数
+ * - テキスト: overlapChars 文字
+ * - 画像配列: overlapItems 個
+ * - 取りこぼし無し、負インデックス無し、end超過はクリップ
+ * - 各チャンクに原文カバレッジ範囲（start,end）をメタとして付与
  */
-export async function createCombinedMessage(
-  files: UploadFile[],
-  promptText: string,
-): Promise<{
-  role: 'user';
-  content: Array<
-    | { type: 'text'; text: string }
-    | { type: 'image'; image: string; mimeType: string }
-  >;
-}> {
-  // ファイル名一覧を作成
-  const fileNames = files.map((file) => file.name).join(', ');
+export function makeChunksByCount<T extends { length: number }>(
+  data: T,
+  splitCount: number,
+  overlap: number
+): Array<{ start: number; end: number }> {
+  const total = data.length;
 
-  // メッセージコンテンツを構築
-  const content: Array<
-    | { type: 'text'; text: string }
-    | { type: 'image'; image: string; mimeType: string }
-  > = [
-    {
-      type: 'text',
-      text: `${promptText}: ${fileNames}`,
-    },
-  ];
+  // ガード: 空データや不正パラメータ
+  if (total === 0 || splitCount <= 0) {
+    return [{ start: 0, end: 0 }];
+  }
 
-  // ファイル選択順に処理
-  for (const file of files) {
-    // PDFで画像として処理する場合
-    if (
-      file.type === 'application/pdf' &&
-      file.pdfProcessMode === 'image' &&
-      file.imageData &&
-      file.imageData.length > 0
-    ) {
-      // 各ページごとに個別の説明と画像を追加
-      const totalPages = file.imageData.length;
-      for (let pageIndex = 0; pageIndex < file.imageData.length; pageIndex++) {
-        const currentPage = pageIndex + 1;
+  // ベースとなる等分幅（オーバーラップを除いた基準幅）
+  const base = Math.ceil(total / splitCount);
 
-        // ページ番号を含むテキスト説明を追加
-        content.push({
-          type: 'text',
-          text: `# ${file.name}: Page ${currentPage}/${totalPages}`,
-        });
+  const ranges: Array<{ start: number; end: number }> = [];
 
-        // 該当ページの画像データを追加
-        content.push({
-          type: 'image',
-          image: file.imageData[pageIndex],
-          mimeType: 'image/png',
-        });
-      }
+  for (let i = 0; i < splitCount; i++) {
+    // ベースの等分範囲（半開区間）
+    const baseStart = i * base;
+    const baseEnd = Math.min((i + 1) * base, total);
+
+    // オーバーラップは、前後に付与するが、両端は片側のみ
+    const extendLeft = i > 0 ? overlap : 0;
+    const extendRight = i < splitCount - 1 ? overlap : 0;
+
+    // 実際のチャンク開始・終了（安全にクリップ）
+    const start = Math.max(0, baseStart - extendLeft);
+    const end = Math.min(total, baseEnd + extendRight);
+
+    // 連続性をさらに堅牢にするため、前チャンクの end を下回らないように調整
+    if (ranges.length > 0) {
+      const prevEnd = ranges[ranges.length - 1].end;
+      // 万一、計算誤差で「隙間」が出る場合は、start を前の end に寄せる
+      const fixedStart = Math.min(Math.max(start, prevEnd - overlap), total);
+      ranges.push({ start: fixedStart, end });
     } else {
-      // テキスト抽出処理
-      const { content: fileContent } = await FileExtractor.extractText(file.path);
-
-      // ファイルごとに個別のcontent要素として追加
-      content.push({
-        type: 'text',
-        text: `# ${file.name}\n${fileContent}`,
-      });
+      ranges.push({ start, end });
     }
   }
 
-  return {
-    role: 'user',
-    content,
-  };
+  // 念のため、最後のチャンクが必ず total まで伸びていることを保証
+  ranges[ranges.length - 1].end = total;
+
+  return ranges;
 }

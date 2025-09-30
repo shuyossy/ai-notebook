@@ -10,6 +10,7 @@ import {
   documentReviewExecutionOutputSchema,
 } from '..';
 import { baseStepOutputSchema } from '@/mastra/workflows/schema';
+import { makeChunksByCount } from '@/mastra/lib/util';
 
 const logger = getMainLogger();
 
@@ -127,7 +128,7 @@ const individualDocumentReviewWorkflow = createWorkflow({
         }
 
         // リトライ回数が5回を超えたら終了
-        if (initData.retryCount >= 4) {
+        if (initData.retryCount >= 5) {
           return {
             originalDocument: initData.originalDocument,
             reviewInput: [],
@@ -142,17 +143,17 @@ const individualDocumentReviewWorkflow = createWorkflow({
         // ドキュメント分割処理を実行
         // 分割方針は、originalDocumentを単純に${nextRetryCount + 1}に分割し、テキストドキュメントであればオーバーラップを300文字、PDF画像ドキュメントであれば3画像分オーバーラップさせる
         const splitCount = nextRetryCount + 1;
-        // テキストドキュメントの場合
+
         if (initData.originalDocument.textContent) {
+          // --- テキストドキュメント ---
+          // 絵文字分断を避けたい場合は、下記を Array.from(...) に替える
           const text = initData.originalDocument.textContent;
-          const chunkSize = Math.ceil(text.length / splitCount);
-          const overlap = 300;
-          const chunks: string[] = [];
-          for (let i = 0; i < splitCount; i++) {
-            const start = i * chunkSize - (i > 0 ? overlap : 0);
-            const end = start + chunkSize + (i < splitCount - 1 ? overlap : 0);
-            chunks.push(text.slice(start, end));
-          }
+          const overlapChars = 300;
+
+          const ranges = makeChunksByCount(text, splitCount, overlapChars);
+
+          const chunks = ranges.map(({ start, end }) => text.slice(start, end));
+
           return {
             originalDocument: initData.originalDocument,
             reviewInput: chunks.map((chunk, index) => ({
@@ -160,7 +161,7 @@ const individualDocumentReviewWorkflow = createWorkflow({
               document: {
                 ...initData.originalDocument,
                 id: `${initData.originalDocument.id}_part${index + 1}`,
-                name: `${initData.originalDocument.name} (part ${index + 1})  (split into parts because the full content did not fit into context)`,
+                name: `${initData.originalDocument.name} (part ${index + 1}) (split into parts because the full content did not fit into context)`,
                 textContent: chunk,
               },
             })),
@@ -168,20 +169,17 @@ const individualDocumentReviewWorkflow = createWorkflow({
             status: 'success' as stepStatus,
             finishReason: 'content_length' as const,
           } as z.infer<typeof individualDocumentReviewRetryWorkflowInputSchema>;
-        }
-        // PDF画像ドキュメントの場合
-        // imageDataはbase64の配列であるため、3画像分オーバーラップさせる
-        else if (initData.originalDocument.imageData) {
+        } else if (initData.originalDocument.imageData) {
+          // --- PDF画像（ページ配列想定）---
           const imageData = initData.originalDocument.imageData;
-          const splitCount = nextRetryCount + 1;
-          const chunkSize = Math.ceil(imageData.length / splitCount);
-          const overlap = 3;
-          const chunks: string[][] = [];
-          for (let i = 0; i < splitCount; i++) {
-            const start = i * chunkSize - (i > 0 ? overlap : 0);
-            const end = start + chunkSize + (i < splitCount - 1 ? overlap : 0);
-            chunks.push(imageData.slice(start, end));
-          }
+          const overlapPages = 3;
+
+          const ranges = makeChunksByCount(imageData, splitCount, overlapPages);
+
+          const chunks = ranges.map(({ start, end }) =>
+            imageData.slice(start, end),
+          );
+
           return {
             originalDocument: initData.originalDocument,
             reviewInput: chunks.map((chunk, index) => ({
@@ -189,7 +187,7 @@ const individualDocumentReviewWorkflow = createWorkflow({
               document: {
                 ...initData.originalDocument,
                 id: `${initData.originalDocument.id}_part${index + 1}`,
-                name: `${initData.originalDocument.name} (part ${index + 1})  (split into parts because the full content did not fit into context)`,
+                name: `${initData.originalDocument.name} (part ${index + 1}) (split into parts because the full content did not fit into context)`,
                 imageData: chunk,
               },
             })),

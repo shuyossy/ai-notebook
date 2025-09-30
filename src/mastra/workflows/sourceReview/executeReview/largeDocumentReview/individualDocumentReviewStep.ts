@@ -8,11 +8,12 @@ import { normalizeUnknownError } from '@/main/lib/error';
 import { internalError } from '@/main/lib/error';
 import {
   createRuntimeContext,
+  judgeErrorIsContentLengthError,
   judgeFinishReason,
 } from '@/mastra/lib/agentUtils';
 import { getMainLogger } from '@/main/lib/logger';
-import { createCombinedMessage } from '../../lib';
-import { getChecklistsErrorMessage, judgeErrorIsContentLengthError } from '../lib';
+import { createCombinedMessageFromExtractedDocument } from '../../lib';
+import { getChecklistsErrorMessage } from '../lib';
 
 
 const logger = getMainLogger();
@@ -78,7 +79,7 @@ export const individualDocumentReviewStep = createStep({
       const reviewAgent = mastra.getAgent('individualDocumentReviewAgent');
 
       // ドキュメント内容を構築
-      const message = await createCombinedMessage(
+      const message = await createCombinedMessageFromExtractedDocument(
         [document],
         'Please review this document against the provided checklist items',
       );

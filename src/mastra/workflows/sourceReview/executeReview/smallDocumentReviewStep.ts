@@ -2,7 +2,7 @@ import { z } from 'zod';
 // @ts-ignore
 import { createStep } from '@mastra/core/workflows';
 import { getReviewRepository } from '@/adapter/db';
-import { createCombinedMessage } from '../lib';
+import { createCombinedMessageFromExtractedDocument } from '../lib';
 import {
   createRuntimeContext,
   judgeFinishReason,
@@ -44,7 +44,7 @@ export const smallDocumentReviewExecutionStep = createStep({
       const reviewAgent = mastra.getAgent('reviewExecuteAgent');
 
       // 複数ファイルを統合してメッセージを作成（一度だけ）
-      const message = await createCombinedMessage(
+      const message = await createCombinedMessageFromExtractedDocument(
         documents,
         'Please review this document against the provided checklist items',
       );

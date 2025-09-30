@@ -14,7 +14,7 @@ import {
 import { createRuntimeContext } from '../../lib/agentUtils';
 import { normalizeUnknownError, internalError } from '@/main/lib/error';
 import { getMainLogger } from '@/main/lib/logger';
-import { createCombinedMessage } from '../../lib/util';
+import { createCombinedMessage } from './lib';
 
 const logger = getMainLogger();
 
