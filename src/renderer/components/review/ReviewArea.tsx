@@ -28,7 +28,7 @@ const defaultCommentFormat =
 const defaultEvaluationSettings: CustomEvaluationSettings = {
   items: [
     { label: 'A', description: '基準を完全に満たしている' },
-    { label: 'B', description: '基準を一部満たしている' },
+    { label: 'B', description: '基準をある程度満たしている' },
     { label: 'C', description: '基準を満たしていない' },
     { label: '–', description: '評価の対象外、または評価できない' },
   ],

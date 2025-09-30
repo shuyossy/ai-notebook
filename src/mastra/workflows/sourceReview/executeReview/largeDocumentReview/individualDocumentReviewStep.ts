@@ -15,7 +15,6 @@ import { getMainLogger } from '@/main/lib/logger';
 import { createCombinedMessageFromExtractedDocument } from '../../lib';
 import { getChecklistsErrorMessage } from '../lib';
 
-
 const logger = getMainLogger();
 
 // 個別ドキュメントレビューステップの入力スキーマ
@@ -115,16 +114,9 @@ Checklist Items to Review:\n${checklists.map((item) => `- ID: ${item.id} - ${ite
           z.object({
             // CoTのようにAIにどのファイルのどのセクションをレビューするべきかを考えさせるための隠しフィールド
             reviewSections: z
-              .array(
-                z.object({
-                  fileName: z.string().describe('file name to review'),
-                  sectionNames: z.array(
-                    z.string().describe('section name within the file'),
-                  ),
-                }),
-              )
+              .array(z.string().describe('section name within the file'))
               .describe(
-                'files and sections that should be reviewed for evaluation and commenting',
+                'sections that should be reviewed for evaluation and commenting',
               ),
             checklistId: z.number().describe('checklist id'),
             comment: z.string().describe('evaluation comment'),
