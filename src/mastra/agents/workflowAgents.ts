@@ -12,11 +12,6 @@ import {
   // getChecklistIntegrationPrompt,
   getChecklistCategolizePrompt,
   getDocumentReviewExecutionPrompt,
-  getLargeDocumentReviewExecutionPrompt,
-  REVIEW_DOCUMENT_SUMMARIZATION_SYSTEM_PROMPT,
-  getReviewReadinessFirstRunPrompt,
-  getReviewCheckReadinessSubsequentPrompt,
-  getReviewAnswerQuestionPrompt,
   getIndividualDocumentReviewPrompt,
   getConsolidateReviewPrompt,
 } from './prompts';
@@ -113,13 +108,6 @@ export const reviewExecuteAgent = new Agent({
   model: getOpenAICompatibleModel,
 });
 
-// 大量ドキュメントレビュー専用エージェント（要約・Q&A情報に特化）
-export const largeDocumentReviewExecuteAgent = new Agent({
-  name: 'largeDocumentReviewExecuteAgent',
-  instructions: getLargeDocumentReviewExecutionPrompt,
-  model: getOpenAICompatibleModel,
-});
-
 export const topicExtractionAgent = new Agent({
   name: 'topicExtractionAgent',
   instructions: getTopicExtractionPrompt,
@@ -137,30 +125,6 @@ export const topicChecklistAgent = new Agent({
 //   instructions: getChecklistIntegrationPrompt,
 //   model: getOpenAICompatibleModel,
 // });
-
-export const reviewDocumentSummarizationAgent = new Agent({
-  name: 'reviewDocumentSummarizationAgent',
-  instructions: REVIEW_DOCUMENT_SUMMARIZATION_SYSTEM_PROMPT,
-  model: getOpenAICompatibleModel,
-});
-
-export const reviewCheckReviewReadinessFirstRunAgent = new Agent({
-  name: 'reviewCheckReviewReadinessFirstRunAgent',
-  instructions: getReviewReadinessFirstRunPrompt,
-  model: getOpenAICompatibleModel,
-});
-
-export const reviewCheckReviewReadinessSubsequentRunAgent = new Agent({
-  name: 'reviewCheckReviewReadinessSubsequentRunAgent',
-  instructions: getReviewCheckReadinessSubsequentPrompt,
-  model: getOpenAICompatibleModel,
-});
-
-export const reviewAnswerQuestionAgent = new Agent({
-  name: 'reviewAnswerQuestionAgent',
-  instructions: getReviewAnswerQuestionPrompt,
-  model: getOpenAICompatibleModel,
-});
 
 // 個別ドキュメントレビュー用エージェント（効率化版）
 export const individualDocumentReviewAgent = new Agent({
