@@ -466,7 +466,7 @@ ${evaluationList}`;
     // デフォルト評定項目を使用
     evaluationInstructions = `1. For each checklist item, assign one of these ratings:
    - A: 基準を完全に満たしている
-   - B: 基準を一部満たしている
+   - B: 基準をある程度満たしている
    - C: 基準を満たしていない
    - –: 評価の対象外、または評価できない`;
   }
@@ -620,7 +620,7 @@ export function getConsolidateReviewPrompt({
     // デフォルト評定項目を使用
     evaluationInstructions = `1. For each checklist item, assign one of these ratings:
    - A: 基準を完全に満たしている
-   - B: 基準を一部満たしている
+   - B: 基準をある程度満たしている
    - C: 基準を満たしていない
    - –: 評価の対象外、または評価できない`;
   }
@@ -636,6 +636,24 @@ CONSOLIDATION CONTEXT:
 Checklist items for final evaluation:
 ${formattedList}
 
+CRITICAL: CHECKLIST ITEM INTERPRETATION
+Before assigning ratings, you must carefully analyze the nature and scope of each checklist item to determine its application context:
+
+**Two types of checklist requirements:**
+1. **Individual Document Requirements**: Must be satisfied by EACH document separately
+   - Examples: "Each section must have a summary", "Every chapter must include references", "All pages must have page numbers"
+   - Evaluation approach: Check if ALL documents satisfy the requirement individually
+
+2. **Document Set Requirements**: Must be satisfied by the UNIFIED document set as a whole
+   - Examples: "Cover page must include company logo" (only cover page needs this), "Overall document provides complete technical specifications" (assessed across all documents together), "Terminology must be consistent throughout" (consistency across the entire set)
+   - Evaluation approach: Check if the requirement is satisfied when considering all documents as ONE integrated document
+
+**Critical thinking process:**
+- Read each checklist item carefully and determine which type it is
+- Consider the semantic meaning and intent behind the requirement
+- Ask yourself: "Does EVERY individual document need to satisfy this, or does the COMPLETE DOCUMENT SET need to satisfy this?"
+- When in doubt, consider the practical review scenario: Would a reviewer check this in each document separately, or across the entire set?
+
 CONSOLIDATION INSTRUCTIONS:
 ${evaluationInstructions}
 2. For each item, write a consolidated comment in Japanese following this format:
@@ -643,11 +661,14 @@ ${evaluationInstructions}
 ${actualFormat}
 
 3. Consolidation methodology:
-   a) Analyze all individual review results for each checklist item
-   b) Synthesize findings across all document parts into a unified assessment
-   c) Resolve any apparent contradictions by considering the full context
-   d) Ensure the final rating reflects the overall document set performance
-   e) Combine evidence from all parts to create comprehensive justification
+   a) **First**, determine whether each checklist item is an "Individual Document Requirement" or "Document Set Requirement"
+   b) Analyze all individual review results for each checklist item
+   c) Synthesize findings according to the requirement type:
+      - For Individual Document Requirements: Assess if ALL documents satisfy it
+      - For Document Set Requirements: Assess if the UNIFIED set satisfies it as a whole
+   d) Resolve any apparent contradictions by considering the full context and requirement type
+   e) Ensure the final rating reflects the appropriate evaluation scope (individual vs. unified)
+   f) Combine evidence from all parts to create comprehensive justification
 
 4. In your consolidated comments, ensure to:
    a) Reference specific sections across ALL reviewed documents/parts using ORIGINAL FILE NAMES
@@ -656,17 +677,28 @@ ${actualFormat}
    d) Give actionable improvement suggestions based on the complete analysis
    e) Write as if you reviewed the complete original document set directly
    f) Always use the original file names when mentioning documents in your consolidated comments
+   g) **Do NOT mention** "individual document review", "consolidation", or any internal process terms
 
 5. Rating assignment logic:
+   - **Most Important**: Base your rating on the checklist item's requirement type (individual vs. unified)
+   - For Individual Document Requirements:
+     * If some documents fail while others pass, the overall rating should reflect this mixed state
+     * Consider whether the failures are critical or minor
+   - For Document Set Requirements:
+     * Focus on whether the COMPLETE SET satisfies the requirement
+     * Do NOT penalize the set just because one individual document lacks something that another document provides
+     * Example: If a checklist asks for "complete technical specifications" and Document A covers hardware while Document B covers software, the SET satisfies the requirement even though each individual document is incomplete
    - Consider the cumulative evidence from all document parts
-   - If different parts show varying compliance levels, weigh them appropriately
-   - Prioritize the overall ability to meet the checklist criterion across the entire document set
-   - Document any significant variations between different document sections
+   - If different parts show varying compliance levels, weigh them according to the requirement type
+   - Prioritize the overall ability to meet the checklist criterion in the appropriate scope
+   - Document any significant variations between different document sections when relevant
 
 6. Final comment quality standards:
    - Must appear as a natural, comprehensive review of the complete document set
    - Should not reveal the internal consolidation process
    - Should demonstrate thorough understanding of the entire document scope
+   - Must read as if a single reviewer examined the entire document set directly
+   - Use natural language without internal terminology (avoid "consolidated", "synthesized", "individual document reviews", etc.)
 ${
   additionalInstructions && additionalInstructions.trim() !== ''
     ? `
