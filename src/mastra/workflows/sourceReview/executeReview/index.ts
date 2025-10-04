@@ -8,6 +8,7 @@ import { getMainLogger } from '@/main/lib/logger';
 import { classifyChecklistsByCategoryStep } from './classifyChecklistStep';
 import { smallDocumentReviewExecutionStep } from './smallDocumentReviewStep';
 import { largeDocumentReviewWorkflow } from './largeDocumentReview';
+import { extractedDocumentSchema, uploadedFileSchema } from './schema';
 
 const logger = getMainLogger();
 
@@ -47,17 +48,7 @@ export const executeReviewWorkflowInputSchema = z.object({
       'ドキュメントモード: small=少量ドキュメント, large=大量ドキュメント',
     ),
   // レビュー対象のドキュメント
-  files: z.array(
-    z.object({
-      id: z.string(),
-      name: z.string(),
-      path: z.string(),
-      type: z.string(),
-      pdfProcessMode: z.enum(['text', 'image']).optional(),
-      pdfImageMode: z.enum(['merged', 'pages']).optional(),
-      imageData: z.array(z.string()).optional(),
-    }),
-  ),
+  files: z.array(uploadedFileSchema),
 });
 
 export const executeReviewWorkflowOutputSchema = baseStepOutputSchema;
@@ -83,18 +74,7 @@ export const documentReviewExecutionInputSchema = z.object({
     .optional()
     .describe('カスタム評定項目設定'),
   // レビュー対象のドキュメント
-  documents: z.array(
-    z.object({
-      id: z.string(),
-      name: z.string(),
-      path: z.string(),
-      type: z.string(),
-      pdfProcessMode: z.enum(['text', 'image']).optional(),
-      pdfImageMode: z.enum(['merged', 'pages']).optional(),
-      textContent: z.string().optional(),
-      imageData: z.array(z.string()).optional(),
-    }),
-  ),
+  documents: z.array(extractedDocumentSchema),
   checklists: z.array(
     z.object({
       id: z.number(),

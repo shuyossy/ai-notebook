@@ -11,6 +11,7 @@ import {
 } from '..';
 import { baseStepOutputSchema } from '@/mastra/workflows/schema';
 import { makeChunksByCount } from '@/mastra/lib/util';
+import { extractedDocumentSchema } from '../schema';
 
 const logger = getMainLogger();
 
@@ -25,16 +26,8 @@ const individualDocumentReviewWorkflowOutputSchema =
   baseStepOutputSchema.extend({
     documentsWithReviewResults: z
       .array(
-        z.object({
-          id: z.string(),
+        extractedDocumentSchema.extend({
           originalName: z.string(),
-          name: z.string(),
-          path: z.string(),
-          type: z.string(),
-          pdfProcessMode: z.enum(['text', 'image']).optional(),
-          pdfImageMode: z.enum(['merged', 'pages']).optional(),
-          textContent: z.string().optional(),
-          imageData: z.array(z.string()).optional(),
           reviewResults: z.array(
             z.object({
               checklistId: z.number(),

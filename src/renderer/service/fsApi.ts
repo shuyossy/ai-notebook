@@ -11,6 +11,10 @@ export interface IFsApi {
     filePath: string,
     apiOptions?: ApiServiceDefaultOptions,
   ): Promise<Uint8Array | null>;
+  convertOfficeToPdf(
+    filePath: string,
+    apiOptions?: ApiServiceDefaultOptions,
+  ): Promise<Uint8Array | null>;
   access(
     path: string,
     apiOptions?: ApiServiceDefaultOptions,
@@ -44,6 +48,16 @@ export class FsApi implements IFsApi {
     apiOptions?: ApiServiceDefaultOptions,
   ): Promise<Uint8Array | null> {
     return invokeApi(() => window.electron.fs.readFile(filePath), apiOptions);
+  }
+
+  public async convertOfficeToPdf(
+    filePath: string,
+    apiOptions?: ApiServiceDefaultOptions,
+  ): Promise<Uint8Array | null> {
+    return invokeApi(
+      () => window.electron.fs.convertOfficeToPdf(filePath),
+      apiOptions,
+    );
   }
 
   public async access(

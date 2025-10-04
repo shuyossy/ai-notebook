@@ -21,6 +21,7 @@ export const template = {
   REDMINE_API_ERROR: `Redmine APIとの通信中にエラーが発生しました\n{detail}`,
   FS_OPEN_DIALOG_ERROR: `ファイルダイアログの表示に失敗しました`,
   FILE_TEXT_EXTRACTION_ERROR: `ファイルのテキスト抽出に失敗しました\n{path}`,
+  FS_CONVERT_OFFICE_TO_PDF_ERROR: `ファイルのPDF変換に失敗しました\n{detail}`,
   SOURCE_REGISTRATION_DIR_READING_ERROR: `ドキュメント登録用ディレクトリの読み込みに失敗しました`,
   SOURCE_REGISTRATION_DIR_NOT_SET: `ドキュメント登録用ディレクトリが設定されていません\n設定画面で登録用ディレクトリを指定してください`,
   REVIEW_CHECKLIST_EXTRACTION_ERROR: `チェックリスト抽出処理に失敗しました\n{detail}`,

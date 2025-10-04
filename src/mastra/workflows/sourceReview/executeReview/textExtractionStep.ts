@@ -6,44 +6,24 @@ import { baseStepOutputSchema } from '../../schema';
 import { normalizeUnknownError } from '@/main/lib/error';
 import FileExtractor from '@/main/lib/fileExtractor';
 import { getMainLogger } from '@/main/lib/logger';
+import { extractedDocumentSchema, uploadedFileSchema } from './schema';
 
 const logger = getMainLogger();
 
 // 入力スキーマ
 export const textExtractionInputSchema = z.object({
-  files: z
-    .array(
-      z.object({
-        name: z.string(),
-        path: z.string(),
-        type: z.string(),
-        pdfProcessMode: z.enum(['text', 'image']).optional(),
-        pdfImageMode: z.enum(['merged', 'pages']).optional(),
-        imageData: z.array(z.string()).optional(),
-      }),
-    )
-    .describe('アップロードファイルのリスト'),
+  files: z.array(uploadedFileSchema).describe('アップロードファイルのリスト'),
 });
 
 // テキスト抽出ステップの出力スキーマ
 export const textExtractionOutputSchema = baseStepOutputSchema.extend({
-  extractedDocuments: z.array(
-    z.object({
-      id: z.string(),
-      name: z.string(),
-      path: z.string(),
-      type: z.string(),
-      pdfProcessMode: z.enum(['text', 'image']).optional(),
-      pdfImageMode: z.enum(['merged', 'pages']).optional(),
-      textContent: z.string().optional(),
-      imageData: z.array(z.string()).optional(),
-    })
-  ).optional(),
+  extractedDocuments: z.array(extractedDocumentSchema.optional()),
 });
 
 export const textExtractionStep = createStep({
   id: 'textExtractionStep',
-  description: 'ドキュメントからテキストを抽出し、ワークフロー用のIDを付与するステップ',
+  description:
+    'ドキュメントからテキストを抽出し、ワークフロー用のIDを付与するステップ',
   inputSchema: textExtractionInputSchema,
   outputSchema: textExtractionOutputSchema,
   execute: async ({ inputData, abortSignal, bail }) => {
@@ -65,8 +45,7 @@ export const textExtractionStep = createStep({
 
         // PDFで画像として処理する場合
         if (
-          file.type === 'application/pdf' &&
-          file.pdfProcessMode === 'image' &&
+          file.processMode === 'image' &&
           file.imageData &&
           file.imageData.length > 0
         ) {
@@ -76,8 +55,8 @@ export const textExtractionStep = createStep({
             name: file.name,
             path: file.path,
             type: file.type,
-            pdfProcessMode: file.pdfProcessMode,
-            pdfImageMode: file.pdfImageMode,
+            processMode: file.processMode,
+            imageMode: file.imageMode,
             textContent: undefined,
             imageData: file.imageData,
           });
@@ -91,8 +70,8 @@ export const textExtractionStep = createStep({
             path: file.path,
             type: file.type,
             textContent: content,
-            pdfProcessMode: file.pdfProcessMode,
-            pdfImageMode: file.pdfImageMode,
+            processMode: file.processMode,
+            imageMode: file.imageMode,
             imageData: undefined,
           });
         }

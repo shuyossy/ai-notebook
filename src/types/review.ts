@@ -58,11 +58,11 @@ export type ModalMode = 'extract' | 'review';
 
 export type DocumentType = 'checklist-ai' | 'checklist-csv' | 'general';
 
-// PDF処理方式の定義
-export type PdfProcessMode = 'text' | 'image';
+// ドキュメント処理方式の定義（PDF, Word, Excel, PowerPoint対応）
+export type ProcessMode = 'text' | 'image';
 
-// PDF画像化方式の定義
-export type PdfImageMode = 'merged' | 'pages';
+// ドキュメント画像化方式の定義
+export type ImageMode = 'merged' | 'pages';
 
 // ドキュメントレビューのモード定義
 export type DocumentMode = 'small' | 'large';
@@ -73,9 +73,9 @@ export interface UploadFile {
   name: string;
   path: string;
   type: string;
-  pdfProcessMode?: PdfProcessMode; // PDFファイルの場合のみ
-  pdfImageMode?: PdfImageMode; // PDF画像化の場合のみ (merged: 統合画像, pages: ページ別画像)
-  imageData?: string[]; // PDF画像変換時のBase64データ配列 (merged: 長さ1, pages: 各ページ)
+  processMode?: ProcessMode; // ドキュメントファイル（PDF, Office）の処理方式
+  imageMode?: ImageMode; // 画像化の場合のモード (merged: 統合画像, pages: ページ別画像)
+  imageData?: string[]; // 画像変換時のBase64データ配列 (merged: 長さ1, pages: 各ページ)
 }
 
 export type ChecklistExtractionResultStatus =

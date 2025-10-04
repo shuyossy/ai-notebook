@@ -38,8 +38,8 @@ import {
 import {
   DocumentType,
   UploadFile,
-  PdfProcessMode,
-  PdfImageMode,
+  ProcessMode,
+  ImageMode,
   EvaluationItem,
   DocumentMode,
 } from '@/types';
@@ -62,6 +62,20 @@ const getMimeTypeFromExtension = (extension: string): string => {
     txt: 'text/plain',
   };
   return mimeTypes[extension] || 'application/octet-stream';
+};
+
+// ドキュメントが画像化に対応しているかチェック
+const supportsImageProcessing = (mimeType: string): boolean => {
+  const supportedTypes = [
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/vnd.ms-powerpoint',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  ];
+  return supportedTypes.includes(mimeType);
 };
 
 const getButtonText = (modalMode: ReviewSourceModalProps['modalMode']) => {
@@ -203,10 +217,11 @@ function ReviewSourceModal({
               name: fileName,
               path: filePath,
               type: mimeType,
-              // ★ 画像化は最終決定時だけ行うので、ここでは mode だけ持つ
-              pdfProcessMode:
-                mimeType === 'application/pdf' ? 'text' : undefined,
-              pdfImageMode: 'merged', // デフォルトは統合画像
+              // 画像化対応ドキュメントの場合はprocessModeを設定
+              processMode: supportsImageProcessing(mimeType)
+                ? 'text'
+                : undefined,
+              imageMode: 'pages', // デフォルトはページ単位
             };
           },
         );
@@ -226,23 +241,23 @@ function ReviewSourceModal({
     setUploadedFiles((prev) => prev.filter((file) => file.id !== fileId));
   };
 
-  // ★ ここでは「モード切替」だけ。実際のPDF→画像変換は送信確定時にまとめて行う
-  const handlePdfProcessModeChange = (fileId: string, mode: PdfProcessMode) => {
+  // ドキュメント処理モード切替ハンドラー
+  const handleProcessModeChange = (fileId: string, mode: ProcessMode) => {
     setUploadedFiles((prev) =>
       prev.map((file) =>
         file.id === fileId
-          ? { ...file, pdfProcessMode: mode, imageData: undefined }
+          ? { ...file, processMode: mode, imageData: undefined }
           : file,
       ),
     );
   };
 
-  // PDF画像化モードを変更するハンドラー
-  const handlePdfImageModeChange = (fileId: string, mode: PdfImageMode) => {
+  // ドキュメント画像化モードを変更するハンドラー
+  const handleImageModeChange = (fileId: string, mode: ImageMode) => {
     setUploadedFiles((prev) =>
       prev.map((file) =>
         file.id === fileId
-          ? { ...file, pdfImageMode: mode, imageData: undefined }
+          ? { ...file, imageMode: mode, imageData: undefined }
           : file,
       ),
     );
@@ -338,21 +353,33 @@ function ReviewSourceModal({
 
     try {
       const filesReady = [];
+      const fsApi = FsApi.getInstance();
+
       for (const f of uploadedFiles) {
-        if (f.type === 'application/pdf' && f.pdfProcessMode === 'image') {
-          // Mainから安全にPDFバイト列を取得（file:// fetch を使わない）
-          const fsApi = FsApi.getInstance();
-          const data = await fsApi.readFile(f.path, {
-            showAlert: false,
-            throwError: true,
-          });
+        // 画像化モードの場合
+        if (f.processMode === 'image') {
+          let pdfData: Uint8Array;
+
+          // PDF以外の場合は、まずOffice→PDFに変換
+          if (f.type !== 'application/pdf') {
+            pdfData = (await fsApi.convertOfficeToPdf(f.path, {
+              showAlert: false,
+              throwError: true,
+            }))!;
+          } else {
+            // PDFの場合は直接読み込み
+            pdfData = (await fsApi.readFile(f.path, {
+              showAlert: false,
+              throwError: true,
+            }))!;
+          }
 
           // ブラウザ側で pdf.js にレンダリングさせて PNG を得る
-          const imagePages = await convertPdfBytesToImages(data!, {
+          const imagePages = await convertPdfBytesToImages(pdfData, {
             scale: 2.0,
           });
 
-          if (f.pdfImageMode === 'pages') {
+          if (f.imageMode === 'pages') {
             // ページ別画像モード: 各ページを個別に保存
             // デバッグ用：各ページを個別にダウンロード
             // imagePages.forEach((_pageImage, _index) => {
@@ -379,6 +406,7 @@ function ReviewSourceModal({
             filesReady.push({ ...f, imageData: [combined] });
           }
         } else {
+          // テキスト抽出モードまたは画像化非対応ファイル
           filesReady.push(f);
         }
       }
@@ -762,20 +790,17 @@ function ReviewSourceModal({
                     </IconButton>
                   }
                 >
-                  <ListItemText
-                    primary={file.name}
-                    secondary={file.type === 'application/pdf' ? 'PDF' : ''}
-                  />
-                  {file.type === 'application/pdf' && (
+                  <ListItemText primary={file.name} />
+                  {supportsImageProcessing(file.type) && (
                     <Box sx={{ mr: 2 }}>
                       <FormControl size="small">
                         <RadioGroup
                           row
-                          value={file.pdfProcessMode}
+                          value={file.processMode}
                           onChange={(e) =>
-                            handlePdfProcessModeChange(
+                            handleProcessModeChange(
                               file.id,
-                              e.target.value as PdfProcessMode,
+                              e.target.value as ProcessMode,
                             )
                           }
                         >
@@ -800,7 +825,7 @@ function ReviewSourceModal({
                               >
                                 <ImageIcon fontSize="small" sx={{ mr: 0.5 }} />
                                 画像
-                                <Tooltip title="図形オブジェクトが多いPDFは画像化で精度が上がる場合があります">
+                                <Tooltip title="図形オブジェクトが多いドキュメントは画像化で精度が上がる場合があります">
                                   <HelpIcon
                                     fontSize="small"
                                     sx={{ ml: 0.5, color: 'text.secondary' }}
@@ -811,15 +836,15 @@ function ReviewSourceModal({
                           />
                         </RadioGroup>
                       </FormControl>
-                      {file.pdfProcessMode === 'image' && (
+                      {file.processMode === 'image' && (
                         <FormControl size="small" sx={{ ml: 1 }}>
                           <RadioGroup
                             row
-                            value={file.pdfImageMode}
+                            value={file.imageMode}
                             onChange={(e) =>
-                              handlePdfImageModeChange(
+                              handleImageModeChange(
                                 file.id,
-                                e.target.value as PdfImageMode,
+                                e.target.value as ImageMode,
                               )
                             }
                           >

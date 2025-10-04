@@ -96,10 +96,9 @@ export async function createCombinedMessage(
 
   // ファイル選択順に処理
   for (const file of files) {
-    // PDFで画像として処理する場合
+    // 画像として処理する場合（PDF、Office ドキュメント問わず）
     if (
-      file.type === 'application/pdf' &&
-      file.pdfProcessMode === 'image' &&
+      file.processMode === 'image' &&
       file.imageData &&
       file.imageData.length > 0
     ) {
@@ -178,12 +177,8 @@ export function createCombinedMessageFromExtractedDocument(
 
   // ドキュメント順に処理
   for (const document of extractedDocuments) {
-    // PDFで画像として処理する場合
-    if (
-      document.type === 'application/pdf' &&
-      document.imageData &&
-      document.imageData.length > 0
-    ) {
+    // 画像として処理する場合（PDF、Office ドキュメント問わず）
+    if (document.imageData && document.imageData.length > 0) {
       // 各ページごとに個別の説明と画像を追加
       const totalPages = document.imageData.length;
       for (let pageIndex = 0; pageIndex < document.imageData.length; pageIndex++) {

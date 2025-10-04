@@ -28,8 +28,8 @@ const triggerSchema = z.object({
         name: z.string(),
         path: z.string(),
         type: z.string(),
-        pdfProcessMode: z.enum(['text', 'image']).optional(),
-        pdfImageMode: z.enum(['merged', 'pages']).optional(),
+        processMode: z.enum(['text', 'image']).optional(),
+        imageMode: z.enum(['merged', 'pages']).optional(),
         imageData: z.array(z.string()).optional(),
       }),
     )

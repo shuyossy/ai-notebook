@@ -14,22 +14,16 @@ import {
 import { getMainLogger } from '@/main/lib/logger';
 import { createCombinedMessageFromExtractedDocument } from '../../lib';
 import { getChecklistsErrorMessage } from '../lib';
+import { extractedDocumentSchema } from '../schema';
 
 const logger = getMainLogger();
 
 // 個別ドキュメントレビューステップの入力スキーマ
 export const individualDocumentReviewStepInputSchema = z.object({
-  document: z.object({
-    id: z.string(),
+  document: extractedDocumentSchema.extend({
     originalName: z.string(),
-    name: z.string(),
-    path: z.string(),
-    type: z.string(),
-    pdfProcessMode: z.enum(['text', 'image']).optional(),
-    pdfImageMode: z.enum(['merged', 'pages']).optional(),
-    textContent: z.string().optional(),
-    imageData: z.array(z.string()).optional(),
   }),
+  // チェックリスト
   checklists: z.array(
     z.object({
       id: z.number(),
