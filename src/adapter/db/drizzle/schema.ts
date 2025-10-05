@@ -59,6 +59,7 @@ export const reviewHistories = sqliteTable('review_histories', {
     .primaryKey()
     .$default(() => uuidv4()), // 汎用チャット機能のコードを活用できるように、MastraのThreadと同じく主キーは文字列とする
   title: text('title').notNull(), // ソースのtitleを/区切りで結合
+  targetDocumentName: text('target_document_name'), // レビュー対象の統合ドキュメント名
   additionalInstructions: text('additional_instructions'), // レビューの追加指示
   commentFormat: text('comment_format'), // レビューのコメントフォーマット
   evaluationSettings: text('evaluation_settings'), // 評定項目設定（JSON形式）
@@ -79,6 +80,8 @@ export const reviewChecklists = sqliteTable('review_checklists', {
     .notNull()
     .references(() => reviewHistories.id, { onDelete: 'cascade' }),
   content: text('content').notNull(), // チェックリスト項目
+  evaluation: text('evaluation'), // A, B, C, - 評価
+  comment: text('comment'), // レビューコメント
   createdBy: text('created_by').notNull(), // 'user' or 'system'
   createdAt: text('created_at')
     .notNull()
@@ -89,27 +92,6 @@ export const reviewChecklists = sqliteTable('review_checklists', {
     .$onUpdate(() => sql`(current_timestamp)`),
 });
 
-// レビューチェックリスト結果テーブル（1つのチェックリストに対して複数のファイル結果を保存）
-export const reviewChecklistResults = sqliteTable(
-  'review_checklist_results',
-  {
-    reviewChecklistId: integer('review_checklist_id')
-      .notNull()
-      .references(() => reviewChecklists.id, { onDelete: 'cascade' }),
-    fileId: text('file_id').notNull(), // アップロードファイルのID
-    fileName: text('file_name').notNull(), // ファイル名
-    evaluation: text('evaluation').notNull(), // A, B, C, - 評価
-    comment: text('comment'), // レビューコメント
-    createdAt: text('created_at')
-      .notNull()
-      .default(sql`(current_timestamp)`),
-    updatedAt: text('updated_at')
-      .notNull()
-      .default(sql`(current_timestamp)`)
-      .$onUpdate(() => sql`(current_timestamp)`),
-  },
-  (t) => [primaryKey({ columns: [t.reviewChecklistId, t.fileId] })],
-);
 
 // 型定義
 export type SourceEntity = typeof sources.$inferSelect;
@@ -120,6 +102,3 @@ export type ReviewHistoryEntity = typeof reviewHistories.$inferSelect;
 export type InsertReviewHistoryEntity = typeof reviewHistories.$inferInsert;
 export type ReviewChecklistEntity = typeof reviewChecklists.$inferSelect;
 export type InsertReviewChecklistEntity = typeof reviewChecklists.$inferInsert;
-export type ReviewChecklistResultEntity = typeof reviewChecklistResults.$inferSelect;
-export type InsertReviewChecklistResultEntity =
-  typeof reviewChecklistResults.$inferInsert;

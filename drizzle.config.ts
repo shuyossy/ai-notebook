@@ -12,7 +12,7 @@ console.log(
 );
 
 export default {
-  schema: './src/db/schema.ts',
+  schema: './src/adapter/db/drizzle/schema.ts',
   out: './drizzle/migrations',
   dialect: 'sqlite',
   dbCredentials: {

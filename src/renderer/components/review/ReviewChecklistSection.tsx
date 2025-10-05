@@ -58,6 +58,7 @@ const ReviewChecklistSection: React.FC<ReviewChecklistSectionProps> = ({
   checklistResults,
   isLoading,
   onSave,
+  targetDocumentName,
 }) => {
   // --- ステート ---
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -94,11 +95,11 @@ const ReviewChecklistSection: React.FC<ReviewChecklistSectionProps> = ({
     setIsAddingNew(false);
     setNewContent('');
   };
-  const handleSort = (fileId: string) => {
-    if (sortBy === fileId) {
+  const handleSort = () => {
+    if (sortBy === 'evaluation') {
       setSortDirection((prev) => (prev === 'desc' ? 'asc' : 'desc'));
     } else {
-      setSortBy(fileId);
+      setSortBy('evaluation');
       setSortDirection('desc');
     }
   };
@@ -110,35 +111,15 @@ const ReviewChecklistSection: React.FC<ReviewChecklistSectionProps> = ({
     downloadCSV(csvContent, filename);
   };
 
-  // --- ユニークファイル抽出 ---
-  const uniqueSources = useMemo(() => {
-    const map = new Map<string, { id: string; fileName: string }>();
-    checklistResults.forEach((cl) => {
-      cl.sourceEvaluations?.forEach((ev) => {
-        if (!map.has(ev.fileId)) {
-          map.set(ev.fileId, {
-            id: ev.fileId,
-            fileName: ev.fileName,
-          });
-        }
-      });
-    });
-    return Array.from(map.values());
-  }, [checklistResults]);
-
   // --- ソート ---
   // 動的評価項目対応のため、文字列順ソートを使用
   const sortedResults = useMemo(() => {
-    if (sortBy == null) return checklistResults;
+    if (sortBy !== 'evaluation') return checklistResults;
 
     return [...checklistResults].sort((a, b) => {
-      // 対象ファイルの評価を取得。未評価は空文字扱い
-      const aEv =
-        a.sourceEvaluations?.find((ev) => ev.fileId === sortBy)?.evaluation ??
-        '';
-      const bEv =
-        b.sourceEvaluations?.find((ev) => ev.fileId === sortBy)?.evaluation ??
-        '';
+      // 評価を取得。未評価は空文字扱い
+      const aEv = a.sourceEvaluation?.evaluation ?? '';
+      const bEv = b.sourceEvaluation?.evaluation ?? '';
 
       // 文字列順で比較
       if (sortDirection === 'desc') {
@@ -169,41 +150,37 @@ const ReviewChecklistSection: React.FC<ReviewChecklistSectionProps> = ({
         >
           チェックリスト
         </TableCell>
-        {uniqueSources.map((src) => (
-          <TableCell
-            key={src.id}
-            align="center"
-            sx={{
-              minWidth: 200,
-            }}
+        <TableCell
+          align="center"
+          sx={{
+            minWidth: 300,
+          }}
+        >
+          <TableSortLabel
+            active={sortBy === 'evaluation'}
+            direction={sortBy === 'evaluation' ? sortDirection : 'desc'}
+            onClick={() => handleSort()}
           >
-            <Box
-              sx={{
-                maxHeight: '4.5em',
-                overflow: 'hidden',
-                overflowY: 'auto',
-                lineHeight: '1.5em',
-                whiteSpace: 'normal',
-                wordBreak: 'break-all',
-                '&:hover': {
-                  overflowY: 'auto',
-                },
-              }}
-            >
-              <Tooltip title={src.fileName} placement="top">
-                <div>
-                  <TableSortLabel
-                    active={sortBy === src.id}
-                    direction={sortBy === src.id ? sortDirection : 'desc'}
-                    onClick={() => handleSort(src.id)}
-                  >
-                    {src.fileName}
-                  </TableSortLabel>
-                </div>
+            {targetDocumentName ? (
+              <Tooltip title={targetDocumentName} placement="top">
+                <Box
+                  component="span"
+                  sx={{
+                    maxHeight: '4.5em',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    wordBreak: 'break-all',
+                    whiteSpace: 'normal',
+                  }}
+                >
+                  レビュー結果 ({targetDocumentName})
+                </Box>
               </Tooltip>
-            </Box>
-          </TableCell>
-        ))}
+            ) : (
+              'レビュー結果'
+            )}
+          </TableSortLabel>
+        </TableCell>
         <TableCell align="center" sx={{ minWidth: 120 }}>
           操作
         </TableCell>
@@ -231,44 +208,37 @@ const ReviewChecklistSection: React.FC<ReviewChecklistSectionProps> = ({
           )}
         </Box>
       </TableCell>
-      {/* 評価列 */}
-      {uniqueSources.map((src) => {
-        const ev = checklist.sourceEvaluations?.find(
-          (x) => x.fileId === src.id,
-        );
-        return (
-          <TableCell
-            key={src.id}
-            align="center"
-            sx={{ p: 1, verticalAlign: 'top' }}
-          >
-            <Box>
-              {ev?.evaluation && (
-                <Stack spacing={1} alignItems="center">
-                  <Typography
-                    variant="body2"
-                    sx={{
-                      color: getEvaluationColor(ev.evaluation),
-                      fontWeight: 'bold',
-                      textDecoration: 'underline',
-                      textDecorationColor: getEvaluationColor(ev.evaluation),
-                      textDecorationThickness: '2px',
-                      textUnderlineOffset: '3px',
-                    }}
-                  >
-                    {ev.evaluation}
-                  </Typography>
-                  {ev.comment && (
-                    <Typography variant="body2" sx={commentBoxSx}>
-                      {ev.comment}
-                    </Typography>
-                  )}
-                </Stack>
+      {/* レビュー結果列 */}
+      <TableCell align="center" sx={{ p: 1, verticalAlign: 'top' }}>
+        <Box>
+          {checklist.sourceEvaluation?.evaluation && (
+            <Stack spacing={1} alignItems="center">
+              <Typography
+                variant="body2"
+                sx={{
+                  color: getEvaluationColor(
+                    checklist.sourceEvaluation.evaluation,
+                  ),
+                  fontWeight: 'bold',
+                  textDecoration: 'underline',
+                  textDecorationColor: getEvaluationColor(
+                    checklist.sourceEvaluation.evaluation,
+                  ),
+                  textDecorationThickness: '2px',
+                  textUnderlineOffset: '3px',
+                }}
+              >
+                {checklist.sourceEvaluation.evaluation}
+              </Typography>
+              {checklist.sourceEvaluation.comment && (
+                <Typography variant="body2" sx={commentBoxSx}>
+                  {checklist.sourceEvaluation.comment}
+                </Typography>
               )}
-            </Box>
-          </TableCell>
-        );
-      })}
+            </Stack>
+          )}
+        </Box>
+      </TableCell>
       {/* 操作 */}
       <TableCell align="center" sx={{ p: 1 }}>
         <Stack direction="row" spacing={1} justifyContent="center">
@@ -321,10 +291,7 @@ const ReviewChecklistSection: React.FC<ReviewChecklistSectionProps> = ({
           />
         </Box>
       </TableCell>
-      {uniqueSources.map((_, i) => (
-        // eslint-disable-next-line
-        <TableCell key={i} />
-      ))}
+      <TableCell />
       <TableCell align="center" sx={{ p: 1 }}>
         <Stack direction="row" spacing={1} justifyContent="center">
           <IconButton

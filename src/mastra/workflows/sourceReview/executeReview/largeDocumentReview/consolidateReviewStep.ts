@@ -187,28 +187,16 @@ Please provide a consolidated review that synthesizes all individual document re
           });
         }
 
-        // 統合レビュー結果をDBに保存（複数ファイルの情報を統合）
+        // 統合レビュー結果をDBに保存
         if (
           consolidatedResult.object &&
           Array.isArray(consolidatedResult.object)
         ) {
-          const combinedFileIds = documentsWithReviewResults
-            .map((f) => f.id)
-            .join('/');
-          const idsHash = createHash('md5')
-            .update(combinedFileIds)
-            .digest('hex');
-          const combinedFileNames = documentsWithReviewResults
-            .map((f) => f.name)
-            .join('/');
-
           await reviewRepository.upsertReviewResult(
             consolidatedResult.object.map((result) => ({
               reviewChecklistId: result.checklistId,
               evaluation: result.evaluation as ReviewEvaluation,
               comment: result.comment,
-              fileId: idsHash,
-              fileName: combinedFileNames,
             })),
           );
         }

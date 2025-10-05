@@ -133,20 +133,13 @@ Please review the document against the above checklist items.`;
             messageParams: { detail: reason },
           });
         }
-        // レビュー結果をDBに保存（複数ファイルの情報を統合）
+        // レビュー結果をDBに保存
         if (reviewResult.object && Array.isArray(reviewResult.object)) {
-          const combinedFileIds = documents.map((f) => f.id).join('/');
-          const idsHash = createHash('md5')
-            .update(combinedFileIds)
-            .digest('hex');
-          const combinedFileNames = documents.map((f) => f.name).join('/');
           await reviewRepository.upsertReviewResult(
             reviewResult.object.map((result) => ({
               reviewChecklistId: result.checklistId,
               evaluation: result.evaluation as ReviewEvaluation,
               comment: result.comment,
-              fileId: idsHash,
-              fileName: combinedFileNames,
             })),
           );
         }

@@ -2,7 +2,6 @@ import { eq, and } from 'drizzle-orm';
 import {
   reviewHistories,
   reviewChecklists,
-  reviewChecklistResults,
   ReviewChecklistEntity,
   ReviewHistoryEntity,
 } from '../schema';
@@ -31,6 +30,8 @@ export class DrizzleReviewRepository implements IReviewRepository {
       id: reviewChecklistEntity.id,
       reviewHistoryId: reviewChecklistEntity.reviewHistoryId,
       content: reviewChecklistEntity.content,
+      evaluation: reviewChecklistEntity.evaluation as ReviewEvaluation | null,
+      comment: reviewChecklistEntity.comment,
       createdBy: reviewChecklistEntity.createdBy as ReviewChecklistCreatedBy,
       createdAt: reviewChecklistEntity.createdAt,
       updatedAt: reviewChecklistEntity.updatedAt,
@@ -43,6 +44,7 @@ export class DrizzleReviewRepository implements IReviewRepository {
     const reviewHistory = {
       id: reviewHistoryEntity.id,
       title: reviewHistoryEntity.title,
+      targetDocumentName: reviewHistoryEntity.targetDocumentName,
       additionalInstructions: reviewHistoryEntity.additionalInstructions,
       commentFormat: reviewHistoryEntity.commentFormat,
       evaluationSettings: null,
@@ -189,6 +191,27 @@ export class DrizzleReviewRepository implements IReviewRepository {
     }
   }
 
+  /** レビュー対象ドキュメント名を更新 */
+  async updateReviewHistoryTargetDocumentName(
+    id: string,
+    targetDocumentName: string,
+  ): Promise<void> {
+    try {
+      const db = await getDb();
+      await db
+        .update(reviewHistories)
+        .set({
+          targetDocumentName,
+        })
+        .where(eq(reviewHistories.id, id));
+    } catch (err) {
+      throw repositoryError(
+        'レビュー対象ドキュメント名の更新に失敗しました',
+        err,
+      );
+    }
+  }
+
   /** レビュー履歴を削除 */
   async deleteReviewHistory(id: string): Promise<void> {
     try {
@@ -284,50 +307,21 @@ export class DrizzleReviewRepository implements IReviewRepository {
       reviewChecklistId: number;
       evaluation: ReviewEvaluation;
       comment: string;
-      fileId: string;
-      fileName: string;
     }[],
   ): Promise<void> {
     try {
       const db = await getDb();
       for (const result of results) {
-        const [upserted] = await db
-          .insert(reviewChecklistResults)
-          .values(result)
-          .onConflictDoUpdate({
-            target: [
-              reviewChecklistResults.reviewChecklistId,
-              reviewChecklistResults.fileId,
-            ],
-            set: {
-              evaluation: result.evaluation,
-              comment: result.comment,
-            },
+        await db
+          .update(reviewChecklists)
+          .set({
+            evaluation: result.evaluation,
+            comment: result.comment,
           })
-          .returning();
+          .where(eq(reviewChecklists.id, result.reviewChecklistId));
       }
     } catch (err) {
       throw repositoryError('レビュー結果の保存に失敗しました', err);
-    }
-  }
-
-  /** レビュー結果を削除 */
-  async deleteReviewResults(
-    reviewChecklistId: number,
-    sourceId: number,
-  ): Promise<void> {
-    try {
-      const db = await getDb();
-      await db
-        .delete(reviewChecklistResults)
-        .where(
-          and(
-            eq(reviewChecklistResults.reviewChecklistId, reviewChecklistId),
-            eq(reviewChecklistResults.fileId, sourceId.toString()),
-          ),
-        );
-    } catch (err) {
-      throw repositoryError('レビュー結果の削除に失敗しました', err);
     }
   }
 
@@ -338,43 +332,21 @@ export class DrizzleReviewRepository implements IReviewRepository {
     try {
       const db = await getDb();
       const rows = await db
-        .select({
-          checklistId: reviewChecklists.id,
-          content: reviewChecklists.content,
-          fileId: reviewChecklistResults.fileId,
-          fileName: reviewChecklistResults.fileName,
-          evaluation: reviewChecklistResults.evaluation,
-          comment: reviewChecklistResults.comment,
-        })
+        .select()
         .from(reviewChecklists)
-        .leftJoin(
-          reviewChecklistResults,
-          eq(reviewChecklistResults.reviewChecklistId, reviewChecklists.id),
-        )
         .where(eq(reviewChecklists.reviewHistoryId, reviewHistoryId))
         .orderBy(reviewChecklists.createdAt);
 
-      const map = new Map<number, ReviewChecklistResult>();
-      for (const row of rows) {
-        let group = map.get(row.checklistId);
-        if (!group) {
-          group = {
-            id: row.checklistId,
-            content: row.content,
-            sourceEvaluations: [],
-          };
-          map.set(row.checklistId, group);
-        }
-        if (row.fileId !== null && row.fileName !== null) {
-          group.sourceEvaluations!.push({
-            fileId: row.fileId,
-            fileName: row.fileName,
-            evaluation: row.evaluation as ReviewEvaluation,
-            comment: row.comment ?? undefined,
-          });
-        }
-      }
-      return Array.from(map.values());
+      return rows.map((row) => ({
+        id: row.id,
+        content: row.content,
+        sourceEvaluation: row.evaluation
+          ? {
+              evaluation: row.evaluation as ReviewEvaluation,
+              comment: row.comment ?? undefined,
+            }
+          : undefined,
+      }));
     } catch (err) {
       throw repositoryError('レビュー結果の取得に失敗しました', err);
     }
@@ -384,19 +356,13 @@ export class DrizzleReviewRepository implements IReviewRepository {
   async deleteAllReviewResults(reviewHistoryId: string): Promise<void> {
     try {
       const db = await getDb();
-      const checklists = await db
-        .select({ id: reviewChecklists.id })
-        .from(reviewChecklists)
+      await db
+        .update(reviewChecklists)
+        .set({
+          evaluation: null,
+          comment: null,
+        })
         .where(eq(reviewChecklists.reviewHistoryId, reviewHistoryId));
-
-      // チェックリストが無ければ何もしない
-      if (checklists.length === 0) return;
-
-      for (const { id } of checklists) {
-        await db
-          .delete(reviewChecklistResults)
-          .where(eq(reviewChecklistResults.reviewChecklistId, id));
-      }
     } catch (err) {
       throw repositoryError('レビュー結果の削除に失敗しました', err);
     }

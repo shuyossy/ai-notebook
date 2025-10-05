@@ -27,6 +27,7 @@ export interface IReviewApi {
     options?: ApiServiceDefaultOptions,
   ): Promise<{
     checklistResults?: ReviewChecklistResult[];
+    targetDocumentName?: string | null;
   } | null>;
   getReviewInstruction(
     historyId: string,
@@ -109,6 +110,7 @@ export class ReviewApi implements IReviewApi {
     options?: ApiServiceDefaultOptions,
   ): Promise<{
     checklistResults?: ReviewChecklistResult[];
+    targetDocumentName?: string | null;
   } | null> {
     return invokeApi(
       () => window.electron.review.getHistoryDetail(historyId),

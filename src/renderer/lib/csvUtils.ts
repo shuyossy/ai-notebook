@@ -36,27 +36,8 @@ export const convertReviewResultsToCSV = (
     return 'チェックリスト\n';
   }
 
-  // ユニークなソースファイルを抽出
-  const uniqueSources = new Map<string, { id: string; fileName: string }>();
-  checklistResults.forEach((checklist) => {
-    checklist.sourceEvaluations?.forEach((ev) => {
-      if (!uniqueSources.has(ev.fileId)) {
-        uniqueSources.set(ev.fileId, {
-          id: ev.fileId,
-          fileName: ev.fileName,
-        });
-      }
-    });
-  });
-
-  const sources = Array.from(uniqueSources.values());
-
   // ヘッダー行を構築
-  const headers = ['チェックリスト'];
-  sources.forEach((source) => {
-    headers.push(`${source.fileName}_評価`);
-    headers.push(`${source.fileName}_コメント`);
-  });
+  const headers = ['チェックリスト', '評価', 'コメント'];
 
   const csvRows: string[] = [];
 
@@ -65,18 +46,11 @@ export const convertReviewResultsToCSV = (
 
   // データ行を追加
   checklistResults.forEach((checklist) => {
-    const row: string[] = [checklist.content];
-
-    sources.forEach((source) => {
-      const evaluation = checklist.sourceEvaluations?.find(
-        (ev) => ev.fileId === source.id,
-      );
-
-      // 評価値
-      row.push(evaluation?.evaluation || '');
-      // コメント
-      row.push(evaluation?.comment || '');
-    });
+    const row: string[] = [
+      checklist.content,
+      checklist.sourceEvaluation?.evaluation || '',
+      checklist.sourceEvaluation?.comment || '',
+    ];
 
     csvRows.push(row.map(escapeCSVField).join(','));
   });

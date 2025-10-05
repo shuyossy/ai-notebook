@@ -30,6 +30,10 @@ export interface IReviewRepository {
     id: string,
     processingStatus: ProcessingStatus,
   ): Promise<void>;
+  updateReviewHistoryTargetDocumentName(
+    id: string,
+    targetDocumentName: string,
+  ): Promise<void>;
   deleteReviewHistory(id: string): Promise<void>;
 
   // チェックリスト
@@ -49,13 +53,7 @@ export interface IReviewRepository {
       reviewChecklistId: number;
       evaluation: ReviewEvaluation;
       comment: string;
-      fileId: string;
-      fileName: string;
     }[],
-  ): Promise<void>;
-  deleteReviewResults(
-    reviewChecklistId: number,
-    sourceId: number,
   ): Promise<void>;
   getReviewChecklistResults(
     reviewHistoryId: string,

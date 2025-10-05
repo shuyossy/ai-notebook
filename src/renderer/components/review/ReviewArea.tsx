@@ -39,6 +39,9 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
   const [checklistResults, setChecklistResults] = useState<
     ReviewChecklistResult[]
   >([]);
+  const [targetDocumentName, setTargetDocumentName] = useState<
+    string | null
+  >(null);
   // チェックリスト更新処理中であるかどうか
   const [isSaving, setIsSaving] = useState(false);
   const [isExtracting, setIsExtracting] = useState(false);
@@ -65,6 +68,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
       { throwError: true, showAlert: true },
     );
     setChecklistResults(result?.checklistResults || []);
+    setTargetDocumentName(result?.targetDocumentName || null);
   }, [selectedReviewHistoryId]);
 
   // チェックリスト抽出完了の共通処理ハンドラー
@@ -592,6 +596,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
               checklistResults={checklistResults}
               isLoading={isExtracting || isReviewing}
               onSave={handleSaveChecklist}
+              targetDocumentName={targetDocumentName}
             />
           </Paper>
 

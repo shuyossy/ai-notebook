@@ -25,6 +25,7 @@ export interface IReviewService {
   getReviewHistories(): Promise<RevieHistory[]>;
   getReviewHistoryDetail(reviewHistoryId: string): Promise<{
     checklistResults: ReviewChecklistResult[];
+    targetDocumentName?: string | null;
   }>;
   getReviewInstruction(reviewHistoryId: string): Promise<{
     additionalInstructions?: string;
@@ -82,8 +83,11 @@ export class ReviewService implements IReviewService {
   public async getReviewHistoryDetail(reviewHistoryId: string) {
     const checklistResults =
       await this.reviewRepository.getReviewChecklistResults(reviewHistoryId);
+    const reviewHistory =
+      await this.reviewRepository.getReviewHistory(reviewHistoryId);
     return {
       checklistResults: checklistResults,
+      targetDocumentName: reviewHistory?.targetDocumentName,
     };
   }
 

@@ -188,6 +188,7 @@ export type IpcResponsePayloadMap = {
   [IpcChannels.REVIEW_GET_HISTORIES]: IpcResult<RevieHistory[]>;
   [IpcChannels.REVIEW_GET_HISTORY_DETAIL]: IpcResult<{
     checklistResults?: ReviewChecklistResult[];
+    targetDocumentName?: string | null;
   }>;
   [IpcChannels.REVIEW_GET_HISTORY_INSTRUCTION]: IpcResult<{
     additionalInstructions?: string;

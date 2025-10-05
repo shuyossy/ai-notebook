@@ -18,6 +18,7 @@ export interface ReviewChecklistSectionProps {
   checklistResults: ReviewChecklistResult[];
   isLoading: boolean;
   onSave: (checklists: ReviewChecklistEdit[]) => Promise<void>;
+  targetDocumentName?: string | null;
 }
 
 // ReviewSourceModalのProps型

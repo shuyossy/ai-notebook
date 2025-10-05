@@ -1,6 +1,7 @@
 export interface RevieHistory {
   id: string; // reviewHistoriesのid
   title: string;
+  targetDocumentName?: string | null; // レビュー対象の統合ドキュメント名
   additionalInstructions: string | null;
   commentFormat?: string | null;
   evaluationSettings?: CustomEvaluationSettings | null; // カスタム評定項目設定
@@ -13,6 +14,8 @@ export interface ReviewChecklist {
   id: number;
   reviewHistoryId: string;
   content: string;
+  evaluation?: ReviewEvaluation | null; // A, B, C, - 評価
+  comment?: string | null; // レビューコメント
   createdBy: ReviewChecklistCreatedBy;
   createdAt: string;
   updatedAt: string;
@@ -39,12 +42,10 @@ export type ReviewChecklistCreatedBy = 'user' | 'system';
 export type ReviewChecklistResult = {
   id: number; // チェックリストのID
   content: string;
-  sourceEvaluations?: {
-    fileId: string;
-    fileName: string;
+  sourceEvaluation?: {
     evaluation?: ReviewEvaluation; // カスタム評定項目対応
     comment?: string;
-  }[];
+  };
 };
 
 // チェックリストの編集内容を表す型

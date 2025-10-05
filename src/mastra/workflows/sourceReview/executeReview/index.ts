@@ -9,6 +9,7 @@ import { classifyChecklistsByCategoryStep } from './classifyChecklistStep';
 import { smallDocumentReviewExecutionStep } from './smallDocumentReviewStep';
 import { largeDocumentReviewWorkflow } from './largeDocumentReview';
 import { extractedDocumentSchema, uploadedFileSchema } from './schema';
+import { getReviewRepository } from '@/adapter/db';
 
 const logger = getMainLogger();
 
@@ -142,6 +143,22 @@ export const executeReviewWorkflow = createWorkflow({
     const initData = (await getInitData()) as z.infer<
       typeof executeReviewWorkflowInputSchema
     >;
+
+    // 既存のレビュー結果を全て削除
+    const reviewRepository = getReviewRepository();
+    await reviewRepository.deleteAllReviewResults(initData.reviewHistoryId);
+
+    // レビュー対象の統合ドキュメント名を保存
+    const targetDocumentName = (textExtractionResult.extractedDocuments || [])
+      .map((doc) => doc?.name || '')
+      .filter((name) => name)
+      .join('/');
+    if (targetDocumentName) {
+      await reviewRepository.updateReviewHistoryTargetDocumentName(
+        initData.reviewHistoryId,
+        targetDocumentName,
+      );
+    }
 
     return classifyChecklistsResult.categories!.map((category) => {
       return {
