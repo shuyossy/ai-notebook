@@ -114,7 +114,7 @@ try {
         $doc = $word.Documents.Open($InputPath, $false, $true)
 
         # ページ設定（A4サイズ）
-        $doc.PageSetup.PaperSize = 9  # wdPaperA4
+        # $doc.PageSetup.PaperSize = 9  # wdPaperA4
 
         # PDF として保存 (wdFormatPDF = 17)
         $doc.SaveAs([ref]$OutputPath, [ref]17)
@@ -152,14 +152,97 @@ try {
         # ワークブックを開く（ReadOnly）
         $workbook = $excel.Workbooks.Open($InputPath, $null, $true)
 
-        # 全シートに対してページ設定を調整
+        $MARGIN_IN  = 0.15
+        $HEADER_IN  = 0.0
+        $FOOTER_IN  = 0.0
+
+        # A4 サイズ（インチ）
+        $A4WidthIn  = 8.27
+        $A4HeightIn = 11.69
+
+        # points 換算（1inch = 72pt）
+        $A4WidthPtPortrait  = $excel.InchesToPoints($A4WidthIn)
+        $A4HeightPtPortrait = $excel.InchesToPoints($A4HeightIn)
+        $A4WidthPtLandscape  = $A4HeightPtPortrait
+        $A4HeightPtLandscape = $A4WidthPtPortrait
+
+        # 余白を points に
+        $MARGIN_PT = $excel.InchesToPoints($MARGIN_IN)
+        $HEADER_PT = $excel.InchesToPoints($HEADER_IN)
+        $FOOTER_PT = $excel.InchesToPoints($FOOTER_IN)
+
+        function GetScale([double]$cw, [double]$ch, [double]$pw, [double]$ph) {
+          if ($cw -le 0 -or $ch -le 0 -or $pw -le 0 -or $ph -le 0) { return 0.0 }
+          $scaleX = $pw / $cw
+          $scaleY = $ph / $ch
+          $s = [Math]::Min($scaleX, $scaleY)
+          if ($s -gt 1.0) { return 1.0 } else { return $s }
+        }
+
         foreach ($worksheet in $workbook.Worksheets) {
-            # ページ設定
-            $worksheet.PageSetup.Zoom = $false
-            $worksheet.PageSetup.FitToPagesWide = 1
-            $worksheet.PageSetup.FitToPagesTall = 0  # 高さは自動
-            $worksheet.PageSetup.PaperSize = 9  # xlPaperA4
-            $worksheet.PageSetup.Orientation = 1  # xlPortrait
+          try {
+            # ワークシートのみ対象（Chart等はスキップ）
+            if ($worksheet.Type -ne [Microsoft.Office.Interop.Excel.XlSheetType]::xlWorksheet.value__) { continue }
+
+            $ps = $worksheet.PageSetup
+
+            # まず余白を極小に設定（向き判定に効くため先に設定）
+            $ps.LeftMargin   = $MARGIN_PT
+            $ps.RightMargin  = $MARGIN_PT
+            $ps.TopMargin    = $MARGIN_PT
+            $ps.BottomMargin = $MARGIN_PT
+            $ps.HeaderMargin = $HEADER_PT
+            $ps.FooterMargin = $FOOTER_PT
+
+            # ヘッダ/フッタ文字が残っていると有効領域を圧迫するので必要なら消す
+            $ps.LeftHeader   = ""
+            $ps.CenterHeader = ""
+            $ps.RightHeader  = ""
+            $ps.LeftFooter   = ""
+            $ps.CenterFooter = ""
+            $ps.RightFooter  = ""
+
+            # 用紙はA4
+            $ps.PaperSize = 9  # xlPaperA4
+
+            # UsedRange から実寸を取得
+            $used = $worksheet.UsedRange
+            if ($used -eq $null) { continue }
+            $contentWidthPt  = [double]$used.Width
+            $contentHeightPt = [double]$used.Height
+
+            # 印刷可能領域（現在設定の余白で計算）
+            $printableWidthPortrait  = $A4WidthPtPortrait  - $ps.LeftMargin - $ps.RightMargin
+            $printableHeightPortrait = $A4HeightPtPortrait - $ps.TopMargin  - $ps.BottomMargin - $ps.HeaderMargin - $ps.FooterMargin
+
+            $printableWidthLandscape  = $A4WidthPtLandscape  - $ps.LeftMargin - $ps.RightMargin
+            $printableHeightLandscape = $A4HeightPtLandscape - $ps.TopMargin  - $ps.BottomMargin - $ps.HeaderMargin - $ps.FooterMargin
+
+            $scalePortrait  = GetScale $contentWidthPt $contentHeightPt $printableWidthPortrait  $printableHeightPortrait
+            $scaleLandscape = GetScale $contentWidthPt $contentHeightPt $printableWidthLandscape $printableHeightLandscape
+
+            # 縮小率が大きい方（= より大きく出せる方）を選択
+            if ($scaleLandscape -gt $scalePortrait) {
+              $ps.Orientation = 2  # xlLandscape
+            } else {
+              $ps.Orientation = 1  # xlPortrait
+            }
+
+            # 印刷範囲を UsedRange に強制（既存のPrintAreaを使いたい場合はコメントアウト）
+            # $ps.PrintArea = $used.Address($false, $false)
+
+            # 1シート=1ページ
+            $ps.Zoom = $false
+            $ps.FitToPagesWide = 1
+            # $ps.FitToPagesTall = 0
+
+            # 視覚的安定のため（任意）
+            $ps.CenterHorizontally = $true
+            $ps.CenterVertically   = $false
+          }
+          catch {
+            Write-Verbose "Skip on sheet '$($worksheet.Name)': $($_.Exception.Message)"
+          }
         }
 
         # PDF として保存 (xlTypePDF = 0)
@@ -175,11 +258,13 @@ try {
         )
 
         $workbook.Close($false)
+        $excel.Quit()
 
         Write-Output "SUCCESS: Excel workbook converted to PDF"
     }
     finally {
-        $excel.Quit()
+        try { if ($workbook) { $workbook.Close(\$false) } } catch {}
+        try { if ($excel) { $excel.Quit()     } } catch {}
         [System.Runtime.Interopservices.Marshal]::ReleaseComObject($excel) | Out-Null
     }
 }
