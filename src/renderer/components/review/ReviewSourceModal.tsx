@@ -133,6 +133,9 @@ const getAlertMessage = ({
   return null;
 };
 
+// 一括設定用の処理モード型定義
+type BulkProcessMode = 'text' | 'image-merged' | 'image-pages';
+
 function ReviewSourceModal({
   open,
   onClose,
@@ -159,6 +162,8 @@ function ReviewSourceModal({
     label: '',
     description: '',
   });
+  const [bulkProcessMode, setBulkProcessMode] =
+    useState<BulkProcessMode>('text');
 
   const addAlert = useAlertStore((state) => state.addAlert);
 
@@ -260,6 +265,49 @@ function ReviewSourceModal({
           ? { ...file, imageMode: mode, imageData: undefined }
           : file,
       ),
+    );
+  };
+
+  // 一括設定を全ファイルに適用するハンドラー
+  const handleApplyBulkSettings = () => {
+    if (uploadedFiles.length === 0) {
+      addAlert({
+        message: '適用対象のファイルがありません',
+        severity: 'warning',
+      });
+      return;
+    }
+
+    setUploadedFiles((prev) =>
+      prev.map((file) => {
+        // 画像化非対応ファイルはスキップ
+        if (!supportsImageProcessing(file.type)) {
+          return file;
+        }
+
+        if (bulkProcessMode === 'text') {
+          return {
+            ...file,
+            processMode: 'text',
+            imageData: undefined,
+          };
+        } else if (bulkProcessMode === 'image-merged') {
+          return {
+            ...file,
+            processMode: 'image',
+            imageMode: 'merged',
+            imageData: undefined,
+          };
+        } else {
+          // image-pages
+          return {
+            ...file,
+            processMode: 'image',
+            imageMode: 'pages',
+            imageData: undefined,
+          };
+        }
+      }),
     );
   };
 
@@ -776,6 +824,88 @@ function ReviewSourceModal({
             <Typography variant="subtitle2" gutterBottom>
               選択済みファイル ({uploadedFiles.length}件)
             </Typography>
+
+            {/* 一括設定セクション */}
+            <Paper
+              // variant="outlined"
+              sx={{
+                p: 2,
+                mb: 2,
+                bgcolor: 'action.hover',
+                border: '1px solid',
+              }}
+            >
+              <Stack spacing={2}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>
+                  一括設定
+                </Typography>
+                <FormControl component="fieldset">
+                  <RadioGroup
+                    value={bulkProcessMode}
+                    onChange={(e) =>
+                      setBulkProcessMode(e.target.value as BulkProcessMode)
+                    }
+                  >
+                    <FormControlLabel
+                      value="text"
+                      control={<Radio size="small" />}
+                      label={
+                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                          <TextIcon fontSize="small" sx={{ mr: 0.5 }} />
+                          テキスト抽出
+                        </Box>
+                      }
+                      disabled={processing}
+                    />
+                    <FormControlLabel
+                      value="image-merged"
+                      control={<Radio size="small" />}
+                      label={
+                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                          <ImageIcon fontSize="small" sx={{ mr: 0.5 }} />
+                          <MergedIcon fontSize="small" sx={{ mr: 0.5 }} />
+                          画像化（統合）
+                          <Tooltip title="全ページを1つの縦長画像として統合します">
+                            <HelpIcon
+                              fontSize="small"
+                              sx={{ ml: 0.5, color: 'text.secondary' }}
+                            />
+                          </Tooltip>
+                        </Box>
+                      }
+                      disabled={processing}
+                    />
+                    <FormControlLabel
+                      value="image-pages"
+                      control={<Radio size="small" />}
+                      label={
+                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                          <ImageIcon fontSize="small" sx={{ mr: 0.5 }} />
+                          <PagesIcon fontSize="small" sx={{ mr: 0.5 }} />
+                          画像化（ページ毎）
+                          <Tooltip title="各ページを個別の画像として処理します">
+                            <HelpIcon
+                              fontSize="small"
+                              sx={{ ml: 0.5, color: 'text.secondary' }}
+                            />
+                          </Tooltip>
+                        </Box>
+                      }
+                      disabled={processing}
+                    />
+                  </RadioGroup>
+                </FormControl>
+                <Button
+                  variant="contained"
+                  size="small"
+                  onClick={handleApplyBulkSettings}
+                  disabled={processing}
+                  sx={{ alignSelf: 'flex-start' }}
+                >
+                  すべてに適用
+                </Button>
+              </Stack>
+            </Paper>
             <List dense>
               {uploadedFiles.map((file) => (
                 <ListItem
