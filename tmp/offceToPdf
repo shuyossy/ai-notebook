@@ -42,6 +42,87 @@ param(
   [string]$PrinterName
 )
 
+# --- 形状(印刷対象)を含めた「実効コンテンツ外接矩形」と PrintArea 範囲を求めるユーティリティ ---
+function Get-EffectiveContentBox {
+  param(
+    [Parameter(Mandatory=$true)]
+    $ExcelApp,        # Excel.Application（Union呼び出し等に使う）
+    [Parameter(Mandatory=$true)]
+    $Worksheet        # 対象ワークシート
+  )
+
+  # 1) UsedRange（セル上のデータや書式）由来の外接矩形（pt）
+  $used = $Worksheet.UsedRange
+  $hasUsed = $false
+  $minLeft  = [double]::PositiveInfinity
+  $minTop   = [double]::PositiveInfinity
+  $maxRight = [double]::NegativeInfinity
+  $maxBottom= [double]::NegativeInfinity
+
+  # PrintArea を組むためのセル範囲（後で図形のアンカーセルも取り込む）
+  $printRange = $null
+
+  if ($used -ne $null) {
+    $hasUsed  = $true
+    $minLeft  = [double]$used.Left
+    $minTop   = [double]$used.Top
+    $maxRight = [double]$used.Left  + [double]$used.Width
+    $maxBottom= [double]$used.Top   + [double]$used.Height
+
+    # UsedRange のセル矩形を起点に（Addressは後でまとめて組むので、まずはRangeオブジェクトで持つ）
+    $printRange = $used
+  }
+
+  # 2) 図形（Shapes）のうち「印刷対象（PrintObject=True）かつ表示中」のものを外接に取り込む
+  foreach ($shape in @($Worksheet.Shapes)) {
+    try {
+      # Visible は -1 が True、0 が False（msoTrue/msoFalse）
+      if ($shape.PrintObject -and $shape.Visible -ne 0 -and $shape.Width -gt 0 -and $shape.Height -gt 0) {
+        # 点単位の外接更新
+        $minLeft   = [Math]::Min($minLeft,  [double]$shape.Left)
+        $minTop    = [Math]::Min($minTop,   [double]$shape.Top)
+        $maxRight  = [Math]::Max($maxRight, [double]$shape.Left + [double]$shape.Width)
+        $maxBottom = [Math]::Max($maxBottom,[double]$shape.Top  + [double]$shape.Height)
+
+        # PrintArea 用に、形状のアンカーセル範囲を UsedRange と Union
+        # TopLeftCell/BottomRightCell は Range を返すので、その矩形を Union に足す
+        $tl = $shape.TopLeftCell
+        $br = $shape.BottomRightCell
+        if ($tl -ne $null -and $br -ne $null) {
+          $shapeCells = $Worksheet.Range($tl, $br)
+          $printRange = if ($printRange -ne $null) {
+            $ExcelApp.Union($printRange, $shapeCells)
+          } else {
+            $shapeCells
+          }
+        }
+      }
+    } catch {
+      # 取得不可の形状タイプ等は黙ってスキップ（グループ化ShapeなどもLeft/Topは基本OK）
+    }
+  }
+
+  # 3) UsedRange も図形も無い場合（完全空白シート）
+  if ([double]::IsInfinity($minLeft) -or [double]::IsInfinity($minTop)) {
+    return [pscustomobject]@{
+      WidthPt        = 0.0
+      HeightPt       = 0.0
+      PrintAreaRange = $null
+    }
+  }
+
+  # 4) 結果を返す
+  $widthPt  = [Math]::Max(0.0, $maxRight - $minLeft)
+  $heightPt = [Math]::Max(0.0, $maxBottom - $minTop)
+
+  return [pscustomobject]@{
+    WidthPt        = $widthPt
+    HeightPt       = $heightPt
+    PrintAreaRange = $printRange  # 後段で PageSetup.PrintArea に適用する用
+  }
+}
+
+
 # --- 基本設定（UTF-8出力 & 例外で停止） ---
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $ErrorActionPreference = 'Stop'
@@ -135,10 +216,9 @@ try {
         $ps.PaperSize = $xlPaperA4
 
         # UsedRange の実寸（ポイント）
-        $used = $worksheet.UsedRange
-        if ($null -eq $used) { continue }
-        $contentWidthPt  = [double]$used.Width
-        $contentHeightPt = [double]$used.Height
+        $box = Get-EffectiveContentBox -ExcelApp $excel -Worksheet $worksheet
+        $contentWidthPt  = $box.WidthPt
+        $contentHeightPt = $box.HeightPt
 
         # 現在の余白で印刷可能領域を算出（縦・横）
         $printableWidthPortrait   = $A4WidthPtPortrait  - $ps.LeftMargin - $ps.RightMargin
@@ -160,7 +240,7 @@ try {
         # 1シート=1ページへ強制（Zoom 無効 + 1x1）
         $ps.Zoom = $false
         $ps.FitToPagesWide = 1
-        # $ps.FitToPagesTall = 1
+        $ps.FitToPagesTall = 5
 
         # 視覚的に中央寄せ（任意）
         $ps.CenterHorizontally = $true
