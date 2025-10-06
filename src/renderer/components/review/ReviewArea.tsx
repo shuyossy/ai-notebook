@@ -1,5 +1,13 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { Box, Button, Paper, Stack, Typography } from '@mui/material';
+import {
+  Box,
+  Button,
+  Paper,
+  Stack,
+  Typography,
+  LinearProgress,
+  Alert,
+} from '@mui/material';
 import CheckBoxIcon from '@mui/icons-material/CheckBox';
 import RateReviewIcon from '@mui/icons-material/RateReview';
 import StopIcon from '@mui/icons-material/Stop';
@@ -74,6 +82,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
       status: ChecklistExtractionResultStatus;
       error?: string;
     }) => {
+      console.log('チェックリスト抽出完了イベント受信:', payload);
       // 自分のレビュー履歴のイベントかチェック
       if (payload.reviewHistoryId !== selectedReviewHistoryId) {
         return;
@@ -531,6 +540,18 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
     >
       {selectedReviewHistoryId && (
         <>
+          {/* 処理中インジケーター */}
+          {(isExtracting || isReviewing) && (
+            <Box sx={{ mb: 2 }}>
+              <LinearProgress />
+              {/* <Alert severity="info" sx={{ mt: 1 }}>
+                {isExtracting
+                  ? 'チェックリスト抽出実行中...'
+                  : 'レビュー実行中...'}
+              </Alert> */}
+            </Box>
+          )}
+
           {/* ヘッダー部分 */}
           <Stack
             direction="row"
@@ -541,7 +562,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
             <Stack direction="row" spacing={2}>
               <Button
                 variant="contained"
-                color={isExtracting ? 'error' : 'primary'}
+                color={isExtracting ? 'warning' : 'primary'}
                 startIcon={isExtracting ? <StopIcon /> : <CheckBoxIcon />}
                 onClick={
                   isExtracting
@@ -557,7 +578,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
               </Button>
               <Button
                 variant="contained"
-                color={isReviewing ? 'error' : 'primary'}
+                color={isReviewing ? 'warning' : 'primary'}
                 startIcon={isReviewing ? <StopIcon /> : <RateReviewIcon />}
                 onClick={
                   isReviewing
