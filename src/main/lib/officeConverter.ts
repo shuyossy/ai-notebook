@@ -234,7 +234,7 @@ try {
             # 1シート=1ページ
             $ps.Zoom = $false
             $ps.FitToPagesWide = 1
-            # $ps.FitToPagesTall = 0
+            $ps.FitToPagesTall = 5
 
             # 視覚的安定のため（任意）
             $ps.CenterHorizontally = $true
@@ -249,12 +249,12 @@ try {
         $workbook.ExportAsFixedFormat(
             0,  # Type: xlTypePDF
             $OutputPath,
-            0,  # Quality: xlQualityStandard
-            $true,  # IncludeDocProperties
-            $false,  # IgnorePrintAreas
-            $null,  # From (null = all)
-            $null,  # To (null = all)
-            $false  # OpenAfterPublish
+            # 0,  # Quality: xlQualityStandard
+            # $true,  # IncludeDocProperties
+            # $false,  # IgnorePrintAreas
+            # $null,  # From (null = all)
+            # $null,  # To (null = all)
+            # $false  # OpenAfterPublish
         )
 
         $workbook.Close($false)
