@@ -52,7 +52,8 @@ export const judgeErrorIsContentLengthError = (error: unknown) => {
     return (
       apiError.responseBody?.includes('maximum context length') ||
       apiError.responseBody?.includes('tokens_limit_reached') ||
-      apiError.responseBody?.includes('context_length_exceeded')
+      apiError.responseBody?.includes('context_length_exceeded') ||
+      apiError.responseBody?.includes('many images')
     );
   }
   return false;
