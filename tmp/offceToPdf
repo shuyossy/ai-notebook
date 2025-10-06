@@ -1,0 +1,282 @@
+# excel_print_debug.ps1
+# ------------------------------------------------------------------------------------
+# 目的:
+#   既存アプリが行っている Excel -> PDF 変換時のレイアウト調整ロジックを
+#   PowerShell 単体で再現し、デバッグ用に直接実行できるようにするスクリプトです。
+#
+# 機能:
+#   - Excel を COM (Excel.Application) で起動
+#   - A4／余白極小／ヘッダフッタ削除／UsedRange からコンテンツ実寸を取得
+#   - 縦横それぞれの印刷可能領域に対する縮小率を計算し、より大きく出せる向きを自動選択
+#   - 1シート=1ページ（FitToPagesWide=1, FitToPagesTall=1）
+#   - PDF 出力 または そのまま印刷 を選択可能（処理ロジックは共通）
+#
+# 使い方(例):
+#   PDF出力:
+#     powershell -NoProfile -ExecutionPolicy Bypass -File .\excel_print_debug.ps1 `
+#       -InputPath "C:\path\sample.xlsx" -OutputPath "C:\temp\out.pdf" -Action Pdf -Verbose
+#
+#   そのまま印刷(既定プリンター):
+#     powershell -NoProfile -ExecutionPolicy Bypass -File .\excel_print_debug.ps1 `
+#       -InputPath "C:\path\sample.xlsx" -Action Print -Verbose
+#
+# 注意:
+#   - Windows + Microsoft Excel がインストールされた環境が必要です。
+#   - 印刷時は既定プリンターに出ます（-PrinterName を明示指定可）。
+# ------------------------------------------------------------------------------------
+
+[CmdletBinding()]
+param(
+  # 入力する Excel ブック（.xls/.xlsx）
+  [Parameter(Mandatory=$true)]
+  [string]$InputPath,
+
+  # 出力する PDF パス（Action=Pdf のとき必須）
+  [string]$OutputPath,
+
+  # 実行モード: 'Pdf' または 'Print'
+  [ValidateSet('Pdf','Print')]
+  [string]$Action = 'Pdf',
+
+  # 印刷時に使用するプリンター名（省略時は既定プリンター）
+  [string]$PrinterName
+)
+
+# =========================================================
+# 追加: Excel.ActivePrinter を安全に設定するヘルパー
+#   Excel は「<プリンター名> on <ポート名>」という文字列で指定する必要がある。
+#   Microsoft Print to PDF は環境によって PortName が「PORTPROMPT:」または「NeXX:」
+#   になるので、両方の可能性を試す。
+# =========================================================
+function Set-ExcelActivePrinter {
+    param(
+        [Parameter(Mandatory)]
+        [__ComObject] $ExcelApp,          # Excel.Application COM
+        [Parameter(Mandatory)]
+        [string] $TargetPrinterName       # 例: 'Microsoft Print to PDF'
+    )
+
+    # WMI からインストール済みプリンタの情報を取得
+    $printers = Get-CimInstance Win32_Printer |
+                Where-Object { $_.Name -eq $TargetPrinterName }
+
+    if (-not $printers) {
+        throw "指定のプリンターが見つかりません: '$TargetPrinterName'。インストール・有効化を確認してください。"
+    }
+
+    # 複数一致しても通常は1件だけ。念のため順に試す。
+    foreach ($p in $printers) {
+        # Excel.ActivePrinter は「<Name> on <PortName>」形式が基本
+        $candidates = @()
+        if ($p.PortName) {
+            $candidates += ("{0} on {1}" -f $p.Name, $p.PortName)
+        }
+
+        # Microsoft Print to PDF は Ne01: / Ne02: ... になることも多いので、近辺を試す
+        # （PortName が空/PORTPROMPT: で失敗する場合の保険）
+        1..10 | ForEach-Object {
+            $candidates += ("{0} on Ne{1:00}:" -f $p.Name, $_)
+        }
+
+        # さらに一部環境で "on" の大文字小文字／空白差分で失敗する例があるため、Trim した派生も用意
+        $candidates = $candidates |
+                      ForEach-Object { ($_ -replace '\s+on\s+', ' on ').Trim() } |
+                      Select-Object -Unique
+
+        foreach ($cand in $candidates) {
+            try {
+                $ExcelApp.ActivePrinter = $cand
+                Write-Verbose "ActivePrinter set to: $cand"
+                return  # 成功したら終了
+            } catch {
+                # 次の候補へ
+            }
+        }
+    }
+
+    throw "Excel.ActivePrinter を '$TargetPrinterName' に設定できませんでした。PortName/NeXX の解決に失敗。"
+}
+
+# --- 基本設定（UTF-8出力 & 例外で停止） ---
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$ErrorActionPreference = 'Stop'
+
+# --- 前提チェック ---
+if (-not (Test-Path -LiteralPath $InputPath)) {
+  throw "ファイルが存在しません: $InputPath"
+}
+$ext = [System.IO.Path]::GetExtension($InputPath).ToLowerInvariant()
+if (@('.xls','.xlsx') -notcontains $ext) {
+  throw "Excel ファイルではありません（.xls/.xlsx のみ対応）: $InputPath"
+}
+if ($Action -eq 'Pdf' -and [string]::IsNullOrWhiteSpace($OutputPath)) {
+  throw "Action=Pdf の場合は -OutputPath を指定してください。"
+}
+
+Write-Verbose "InputPath  : $InputPath"
+if ($Action -eq 'Pdf') { Write-Verbose "OutputPath : $OutputPath" }
+Write-Verbose "Action     : $Action"
+if ($PrinterName) { Write-Verbose "Printer    : $PrinterName" }
+
+# --- 数値・定数（Excel の単位はポイント基準。1inch=72pt） ---
+# 余白( inch )
+$MARGIN_IN  = 0.15
+$HEADER_IN  = 0.0
+$FOOTER_IN  = 0.0
+
+# A4 (inch)
+$A4WidthIn  = 8.27
+$A4HeightIn = 11.69
+
+# Excel 定数（数値）
+$xlPaperA4   = 9
+$xlPortrait  = 1
+$xlLandscape = 2
+
+# --- 縮小率を計算して 1.0 を超えないようにクリップする関数 ---
+function Get-Scale([double]$contentW, [double]$contentH, [double]$pageW, [double]$pageH) {
+  if ($contentW -le 0 -or $contentH -le 0 -or $pageW -le 0 -or $pageH -le 0) { return 0.0 }
+  $scaleX = $pageW / $contentW
+  $scaleY = $pageH / $contentH
+  $s = [Math]::Min($scaleX, $scaleY)
+  if ($s -gt 1.0) { return 1.0 } else { return $s }
+}
+
+try {
+  # --- Excel 起動 ---
+  $excel = New-Object -ComObject Excel.Application
+  $excel.Visible = $false
+  $excel.DisplayAlerts = $false
+
+  try {
+    # --- ブックを ReadOnly で開く ---
+    $workbook = $excel.Workbooks.Open($InputPath, $null, $true)
+
+    # ポイント換算
+    $A4WidthPtPortrait   = $excel.InchesToPoints($A4WidthIn)
+    $A4HeightPtPortrait  = $excel.InchesToPoints($A4HeightIn)
+    $A4WidthPtLandscape  = $A4HeightPtPortrait
+    $A4HeightPtLandscape = $A4WidthPtPortrait
+
+    $MARGIN_PT = $excel.InchesToPoints($MARGIN_IN)
+    $HEADER_PT = $excel.InchesToPoints($HEADER_IN)
+    $FOOTER_PT = $excel.InchesToPoints($FOOTER_IN)
+
+    foreach ($worksheet in $workbook.Worksheets) {
+      try {
+        # ワークシートのみ対象（Chart等はスキップ）
+        # 既存実装と同様、Interop の列挙体を参照（環境により null になる場合は try/catch）
+        if ($worksheet.Type -ne [Microsoft.Office.Interop.Excel.XlSheetType]::xlWorksheet.value__) { continue }
+
+        $ps = $worksheet.PageSetup
+
+        # 余白を極小に
+        $ps.LeftMargin   = $MARGIN_PT
+        $ps.RightMargin  = $MARGIN_PT
+        $ps.TopMargin    = $MARGIN_PT
+        $ps.BottomMargin = $MARGIN_PT
+        $ps.HeaderMargin = $HEADER_PT
+        $ps.FooterMargin = $FOOTER_PT
+
+        # ヘッダ/フッタ文字をクリア（有効領域確保）
+        $ps.LeftHeader   = ""
+        $ps.CenterHeader = ""
+        $ps.RightHeader  = ""
+        $ps.LeftFooter   = ""
+        $ps.CenterFooter = ""
+        $ps.RightFooter  = ""
+
+        # 用紙サイズは A4
+        $ps.PaperSize = $xlPaperA4
+
+        # UsedRange の実寸（ポイント）
+        $used = $worksheet.UsedRange
+        if ($null -eq $used) { continue }
+        $contentWidthPt  = [double]$used.Width
+        $contentHeightPt = [double]$used.Height
+
+        # 現在の余白で印刷可能領域を算出（縦・横）
+        $printableWidthPortrait   = $A4WidthPtPortrait  - $ps.LeftMargin - $ps.RightMargin
+        $printableHeightPortrait  = $A4HeightPtPortrait - $ps.TopMargin  - $ps.BottomMargin - $ps.HeaderMargin - $ps.FooterMargin
+
+        $printableWidthLandscape  = $A4WidthPtLandscape  - $ps.LeftMargin - $ps.RightMargin
+        $printableHeightLandscape = $A4HeightPtLandscape - $ps.TopMargin  - $ps.BottomMargin - $ps.HeaderMargin - $ps.FooterMargin
+
+        $scalePortrait  = Get-Scale $contentWidthPt $contentHeightPt $printableWidthPortrait  $printableHeightPortrait
+        $scaleLandscape = Get-Scale $contentWidthPt $contentHeightPt $printableWidthLandscape $printableHeightLandscape
+
+        # 縮小率が大きい方 = より大きく印字できる向きを採用
+        if ($scaleLandscape -gt $scalePortrait) {
+          $ps.Orientation = $xlLandscape
+        } else {
+          $ps.Orientation = $xlPortrait
+        }
+
+        # 1シート=1ページへ強制（Zoom 無効 + 1x1）
+        $ps.Zoom = $false
+        $ps.FitToPagesWide = 1
+        # $ps.FitToPagesTall = 1
+
+        # 視覚的に中央寄せ（任意）
+        $ps.CenterHorizontally = $true
+        $ps.CenterVertically   = $false
+
+        Write-Verbose ("End print setting sheet '{0}'" -f $worksheet.Name)
+      }
+      catch {
+        Write-Verbose ("Skip on sheet '{0}': {1}" -f $worksheet.Name, $_.Exception.Message)
+      }
+    }
+
+    if ($Action -eq 'Pdf') {
+      # --- PDF として保存 (xlTypePDF = 0) ---
+      $xlTypePDF = 0
+      $xlQualityStandard = 0
+      Write-Verbose "Exporting to PDF..."
+      try {
+        $workbook.ExportAsFixedFormat(
+          $xlTypePDF,
+          $OutputPath,
+          $xlQualityStandard,
+          $true,   # IncludeDocProperties
+          $false,  # IgnorePrintAreas
+          $null,   # From
+          $null,   # To
+          $false   # OpenAfterPublish
+        )
+      } catch {
+          $hr = if ($_.Exception -and $_.Exception.HResult) { ('0x{0:X8}' -f $_.Exception.HResult) } else { '(no HResult)' }
+          throw "PDF 出力に失敗しました (HRESULT=$hr): $($_.Exception.Message)`n" +
+                "主な原因: 1) 出力PDFが開きっぱなし 2) 書込権限/フォルダ無し 3) 既定プリンター不正"
+      }
+      Write-Verbose "Export completed."
+      Write-Output "SUCCESS: Excel workbook converted to PDF -> $OutputPath"
+    }
+    else {
+      # --- そのまま印刷（既定 or 指定プリンター） ---
+      if ($PrinterName) {
+        $excel.ActivePrinter = $PrinterName
+      }
+      # 全シートを1ページ設定で印刷
+      $workbook.PrintOut()
+      Write-Output "SUCCESS: Excel workbook sent to printer" + ($(if($PrinterName){" ($PrinterName)"} else {""}))
+    }
+
+    # クローズ
+    $workbook.Close($false)
+  }
+  finally {
+    if ($excel) {
+      try { $excel.Quit() } catch {}
+      [System.Runtime.Interopservices.Marshal]::ReleaseComObject($excel) | Out-Null
+    }
+  }
+}
+catch {
+  Write-Error ("ERROR: {0}" -f $_.Exception.Message)
+  exit 1
+}
+finally {
+  [System.GC]::Collect()
+  [System.GC]::WaitForPendingFinalizers()
+}
