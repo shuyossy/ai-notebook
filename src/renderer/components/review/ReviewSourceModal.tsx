@@ -875,86 +875,88 @@ function ReviewSourceModal({
               </Typography>
 
               {/* 一括設定セクション */}
-              <Paper
-                // variant="outlined"
-                sx={{
-                  p: 2,
-                  mb: 2,
-                  bgcolor: 'action.hover',
-                  border: '1px solid',
-                }}
-              >
-                <Stack spacing={2}>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>
-                    一括設定
-                  </Typography>
-                  <FormControl component="fieldset">
-                    <RadioGroup
-                      value={bulkProcessMode}
-                      onChange={(e) =>
-                        setBulkProcessMode(e.target.value as BulkProcessMode)
-                      }
+              {documentType !== 'checklist-csv' && (
+                <Paper
+                  // variant="outlined"
+                  sx={{
+                    p: 2,
+                    mb: 2,
+                    bgcolor: 'action.hover',
+                    border: '1px solid',
+                  }}
+                >
+                  <Stack spacing={2}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>
+                      一括設定
+                    </Typography>
+                    <FormControl component="fieldset">
+                      <RadioGroup
+                        value={bulkProcessMode}
+                        onChange={(e) =>
+                          setBulkProcessMode(e.target.value as BulkProcessMode)
+                        }
+                      >
+                        <FormControlLabel
+                          value="text"
+                          control={<Radio size="small" />}
+                          label={
+                            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                              <TextIcon fontSize="small" sx={{ mr: 0.5 }} />
+                              テキスト抽出
+                            </Box>
+                          }
+                          disabled={processing}
+                        />
+                        <FormControlLabel
+                          value="image-merged"
+                          control={<Radio size="small" />}
+                          label={
+                            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                              <ImageIcon fontSize="small" sx={{ mr: 0.5 }} />
+                              <MergedIcon fontSize="small" sx={{ mr: 0.5 }} />
+                              画像化（統合）
+                              <Tooltip title="全ページを1つの縦長画像として統合します">
+                                <HelpIcon
+                                  fontSize="small"
+                                  sx={{ ml: 0.5, color: 'text.secondary' }}
+                                />
+                              </Tooltip>
+                            </Box>
+                          }
+                          disabled={processing}
+                        />
+                        <FormControlLabel
+                          value="image-pages"
+                          control={<Radio size="small" />}
+                          label={
+                            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                              <ImageIcon fontSize="small" sx={{ mr: 0.5 }} />
+                              <PagesIcon fontSize="small" sx={{ mr: 0.5 }} />
+                              画像化（ページ毎）
+                              <Tooltip title="各ページを個別の画像として処理します">
+                                <HelpIcon
+                                  fontSize="small"
+                                  sx={{ ml: 0.5, color: 'text.secondary' }}
+                                />
+                              </Tooltip>
+                            </Box>
+                          }
+                          disabled={processing}
+                        />
+                      </RadioGroup>
+                    </FormControl>
+                    <Button
+                      variant="contained"
+                      size="small"
+                      onClick={handleApplyBulkSettings}
+                      disabled={processing}
+                      sx={{ alignSelf: 'flex-start' }}
                     >
-                      <FormControlLabel
-                        value="text"
-                        control={<Radio size="small" />}
-                        label={
-                          <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                            <TextIcon fontSize="small" sx={{ mr: 0.5 }} />
-                            テキスト抽出
-                          </Box>
-                        }
-                        disabled={processing}
-                      />
-                      <FormControlLabel
-                        value="image-merged"
-                        control={<Radio size="small" />}
-                        label={
-                          <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                            <ImageIcon fontSize="small" sx={{ mr: 0.5 }} />
-                            <MergedIcon fontSize="small" sx={{ mr: 0.5 }} />
-                            画像化（統合）
-                            <Tooltip title="全ページを1つの縦長画像として統合します">
-                              <HelpIcon
-                                fontSize="small"
-                                sx={{ ml: 0.5, color: 'text.secondary' }}
-                              />
-                            </Tooltip>
-                          </Box>
-                        }
-                        disabled={processing}
-                      />
-                      <FormControlLabel
-                        value="image-pages"
-                        control={<Radio size="small" />}
-                        label={
-                          <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                            <ImageIcon fontSize="small" sx={{ mr: 0.5 }} />
-                            <PagesIcon fontSize="small" sx={{ mr: 0.5 }} />
-                            画像化（ページ毎）
-                            <Tooltip title="各ページを個別の画像として処理します">
-                              <HelpIcon
-                                fontSize="small"
-                                sx={{ ml: 0.5, color: 'text.secondary' }}
-                              />
-                            </Tooltip>
-                          </Box>
-                        }
-                        disabled={processing}
-                      />
-                    </RadioGroup>
-                  </FormControl>
-                  <Button
-                    variant="contained"
-                    size="small"
-                    onClick={handleApplyBulkSettings}
-                    disabled={processing}
-                    sx={{ alignSelf: 'flex-start' }}
-                  >
-                    すべてに適用
-                  </Button>
-                </Stack>
-              </Paper>
+                      すべてに適用
+                    </Button>
+                  </Stack>
+                </Paper>
+              )}
               <List dense>
                 {uploadedFiles.map((file) => (
                   <ListItem
@@ -970,68 +972,22 @@ function ReviewSourceModal({
                     }
                   >
                     <ListItemText primary={file.name} />
-                    {supportsImageProcessing(file.type) && (
-                      <Box sx={{ mr: 2 }}>
-                        <FormControl size="small">
-                          <RadioGroup
-                            row
-                            value={file.processMode}
-                            onChange={(e) =>
-                              handleProcessModeChange(
-                                file.id,
-                                e.target.value as ProcessMode,
-                              )
-                            }
-                          >
-                            <FormControlLabel
-                              value="text"
-                              control={<Radio size="small" />}
-                              label={
-                                <Box
-                                  sx={{ display: 'flex', alignItems: 'center' }}
-                                >
-                                  <TextIcon fontSize="small" sx={{ mr: 0.5 }} />
-                                  テキスト
-                                </Box>
-                              }
-                            />
-                            <FormControlLabel
-                              value="image"
-                              control={<Radio size="small" />}
-                              label={
-                                <Box
-                                  sx={{ display: 'flex', alignItems: 'center' }}
-                                >
-                                  <ImageIcon
-                                    fontSize="small"
-                                    sx={{ mr: 0.5 }}
-                                  />
-                                  画像
-                                  <Tooltip title="図形オブジェクトが多いドキュメントは画像化で精度が上がる場合があります">
-                                    <HelpIcon
-                                      fontSize="small"
-                                      sx={{ ml: 0.5, color: 'text.secondary' }}
-                                    />
-                                  </Tooltip>
-                                </Box>
-                              }
-                            />
-                          </RadioGroup>
-                        </FormControl>
-                        {file.processMode === 'image' && (
-                          <FormControl size="small" sx={{ ml: 1 }}>
+                    {supportsImageProcessing(file.type) &&
+                      documentType !== 'checklist-csv' && (
+                        <Box sx={{ mr: 2 }}>
+                          <FormControl size="small">
                             <RadioGroup
                               row
-                              value={file.imageMode}
+                              value={file.processMode}
                               onChange={(e) =>
-                                handleImageModeChange(
+                                handleProcessModeChange(
                                   file.id,
-                                  e.target.value as ImageMode,
+                                  e.target.value as ProcessMode,
                                 )
                               }
                             >
                               <FormControlLabel
-                                value="merged"
+                                value="text"
                                 control={<Radio size="small" />}
                                 label={
                                   <Box
@@ -1040,16 +996,16 @@ function ReviewSourceModal({
                                       alignItems: 'center',
                                     }}
                                   >
-                                    <MergedIcon
+                                    <TextIcon
                                       fontSize="small"
                                       sx={{ mr: 0.5 }}
                                     />
-                                    統合画像
+                                    テキスト
                                   </Box>
                                 }
                               />
                               <FormControlLabel
-                                value="pages"
+                                value="image"
                                 control={<Radio size="small" />}
                                 label={
                                   <Box
@@ -1058,12 +1014,12 @@ function ReviewSourceModal({
                                       alignItems: 'center',
                                     }}
                                   >
-                                    <PagesIcon
+                                    <ImageIcon
                                       fontSize="small"
                                       sx={{ mr: 0.5 }}
                                     />
-                                    ページ別画像
-                                    <Tooltip title="ページ数が多い場合はページごとに画像化することを検討してください">
+                                    画像
+                                    <Tooltip title="図形オブジェクトが多いドキュメントは画像化で精度が上がる場合があります">
                                       <HelpIcon
                                         fontSize="small"
                                         sx={{
@@ -1077,9 +1033,68 @@ function ReviewSourceModal({
                               />
                             </RadioGroup>
                           </FormControl>
-                        )}
-                      </Box>
-                    )}
+                          {file.processMode === 'image' && (
+                            <FormControl size="small" sx={{ ml: 1 }}>
+                              <RadioGroup
+                                row
+                                value={file.imageMode}
+                                onChange={(e) =>
+                                  handleImageModeChange(
+                                    file.id,
+                                    e.target.value as ImageMode,
+                                  )
+                                }
+                              >
+                                <FormControlLabel
+                                  value="merged"
+                                  control={<Radio size="small" />}
+                                  label={
+                                    <Box
+                                      sx={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                      }}
+                                    >
+                                      <MergedIcon
+                                        fontSize="small"
+                                        sx={{ mr: 0.5 }}
+                                      />
+                                      統合画像
+                                    </Box>
+                                  }
+                                />
+                                <FormControlLabel
+                                  value="pages"
+                                  control={<Radio size="small" />}
+                                  label={
+                                    <Box
+                                      sx={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                      }}
+                                    >
+                                      <PagesIcon
+                                        fontSize="small"
+                                        sx={{ mr: 0.5 }}
+                                      />
+                                      ページ別画像
+                                      <Tooltip title="ページ数が多い場合はページごとに画像化することを検討してください">
+                                        <HelpIcon
+                                          fontSize="small"
+                                          sx={{
+                                            ml: 0.5,
+                                            color: 'text.secondary',
+                                          }}
+                                        />
+                                      </Tooltip>
+                                    </Box>
+                                  }
+                                />
+                              </RadioGroup>
+                            </FormControl>
+                          )}
+                        </Box>
+                      )}
                   </ListItem>
                 ))}
               </List>
