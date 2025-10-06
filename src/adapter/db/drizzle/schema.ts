@@ -63,6 +63,7 @@ export const reviewHistories = sqliteTable('review_histories', {
   additionalInstructions: text('additional_instructions'), // レビューの追加指示
   commentFormat: text('comment_format'), // レビューのコメントフォーマット
   evaluationSettings: text('evaluation_settings'), // 評定項目設定（JSON形式）
+  documentMode: text('document_mode'), // レビュー実行方法: small, large
   processingStatus: text('processing_status').notNull().default('idle'), // 処理ステータス: idle, extracting, extracted, reviewing, completed
   createdAt: text('created_at')
     .notNull()
@@ -92,6 +93,44 @@ export const reviewChecklists = sqliteTable('review_checklists', {
     .$onUpdate(() => sql`(current_timestamp)`),
 });
 
+// レビュードキュメントキャッシュを格納するテーブル
+export const reviewDocumentCaches = sqliteTable('review_document_caches', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  reviewHistoryId: text('review_history_id')
+    .notNull()
+    .references(() => reviewHistories.id, { onDelete: 'cascade' }),
+  documentId: text('document_id').notNull(), // ワークフロー内のドキュメントID
+  originalFileName: text('original_file_name').notNull(), // 元のファイル名
+  fileName: text('file_name').notNull(), // ワークフロー内での名前（分割時は "xxx (part 1)" など）
+  processMode: text('process_mode').notNull(), // 'text' or 'image'
+  cachePath: text('cache_path').notNull(), // ファイル/ディレクトリパス
+  createdAt: text('created_at')
+    .notNull()
+    .default(sql`(current_timestamp)`),
+  updatedAt: text('updated_at')
+    .notNull()
+    .default(sql`(current_timestamp)`)
+    .$onUpdate(() => sql`(current_timestamp)`),
+});
+
+// レビューチェックリスト結果キャッシュを格納するテーブル（大量ドキュメントレビューの個別レビュー結果）
+export const reviewChecklistResultCaches = sqliteTable(
+  'review_checklist_result_caches',
+  {
+    reviewDocumentCacheId: integer('review_document_cache_id')
+      .notNull()
+      .references(() => reviewDocumentCaches.id, { onDelete: 'cascade' }),
+    reviewChecklistId: integer('review_checklist_id')
+      .notNull()
+      .references(() => reviewChecklists.id, { onDelete: 'cascade' }),
+    comment: text('comment').notNull(), // 個別レビューコメント
+  },
+  (table) => ({
+    pk: primaryKey({
+      columns: [table.reviewDocumentCacheId, table.reviewChecklistId],
+    }),
+  }),
+);
 
 // 型定義
 export type SourceEntity = typeof sources.$inferSelect;
@@ -102,3 +141,11 @@ export type ReviewHistoryEntity = typeof reviewHistories.$inferSelect;
 export type InsertReviewHistoryEntity = typeof reviewHistories.$inferInsert;
 export type ReviewChecklistEntity = typeof reviewChecklists.$inferSelect;
 export type InsertReviewChecklistEntity = typeof reviewChecklists.$inferInsert;
+export type ReviewDocumentCacheEntity =
+  typeof reviewDocumentCaches.$inferSelect;
+export type InsertReviewDocumentCacheEntity =
+  typeof reviewDocumentCaches.$inferInsert;
+export type ReviewChecklistResultCacheEntity =
+  typeof reviewChecklistResultCaches.$inferSelect;
+export type InsertReviewChecklistResultCacheEntity =
+  typeof reviewChecklistResultCaches.$inferInsert;

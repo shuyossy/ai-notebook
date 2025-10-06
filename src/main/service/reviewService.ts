@@ -20,6 +20,7 @@ import { getMainLogger } from '../lib/logger';
 import { mastra } from '@/mastra';
 import { checkWorkflowResult } from '@/mastra/lib/workflowUtils';
 import { formatMessage } from '../lib/messages';
+import { ReviewCacheHelper } from '@/main/lib/utils/reviewCacheHelper';
 
 export interface IReviewService {
   getReviewHistories(): Promise<RevieHistory[]>;
@@ -109,7 +110,18 @@ export class ReviewService implements IReviewService {
    * レビュー履歴を削除
    */
   public async deleteReviewHistory(reviewHistoryId: string) {
-    return this.reviewRepository.deleteReviewHistory(reviewHistoryId);
+    await this.reviewRepository.deleteReviewHistory(reviewHistoryId);
+
+    // キャッシュディレクトリも削除
+    try {
+      await ReviewCacheHelper.deleteCacheDirectory(reviewHistoryId);
+    } catch (err) {
+      // キャッシュ削除失敗はログのみ（DB削除は成功しているため）
+      logger.warn(
+        err,
+        `キャッシュディレクトリの削除に失敗しました: ${reviewHistoryId}`,
+      );
+    }
   }
 
   /**

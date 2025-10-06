@@ -248,6 +248,7 @@ export const largeDocumentReviewWorkflow = createWorkflow({
     return inputData.documents.map(
       (document) =>
         ({
+          reviewHistoryId: inputData.reviewHistoryId,
           document: {
             ...document,
             originalName: document.name, // 分割された場合に元の名前を保持するため

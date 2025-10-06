@@ -55,6 +55,7 @@ export const executeReviewWorkflowInputSchema = z.object({
 export const executeReviewWorkflowOutputSchema = baseStepOutputSchema;
 
 export const documentReviewExecutionInputSchema = z.object({
+  reviewHistoryId: z.string().describe('レビュー履歴ID'),
   additionalInstructions: z
     .string()
     .optional()
@@ -148,6 +149,12 @@ export const executeReviewWorkflow = createWorkflow({
     const reviewRepository = getReviewRepository();
     await reviewRepository.deleteAllReviewResults(initData.reviewHistoryId);
 
+    // documentModeを保存
+    await reviewRepository.updateReviewHistoryDocumentMode(
+      initData.reviewHistoryId,
+      initData.documentMode,
+    );
+
     // レビュー対象の統合ドキュメント名を保存
     const targetDocumentName = (textExtractionResult.extractedDocuments || [])
       .map((doc) => doc?.name || '')
@@ -162,6 +169,7 @@ export const executeReviewWorkflow = createWorkflow({
 
     return classifyChecklistsResult.categories!.map((category) => {
       return {
+        reviewHistoryId: initData.reviewHistoryId,
         documents: textExtractionResult.extractedDocuments!,
         checklists: category.checklists,
         additionalInstructions: initData.additionalInstructions,

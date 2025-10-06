@@ -15,11 +15,13 @@ import { getMainLogger } from '@/main/lib/logger';
 import { createCombinedMessageFromExtractedDocument } from '../../lib';
 import { getChecklistsErrorMessage } from '../lib';
 import { extractedDocumentSchema } from '../schema';
+import { getReviewRepository } from '@/adapter/db';
 
 const logger = getMainLogger();
 
 // 個別ドキュメントレビューステップの入力スキーマ
 export const individualDocumentReviewStepInputSchema = z.object({
+  reviewHistoryId: z.string().describe('レビュー履歴ID'),
   document: extractedDocumentSchema.extend({
     originalName: z.string(),
   }),
@@ -189,6 +191,30 @@ Checklist Items to Review:\n${checklists.map((item) => `- ID: ${item.id} - ${ite
       }
 
       // 全てのレビューが成功した場合
+
+      // ドキュメントキャッシュと個別レビュー結果を保存
+      const reviewRepository = getReviewRepository();
+
+      // 1. ドキュメントキャッシュを保存
+      const savedCache = await reviewRepository.createReviewDocumentCache({
+        reviewHistoryId: inputData.reviewHistoryId,
+        documentId: document.id || '',
+        originalFileName: document.originalName,
+        fileName: document.name || '',
+        processMode: document.processMode || 'text',
+        textContent: document.textContent,
+        imageData: document.imageData,
+      });
+
+      // 2. 個別レビュー結果を保存
+      for (const result of allReviewResults) {
+        await reviewRepository.createReviewChecklistResultCache({
+          reviewDocumentCacheId: savedCache.id,
+          reviewChecklistId: result.checklistId,
+          comment: result.comment,
+        });
+      }
+
       return {
         status: 'success' as stepStatus,
         documentId: document.id,

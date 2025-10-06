@@ -166,6 +166,20 @@ Please review the document against the above checklist items.`;
         });
       }
       // 全てのレビューが成功した場合
+
+      // ドキュメントキャッシュを保存
+      for (const document of documents) {
+        await reviewRepository.createReviewDocumentCache({
+          reviewHistoryId: inputData.reviewHistoryId,
+          documentId: document.id || '',
+          originalFileName: document.name || '',
+          fileName: document.name || '',
+          processMode: document.processMode || 'text',
+          textContent: document.textContent,
+          imageData: document.imageData,
+        });
+      }
+
       return {
         status: 'success' as stepStatus,
         output: {

@@ -1,10 +1,13 @@
 import {
   CustomEvaluationSettings,
+  DocumentMode,
   ProcessingStatus,
   RevieHistory,
   ReviewChecklist,
   ReviewChecklistCreatedBy,
   ReviewChecklistResult,
+  ReviewDocumentCache,
+  ReviewChecklistResultCache,
   ReviewEvaluation,
 } from '@/types';
 
@@ -59,4 +62,30 @@ export interface IReviewRepository {
     reviewHistoryId: string,
   ): Promise<ReviewChecklistResult[]>;
   deleteAllReviewResults(reviewHistoryId: string): Promise<void>;
+
+  // documentModeの保存
+  updateReviewHistoryDocumentMode(
+    id: string,
+    documentMode: DocumentMode,
+  ): Promise<void>;
+
+  // ドキュメントキャッシュ管理
+  createReviewDocumentCache(
+    cache: Omit<ReviewDocumentCache, 'id' | 'createdAt' | 'updatedAt'>,
+  ): Promise<ReviewDocumentCache>;
+  getReviewDocumentCaches(
+    reviewHistoryId: string,
+  ): Promise<ReviewDocumentCache[]>;
+  getReviewDocumentCacheByDocumentId(
+    reviewHistoryId: string,
+    documentId: string,
+  ): Promise<ReviewDocumentCache | null>;
+
+  // チェックリスト結果キャッシュ管理
+  createReviewChecklistResultCache(
+    cache: ReviewChecklistResultCache,
+  ): Promise<void>;
+  getReviewChecklistResultCaches(
+    reviewHistoryId: string,
+  ): Promise<ReviewChecklistResultCache[]>;
 }

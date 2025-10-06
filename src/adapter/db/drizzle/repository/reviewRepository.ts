@@ -2,8 +2,12 @@ import { eq, and } from 'drizzle-orm';
 import {
   reviewHistories,
   reviewChecklists,
+  reviewDocumentCaches,
+  reviewChecklistResultCaches,
   ReviewChecklistEntity,
   ReviewHistoryEntity,
+  ReviewDocumentCacheEntity,
+  ReviewChecklistResultCacheEntity,
 } from '../schema';
 import getDb from '..';
 import type {
@@ -14,10 +18,15 @@ import type {
   ReviewChecklistCreatedBy,
   CustomEvaluationSettings,
   ProcessingStatus,
+  DocumentMode,
+  ReviewDocumentCache,
+  ReviewChecklistResultCache,
+  ProcessMode,
 } from '@/types';
 import { AppError } from '@/main/lib/error';
 import { repositoryError } from '@/main/lib/error';
 import { IReviewRepository } from '@/main/service/port/repository';
+import { ReviewCacheHelper } from '@/main/lib/utils/reviewCacheHelper';
 
 /**
  * Drizzle ORM を使用したレビューリポジトリの実装
@@ -365,6 +374,209 @@ export class DrizzleReviewRepository implements IReviewRepository {
         .where(eq(reviewChecklists.reviewHistoryId, reviewHistoryId));
     } catch (err) {
       throw repositoryError('レビュー結果の削除に失敗しました', err);
+    }
+  }
+
+  /** documentModeを更新 */
+  async updateReviewHistoryDocumentMode(
+    id: string,
+    documentMode: DocumentMode,
+  ): Promise<void> {
+    try {
+      const db = await getDb();
+      await db
+        .update(reviewHistories)
+        .set({
+          documentMode,
+        })
+        .where(eq(reviewHistories.id, id));
+    } catch (err) {
+      throw repositoryError('ドキュメントモードの更新に失敗しました', err);
+    }
+  }
+
+  /**
+   * ReviewDocumentCacheEntity → ReviewDocumentCache の変換
+   * cachePathからファイルを読み込んでtextContent/imageDataに変換
+   */
+  private async convertDocumentCacheEntityToDomain(
+    entity: ReviewDocumentCacheEntity,
+  ): Promise<ReviewDocumentCache> {
+    const base = {
+      id: entity.id,
+      reviewHistoryId: entity.reviewHistoryId,
+      documentId: entity.documentId,
+      originalFileName: entity.originalFileName,
+      fileName: entity.fileName,
+      processMode: entity.processMode as ProcessMode,
+      createdAt: entity.createdAt,
+      updatedAt: entity.updatedAt,
+    };
+
+    // cachePathからファイルを読み込む
+    if (entity.processMode === 'text') {
+      const textContent = await ReviewCacheHelper.loadTextCache(
+        entity.cachePath,
+      );
+      return { ...base, textContent };
+    } else if (entity.processMode === 'image') {
+      const imageData = await ReviewCacheHelper.loadImageCache(
+        entity.cachePath,
+      );
+      return { ...base, imageData };
+    }
+
+    throw repositoryError('無効なprocessModeです', null);
+  }
+
+  /** ドキュメントキャッシュを作成 */
+  async createReviewDocumentCache(
+    cache: Omit<ReviewDocumentCache, 'id' | 'createdAt' | 'updatedAt'>,
+  ): Promise<ReviewDocumentCache> {
+    try {
+      // 1. ファイルシステムにキャッシュを保存
+      let cachePath: string;
+
+      if (cache.processMode === 'text' && cache.textContent) {
+        cachePath = await ReviewCacheHelper.saveTextCache(
+          cache.reviewHistoryId,
+          cache.documentId,
+          cache.textContent,
+        );
+      } else if (cache.processMode === 'image' && cache.imageData) {
+        cachePath = await ReviewCacheHelper.saveImageCache(
+          cache.reviewHistoryId,
+          cache.documentId,
+          cache.imageData,
+        );
+      } else {
+        throw repositoryError(
+          '無効なprocessModeまたはデータが不足しています',
+          null,
+        );
+      }
+
+      // 2. DBにメタデータを保存
+      const db = await getDb();
+      const [entity] = await db
+        .insert(reviewDocumentCaches)
+        .values({
+          reviewHistoryId: cache.reviewHistoryId,
+          documentId: cache.documentId,
+          originalFileName: cache.originalFileName,
+          fileName: cache.fileName,
+          processMode: cache.processMode,
+          cachePath,
+        })
+        .returning();
+
+      // 3. ファイルから読み込んでドメイン型に変換して返す
+      return this.convertDocumentCacheEntityToDomain(entity);
+    } catch (err) {
+      if (err instanceof AppError) throw err;
+      throw repositoryError('ドキュメントキャッシュの作成に失敗しました', err);
+    }
+  }
+
+  /** ドキュメントキャッシュ一覧を取得 */
+  async getReviewDocumentCaches(
+    reviewHistoryId: string,
+  ): Promise<ReviewDocumentCache[]> {
+    try {
+      const db = await getDb();
+      const entities = await db
+        .select()
+        .from(reviewDocumentCaches)
+        .where(eq(reviewDocumentCaches.reviewHistoryId, reviewHistoryId))
+        .orderBy(reviewDocumentCaches.createdAt);
+
+      // 各EntityをDomain型に変換（ファイル読み込み含む）
+      return Promise.all(
+        entities.map((entity) => this.convertDocumentCacheEntityToDomain(entity)),
+      );
+    } catch (err) {
+      throw repositoryError('ドキュメントキャッシュの取得に失敗しました', err);
+    }
+  }
+
+  /** documentIdでドキュメントキャッシュを取得 */
+  async getReviewDocumentCacheByDocumentId(
+    reviewHistoryId: string,
+    documentId: string,
+  ): Promise<ReviewDocumentCache | null> {
+    try {
+      const db = await getDb();
+      const [entity] = await db
+        .select()
+        .from(reviewDocumentCaches)
+        .where(
+          and(
+            eq(reviewDocumentCaches.reviewHistoryId, reviewHistoryId),
+            eq(reviewDocumentCaches.documentId, documentId),
+          ),
+        );
+
+      if (!entity) return null;
+
+      return this.convertDocumentCacheEntityToDomain(entity);
+    } catch (err) {
+      throw repositoryError('ドキュメントキャッシュの取得に失敗しました', err);
+    }
+  }
+
+  /** チェックリスト結果キャッシュを作成 */
+  async createReviewChecklistResultCache(
+    cache: ReviewChecklistResultCache,
+  ): Promise<void> {
+    try {
+      const db = await getDb();
+      await db.insert(reviewChecklistResultCaches).values({
+        reviewDocumentCacheId: cache.reviewDocumentCacheId,
+        reviewChecklistId: cache.reviewChecklistId,
+        comment: cache.comment,
+      });
+    } catch (err) {
+      throw repositoryError(
+        'チェックリスト結果キャッシュの作成に失敗しました',
+        err,
+      );
+    }
+  }
+
+  /** チェックリスト結果キャッシュ一覧を取得 */
+  async getReviewChecklistResultCaches(
+    reviewHistoryId: string,
+  ): Promise<ReviewChecklistResultCache[]> {
+    try {
+      const db = await getDb();
+      // reviewDocumentCachesとjoinしてreviewHistoryIdで絞り込む
+      const results = await db
+        .select({
+          reviewDocumentCacheId:
+            reviewChecklistResultCaches.reviewDocumentCacheId,
+          reviewChecklistId: reviewChecklistResultCaches.reviewChecklistId,
+          comment: reviewChecklistResultCaches.comment,
+        })
+        .from(reviewChecklistResultCaches)
+        .innerJoin(
+          reviewDocumentCaches,
+          eq(
+            reviewChecklistResultCaches.reviewDocumentCacheId,
+            reviewDocumentCaches.id,
+          ),
+        )
+        .where(eq(reviewDocumentCaches.reviewHistoryId, reviewHistoryId));
+
+      return results.map((row) => ({
+        reviewDocumentCacheId: row.reviewDocumentCacheId,
+        reviewChecklistId: row.reviewChecklistId,
+        comment: row.comment,
+      }));
+    } catch (err) {
+      throw repositoryError(
+        'チェックリスト結果キャッシュの取得に失敗しました',
+        err,
+      );
     }
   }
 }
