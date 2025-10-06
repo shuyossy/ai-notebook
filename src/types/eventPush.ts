@@ -33,4 +33,10 @@ export interface PushClient {
     onEvent: (ev: PushEvent<C>) => void,
     opts?: { signal?: AbortSignal },
   ): () => void;
+
+  subscribeAsync<C extends Channel>(
+    channel: C,
+    onEvent: (ev: PushEvent<C>) => void,
+    opts?: { signal?: AbortSignal },
+  ): Promise<() => void>;
 }

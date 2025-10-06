@@ -63,7 +63,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
   // イベント購読の解除関数を管理
   const eventUnsubscribeRef = useRef<(() => void) | null>(null);
 
-  // チェック履歴取得
+  // チェックリスト履歴取得
   const fetchChecklistResults = useCallback(async () => {
     if (!selectedReviewHistoryId) return;
     const reviewApi = ReviewApi.getInstance();
@@ -82,7 +82,6 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
       status: ChecklistExtractionResultStatus;
       error?: string;
     }) => {
-      console.log('チェックリスト抽出完了イベント受信:', payload);
       // 自分のレビュー履歴のイベントかチェック
       if (payload.reviewHistoryId !== selectedReviewHistoryId) {
         return;
@@ -112,12 +111,6 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
       }
 
       setIsExtracting(false);
-
-      // イベント購読解除
-      if (eventUnsubscribeRef.current) {
-        eventUnsubscribeRef.current();
-        eventUnsubscribeRef.current = null;
-      }
     },
     [selectedReviewHistoryId, fetchChecklistResults, addAlert],
   );
@@ -225,7 +218,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
               setIsExtracting(true);
               // チェックリスト抽出完了イベントを購読
               const extractUnsubscribe =
-                reviewApi.subscribeChecklistExtractionFinished(
+                await reviewApi.subscribeChecklistExtractionFinished(
                   handleChecklistExtractionFinished,
                 );
               eventUnsubscribeRef.current = extractUnsubscribe;
@@ -234,7 +227,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
               setIsReviewing(true);
               // レビュー実行完了イベントを購読
               const reviewUnsubscribe =
-                reviewApi.subscribeReviewExtractionFinished(
+                await reviewApi.subscribeReviewExtractionFinished(
                   handleReviewExecutionFinished,
                 );
               eventUnsubscribeRef.current = reviewUnsubscribe;
@@ -316,6 +309,19 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
         setIsExtracting(true);
         setIsModalOpen(false);
 
+        // 既存のイベント購読を解除
+        if (eventUnsubscribeRef.current) {
+          eventUnsubscribeRef.current();
+          eventUnsubscribeRef.current = null;
+        }
+
+        // 抽出完了イベントの購読を開始（API呼び出し前に購読を確立）
+        const unsubscribe =
+          await reviewApi.subscribeChecklistExtractionFinished(
+            handleChecklistExtractionFinished,
+          );
+        eventUnsubscribeRef.current = unsubscribe;
+
         // チェックリスト抽出処理を開始
         await reviewApi.extractChecklist(
           selectedReviewHistoryId,
@@ -324,18 +330,6 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
           checklistRequirements,
           { throwError: true, showAlert: false },
         );
-
-        // 既存のイベント購読を解除
-        if (eventUnsubscribeRef.current) {
-          eventUnsubscribeRef.current();
-          eventUnsubscribeRef.current = null;
-        }
-
-        // 抽出完了イベントの購読を開始
-        const unsubscribe = reviewApi.subscribeChecklistExtractionFinished(
-          handleChecklistExtractionFinished,
-        );
-        eventUnsubscribeRef.current = unsubscribe;
       } catch (error) {
         console.error(error);
         addAlert({
@@ -346,6 +340,11 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
           severity: 'error',
         });
         setIsExtracting(false);
+        // エラー時は購読も解除
+        if (eventUnsubscribeRef.current) {
+          eventUnsubscribeRef.current();
+          eventUnsubscribeRef.current = null;
+        }
       }
     },
     [selectedReviewHistoryId, addAlert, handleChecklistExtractionFinished],
@@ -368,6 +367,12 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
           eventUnsubscribeRef.current = null;
         }
 
+        // レビュー完了イベントの購読を開始（API呼び出し前に購読を確立）
+        const unsubscribe = await reviewApi.subscribeReviewExtractionFinished(
+          handleReviewExecutionFinished as any,
+        );
+        eventUnsubscribeRef.current = unsubscribe;
+
         // レビュー実行処理を開始
         await reviewApi.executeReview(
           selectedReviewHistoryId,
@@ -378,12 +383,6 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
           commentFormat || commentFormat,
           { throwError: true, showAlert: false },
         );
-
-        // レビュー完了イベントの購読を開始
-        const unsubscribe = reviewApi.subscribeReviewExtractionFinished(
-          handleReviewExecutionFinished as any,
-        );
-        eventUnsubscribeRef.current = unsubscribe;
       } catch (error) {
         console.error(error);
         addAlert({
@@ -391,6 +390,11 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
           severity: 'error',
         });
         setIsReviewing(false);
+        // エラー時は購読も解除
+        if (eventUnsubscribeRef.current) {
+          eventUnsubscribeRef.current();
+          eventUnsubscribeRef.current = null;
+        }
       }
     },
     [

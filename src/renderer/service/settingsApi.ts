@@ -19,7 +19,7 @@ export interface ISettingsApi {
   ): Promise<boolean | null>;
   subscribeSettingsUpdateFinished(
     callback: (payload: { success: boolean; error?: string }) => void,
-  ): () => void;
+  ): Promise<() => void>;
 }
 
 export class SettingsApi implements ISettingsApi {
@@ -67,11 +67,11 @@ export class SettingsApi implements ISettingsApi {
     return invokeApi(() => window.electron.settings.setSettings(settings), options);
   }
 
-  public subscribeSettingsUpdateFinished(
+  public async subscribeSettingsUpdateFinished(
     callback: (payload: { success: boolean; error?: string }) => void,
-  ): () => void {
+  ): Promise<() => void> {
     const pushClient = new ElectronPushClient();
-    return pushClient.subscribe(
+    return pushClient.subscribeAsync(
       IpcChannels.SETTINGS_UPDATE_FINISHED,
       (event) => {
         callback(event.payload);

@@ -22,17 +22,22 @@ export function usePushChannel<C extends Channel>(
     const ac = new AbortController();
     abortRef.current = ac;
 
-    const unsub = client.subscribe<C>(
-      channel,
-      (ev) => {
-        setLast(ev);
-        cbRef.current?.(ev);
-      },
-      { signal: ac.signal },
-    );
+    // 購読処理を非同期で実行
+    let unsub: (() => void) | undefined;
+    (async () => {
+      unsub = await client.subscribeAsync<C>(
+        channel,
+        (ev) => {
+          setLast(ev);
+          cbRef.current?.(ev);
+        },
+        { signal: ac.signal },
+      );
+    })();
+
     return () => {
       ac.abort();
-      unsub();
+      unsub?.();
     };
   }, [channel, client]);
 

@@ -58,14 +58,14 @@ export interface IReviewApi {
       status: ChecklistExtractionResultStatus;
       error?: string;
     }) => void,
-  ): () => void;
+  ): Promise<() => void>;
   subscribeReviewExtractionFinished(
     callback: (payload: {
       reviewHistoryId: string;
       status: ReviewExecutionResultStatus;
       error?: string;
     }) => void,
-  ): () => void;
+  ): Promise<() => void>;
   updateChecklist(
     historyId: string,
     checklistEdits: ReviewChecklistEdit[],
@@ -202,15 +202,15 @@ export class ReviewApi implements IReviewApi {
     );
   }
 
-  public subscribeChecklistExtractionFinished(
+  public async subscribeChecklistExtractionFinished(
     callback: (payload: {
       reviewHistoryId: string;
       status: ChecklistExtractionResultStatus;
       error?: string;
     }) => void,
-  ): () => void {
+  ): Promise<() => void> {
     const pushClient = new ElectronPushClient();
-    return pushClient.subscribe(
+    return pushClient.subscribeAsync(
       IpcChannels.REVIEW_EXTRACT_CHECKLIST_FINISHED,
       (event) => {
         callback(event.payload);
@@ -218,15 +218,15 @@ export class ReviewApi implements IReviewApi {
     );
   }
 
-  public subscribeReviewExtractionFinished(
+  public async subscribeReviewExtractionFinished(
     callback: (payload: {
       reviewHistoryId: string;
       status: ReviewExecutionResultStatus;
       error?: string;
     }) => void,
-  ): () => void {
+  ): Promise<() => void> {
     const pushClient = new ElectronPushClient();
-    return pushClient.subscribe(
+    return pushClient.subscribeAsync(
       IpcChannels.REVIEW_EXECUTE_FINISHED,
       (event) => {
         callback(event.payload);

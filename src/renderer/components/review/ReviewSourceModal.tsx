@@ -1159,8 +1159,8 @@ function ReviewSourceModal({
                   sx={{ mb: 2 }}
                 >
                   {conversionProgress.conversionType === 'pdf'
-                    ? '→ PDFに変換中...'
-                    : '→ 画像化中...'}
+                    ? 'PDFに変換中...'
+                    : '画像化中...'}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
                   処理済み: {conversionProgress.currentIndex} /{' '}

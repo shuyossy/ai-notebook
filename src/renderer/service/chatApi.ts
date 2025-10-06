@@ -13,7 +13,7 @@ export interface IChatApi {
     onMessage: (chunk: IpcEventPayload<typeof IpcChannels.CHAT_STREAM>) => void;
     onDone: () => void;
     onError: (error: Error) => void;
-  }): () => void;
+  }): Promise<() => void>;
   abortChatRequest(roomId: string, options?: ApiServiceDefaultOptions): void;
   getChatMessages(
     roomId: string,
@@ -75,48 +75,49 @@ export class ChatApi implements IChatApi {
     await invokeApi(() => window.electron.chat.deleteRoom(roomId), options);
   }
 
-  public streamResponse(callbacks: {
+  public async streamResponse(callbacks: {
     onMessage: (chunk: IpcEventPayload<typeof IpcChannels.CHAT_STREAM>) => void;
     onDone: () => void;
     onError: (error: Error) => void;
-  }): () => void {
+  }): Promise<() => void> {
     const pushClient = new ElectronPushClient();
     const abortController = new AbortController();
 
-    // ストリーミングイベントの購読
-    pushClient.subscribe(
-      IpcChannels.CHAT_STREAM,
-      (event) => {
-        callbacks.onMessage(event.payload);
-      },
-      { signal: abortController.signal },
-    );
-
-    // 完了イベントの購読
-    pushClient.subscribe(
-      IpcChannels.CHAT_COMPLETE,
-      () => {
-        // 購読を解除
-        abortController.abort();
-        // 完了コールバックを呼び出し
-        callbacks.onDone();
-      },
-      { signal: abortController.signal },
-    );
-
-    // エラーイベントの購読
-    pushClient.subscribe(
-      IpcChannels.CHAT_ERROR,
-      (event) => {
-        // 購読を解除
-        abortController.abort();
-        // エラーコールバックを呼び出し
-        callbacks.onError(
-          new Error(event.payload.message || '予期せぬエラーが発生しました'),
-        );
-      },
-      { signal: abortController.signal },
-    );
+    // 3つのイベント購読を並列で実行し、全て完了を待つ
+    await Promise.all([
+      // ストリーミングイベントの購読
+      pushClient.subscribeAsync(
+        IpcChannels.CHAT_STREAM,
+        (event) => {
+          callbacks.onMessage(event.payload);
+        },
+        { signal: abortController.signal },
+      ),
+      // 完了イベントの購読
+      pushClient.subscribeAsync(
+        IpcChannels.CHAT_COMPLETE,
+        () => {
+          // 購読を解除
+          abortController.abort();
+          // 完了コールバックを呼び出し
+          callbacks.onDone();
+        },
+        { signal: abortController.signal },
+      ),
+      // エラーイベントの購読
+      pushClient.subscribeAsync(
+        IpcChannels.CHAT_ERROR,
+        (event) => {
+          // 購読を解除
+          abortController.abort();
+          // エラーコールバックを呼び出し
+          callbacks.onError(
+            new Error(event.payload.message || '予期せぬエラーが発生しました'),
+          );
+        },
+        { signal: abortController.signal },
+      ),
+    ]);
 
     // 購読解除のためのクリーンアップ
     return () => {

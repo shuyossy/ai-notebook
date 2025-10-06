@@ -321,7 +321,7 @@ const useSettingsStore = () => {
       });
 
       // 完了イベントの購読を開始（ワンショット）
-      const unsubscribe = settingsApi.subscribeSettingsUpdateFinished(
+      const unsubscribe = await settingsApi.subscribeSettingsUpdateFinished(
         (payload: { success: boolean; error?: string }) => {
           // 設定更新完了時にポーリングを停止
           setAgentStatusPolling(false);
