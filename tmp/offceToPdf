@@ -42,61 +42,6 @@ param(
   [string]$PrinterName
 )
 
-# =========================================================
-# 追加: Excel.ActivePrinter を安全に設定するヘルパー
-#   Excel は「<プリンター名> on <ポート名>」という文字列で指定する必要がある。
-#   Microsoft Print to PDF は環境によって PortName が「PORTPROMPT:」または「NeXX:」
-#   になるので、両方の可能性を試す。
-# =========================================================
-function Set-ExcelActivePrinter {
-    param(
-        [Parameter(Mandatory)]
-        [__ComObject] $ExcelApp,          # Excel.Application COM
-        [Parameter(Mandatory)]
-        [string] $TargetPrinterName       # 例: 'Microsoft Print to PDF'
-    )
-
-    # WMI からインストール済みプリンタの情報を取得
-    $printers = Get-CimInstance Win32_Printer |
-                Where-Object { $_.Name -eq $TargetPrinterName }
-
-    if (-not $printers) {
-        throw "指定のプリンターが見つかりません: '$TargetPrinterName'。インストール・有効化を確認してください。"
-    }
-
-    # 複数一致しても通常は1件だけ。念のため順に試す。
-    foreach ($p in $printers) {
-        # Excel.ActivePrinter は「<Name> on <PortName>」形式が基本
-        $candidates = @()
-        if ($p.PortName) {
-            $candidates += ("{0} on {1}" -f $p.Name, $p.PortName)
-        }
-
-        # Microsoft Print to PDF は Ne01: / Ne02: ... になることも多いので、近辺を試す
-        # （PortName が空/PORTPROMPT: で失敗する場合の保険）
-        1..10 | ForEach-Object {
-            $candidates += ("{0} on Ne{1:00}:" -f $p.Name, $_)
-        }
-
-        # さらに一部環境で "on" の大文字小文字／空白差分で失敗する例があるため、Trim した派生も用意
-        $candidates = $candidates |
-                      ForEach-Object { ($_ -replace '\s+on\s+', ' on ').Trim() } |
-                      Select-Object -Unique
-
-        foreach ($cand in $candidates) {
-            try {
-                $ExcelApp.ActivePrinter = $cand
-                Write-Verbose "ActivePrinter set to: $cand"
-                return  # 成功したら終了
-            } catch {
-                # 次の候補へ
-            }
-        }
-    }
-
-    throw "Excel.ActivePrinter を '$TargetPrinterName' に設定できませんでした。PortName/NeXX の解決に失敗。"
-}
-
 # --- 基本設定（UTF-8出力 & 例外で停止） ---
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $ErrorActionPreference = 'Stop'
@@ -236,13 +181,13 @@ try {
       try {
         $workbook.ExportAsFixedFormat(
           $xlTypePDF,
-          $OutputPath,
-          $xlQualityStandard,
-          $true,   # IncludeDocProperties
-          $false,  # IgnorePrintAreas
-          $null,   # From
-          $null,   # To
-          $false   # OpenAfterPublish
+          $OutputPath
+          #$xlQualityStandard,
+          #$true,   # IncludeDocProperties
+          #$false,  # IgnorePrintAreas
+          #$null,   # From
+          #$null,   # To
+          #$false   # OpenAfterPublish
         )
       } catch {
           $hr = if ($_.Exception -and $_.Exception.HResult) { ('0x{0:X8}' -f $_.Exception.HResult) } else { '(no HResult)' }
