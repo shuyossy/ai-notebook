@@ -248,7 +248,7 @@ try {
         # PDF として保存 (xlTypePDF = 0)
         $workbook.ExportAsFixedFormat(
             0,  # Type: xlTypePDF
-            $OutputPath,
+            $OutputPath
             # 0,  # Quality: xlQualityStandard
             # $true,  # IncludeDocProperties
             # $false,  # IgnorePrintAreas
