@@ -101,7 +101,10 @@ import { ZodSchema } from 'zod';
 import { normalizeUnknownIpcError } from './lib/error';
 import { setupElectronPushBroker } from './push/electronPushBroker';
 import { publishEvent } from './lib/eventPayloadHelper';
-import { convertOfficeToPdf, cleanupTempPdf } from './lib/officeConverter';
+import {
+  convertOfficeToPdf,
+  cleanCacheDirectory as cleanPdfCacheDirectory,
+} from './lib/officeConverter';
 
 class AppUpdater {
   constructor() {
@@ -357,26 +360,18 @@ const setupFsHandlers = () => {
   });
 
   handleIpc(IpcChannels.FS_CONVERT_OFFICE_TO_PDF, async (filePath) => {
-    let tempPdfPath: string | undefined;
-    try {
-      // Office ドキュメントを PDF に変換
-      tempPdfPath = await convertOfficeToPdf(filePath);
+    // Office ドキュメントを PDF に変換（キャッシュまたは新規変換）
+    const pdfPath = await convertOfficeToPdf(filePath);
 
-      // 変換後の PDF を読み込む
-      const data = await fs.readFile(tempPdfPath);
-      const result = new Uint8Array(
-        data.buffer,
-        data.byteOffset,
-        data.byteLength,
-      );
+    // 変換後の PDF を読み込む
+    const data = await fs.readFile(pdfPath);
+    const result = new Uint8Array(
+      data.buffer,
+      data.byteOffset,
+      data.byteLength,
+    );
 
-      return result;
-    } finally {
-      // 一時ファイルのクリーンアップ
-      if (tempPdfPath !== undefined) {
-        await cleanupTempPdf(tempPdfPath);
-      }
-    }
+    return result;
   });
 };
 
@@ -677,6 +672,7 @@ const initialize = async () => {
   await initializeAgentStatus();
   setupElectronPushBroker();
   FileExtractor.cleanCacheDirectory();
+  cleanPdfCacheDirectory();
   setupSettingsHandlers();
   setupChatHandlers();
   setupFsHandlers();
