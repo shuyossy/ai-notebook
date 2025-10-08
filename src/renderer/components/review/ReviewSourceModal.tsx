@@ -642,7 +642,7 @@ function ReviewSourceModal({
                     value="large"
                     control={<Radio />}
                     label={
-                      <Tooltip title="ドキュメントを直接AIに入力するのではなく、個々のドキュメントの要約や分析を実行して整理し、最終的にレビューを行います。ドキュメント量が多い場合に選択してください。">
+                      <Tooltip title="個々のドキュメントをAIの入力コンテキストに収まるまで分割してレビューを実行し、最終的にこれらの結果を統合します。ドキュメント量が多い場合に選択してください。">
                         <span>
                           大量ドキュメント
                           <HelpIcon
@@ -915,7 +915,7 @@ function ReviewSourceModal({
                               <ImageIcon fontSize="small" sx={{ mr: 0.5 }} />
                               <MergedIcon fontSize="small" sx={{ mr: 0.5 }} />
                               画像化（統合）
-                              <Tooltip title="全ページを1つの縦長画像として統合します">
+                              <Tooltip title="全ページを1つの縦長画像として統合します。AIモデルは画像を一定の大きさに圧縮して読み込むので、ページ数が多い場合は利用しないでください。office文書の場合はPDFに変換してから画像化します。">
                                 <HelpIcon
                                   fontSize="small"
                                   sx={{ ml: 0.5, color: 'text.secondary' }}
@@ -933,7 +933,7 @@ function ReviewSourceModal({
                               <ImageIcon fontSize="small" sx={{ mr: 0.5 }} />
                               <PagesIcon fontSize="small" sx={{ mr: 0.5 }} />
                               画像化（ページ毎）
-                              <Tooltip title="各ページを個別の画像として処理します">
+                              <Tooltip title="各ページを個別の画像として処理します。office文書の場合はPDFに変換してから画像化します。">
                                 <HelpIcon
                                   fontSize="small"
                                   sx={{ ml: 0.5, color: 'text.secondary' }}
@@ -1060,6 +1060,15 @@ function ReviewSourceModal({
                                         sx={{ mr: 0.5 }}
                                       />
                                       統合画像
+                                      <Tooltip title="全ページを1つの縦長画像として統合します。AIモデルは画像を一定の大きさに圧縮して読み込むので、ページ数が多い場合は利用しないでください。office文書の場合はPDFに変換してから画像化します。">
+                                        <HelpIcon
+                                          fontSize="small"
+                                          sx={{
+                                            ml: 0.5,
+                                            color: 'text.secondary',
+                                          }}
+                                        />
+                                      </Tooltip>
                                     </Box>
                                   }
                                 />
@@ -1078,7 +1087,7 @@ function ReviewSourceModal({
                                         sx={{ mr: 0.5 }}
                                       />
                                       ページ別画像
-                                      <Tooltip title="ページ数が多い場合はページごとに画像化することを検討してください">
+                                      <Tooltip title="各ページを個別の画像として処理します。office文書の場合はPDFに変換してから画像化します。">
                                         <HelpIcon
                                           fontSize="small"
                                           sx={{
@@ -1158,9 +1167,18 @@ function ReviewSourceModal({
                   color="text.secondary"
                   sx={{ mb: 2 }}
                 >
-                  {conversionProgress.conversionType === 'pdf'
-                    ? 'PDFに変換中...'
-                    : '画像化中...'}
+                  {conversionProgress.conversionType === 'pdf' ? (
+                    <>
+                      PDFに変換中...
+                      <br />
+                      ※<br />
+                      変換に時間がかかる場合があります
+                      <br />
+                      変換されたPDFファイルはファイルパス、最終更新時刻をキーにキャッシュされます
+                    </>
+                  ) : (
+                    '画像に変換中...'
+                  )}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
                   処理済み: {conversionProgress.currentIndex} /{' '}
