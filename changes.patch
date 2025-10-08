@@ -1,443 +1,78 @@
-diff --git a/CLAUDE.md b/CLAUDE.md
-index c89660d40..070b05170 100644
---- a/CLAUDE.md
-+++ b/CLAUDE.md
-@@ -64,8 +64,9 @@ npm test
-       - どちらも複数ファイルを選択することができ、その場合は、複数ファイルが一つのドキュメントとして認識される(よくある、本紙・別紙などのドキュメントに対応)
-       - 対応可能なファイルは以下
-         - word,excel,powerpoint,pdf,テキスト文書
--          - テキスト抽出されて最終的にAIに送られる
--          - pdfの場合はテキスト抽出か画像化か選択することができる
-+          - テキスト抽出するか画像としてAIに送信するか選択することができる
-+            - 画像として送信する場合はpdfを画像化する(renderer側で画像化※main側ではcanvasが扱いづらかったため)
-+              - office文書についてはmain側で一度pdf化してから画像化する
-     - ユーザは対象ドキュメントをファイルアップロード形式で指定する
-        - 基本的にはアップロードされたファイルはテキスト抽出処理が実行され、後続のworkflow処理で利用される
-          - ただし、PDFファイルについてはテキスト抽出か画像として処理するか選択することができる
-@@ -207,15 +208,18 @@ ElectronのIPCを使用してフロントエンド・バックエンド間の通
- 
- 
- ## 依頼タスク
--- ドキュメントレビュー機能利用時のユーザ体験向上
--  - 目的
--    - レビュー実行は長時間にわたるため、現在どのような処理を実行しているのかユーザにわかりやすく伝えられるようにしたい(現状のままだとアプリが固まっているのか、正常に動作しているのかわかりにくい)
--  - UX設計(概念レベル)
--    - モーダルで「チェックリスト抽出」や「レビュー実行」ボタンを押下
--    - pdfの画像変換やoffceファイルのpdf変換を実施している間はモーダルを閉じることができないようにする(モーダルを閉じて他のレビュールームに飛んでしまうと再度同じレビュールームに入ってきた時の表示がややこしくなってしまうため)
--      - 変換処理中のステータス(どのファイルを変換しているのか、画像・pdfどちらに変換しているのか)についてもユーザに伝わるようにする
--    - 変換処理が完了するとモーダルが解除される(既存通り)
--    - レビュー本画面ではキャンセルボタンが表示されているが、これだけだとレビューが実行されているかわかりづらいので、レビュー実行中であることがユーザに伝わるようにする
-+- 要件
-+  - office文書をpdfに変換する際に、変換結果をキャッシュできるようにする
-+    - 目的
-+      - pdf変換は時間がかかるので、キャッシュを活用してユーザの待ち時間を軽減する
-+    - 実装方針
-+      - パスと最終更新時刻をキーにしてキャッシュを取得
-+      - メタデータ（パス、名前、最終更新時刻、キャッシュパス等）はJSONで保存し、pdfファイルは別で保存
-+      - アプリ起動時にキャッシュディレクトリをクリーニング
-+        - 元ファイルが存在しないキャッシュファイルを削除
-+        - ファイル更新日時が古いキャッシュファイルを削除
-+        - 不正なJSONキャッシュファイルを削除
- 
- ### タスク実装時の注意点
--- 一般的なアプリケーションでも採用されている方法を取り入れること(ベストプラクティスに沿って欲しいという意味です)
-+- ほぼ同様の処理が`src/main/lib/fileExtractor.ts`に定義されているので、参考にすること
-+- 現在はファイルを作成後、最終的に削除処理を実行しているので注意すること
-diff --git a/src/main/lib/officeConverter.ts b/src/main/lib/officeConverter.ts
-index d91255902..0325f44aa 100644
---- a/src/main/lib/officeConverter.ts
-+++ b/src/main/lib/officeConverter.ts
-@@ -2,13 +2,34 @@ import { execFile } from 'child_process';
- import { promisify } from 'util';
- import path from 'path';
- import fs from 'fs/promises';
-+import { existsSync, mkdirSync } from 'fs';
- import os from 'os';
-+import { createHash } from 'crypto';
- import { getMainLogger } from './logger';
- import { internalError } from './error';
-+import { getCustomAppDataDir } from '../main';
- 
- const execFileP = promisify(execFile);
- const logger = getMainLogger();
- 
-+/**
-+ * PDF変換キャッシュのメタデータ型定義
-+ */
-+interface PdfCacheMetadata {
-+  /** 元ファイルのパス */
-+  filePath: string;
-+  /** 元ファイル名 */
-+  fileName: string;
-+  /** 元ファイルの最終更新時刻 */
-+  lastModified: number;
-+  /** 元ファイルのサイズ */
-+  fileSize: number;
-+  /** キャッシュされたPDFファイルのパス */
-+  cachePdfPath: string;
-+  /** キャッシュ作成日時 */
-+  cachedAt: number;
-+}
-+
- /**
-  * OfficeドキュメントのMIMEタイプ
-  */
-@@ -79,6 +100,135 @@ export function isOfficeDocument(mimeType: string): boolean {
-   );
- }
- 
-+/**
-+ * キャッシュディレクトリのパスを取得
-+ */
-+function getCacheDir(): string {
-+  const userDataPath = getCustomAppDataDir();
-+  const cacheDir = path.join(userDataPath, 'pdf_caches');
-+
-+  // ディレクトリが存在しない場合は作成
-+  if (!existsSync(cacheDir)) {
-+    mkdirSync(cacheDir, { recursive: true });
-+  }
-+
-+  return cacheDir;
-+}
-+
-+/**
-+ * キャッシュメタデータファイルのパスを生成
-+ */
-+function getCacheMetadataPath(filePath: string): string {
-+  const hash = createHash('md5').update(filePath).digest('hex');
-+  return path.join(getCacheDir(), `${hash}.json`);
-+}
-+
-+/**
-+ * キャッシュPDFファイルのパスを生成
-+ */
-+function getCachePdfPath(filePath: string): string {
-+  const hash = createHash('md5').update(filePath).digest('hex');
-+  return path.join(getCacheDir(), `${hash}.pdf`);
-+}
-+
-+/**
-+ * キャッシュからPDFファイルパスを読み込み
-+ * ファイルが更新されている場合はnullを返す
-+ */
-+async function tryReadCache(filePath: string): Promise<string | null> {
-+  try {
-+    const metadataPath = getCacheMetadataPath(filePath);
-+    const metadataContent = await fs.readFile(metadataPath, 'utf-8');
-+    const metadata: PdfCacheMetadata = JSON.parse(metadataContent);
-+
-+    // ファイルの現在の情報を取得
-+    const stats = await fs.stat(filePath);
-+
-+    // ファイルが更新されている場合はキャッシュを無効とする
-+    if (stats.mtimeMs !== metadata.lastModified) {
-+      logger.debug(
-+        { filePath, metadataPath },
-+        'ファイルが更新されているためキャッシュを無効化します',
-+      );
-+      await deleteCache(filePath);
-+      return null;
-+    }
-+
-+    // キャッシュされたPDFファイルの存在確認
-+    try {
-+      await fs.access(metadata.cachePdfPath);
-+      return metadata.cachePdfPath;
-+    } catch {
-+      // PDFファイルが存在しない場合はメタデータも削除
-+      logger.debug(
-+        { filePath, cachePdfPath: metadata.cachePdfPath },
-+        'キャッシュPDFファイルが存在しないため無効化します',
-+      );
-+      await deleteCache(filePath);
-+      return null;
-+    }
-+  } catch (error) {
-+    // ファイルが存在しない場合やJSONパースエラーの場合は null を返す
-+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-+      logger.error({ error, filePath }, 'キャッシュの読み込みに失敗しました');
-+    }
-+    return null;
-+  }
-+}
-+
-+/**
-+ * 変換後PDFをキャッシュに保存
-+ */
-+async function saveCache(
-+  originalFilePath: string,
-+  pdfPath: string,
-+  stats: { mtimeMs: number; size: number },
-+): Promise<void> {
-+  try {
-+    const cachePdfPath = getCachePdfPath(originalFilePath);
-+    const metadataPath = getCacheMetadataPath(originalFilePath);
-+
-+    // PDFファイルをキャッシュディレクトリにコピー
-+    await fs.copyFile(pdfPath, cachePdfPath);
-+
-+    // メタデータを保存
-+    const metadata: PdfCacheMetadata = {
-+      filePath: originalFilePath,
-+      fileName: path.basename(originalFilePath),
-+      lastModified: stats.mtimeMs,
-+      fileSize: stats.size,
-+      cachePdfPath,
-+      cachedAt: Date.now(),
-+    };
-+    await fs.writeFile(metadataPath, JSON.stringify(metadata, null, 2), 'utf-8');
-+
-+    logger.debug({ originalFilePath, cachePdfPath }, 'PDFキャッシュを保存しました');
-+  } catch (error) {
-+    // キャッシュが保存できない場合は大きな問題にならないのでエラーは握りつぶす
-+    logger.error({ error, originalFilePath }, 'キャッシュの保存に失敗しました');
-+  }
-+}
-+
-+/**
-+ * キャッシュを削除
-+ */
-+async function deleteCache(filePath: string): Promise<void> {
-+  try {
-+    const metadataPath = getCacheMetadataPath(filePath);
-+    const cachePdfPath = getCachePdfPath(filePath);
-+
-+    // メタデータファイルを削除
-+    await fs.unlink(metadataPath).catch(() => void 0);
-+    // PDFファイルを削除
-+    await fs.unlink(cachePdfPath).catch(() => void 0);
-+  } catch (error) {
-+    // キャッシュが削除できない場合は大きな問題にならないのでエラーは握りつぶす
-+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-+      logger.error(error, 'キャッシュの削除に失敗しました');
-+    }
-+  }
-+}
-+
- /**
-  * PowerShellスクリプトを生成（Office→PDF変換用）
-  */
-@@ -334,7 +484,7 @@ finally {
-  * Office ドキュメントを PDF に変換
-  *
-  * @param inputPath 入力ファイルのパス
-- * @returns 変換後の PDF ファイルのパス（一時ファイル）
-+ * @returns 変換後の PDF ファイルのパス（キャッシュまたは一時ファイル）
-  */
- export async function convertOfficeToPdf(inputPath: string): Promise<string> {
-   // プラットフォームチェック（Windowsのみ対応）
-@@ -346,9 +496,10 @@ export async function convertOfficeToPdf(inputPath: string): Promise<string> {
-     });
-   }
- 
--  // ファイルの存在確認
-+  // ファイルの存在確認と情報取得
-+  let stats;
-   try {
--    await fs.access(inputPath);
-+    stats = await fs.stat(inputPath);
-   } catch (error) {
-     throw internalError({
-       expose: true,
-@@ -370,6 +521,13 @@ export async function convertOfficeToPdf(inputPath: string): Promise<string> {
-     });
-   }
- 
-+  // キャッシュをチェック
-+  const cachedPdfPath = await tryReadCache(inputPath);
-+  if (cachedPdfPath) {
-+    logger.info({ inputPath, cachedPdfPath }, 'Using cached PDF');
-+    return cachedPdfPath;
-+  }
-+
-   const documentType = getDocumentTypeFromMimeType(mimeType);
- 
-   // 一時出力ファイルパスを生成
-@@ -433,7 +591,16 @@ export async function convertOfficeToPdf(inputPath: string): Promise<string> {
-     }
- 
-     logger.info({ outputPath }, 'Successfully converted to PDF');
--    return outputPath;
-+
-+    // 変換後PDFをキャッシュに保存
-+    await saveCache(inputPath, outputPath, stats);
-+
-+    // 一時PDFファイルを削除（キャッシュに保存済みのため）
-+    await fs.unlink(outputPath).catch(() => void 0);
-+
-+    // キャッシュされたPDFのパスを返す
-+    const cachedPdfPath = getCachePdfPath(inputPath);
-+    return cachedPdfPath;
-   } catch (error: any) {
-     logger.error({ error, inputPath }, 'Office to PDF conversion error');
- 
-@@ -477,3 +644,106 @@ export async function cleanupTempPdf(pdfPath: string): Promise<void> {
-     logger.warn({ error, pdfPath }, 'Failed to cleanup temporary PDF');
-   }
- }
-+
-+/**
-+ * キャッシュディレクトリをクリーニングする
-+ * - 元ファイルが存在しないキャッシュファイルを削除
-+ * - ファイル更新日時が古いキャッシュファイルを削除
-+ * - 不正なJSONキャッシュファイルを削除
-+ * - 孤立したPDFファイル（メタデータがないもの）を削除
-+ */
-+export async function cleanCacheDirectory(): Promise<void> {
-+  try {
-+    const cacheDir = getCacheDir();
-+    const cacheFiles = await fs.readdir(cacheDir);
-+
-+    logger.info(`PDFキャッシュディレクトリのクリーニングを開始: ${cacheDir}`);
-+
-+    let deletedCount = 0;
-+    const processedHashes = new Set<string>();
-+
-+    for (const fileName of cacheFiles) {
-+      const cacheFilePath = path.join(cacheDir, fileName);
-+
-+      try {
-+        // .jsonファイル（メタデータ）を処理
-+        if (fileName.endsWith('.json')) {
-+          const hash = fileName.replace('.json', '');
-+          processedHashes.add(hash);
-+
-+          // JSONメタデータファイルの内容を読み取り
-+          const metadataContent = await fs.readFile(cacheFilePath, 'utf-8');
-+          const metadata: PdfCacheMetadata = JSON.parse(metadataContent);
-+
-+          // 元ファイルの存在確認
-+          const originalFilePath = metadata.filePath;
-+
-+          try {
-+            const stats = await fs.stat(originalFilePath);
-+
-+            // ファイル更新日時が異なる場合は削除
-+            if (stats.mtimeMs !== metadata.lastModified) {
-+              await fs.unlink(cacheFilePath);
-+              // 対応するPDFファイルも削除
-+              await fs.unlink(metadata.cachePdfPath).catch(() => void 0);
-+              deletedCount++;
-+              logger.debug(
-+                `ファイル更新日時が古いキャッシュを削除: ${fileName}`,
-+              );
-+            }
-+          } catch (statError) {
-+            // 元ファイルが存在しない場合は削除
-+            if ((statError as NodeJS.ErrnoException).code === 'ENOENT') {
-+              await fs.unlink(cacheFilePath);
-+              // 対応するPDFファイルも削除
-+              await fs.unlink(metadata.cachePdfPath).catch(() => void 0);
-+              deletedCount++;
-+              logger.debug(`元ファイルが存在しないキャッシュを削除: ${fileName}`);
-+            }
-+          }
-+        }
-+      } catch (processError) {
-+        // JSONパースエラーなど、不正なキャッシュファイルは削除
-+        try {
-+          await fs.unlink(cacheFilePath);
-+          deletedCount++;
-+          logger.debug(`不正なキャッシュファイルを削除: ${fileName}`);
-+        } catch (unlinkError) {
-+          logger.error(
-+            { error: unlinkError, fileName },
-+            'キャッシュファイルの削除に失敗',
-+          );
-+        }
-+      }
-+    }
-+
-+    // 孤立したPDFファイル（メタデータがないもの）を削除
-+    for (const fileName of cacheFiles) {
-+      if (fileName.endsWith('.pdf')) {
-+        const hash = fileName.replace('.pdf', '');
-+        if (!processedHashes.has(hash)) {
-+          const pdfFilePath = path.join(cacheDir, fileName);
-+          try {
-+            await fs.unlink(pdfFilePath);
-+            deletedCount++;
-+            logger.debug(`孤立したPDFファイルを削除: ${fileName}`);
-+          } catch (unlinkError) {
-+            logger.error(
-+              { error: unlinkError, fileName },
-+              '孤立PDFファイルの削除に失敗',
-+            );
-+          }
-+        }
-+      }
-+    }
-+
-+    logger.info(
-+      `PDFキャッシュクリーニング完了: ${deletedCount}個のファイルを削除`,
-+    );
-+  } catch (error) {
-+    logger.error(
-+      { error },
-+      'PDFキャッシュディレクトリのクリーニングに失敗しました',
-+    );
-+  }
-+}
-diff --git a/src/main/main.ts b/src/main/main.ts
-index 203d42579..047392026 100644
---- a/src/main/main.ts
-+++ b/src/main/main.ts
-@@ -101,7 +101,10 @@ import { ZodSchema } from 'zod';
- import { normalizeUnknownIpcError } from './lib/error';
- import { setupElectronPushBroker } from './push/electronPushBroker';
- import { publishEvent } from './lib/eventPayloadHelper';
--import { convertOfficeToPdf, cleanupTempPdf } from './lib/officeConverter';
-+import {
-+  convertOfficeToPdf,
-+  cleanCacheDirectory as cleanPdfCacheDirectory,
-+} from './lib/officeConverter';
- 
- class AppUpdater {
-   constructor() {
-@@ -357,26 +360,18 @@ const setupFsHandlers = () => {
-   });
- 
-   handleIpc(IpcChannels.FS_CONVERT_OFFICE_TO_PDF, async (filePath) => {
--    let tempPdfPath: string | undefined;
--    try {
--      // Office ドキュメントを PDF に変換
--      tempPdfPath = await convertOfficeToPdf(filePath);
--
--      // 変換後の PDF を読み込む
--      const data = await fs.readFile(tempPdfPath);
--      const result = new Uint8Array(
--        data.buffer,
--        data.byteOffset,
--        data.byteLength,
--      );
-+    // Office ドキュメントを PDF に変換（キャッシュまたは新規変換）
-+    const pdfPath = await convertOfficeToPdf(filePath);
- 
--      return result;
--    } finally {
--      // 一時ファイルのクリーンアップ
--      if (tempPdfPath !== undefined) {
--        await cleanupTempPdf(tempPdfPath);
--      }
--    }
-+    // 変換後の PDF を読み込む
-+    const data = await fs.readFile(pdfPath);
-+    const result = new Uint8Array(
-+      data.buffer,
-+      data.byteOffset,
-+      data.byteLength,
-+    );
-+
-+    return result;
-   });
- };
- 
-@@ -677,6 +672,7 @@ const initialize = async () => {
-   await initializeAgentStatus();
-   setupElectronPushBroker();
-   FileExtractor.cleanCacheDirectory();
-+  cleanPdfCacheDirectory();
-   setupSettingsHandlers();
-   setupChatHandlers();
-   setupFsHandlers();
+diff --git a/src/renderer/components/review/ReviewSourceModal.tsx b/src/renderer/components/review/ReviewSourceModal.tsx
+index cb8e1576c..c6428f77a 100644
+--- a/src/renderer/components/review/ReviewSourceModal.tsx
++++ b/src/renderer/components/review/ReviewSourceModal.tsx
+@@ -642,7 +642,7 @@ function ReviewSourceModal({
+                     value="large"
+                     control={<Radio />}
+                     label={
+-                      <Tooltip title="ドキュメントを直接AIに入力するのではなく、個々のドキュメントの要約や分析を実行して整理し、最終的にレビューを行います。ドキュメント量が多い場合に選択してください。">
++                      <Tooltip title="個々のドキュメントをAIの入力コンテキストに収まるまで分割してレビューを実行し、最終的にこれらの結果を統合します。ドキュメント量が多い場合に選択してください。">
+                         <span>
+                           大量ドキュメント
+                           <HelpIcon
+@@ -915,7 +915,7 @@ function ReviewSourceModal({
+                               <ImageIcon fontSize="small" sx={{ mr: 0.5 }} />
+                               <MergedIcon fontSize="small" sx={{ mr: 0.5 }} />
+                               画像化（統合）
+-                              <Tooltip title="全ページを1つの縦長画像として統合します">
++                              <Tooltip title="全ページを1つの縦長画像として統合します。AIモデルは画像を一定の大きさに圧縮して読み込むので、ページ数が多い場合は利用しないでください。office文書の場合はPDFに変換してから画像化します。">
+                                 <HelpIcon
+                                   fontSize="small"
+                                   sx={{ ml: 0.5, color: 'text.secondary' }}
+@@ -933,7 +933,7 @@ function ReviewSourceModal({
+                               <ImageIcon fontSize="small" sx={{ mr: 0.5 }} />
+                               <PagesIcon fontSize="small" sx={{ mr: 0.5 }} />
+                               画像化（ページ毎）
+-                              <Tooltip title="各ページを個別の画像として処理します">
++                              <Tooltip title="各ページを個別の画像として処理します。office文書の場合はPDFに変換してから画像化します。">
+                                 <HelpIcon
+                                   fontSize="small"
+                                   sx={{ ml: 0.5, color: 'text.secondary' }}
+@@ -1060,6 +1060,15 @@ function ReviewSourceModal({
+                                         sx={{ mr: 0.5 }}
+                                       />
+                                       統合画像
++                                      <Tooltip title="全ページを1つの縦長画像として統合します。AIモデルは画像を一定の大きさに圧縮して読み込むので、ページ数が多い場合は利用しないでください。office文書の場合はPDFに変換してから画像化します。">
++                                        <HelpIcon
++                                          fontSize="small"
++                                          sx={{
++                                            ml: 0.5,
++                                            color: 'text.secondary',
++                                          }}
++                                        />
++                                      </Tooltip>
+                                     </Box>
+                                   }
+                                 />
+@@ -1078,7 +1087,7 @@ function ReviewSourceModal({
+                                         sx={{ mr: 0.5 }}
+                                       />
+                                       ページ別画像
+-                                      <Tooltip title="ページ数が多い場合はページごとに画像化することを検討してください">
++                                      <Tooltip title="各ページを個別の画像として処理します。office文書の場合はPDFに変換してから画像化します。">
+                                         <HelpIcon
+                                           fontSize="small"
+                                           sx={{
+@@ -1158,9 +1167,18 @@ function ReviewSourceModal({
+                   color="text.secondary"
+                   sx={{ mb: 2 }}
+                 >
+-                  {conversionProgress.conversionType === 'pdf'
+-                    ? 'PDFに変換中...'
+-                    : '画像化中...'}
++                  {conversionProgress.conversionType === 'pdf' ? (
++                    <>
++                      PDFに変換中...
++                      <br />
++                      ※<br />
++                      変換に時間がかかる場合があります
++                      <br />
++                      変換されたPDFファイルはファイルパス、最終更新時刻をキーにキャッシュされます
++                    </>
++                  ) : (
++                    '画像に変換中...'
++                  )}
+                 </Typography>
+                 <Typography variant="body2" color="text.secondary">
+                   処理済み: {conversionProgress.currentIndex} /{' '}
