@@ -1,3024 +1,443 @@
 diff --git a/CLAUDE.md b/CLAUDE.md
-index 2fb4c6e25..c89660d40 100644
+index c89660d40..070b05170 100644
 --- a/CLAUDE.md
 +++ b/CLAUDE.md
-@@ -62,6 +62,10 @@ npm test
-               - ドキュメントがAIの入力コンテキストに収まらなかった場合は適宜ドキュメントを分割する
-             - 最終的に全てのドキュメントのレビュー結果を合わせて、それを統合してドキュメント全体としてのレビュー結果を出力させる
+@@ -64,8 +64,9 @@ npm test
        - どちらも複数ファイルを選択することができ、その場合は、複数ファイルが一つのドキュメントとして認識される(よくある、本紙・別紙などのドキュメントに対応)
-+      - 対応可能なファイルは以下
-+        - word,excel,powerpoint,pdf,テキスト文書
-+          - テキスト抽出されて最終的にAIに送られる
-+          - pdfの場合はテキスト抽出か画像化か選択することができる
+       - 対応可能なファイルは以下
+         - word,excel,powerpoint,pdf,テキスト文書
+-          - テキスト抽出されて最終的にAIに送られる
+-          - pdfの場合はテキスト抽出か画像化か選択することができる
++          - テキスト抽出するか画像としてAIに送信するか選択することができる
++            - 画像として送信する場合はpdfを画像化する(renderer側で画像化※main側ではcanvasが扱いづらかったため)
++              - office文書についてはmain側で一度pdf化してから画像化する
      - ユーザは対象ドキュメントをファイルアップロード形式で指定する
         - 基本的にはアップロードされたファイルはテキスト抽出処理が実行され、後続のworkflow処理で利用される
           - ただし、PDFファイルについてはテキスト抽出か画像として処理するか選択することができる
-@@ -203,18 +207,15 @@ ElectronのIPCを使用してフロントエンド・バックエンド間の通
+@@ -207,15 +208,18 @@ ElectronのIPCを使用してフロントエンド・バックエンド間の通
  
  
  ## 依頼タスク
--- 大量ドキュメントレビュー機能におけるAIのシステムプロンプト改善
--  - 対象：レビュー統合用AI
--    - 改善ポイント
--      - ASIS
--        - 最終的に、統合したドキュメントとしてレビューさせたいのに、ある個別のドキュメントがチェックリストを満たしてないから、最終的な評価が悪くなってしまったりする
--      - TOBE
--        - チェックリストの内容をよく理解して、個々のドキュメントが全てそのチェックリストを満たしてなければいけないのか、統合ドキュメントとして一部のドキュメントでチェックリストを満たしていれば良いのかを判断してからレビューすること(個別のドキュメントではなく、統合して一つのドキュメントとして最終的なレビュー結果が欲しいのです)
--
-+- ドキュメントレビュー機能利用時のユーザ体験向上
-+  - 目的
-+    - レビュー実行は長時間にわたるため、現在どのような処理を実行しているのかユーザにわかりやすく伝えられるようにしたい(現状のままだとアプリが固まっているのか、正常に動作しているのかわかりにくい)
-+  - UX設計(概念レベル)
-+    - モーダルで「チェックリスト抽出」や「レビュー実行」ボタンを押下
-+    - pdfの画像変換やoffceファイルのpdf変換を実施している間はモーダルを閉じることができないようにする(モーダルを閉じて他のレビュールームに飛んでしまうと再度同じレビュールームに入ってきた時の表示がややこしくなってしまうため)
-+      - 変換処理中のステータス(どのファイルを変換しているのか、画像・pdfどちらに変換しているのか)についてもユーザに伝わるようにする
-+    - 変換処理が完了するとモーダルが解除される(既存通り)
-+    - レビュー本画面ではキャンセルボタンが表示されているが、これだけだとレビューが実行されているかわかりづらいので、レビュー実行中であることがユーザに伝わるようにする
+-- ドキュメントレビュー機能利用時のユーザ体験向上
+-  - 目的
+-    - レビュー実行は長時間にわたるため、現在どのような処理を実行しているのかユーザにわかりやすく伝えられるようにしたい(現状のままだとアプリが固まっているのか、正常に動作しているのかわかりにくい)
+-  - UX設計(概念レベル)
+-    - モーダルで「チェックリスト抽出」や「レビュー実行」ボタンを押下
+-    - pdfの画像変換やoffceファイルのpdf変換を実施している間はモーダルを閉じることができないようにする(モーダルを閉じて他のレビュールームに飛んでしまうと再度同じレビュールームに入ってきた時の表示がややこしくなってしまうため)
+-      - 変換処理中のステータス(どのファイルを変換しているのか、画像・pdfどちらに変換しているのか)についてもユーザに伝わるようにする
+-    - 変換処理が完了するとモーダルが解除される(既存通り)
+-    - レビュー本画面ではキャンセルボタンが表示されているが、これだけだとレビューが実行されているかわかりづらいので、レビュー実行中であることがユーザに伝わるようにする
++- 要件
++  - office文書をpdfに変換する際に、変換結果をキャッシュできるようにする
++    - 目的
++      - pdf変換は時間がかかるので、キャッシュを活用してユーザの待ち時間を軽減する
++    - 実装方針
++      - パスと最終更新時刻をキーにしてキャッシュを取得
++      - メタデータ（パス、名前、最終更新時刻、キャッシュパス等）はJSONで保存し、pdfファイルは別で保存
++      - アプリ起動時にキャッシュディレクトリをクリーニング
++        - 元ファイルが存在しないキャッシュファイルを削除
++        - ファイル更新日時が古いキャッシュファイルを削除
++        - 不正なJSONキャッシュファイルを削除
  
  ### タスク実装時の注意点
--- 実装済みworkflowをよく理解した上で、目的(最高のドキュメントレビュー)を達成するための最適なプロンプトを作成すること
--  - workflow全体としてより良い結果が出るようなプロンプトを意識すること
--- 最終的なドキュメントレビュー結果に、このAIシステムの内部ロジックなどが露呈しないようにすること
--  - あくまで自然なレビュー結果を生成して欲しいということ
--- 複雑な処理なので、十分に思考して実装すること
-+- 一般的なアプリケーションでも採用されている方法を取り入れること(ベストプラクティスに沿って欲しいという意味です)
-diff --git a/src/main/lib/error.ts b/src/main/lib/error.ts
-index 750f252b3..ee2b7fbeb 100644
---- a/src/main/lib/error.ts
-+++ b/src/main/lib/error.ts
-@@ -81,6 +81,15 @@ export function zodToAppError(e: ZodError) {
-   });
- }
+-- 一般的なアプリケーションでも採用されている方法を取り入れること(ベストプラクティスに沿って欲しいという意味です)
++- ほぼ同様の処理が`src/main/lib/fileExtractor.ts`に定義されているので、参考にすること
++- 現在はファイルを作成後、最終的に削除処理を実行しているので注意すること
+diff --git a/src/main/lib/officeConverter.ts b/src/main/lib/officeConverter.ts
+index d91255902..0325f44aa 100644
+--- a/src/main/lib/officeConverter.ts
++++ b/src/main/lib/officeConverter.ts
+@@ -2,13 +2,34 @@ import { execFile } from 'child_process';
+ import { promisify } from 'util';
+ import path from 'path';
+ import fs from 'fs/promises';
++import { existsSync, mkdirSync } from 'fs';
+ import os from 'os';
++import { createHash } from 'crypto';
+ import { getMainLogger } from './logger';
+ import { internalError } from './error';
++import { getCustomAppDataDir } from '../main';
  
-+// AIへの送信メッセージが巨大すぎる(例えば、base64画像を詰め込みすぎた場合など)場合に発生する RangeError を検知するための型ガード
-+function isInvalidStringLengthError(err: unknown): err is RangeError {
-+  return (
-+    err instanceof RangeError &&
-+    typeof err.message === 'string' &&
-+    err.message.includes('Invalid string length')
-+  );
+ const execFileP = promisify(execFile);
+ const logger = getMainLogger();
+ 
++/**
++ * PDF変換キャッシュのメタデータ型定義
++ */
++interface PdfCacheMetadata {
++  /** 元ファイルのパス */
++  filePath: string;
++  /** 元ファイル名 */
++  fileName: string;
++  /** 元ファイルの最終更新時刻 */
++  lastModified: number;
++  /** 元ファイルのサイズ */
++  fileSize: number;
++  /** キャッシュされたPDFファイルのパス */
++  cachePdfPath: string;
++  /** キャッシュ作成日時 */
++  cachedAt: number;
 +}
 +
  /**
-  * 予期しない例外を AppError に正規化。
-  * - 既に AppError → そのまま
-@@ -139,6 +148,13 @@ export function normalizeUnknownIpcError(
- export function extractAIAPISafeError(error: unknown): Error | null {
-   if (APICallError.isInstance(error)) return error;
-   if (error instanceof MastraError) {
-+    if (isInvalidStringLengthError(error.cause)) {
-+      return new AppError('VALIDATION', {
-+        expose: true,
-+        cause: error,
-+        messageCode: 'AI_MESSAGE_TOO_LARGE',
-+      });
-+    }
-     if (APICallError.isInstance(error.cause)) return error.cause;
-     if (NoObjectGeneratedError.isInstance(error.cause)) return error.cause;
-     if (RetryError.isInstance(error.cause)) {
-diff --git a/src/main/lib/officeConverter.ts b/src/main/lib/officeConverter.ts
-new file mode 100644
-index 000000000..fd858a7ee
---- /dev/null
-+++ b/src/main/lib/officeConverter.ts
-@@ -0,0 +1,479 @@
-+import { execFile } from 'child_process';
-+import { promisify } from 'util';
-+import path from 'path';
-+import fs from 'fs/promises';
-+import os from 'os';
-+import { getMainLogger } from './logger';
-+import { internalError } from './error';
-+
-+const execFileP = promisify(execFile);
-+const logger = getMainLogger();
-+
+  * OfficeドキュメントのMIMEタイプ
+  */
+@@ -79,6 +100,135 @@ export function isOfficeDocument(mimeType: string): boolean {
+   );
+ }
+ 
 +/**
-+ * OfficeドキュメントのMIMEタイプ
++ * キャッシュディレクトリのパスを取得
 + */
-+const OFFICE_MIME_TYPES = {
-+  WORD_DOC: 'application/msword',
-+  WORD_DOCX:
-+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-+  EXCEL_XLS: 'application/vnd.ms-excel',
-+  EXCEL_XLSX:
-+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-+  POWERPOINT_PPT: 'application/vnd.ms-powerpoint',
-+  POWERPOINT_PPTX:
-+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-+} as const;
++function getCacheDir(): string {
++  const userDataPath = getCustomAppDataDir();
++  const cacheDir = path.join(userDataPath, 'pdf_caches');
 +
-+/**
-+ * Office ドキュメントタイプ
-+ */
-+type OfficeDocumentType = 'Word' | 'Excel' | 'PowerPoint';
-+
-+/**
-+ * MIMEタイプからOfficeドキュメントタイプを判定
-+ */
-+function getDocumentTypeFromMimeType(mimeType: string): OfficeDocumentType {
-+  switch (mimeType) {
-+    case OFFICE_MIME_TYPES.WORD_DOC:
-+    case OFFICE_MIME_TYPES.WORD_DOCX:
-+      return 'Word';
-+    case OFFICE_MIME_TYPES.EXCEL_XLS:
-+    case OFFICE_MIME_TYPES.EXCEL_XLSX:
-+      return 'Excel';
-+    case OFFICE_MIME_TYPES.POWERPOINT_PPT:
-+    case OFFICE_MIME_TYPES.POWERPOINT_PPTX:
-+      return 'PowerPoint';
-+    default:
-+      throw internalError({
-+        expose: true,
-+        messageCode: 'FS_CONVERT_OFFICE_TO_PDF_ERROR',
-+        messageParams: {
-+          detail: `変換対象外のファイルを検知しました: ${mimeType}`,
-+        },
-+      });
-+  }
-+}
-+
-+/**
-+ * ファイルパスからMIMEタイプを取得
-+ */
-+function getMimeTypeFromPath(filePath: string): string {
-+  const ext = path.extname(filePath).toLowerCase();
-+  const mimeTypes: { [key: string]: string } = {
-+    '.doc': OFFICE_MIME_TYPES.WORD_DOC,
-+    '.docx': OFFICE_MIME_TYPES.WORD_DOCX,
-+    '.xls': OFFICE_MIME_TYPES.EXCEL_XLS,
-+    '.xlsx': OFFICE_MIME_TYPES.EXCEL_XLSX,
-+    '.ppt': OFFICE_MIME_TYPES.POWERPOINT_PPT,
-+    '.pptx': OFFICE_MIME_TYPES.POWERPOINT_PPTX,
-+  };
-+  return mimeTypes[ext] || '';
-+}
-+
-+/**
-+ * Office ドキュメントが画像化対象かどうかを判定
-+ */
-+export function isOfficeDocument(mimeType: string): boolean {
-+  return Object.values(OFFICE_MIME_TYPES).includes(
-+    mimeType as (typeof OFFICE_MIME_TYPES)[keyof typeof OFFICE_MIME_TYPES],
-+  );
-+}
-+
-+/**
-+ * PowerShellスクリプトを生成（Office→PDF変換用）
-+ */
-+function buildPsScriptForPdfConversion(
-+  documentType: OfficeDocumentType,
-+  inputPath: string,
-+  outputPath: string,
-+): string {
-+  // パス中のシングルクォートは二重にしてエスケープ
-+  const safeInputPath = inputPath.replace(/'/g, "''");
-+  const safeOutputPath = outputPath.replace(/'/g, "''");
-+
-+  const commonHeader = `
-+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-+$ErrorActionPreference = 'Stop'
-+$InputPath = '${safeInputPath}'
-+$OutputPath = '${safeOutputPath}'
-+`;
-+
-+  switch (documentType) {
-+    case 'Word':
-+      return (
-+        commonHeader +
-+        `
-+try {
-+    # Word Application を作成
-+    $word = New-Object -ComObject Word.Application
-+    $word.Visible = $false
-+    $word.DisplayAlerts = 0  # wdAlertsNone
-+
-+    try {
-+        # ドキュメントを開く（ReadOnly）
-+        $doc = $word.Documents.Open($InputPath, $false, $true)
-+
-+        # ページ設定（A4サイズ）
-+        # $doc.PageSetup.PaperSize = 9  # wdPaperA4
-+
-+        # PDF として保存 (wdFormatPDF = 17)
-+        $doc.SaveAs([ref]$OutputPath, [ref]17)
-+        $doc.Close($false)
-+
-+        Write-Output "SUCCESS: Word document converted to PDF"
-+    }
-+    finally {
-+        $word.Quit()
-+        [System.Runtime.Interopservices.Marshal]::ReleaseComObject($word) | Out-Null
-+    }
-+}
-+catch {
-+    Write-Error "ERROR: $($_.Exception.Message)"
-+    exit 1
-+}
-+finally {
-+    [System.GC]::Collect()
-+    [System.GC]::WaitForPendingFinalizers()
-+}
-+`
-+      );
-+
-+    case 'Excel':
-+      return (
-+        commonHeader +
-+        `
-+try {
-+    # Excel Application を作成
-+    $excel = New-Object -ComObject Excel.Application
-+    $excel.Visible = $false
-+    $excel.DisplayAlerts = $false
-+
-+    try {
-+        # ワークブックを開く（ReadOnly）
-+        $workbook = $excel.Workbooks.Open($InputPath, $null, $true)
-+
-+        $MARGIN_IN  = 0.15
-+        $HEADER_IN  = 0.0
-+        $FOOTER_IN  = 0.0
-+
-+        # A4 サイズ（インチ）
-+        $A4WidthIn  = 8.27
-+        $A4HeightIn = 11.69
-+
-+        # points 換算（1inch = 72pt）
-+        $A4WidthPtPortrait  = $excel.InchesToPoints($A4WidthIn)
-+        $A4HeightPtPortrait = $excel.InchesToPoints($A4HeightIn)
-+        $A4WidthPtLandscape  = $A4HeightPtPortrait
-+        $A4HeightPtLandscape = $A4WidthPtPortrait
-+
-+        # 余白を points に
-+        $MARGIN_PT = $excel.InchesToPoints($MARGIN_IN)
-+        $HEADER_PT = $excel.InchesToPoints($HEADER_IN)
-+        $FOOTER_PT = $excel.InchesToPoints($FOOTER_IN)
-+
-+        function GetScale([double]$cw, [double]$ch, [double]$pw, [double]$ph) {
-+          if ($cw -le 0 -or $ch -le 0 -or $pw -le 0 -or $ph -le 0) { return 0.0 }
-+          $scaleX = $pw / $cw
-+          $scaleY = $ph / $ch
-+          $s = [Math]::Min($scaleX, $scaleY)
-+          if ($s -gt 1.0) { return 1.0 } else { return $s }
-+        }
-+
-+        foreach ($worksheet in $workbook.Worksheets) {
-+          try {
-+            # ワークシートのみ対象（Chart等はスキップ）
-+            if ($worksheet.Type -ne [Microsoft.Office.Interop.Excel.XlSheetType]::xlWorksheet.value__) { continue }
-+
-+            $ps = $worksheet.PageSetup
-+
-+            # まず余白を極小に設定（向き判定に効くため先に設定）
-+            $ps.LeftMargin   = $MARGIN_PT
-+            $ps.RightMargin  = $MARGIN_PT
-+            $ps.TopMargin    = $MARGIN_PT
-+            $ps.BottomMargin = $MARGIN_PT
-+            $ps.HeaderMargin = $HEADER_PT
-+            $ps.FooterMargin = $FOOTER_PT
-+
-+            # ヘッダ/フッタ文字が残っていると有効領域を圧迫するので必要なら消す
-+            $ps.LeftHeader   = ""
-+            $ps.CenterHeader = ""
-+            $ps.RightHeader  = ""
-+            $ps.LeftFooter   = ""
-+            $ps.CenterFooter = ""
-+            $ps.RightFooter  = ""
-+
-+            # 用紙はA4
-+            $ps.PaperSize = 9  # xlPaperA4
-+
-+            # UsedRange から実寸を取得
-+            $used = $worksheet.UsedRange
-+            if ($used -eq $null) { continue }
-+            $contentWidthPt  = [double]$used.Width
-+            $contentHeightPt = [double]$used.Height
-+
-+            # 印刷可能領域（現在設定の余白で計算）
-+            $printableWidthPortrait  = $A4WidthPtPortrait  - $ps.LeftMargin - $ps.RightMargin
-+            $printableHeightPortrait = $A4HeightPtPortrait - $ps.TopMargin  - $ps.BottomMargin - $ps.HeaderMargin - $ps.FooterMargin
-+
-+            $printableWidthLandscape  = $A4WidthPtLandscape  - $ps.LeftMargin - $ps.RightMargin
-+            $printableHeightLandscape = $A4HeightPtLandscape - $ps.TopMargin  - $ps.BottomMargin - $ps.HeaderMargin - $ps.FooterMargin
-+
-+            $scalePortrait  = GetScale $contentWidthPt $contentHeightPt $printableWidthPortrait  $printableHeightPortrait
-+            $scaleLandscape = GetScale $contentWidthPt $contentHeightPt $printableWidthLandscape $printableHeightLandscape
-+
-+            # 縮小率が大きい方（= より大きく出せる方）を選択
-+            if ($scaleLandscape -gt $scalePortrait) {
-+              $ps.Orientation = 2  # xlLandscape
-+            } else {
-+              $ps.Orientation = 1  # xlPortrait
-+            }
-+
-+            # 印刷範囲を UsedRange に強制（既存のPrintAreaを使いたい場合はコメントアウト）
-+            # $ps.PrintArea = $used.Address($false, $false)
-+
-+            # 1シート=1ページ
-+            $ps.Zoom = $false
-+            $ps.FitToPagesWide = 1
-+            $ps.FitToPagesTall = 5
-+
-+            # 視覚的安定のため（任意）
-+            $ps.CenterHorizontally = $true
-+            $ps.CenterVertically   = $false
-+          }
-+          catch {
-+            Write-Verbose "Skip on sheet '$($worksheet.Name)': $($_.Exception.Message)"
-+          }
-+        }
-+
-+        # PDF として保存 (xlTypePDF = 0)
-+        $workbook.ExportAsFixedFormat(
-+            0,  # Type: xlTypePDF
-+            $OutputPath,
-+            # 0,  # Quality: xlQualityStandard
-+            # $true,  # IncludeDocProperties
-+            # $false,  # IgnorePrintAreas
-+            # $null,  # From (null = all)
-+            # $null,  # To (null = all)
-+            # $false  # OpenAfterPublish
-+        )
-+
-+        $workbook.Close($false)
-+        $excel.Quit()
-+
-+        Write-Output "SUCCESS: Excel workbook converted to PDF"
-+    }
-+    finally {
-+        try { if ($workbook) { $workbook.Close(\$false) } } catch {}
-+        try { if ($excel) { $excel.Quit()     } } catch {}
-+        [System.Runtime.Interopservices.Marshal]::ReleaseComObject($excel) | Out-Null
-+    }
-+}
-+catch {
-+    Write-Error "ERROR: $($_.Exception.Message)"
-+    exit 1
-+}
-+finally {
-+    [System.GC]::Collect()
-+    [System.GC]::WaitForPendingFinalizers()
-+}
-+`
-+      );
-+
-+    case 'PowerPoint':
-+      return (
-+        commonHeader +
-+        `
-+try {
-+    # PowerPoint Application を作成
-+    $powerpoint = New-Object -ComObject PowerPoint.Application
-+    $powerpoint.Visible = [Microsoft.Office.Core.MsoTriState]::msoFalse
-+
-+    try {
-+        # プレゼンテーションを開く（ReadOnly）
-+        $presentation = $powerpoint.Presentations.Open(
-+            $InputPath,
-+            [Microsoft.Office.Core.MsoTriState]::msoTrue,  # ReadOnly
-+            [Microsoft.Office.Core.MsoTriState]::msoFalse,  # Untitled
-+            [Microsoft.Office.Core.MsoTriState]::msoFalse   # WithWindow
-+        )
-+
-+        # PDF として保存 (ppSaveAsPDF = 32)
-+        $presentation.SaveAs($OutputPath, 32)
-+        $presentation.Close()
-+
-+        Write-Output "SUCCESS: PowerPoint presentation converted to PDF"
-+    }
-+    finally {
-+        $powerpoint.Quit()
-+        [System.Runtime.Interopservices.Marshal]::ReleaseComObject($powerpoint) | Out-Null
-+    }
-+}
-+catch {
-+    Write-Error "ERROR: $($_.Exception.Message)"
-+    exit 1
-+}
-+finally {
-+    [System.GC]::Collect()
-+    [System.GC]::WaitForPendingFinalizers()
-+}
-+`
-+      );
-+
-+    default:
-+      throw internalError({
-+        expose: true,
-+        messageCode: 'FS_CONVERT_OFFICE_TO_PDF_ERROR',
-+        messageParams: {
-+          detail: `変換対象外のファイルを検知しました: ${documentType}`,
-+        },
-+      });
-+  }
-+}
-+
-+/**
-+ * Office ドキュメントを PDF に変換
-+ *
-+ * @param inputPath 入力ファイルのパス
-+ * @returns 変換後の PDF ファイルのパス（一時ファイル）
-+ */
-+export async function convertOfficeToPdf(inputPath: string): Promise<string> {
-+  // プラットフォームチェック（Windowsのみ対応）
-+  if (process.platform !== 'win32') {
-+    throw internalError({
-+      expose: true,
-+      messageCode: 'FS_CONVERT_OFFICE_TO_PDF_ERROR',
-+      messageParams: { detail: 'windows環境でのみサポートされています' },
-+    });
++  // ディレクトリが存在しない場合は作成
++  if (!existsSync(cacheDir)) {
++    mkdirSync(cacheDir, { recursive: true });
 +  }
 +
-+  // ファイルの存在確認
++  return cacheDir;
++}
++
++/**
++ * キャッシュメタデータファイルのパスを生成
++ */
++function getCacheMetadataPath(filePath: string): string {
++  const hash = createHash('md5').update(filePath).digest('hex');
++  return path.join(getCacheDir(), `${hash}.json`);
++}
++
++/**
++ * キャッシュPDFファイルのパスを生成
++ */
++function getCachePdfPath(filePath: string): string {
++  const hash = createHash('md5').update(filePath).digest('hex');
++  return path.join(getCacheDir(), `${hash}.pdf`);
++}
++
++/**
++ * キャッシュからPDFファイルパスを読み込み
++ * ファイルが更新されている場合はnullを返す
++ */
++async function tryReadCache(filePath: string): Promise<string | null> {
 +  try {
-+    await fs.access(inputPath);
++    const metadataPath = getCacheMetadataPath(filePath);
++    const metadataContent = await fs.readFile(metadataPath, 'utf-8');
++    const metadata: PdfCacheMetadata = JSON.parse(metadataContent);
++
++    // ファイルの現在の情報を取得
++    const stats = await fs.stat(filePath);
++
++    // ファイルが更新されている場合はキャッシュを無効とする
++    if (stats.mtimeMs !== metadata.lastModified) {
++      logger.debug(
++        { filePath, metadataPath },
++        'ファイルが更新されているためキャッシュを無効化します',
++      );
++      await deleteCache(filePath);
++      return null;
++    }
++
++    // キャッシュされたPDFファイルの存在確認
++    try {
++      await fs.access(metadata.cachePdfPath);
++      return metadata.cachePdfPath;
++    } catch {
++      // PDFファイルが存在しない場合はメタデータも削除
++      logger.debug(
++        { filePath, cachePdfPath: metadata.cachePdfPath },
++        'キャッシュPDFファイルが存在しないため無効化します',
++      );
++      await deleteCache(filePath);
++      return null;
++    }
 +  } catch (error) {
-+    throw internalError({
-+      expose: true,
-+      messageCode: 'FS_CONVERT_OFFICE_TO_PDF_ERROR',
-+      messageParams: { detail: `ファイルが存在しません: ${inputPath}` },
-+      cause: error,
-+    });
++    // ファイルが存在しない場合やJSONパースエラーの場合は null を返す
++    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
++      logger.error({ error, filePath }, 'キャッシュの読み込みに失敗しました');
++    }
++    return null;
 +  }
++}
 +
-+  // MIMEタイプからドキュメントタイプを判定
-+  const mimeType = getMimeTypeFromPath(inputPath);
-+  if (!mimeType || !isOfficeDocument(mimeType)) {
-+    throw internalError({
-+      expose: true,
-+      messageCode: 'FS_CONVERT_OFFICE_TO_PDF_ERROR',
-+      messageParams: {
-+        detail: `変換対象外のファイルを検知しました: ${mimeType}`,
-+      },
-+    });
-+  }
-+
-+  const documentType = getDocumentTypeFromMimeType(mimeType);
-+
-+  // 一時出力ファイルパスを生成
-+  const tmpDir = os.tmpdir();
-+  const timestamp = Date.now();
-+  const randomStr = Math.random().toString(36).substring(7);
-+  const outputPath = path.join(
-+    tmpDir,
-+    `office_converted_${timestamp}_${randomStr}.pdf`,
-+  );
-+
-+  // PowerShellスクリプトを生成
-+  const psScript = buildPsScriptForPdfConversion(
-+    documentType,
-+    inputPath,
-+    outputPath,
-+  );
-+
-+  // 一時スクリプトファイルを作成
-+  const tmpScriptPath = path.join(
-+    tmpDir,
-+    `office_convert_${timestamp}_${randomStr}.ps1`,
-+  );
-+
-+  logger.info(
-+    { inputPath, documentType, outputPath },
-+    'Converting Office document to PDF',
-+  );
-+
++/**
++ * 変換後PDFをキャッシュに保存
++ */
++async function saveCache(
++  originalFilePath: string,
++  pdfPath: string,
++  stats: { mtimeMs: number; size: number },
++): Promise<void> {
 +  try {
-+    // UTF-8 with BOM で書き込む（fileExtractor.tsと同じ）
-+    await fs.writeFile(tmpScriptPath, '\uFEFF' + psScript, {
-+      encoding: 'utf8',
-+    });
++    const cachePdfPath = getCachePdfPath(originalFilePath);
++    const metadataPath = getCacheMetadataPath(originalFilePath);
 +
-+    // PowerShellスクリプトを実行
-+    const { stdout, stderr } = await execFileP(
-+      'powershell.exe',
-+      ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', tmpScriptPath],
-+      { encoding: 'utf8', maxBuffer: 1024 * 1024 * 10 }, // 10 MiB
-+    );
++    // PDFファイルをキャッシュディレクトリにコピー
++    await fs.copyFile(pdfPath, cachePdfPath);
 +
-+    // スクリプトからの出力をログに記録
-+    if (stdout) {
-+      logger.debug({ stdout }, 'PowerShell stdout');
++    // メタデータを保存
++    const metadata: PdfCacheMetadata = {
++      filePath: originalFilePath,
++      fileName: path.basename(originalFilePath),
++      lastModified: stats.mtimeMs,
++      fileSize: stats.size,
++      cachePdfPath,
++      cachedAt: Date.now(),
++    };
++    await fs.writeFile(metadataPath, JSON.stringify(metadata, null, 2), 'utf-8');
++
++    logger.debug({ originalFilePath, cachePdfPath }, 'PDFキャッシュを保存しました');
++  } catch (error) {
++    // キャッシュが保存できない場合は大きな問題にならないのでエラーは握りつぶす
++    logger.error({ error, originalFilePath }, 'キャッシュの保存に失敗しました');
++  }
++}
++
++/**
++ * キャッシュを削除
++ */
++async function deleteCache(filePath: string): Promise<void> {
++  try {
++    const metadataPath = getCacheMetadataPath(filePath);
++    const cachePdfPath = getCachePdfPath(filePath);
++
++    // メタデータファイルを削除
++    await fs.unlink(metadataPath).catch(() => void 0);
++    // PDFファイルを削除
++    await fs.unlink(cachePdfPath).catch(() => void 0);
++  } catch (error) {
++    // キャッシュが削除できない場合は大きな問題にならないのでエラーは握りつぶす
++    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
++      logger.error(error, 'キャッシュの削除に失敗しました');
 +    }
-+    if (stderr) {
-+      logger.warn({ stderr }, 'PowerShell stderr');
-+    }
++  }
++}
 +
-+    // 出力ファイルの存在確認
-+    try {
-+      await fs.access(outputPath);
-+    } catch (error) {
-+      throw internalError({
-+        expose: true,
-+        messageCode: 'FS_CONVERT_OFFICE_TO_PDF_ERROR',
-+        messageParams: { detail: 'PDF変換に失敗しました' },
-+        cause: error,
-+      });
-+    }
+ /**
+  * PowerShellスクリプトを生成（Office→PDF変換用）
+  */
+@@ -334,7 +484,7 @@ finally {
+  * Office ドキュメントを PDF に変換
+  *
+  * @param inputPath 入力ファイルのパス
+- * @returns 変換後の PDF ファイルのパス（一時ファイル）
++ * @returns 変換後の PDF ファイルのパス（キャッシュまたは一時ファイル）
+  */
+ export async function convertOfficeToPdf(inputPath: string): Promise<string> {
+   // プラットフォームチェック（Windowsのみ対応）
+@@ -346,9 +496,10 @@ export async function convertOfficeToPdf(inputPath: string): Promise<string> {
+     });
+   }
+ 
+-  // ファイルの存在確認
++  // ファイルの存在確認と情報取得
++  let stats;
+   try {
+-    await fs.access(inputPath);
++    stats = await fs.stat(inputPath);
+   } catch (error) {
+     throw internalError({
+       expose: true,
+@@ -370,6 +521,13 @@ export async function convertOfficeToPdf(inputPath: string): Promise<string> {
+     });
+   }
+ 
++  // キャッシュをチェック
++  const cachedPdfPath = await tryReadCache(inputPath);
++  if (cachedPdfPath) {
++    logger.info({ inputPath, cachedPdfPath }, 'Using cached PDF');
++    return cachedPdfPath;
++  }
 +
-+    logger.info({ outputPath }, 'Successfully converted to PDF');
-+    return outputPath;
-+  } catch (error: any) {
-+    logger.error({ error, inputPath }, 'Office to PDF conversion error');
+   const documentType = getDocumentTypeFromMimeType(mimeType);
+ 
+   // 一時出力ファイルパスを生成
+@@ -433,7 +591,16 @@ export async function convertOfficeToPdf(inputPath: string): Promise<string> {
+     }
+ 
+     logger.info({ outputPath }, 'Successfully converted to PDF');
+-    return outputPath;
 +
-+    // エラーメッセージを解析
-+    let errorMessage = 'Failed to convert Office document to PDF';
-+    if (error.message) {
-+      if (
-+        error.message.includes('Microsoft.Office') ||
-+        error.message.includes('Word.Application') ||
-+        error.message.includes('Excel.Application') ||
-+        error.message.includes('PowerPoint.Application')
-+      ) {
-+        errorMessage = `Microsoft ${documentType} is not installed or not properly configured.`;
-+      } else {
-+        errorMessage = `PDF変換に失敗しました: ${error.message}`;
++    // 変換後PDFをキャッシュに保存
++    await saveCache(inputPath, outputPath, stats);
++
++    // 一時PDFファイルを削除（キャッシュに保存済みのため）
++    await fs.unlink(outputPath).catch(() => void 0);
++
++    // キャッシュされたPDFのパスを返す
++    const cachedPdfPath = getCachePdfPath(inputPath);
++    return cachedPdfPath;
+   } catch (error: any) {
+     logger.error({ error, inputPath }, 'Office to PDF conversion error');
+ 
+@@ -477,3 +644,106 @@ export async function cleanupTempPdf(pdfPath: string): Promise<void> {
+     logger.warn({ error, pdfPath }, 'Failed to cleanup temporary PDF');
+   }
+ }
++
++/**
++ * キャッシュディレクトリをクリーニングする
++ * - 元ファイルが存在しないキャッシュファイルを削除
++ * - ファイル更新日時が古いキャッシュファイルを削除
++ * - 不正なJSONキャッシュファイルを削除
++ * - 孤立したPDFファイル（メタデータがないもの）を削除
++ */
++export async function cleanCacheDirectory(): Promise<void> {
++  try {
++    const cacheDir = getCacheDir();
++    const cacheFiles = await fs.readdir(cacheDir);
++
++    logger.info(`PDFキャッシュディレクトリのクリーニングを開始: ${cacheDir}`);
++
++    let deletedCount = 0;
++    const processedHashes = new Set<string>();
++
++    for (const fileName of cacheFiles) {
++      const cacheFilePath = path.join(cacheDir, fileName);
++
++      try {
++        // .jsonファイル（メタデータ）を処理
++        if (fileName.endsWith('.json')) {
++          const hash = fileName.replace('.json', '');
++          processedHashes.add(hash);
++
++          // JSONメタデータファイルの内容を読み取り
++          const metadataContent = await fs.readFile(cacheFilePath, 'utf-8');
++          const metadata: PdfCacheMetadata = JSON.parse(metadataContent);
++
++          // 元ファイルの存在確認
++          const originalFilePath = metadata.filePath;
++
++          try {
++            const stats = await fs.stat(originalFilePath);
++
++            // ファイル更新日時が異なる場合は削除
++            if (stats.mtimeMs !== metadata.lastModified) {
++              await fs.unlink(cacheFilePath);
++              // 対応するPDFファイルも削除
++              await fs.unlink(metadata.cachePdfPath).catch(() => void 0);
++              deletedCount++;
++              logger.debug(
++                `ファイル更新日時が古いキャッシュを削除: ${fileName}`,
++              );
++            }
++          } catch (statError) {
++            // 元ファイルが存在しない場合は削除
++            if ((statError as NodeJS.ErrnoException).code === 'ENOENT') {
++              await fs.unlink(cacheFilePath);
++              // 対応するPDFファイルも削除
++              await fs.unlink(metadata.cachePdfPath).catch(() => void 0);
++              deletedCount++;
++              logger.debug(`元ファイルが存在しないキャッシュを削除: ${fileName}`);
++            }
++          }
++        }
++      } catch (processError) {
++        // JSONパースエラーなど、不正なキャッシュファイルは削除
++        try {
++          await fs.unlink(cacheFilePath);
++          deletedCount++;
++          logger.debug(`不正なキャッシュファイルを削除: ${fileName}`);
++        } catch (unlinkError) {
++          logger.error(
++            { error: unlinkError, fileName },
++            'キャッシュファイルの削除に失敗',
++          );
++        }
 +      }
 +    }
 +
-+    throw internalError({
-+      expose: true,
-+      messageCode: 'FS_CONVERT_OFFICE_TO_PDF_ERROR',
-+      messageParams: { detail: errorMessage },
-+      cause: error,
-+    });
-+  } finally {
-+    // 一時スクリプトファイルのクリーンアップ（fileExtractor.tsと同じ）
-+    await fs.unlink(tmpScriptPath).catch(() => void 0);
-+  }
-+}
++    // 孤立したPDFファイル（メタデータがないもの）を削除
++    for (const fileName of cacheFiles) {
++      if (fileName.endsWith('.pdf')) {
++        const hash = fileName.replace('.pdf', '');
++        if (!processedHashes.has(hash)) {
++          const pdfFilePath = path.join(cacheDir, fileName);
++          try {
++            await fs.unlink(pdfFilePath);
++            deletedCount++;
++            logger.debug(`孤立したPDFファイルを削除: ${fileName}`);
++          } catch (unlinkError) {
++            logger.error(
++              { error: unlinkError, fileName },
++              '孤立PDFファイルの削除に失敗',
++            );
++          }
++        }
++      }
++    }
 +
-+/**
-+ * 一時PDFファイルを削除
-+ *
-+ * @param pdfPath 削除する PDF ファイルのパス
-+ */
-+export async function cleanupTempPdf(pdfPath: string): Promise<void> {
-+  try {
-+    await fs.unlink(pdfPath);
-+    logger.debug({ pdfPath }, 'Cleaned up temporary PDF');
++    logger.info(
++      `PDFキャッシュクリーニング完了: ${deletedCount}個のファイルを削除`,
++    );
 +  } catch (error) {
-+    logger.warn({ error, pdfPath }, 'Failed to cleanup temporary PDF');
++    logger.error(
++      { error },
++      'PDFキャッシュディレクトリのクリーニングに失敗しました',
++    );
 +  }
 +}
 diff --git a/src/main/main.ts b/src/main/main.ts
-index 5dede7d6a..203d42579 100644
+index 203d42579..047392026 100644
 --- a/src/main/main.ts
 +++ b/src/main/main.ts
-@@ -101,6 +101,7 @@ import { ZodSchema } from 'zod';
+@@ -101,7 +101,10 @@ import { ZodSchema } from 'zod';
  import { normalizeUnknownIpcError } from './lib/error';
  import { setupElectronPushBroker } from './push/electronPushBroker';
  import { publishEvent } from './lib/eventPayloadHelper';
-+import { convertOfficeToPdf, cleanupTempPdf } from './lib/officeConverter';
+-import { convertOfficeToPdf, cleanupTempPdf } from './lib/officeConverter';
++import {
++  convertOfficeToPdf,
++  cleanCacheDirectory as cleanPdfCacheDirectory,
++} from './lib/officeConverter';
  
  class AppUpdater {
    constructor() {
-@@ -354,6 +355,29 @@ const setupFsHandlers = () => {
-     );
-     return result;
+@@ -357,26 +360,18 @@ const setupFsHandlers = () => {
    });
-+
-+  handleIpc(IpcChannels.FS_CONVERT_OFFICE_TO_PDF, async (filePath) => {
-+    let tempPdfPath: string | undefined;
-+    try {
-+      // Office ドキュメントを PDF に変換
-+      tempPdfPath = await convertOfficeToPdf(filePath);
-+
-+      // 変換後の PDF を読み込む
-+      const data = await fs.readFile(tempPdfPath);
-+      const result = new Uint8Array(
-+        data.buffer,
-+        data.byteOffset,
-+        data.byteLength,
-+      );
-+
-+      return result;
-+    } finally {
-+      // 一時ファイルのクリーンアップ
-+      if (tempPdfPath !== undefined) {
-+        await cleanupTempPdf(tempPdfPath);
-+      }
-+    }
-+  });
- };
  
- const setupSourceHandlers = () => {
-diff --git a/src/main/preload.ts b/src/main/preload.ts
-index ffebf42bc..fa8d0f9c8 100644
---- a/src/main/preload.ts
-+++ b/src/main/preload.ts
-@@ -77,6 +77,9 @@ const electronHandler = {
-     /** ファイル読み込み（Uint8Array） */
-     readFile: (filePath: string) =>
-       invokeIpc(IpcChannels.FS_READ_FILE, filePath),
-+    /** Office ドキュメントを PDF に変換（Uint8Array） */
-+    convertOfficeToPdf: (filePath: string) =>
-+      invokeIpc(IpcChannels.FS_CONVERT_OFFICE_TO_PDF, filePath),
-   },
-   chat: {
-     /** チャットメッセージ送信 */
-diff --git a/src/mastra/lib/agentUtils.ts b/src/mastra/lib/agentUtils.ts
-index 42a041d5e..bbcfb0035 100644
---- a/src/mastra/lib/agentUtils.ts
-+++ b/src/mastra/lib/agentUtils.ts
-@@ -3,7 +3,7 @@ import { RuntimeContext } from '@mastra/core/runtime-context';
- import { FinishReason } from 'ai';
- import { getSettingsRepository } from '@/adapter/db';
- import { BaseRuntimeContext } from '../agents/types';
--import { extractAIAPISafeError } from '@/main/lib/error';
-+import { AppError, extractAIAPISafeError } from '@/main/lib/error';
- import { APICallError } from 'ai';
- 
- // BaseRuntimeConotextに値を入れた上で、指定したRuntimeContextを返す関数
-@@ -48,12 +48,16 @@ export function judgeFinishReason(finishReason: FinishReason): {
- export const judgeErrorIsContentLengthError = (error: unknown) => {
-   const apiError = extractAIAPISafeError(error);
-   if (!apiError) return false;
-+  if (apiError instanceof AppError) {
-+    return apiError.messageCode === 'AI_MESSAGE_TOO_LARGE';
-+  }
-   if (APICallError.isInstance(apiError)) {
-     return (
-       apiError.responseBody?.includes('maximum context length') ||
-       apiError.responseBody?.includes('tokens_limit_reached') ||
--      apiError.responseBody?.includes('context_length_exceeded')
-+      apiError.responseBody?.includes('context_length_exceeded') ||
-+      apiError.responseBody?.includes('many images')
-     );
-   }
-   return false;
--}
-+};
-diff --git a/src/mastra/workflows/schema.ts b/src/mastra/workflows/schema.ts
-index e0a391b0c..ac31676c6 100644
---- a/src/mastra/workflows/schema.ts
-+++ b/src/mastra/workflows/schema.ts
-@@ -5,53 +5,3 @@ export const baseStepOutputSchema = z.object({
-   status: z.enum(['success', 'failed']),
-   errorMessage: z.string().optional(),
- });
+   handleIpc(IpcChannels.FS_CONVERT_OFFICE_TO_PDF, async (filePath) => {
+-    let tempPdfPath: string | undefined;
+-    try {
+-      // Office ドキュメントを PDF に変換
+-      tempPdfPath = await convertOfficeToPdf(filePath);
 -
--// ドキュメント情報のスキーマ
--export const documentInfoSchema = z.object({
--  id: z.string(),
--  name: z.string(),
--  path: z.string(),
--  type: z.string(),
--  pdfProcessMode: z.enum(['text', 'image']).optional(),
--  pdfImageMode: z.enum(['merged', 'pages']).optional(),
--  imageData: z.array(z.string()).optional(),
--  workflowDocId: z.string().optional(),
--});
--
--// テキスト抽出ステップの出力スキーマ
--export const textExtractionOutputSchema = baseStepOutputSchema.extend({
--  extractedDocuments: z.array(
--    z.object({
--      workflowDocId: z.string(),
--      name: z.string(),
--      path: z.string(),
--      content: z.string(),
--      imageData: z.array(z.string()).optional(),
--    })
--  ).optional(),
--});
--
--// ドキュメント要約ステップの出力スキーマ
--export const documentSummarizationOutputSchema = baseStepOutputSchema.extend({
--  summaries: z.array(
--    z.object({
--      workflowDocId: z.string(),
--      name: z.string(),
--      topics: z.array(z.string()),
--      summary: z.string(),
--    })
--  ).optional(),
--});
--
--// 大量ドキュメントレビューステップの出力スキーマ
--export const largeDocumentReviewOutputSchema = baseStepOutputSchema.extend({
--  reviewResults: z.array(
--    z.object({
--      checklistId: z.number(),
--      evaluation: z.string(),
--      comment: z.string(),
--      fileId: z.string(),
--      fileName: z.string(),
--    })
--  ).optional(),
--});
-diff --git a/src/mastra/workflows/sourceReview/checklistExtraction.ts b/src/mastra/workflows/sourceReview/checklistExtraction.ts
-index fda766f4e..b25212871 100644
---- a/src/mastra/workflows/sourceReview/checklistExtraction.ts
-+++ b/src/mastra/workflows/sourceReview/checklistExtraction.ts
-@@ -28,8 +28,8 @@ const triggerSchema = z.object({
-         name: z.string(),
-         path: z.string(),
-         type: z.string(),
--        pdfProcessMode: z.enum(['text', 'image']).optional(),
--        pdfImageMode: z.enum(['merged', 'pages']).optional(),
-+        processMode: z.enum(['text', 'image']).optional(),
-+        imageMode: z.enum(['merged', 'pages']).optional(),
-         imageData: z.array(z.string()).optional(),
-       }),
-     )
-@@ -219,7 +219,6 @@ const checklistDocumentExtractionStep = createStep({
-         status: 'success' as stepStatus,
-       };
-     } catch (error) {
--      console.error(error);
-       logger.error(error, 'チェックリスト抽出処理に失敗しました');
-       let errorMessage = '';
-       if (
-diff --git a/src/mastra/workflows/sourceReview/executeReview/index.ts b/src/mastra/workflows/sourceReview/executeReview/index.ts
-index 8c3ee3bf4..0972e2670 100644
---- a/src/mastra/workflows/sourceReview/executeReview/index.ts
-+++ b/src/mastra/workflows/sourceReview/executeReview/index.ts
-@@ -8,6 +8,7 @@ import { getMainLogger } from '@/main/lib/logger';
- import { classifyChecklistsByCategoryStep } from './classifyChecklistStep';
- import { smallDocumentReviewExecutionStep } from './smallDocumentReviewStep';
- import { largeDocumentReviewWorkflow } from './largeDocumentReview';
-+import { extractedDocumentSchema, uploadedFileSchema } from './schema';
+-      // 変換後の PDF を読み込む
+-      const data = await fs.readFile(tempPdfPath);
+-      const result = new Uint8Array(
+-        data.buffer,
+-        data.byteOffset,
+-        data.byteLength,
+-      );
++    // Office ドキュメントを PDF に変換（キャッシュまたは新規変換）
++    const pdfPath = await convertOfficeToPdf(filePath);
  
- const logger = getMainLogger();
- 
-@@ -47,17 +48,7 @@ export const executeReviewWorkflowInputSchema = z.object({
-       'ドキュメントモード: small=少量ドキュメント, large=大量ドキュメント',
-     ),
-   // レビュー対象のドキュメント
--  files: z.array(
--    z.object({
--      id: z.string(),
--      name: z.string(),
--      path: z.string(),
--      type: z.string(),
--      pdfProcessMode: z.enum(['text', 'image']).optional(),
--      pdfImageMode: z.enum(['merged', 'pages']).optional(),
--      imageData: z.array(z.string()).optional(),
--    }),
--  ),
-+  files: z.array(uploadedFileSchema),
- });
- 
- export const executeReviewWorkflowOutputSchema = baseStepOutputSchema;
-@@ -83,18 +74,7 @@ export const documentReviewExecutionInputSchema = z.object({
-     .optional()
-     .describe('カスタム評定項目設定'),
-   // レビュー対象のドキュメント
--  documents: z.array(
--    z.object({
--      id: z.string(),
--      name: z.string(),
--      path: z.string(),
--      type: z.string(),
--      pdfProcessMode: z.enum(['text', 'image']).optional(),
--      pdfImageMode: z.enum(['merged', 'pages']).optional(),
--      textContent: z.string().optional(),
--      imageData: z.array(z.string()).optional(),
--    }),
--  ),
-+  documents: z.array(extractedDocumentSchema),
-   checklists: z.array(
-     z.object({
-       id: z.number(),
-diff --git a/src/mastra/workflows/sourceReview/executeReview/largeDocumentReview/consolidateReviewStep.ts b/src/mastra/workflows/sourceReview/executeReview/largeDocumentReview/consolidateReviewStep.ts
-index 57b243d2a..60120af8d 100644
---- a/src/mastra/workflows/sourceReview/executeReview/largeDocumentReview/consolidateReviewStep.ts
-+++ b/src/mastra/workflows/sourceReview/executeReview/largeDocumentReview/consolidateReviewStep.ts
-@@ -16,20 +16,13 @@ import { getMainLogger } from '@/main/lib/logger';
- const logger = getMainLogger();
- import type { ReviewEvaluation } from '@/types';
- import { createHash } from 'crypto';
-+import { extractedDocumentSchema } from '../schema';
- 
- // レビュー結果統合ステップの入力スキーマ
- export const consolidateReviewStepInputSchema = z.object({
-   documentsWithReviewResults: z.array(
--    z.object({
--      id: z.string(),
-+    extractedDocumentSchema.extend({
-       originalName: z.string(),
--      name: z.string(),
--      path: z.string(),
--      type: z.string(),
--      pdfProcessMode: z.enum(['text', 'image']).optional(),
--      pdfImageMode: z.enum(['merged', 'pages']).optional(),
--      textContent: z.string().optional(),
--      imageData: z.array(z.string()).optional(),
-       reviewResults: z.array(
-         z.object({
-           checklistId: z.number(),
-diff --git a/src/mastra/workflows/sourceReview/executeReview/largeDocumentReview/index.ts b/src/mastra/workflows/sourceReview/executeReview/largeDocumentReview/index.ts
-index fbb148f1e..3e9bea206 100644
---- a/src/mastra/workflows/sourceReview/executeReview/largeDocumentReview/index.ts
-+++ b/src/mastra/workflows/sourceReview/executeReview/largeDocumentReview/index.ts
-@@ -11,6 +11,7 @@ import {
- } from '..';
- import { baseStepOutputSchema } from '@/mastra/workflows/schema';
- import { makeChunksByCount } from '@/mastra/lib/util';
-+import { extractedDocumentSchema } from '../schema';
- 
- const logger = getMainLogger();
- 
-@@ -25,16 +26,8 @@ const individualDocumentReviewWorkflowOutputSchema =
-   baseStepOutputSchema.extend({
-     documentsWithReviewResults: z
-       .array(
--        z.object({
--          id: z.string(),
-+        extractedDocumentSchema.extend({
-           originalName: z.string(),
--          name: z.string(),
--          path: z.string(),
--          type: z.string(),
--          pdfProcessMode: z.enum(['text', 'image']).optional(),
--          pdfImageMode: z.enum(['merged', 'pages']).optional(),
--          textContent: z.string().optional(),
--          imageData: z.array(z.string()).optional(),
-           reviewResults: z.array(
-             z.object({
-               checklistId: z.number(),
-diff --git a/src/mastra/workflows/sourceReview/executeReview/largeDocumentReview/individualDocumentReviewStep.ts b/src/mastra/workflows/sourceReview/executeReview/largeDocumentReview/individualDocumentReviewStep.ts
-index 9ded7b902..4416735c4 100644
---- a/src/mastra/workflows/sourceReview/executeReview/largeDocumentReview/individualDocumentReviewStep.ts
-+++ b/src/mastra/workflows/sourceReview/executeReview/largeDocumentReview/individualDocumentReviewStep.ts
-@@ -14,22 +14,16 @@ import {
- import { getMainLogger } from '@/main/lib/logger';
- import { createCombinedMessageFromExtractedDocument } from '../../lib';
- import { getChecklistsErrorMessage } from '../lib';
-+import { extractedDocumentSchema } from '../schema';
- 
- const logger = getMainLogger();
- 
- // 個別ドキュメントレビューステップの入力スキーマ
- export const individualDocumentReviewStepInputSchema = z.object({
--  document: z.object({
--    id: z.string(),
-+  document: extractedDocumentSchema.extend({
-     originalName: z.string(),
--    name: z.string(),
--    path: z.string(),
--    type: z.string(),
--    pdfProcessMode: z.enum(['text', 'image']).optional(),
--    pdfImageMode: z.enum(['merged', 'pages']).optional(),
--    textContent: z.string().optional(),
--    imageData: z.array(z.string()).optional(),
-   }),
-+  // チェックリスト
-   checklists: z.array(
-     z.object({
-       id: z.number(),
-diff --git a/src/mastra/workflows/sourceReview/executeReview/schema.ts b/src/mastra/workflows/sourceReview/executeReview/schema.ts
-new file mode 100644
-index 000000000..18b138b5d
---- /dev/null
-+++ b/src/mastra/workflows/sourceReview/executeReview/schema.ts
-@@ -0,0 +1,22 @@
-+import { z } from 'zod';
-+
-+export const uploadedFileSchema = z.object({
-+  id: z.string(),
-+  name: z.string(),
-+  path: z.string(),
-+  type: z.string(),
-+  processMode: z.string().optional(),
-+  imageMode: z.string().optional(),
-+  imageData: z.array(z.string()).optional(),
-+});
-+
-+export const extractedDocumentSchema = z.object({
-+  id: z.string(),
-+  name: z.string(),
-+  path: z.string(),
-+  type: z.string(),
-+  processMode: z.enum(['text', 'image']).optional(),
-+  imageMode: z.enum(['merged', 'pages']).optional(),
-+  textContent: z.string().optional(),
-+  imageData: z.array(z.string()).optional(),
-+});
-diff --git a/src/mastra/workflows/sourceReview/executeReview/textExtractionStep.ts b/src/mastra/workflows/sourceReview/executeReview/textExtractionStep.ts
-index 097fb96f9..6a7cb652d 100644
---- a/src/mastra/workflows/sourceReview/executeReview/textExtractionStep.ts
-+++ b/src/mastra/workflows/sourceReview/executeReview/textExtractionStep.ts
-@@ -6,44 +6,24 @@ import { baseStepOutputSchema } from '../../schema';
- import { normalizeUnknownError } from '@/main/lib/error';
- import FileExtractor from '@/main/lib/fileExtractor';
- import { getMainLogger } from '@/main/lib/logger';
-+import { extractedDocumentSchema, uploadedFileSchema } from './schema';
- 
- const logger = getMainLogger();
- 
- // 入力スキーマ
- export const textExtractionInputSchema = z.object({
--  files: z
--    .array(
--      z.object({
--        name: z.string(),
--        path: z.string(),
--        type: z.string(),
--        pdfProcessMode: z.enum(['text', 'image']).optional(),
--        pdfImageMode: z.enum(['merged', 'pages']).optional(),
--        imageData: z.array(z.string()).optional(),
--      }),
--    )
--    .describe('アップロードファイルのリスト'),
-+  files: z.array(uploadedFileSchema).describe('アップロードファイルのリスト'),
- });
- 
- // テキスト抽出ステップの出力スキーマ
- export const textExtractionOutputSchema = baseStepOutputSchema.extend({
--  extractedDocuments: z.array(
--    z.object({
--      id: z.string(),
--      name: z.string(),
--      path: z.string(),
--      type: z.string(),
--      pdfProcessMode: z.enum(['text', 'image']).optional(),
--      pdfImageMode: z.enum(['merged', 'pages']).optional(),
--      textContent: z.string().optional(),
--      imageData: z.array(z.string()).optional(),
--    })
--  ).optional(),
-+  extractedDocuments: z.array(extractedDocumentSchema.optional()),
- });
- 
- export const textExtractionStep = createStep({
-   id: 'textExtractionStep',
--  description: 'ドキュメントからテキストを抽出し、ワークフロー用のIDを付与するステップ',
-+  description:
-+    'ドキュメントからテキストを抽出し、ワークフロー用のIDを付与するステップ',
-   inputSchema: textExtractionInputSchema,
-   outputSchema: textExtractionOutputSchema,
-   execute: async ({ inputData, abortSignal, bail }) => {
-@@ -65,8 +45,7 @@ export const textExtractionStep = createStep({
- 
-         // PDFで画像として処理する場合
-         if (
--          file.type === 'application/pdf' &&
--          file.pdfProcessMode === 'image' &&
-+          file.processMode === 'image' &&
-           file.imageData &&
-           file.imageData.length > 0
-         ) {
-@@ -76,8 +55,8 @@ export const textExtractionStep = createStep({
-             name: file.name,
-             path: file.path,
-             type: file.type,
--            pdfProcessMode: file.pdfProcessMode,
--            pdfImageMode: file.pdfImageMode,
-+            processMode: file.processMode,
-+            imageMode: file.imageMode,
-             textContent: undefined,
-             imageData: file.imageData,
-           });
-@@ -91,8 +70,8 @@ export const textExtractionStep = createStep({
-             path: file.path,
-             type: file.type,
-             textContent: content,
--            pdfProcessMode: file.pdfProcessMode,
--            pdfImageMode: file.pdfImageMode,
-+            processMode: file.processMode,
-+            imageMode: file.imageMode,
-             imageData: undefined,
-           });
-         }
-diff --git a/src/mastra/workflows/sourceReview/lib.ts b/src/mastra/workflows/sourceReview/lib.ts
-index 9b98ef104..4eed29a81 100644
---- a/src/mastra/workflows/sourceReview/lib.ts
-+++ b/src/mastra/workflows/sourceReview/lib.ts
-@@ -96,10 +96,9 @@ export async function createCombinedMessage(
- 
-   // ファイル選択順に処理
-   for (const file of files) {
--    // PDFで画像として処理する場合
-+    // 画像として処理する場合（PDF、Office ドキュメント問わず）
-     if (
--      file.type === 'application/pdf' &&
--      file.pdfProcessMode === 'image' &&
-+      file.processMode === 'image' &&
-       file.imageData &&
-       file.imageData.length > 0
-     ) {
-@@ -178,12 +177,8 @@ export function createCombinedMessageFromExtractedDocument(
- 
-   // ドキュメント順に処理
-   for (const document of extractedDocuments) {
--    // PDFで画像として処理する場合
--    if (
--      document.type === 'application/pdf' &&
--      document.imageData &&
--      document.imageData.length > 0
--    ) {
-+    // 画像として処理する場合（PDF、Office ドキュメント問わず）
-+    if (document.imageData && document.imageData.length > 0) {
-       // 各ページごとに個別の説明と画像を追加
-       const totalPages = document.imageData.length;
-       for (let pageIndex = 0; pageIndex < document.imageData.length; pageIndex++) {
-diff --git a/src/mastra/workflows/types.ts b/src/mastra/workflows/types.ts
-index d5998a6e9..e65eab090 100644
---- a/src/mastra/workflows/types.ts
-+++ b/src/mastra/workflows/types.ts
-@@ -1,29 +1 @@
- export type stepStatus = 'success' | 'failed';
--
--// ドキュメント量選択タイプ
--export type DocumentVolumeType = 'small' | 'large';
--
--// ドキュメント情報（ワークフロー内で一意識別用のIDを追加）
--export interface DocumentInfo {
--  id: string;
--  name: string;
--  path: string;
--  type: string;
--  pdfProcessMode?: 'text' | 'image';
--  pdfImageMode?: 'merged' | 'pages';
--  imageData?: string[];
--  workflowDocId?: string; // ワークフロー内での一時的なID
--}
--
--// ドキュメント要約情報
--export interface DocumentSummary {
--  workflowDocId: string;
--  name: string;
--  topics: string[];
--  summary: string;
--}
--
--// ドキュメント要約レスポンス
--export interface DocumentSummaryResponse {
--  summaries: DocumentSummary[];
--}
-diff --git a/src/messages/ja/template.ts b/src/messages/ja/template.ts
-index 3ca4604e2..9af029444 100644
---- a/src/messages/ja/template.ts
-+++ b/src/messages/ja/template.ts
-@@ -21,6 +21,7 @@ export const template = {
-   REDMINE_API_ERROR: `Redmine APIとの通信中にエラーが発生しました\n{detail}`,
-   FS_OPEN_DIALOG_ERROR: `ファイルダイアログの表示に失敗しました`,
-   FILE_TEXT_EXTRACTION_ERROR: `ファイルのテキスト抽出に失敗しました\n{path}`,
-+  FS_CONVERT_OFFICE_TO_PDF_ERROR: `ファイルのPDF変換に失敗しました\n{detail}`,
-   SOURCE_REGISTRATION_DIR_READING_ERROR: `ドキュメント登録用ディレクトリの読み込みに失敗しました`,
-   SOURCE_REGISTRATION_DIR_NOT_SET: `ドキュメント登録用ディレクトリが設定されていません\n設定画面で登録用ディレクトリを指定してください`,
-   REVIEW_CHECKLIST_EXTRACTION_ERROR: `チェックリスト抽出処理に失敗しました\n{detail}`,
-@@ -31,4 +32,5 @@ export const template = {
-   REVIEW_EXECUTION_NO_TARGET_CHECKLIST: `対象のチェックリストが存在しないためレビューを実行できませんでした`,
-   REVIEW_CHECKLIST_EXTRACTION_FROM_CSV_ERROR: `CSVファイルからのチェックリスト抽出中に予期せぬエラーが発生しました`,
-   AI_API_ERROR: `AIのAPIと通信中にエラーが発生しました\n{detail}`,
-+  AI_MESSAGE_TOO_LARGE: `AIへの入力データが大きすぎます。入力データを減らしてください。`,
- } as const;
-diff --git a/src/renderer/components/chat/ChatArea.tsx b/src/renderer/components/chat/ChatArea.tsx
-index 779699f7c..7a0884128 100644
---- a/src/renderer/components/chat/ChatArea.tsx
-+++ b/src/renderer/components/chat/ChatArea.tsx
-@@ -64,8 +64,9 @@ const customFetch: typeof fetch = async (input, init) => {
-     const chatApi = ChatApi.getInstance();
- 
-     const stream = new ReadableStream({
--      start(controller) {
--        unsubscribe = chatApi.streamResponse({
-+      async start(controller) {
-+        // イベント購読を確立してから処理を開始
-+        unsubscribe = await chatApi.streamResponse({
-           onMessage(raw) {
-             controller.enqueue(encoder.encode(raw));
-           },
-@@ -88,6 +89,8 @@ const customFetch: typeof fetch = async (input, init) => {
-           unsubscribe();
-           controller.close();
-         });
-+
-+        // 購読完了後にメッセージ送信
-         chatApi.sendMessage(roomId!, messages, {
-           // 上記onErrorでstreamのエラー処理として処理され、エラーメッセージが表示されるためここでは表示しない
-           showAlert: false,
-diff --git a/src/renderer/components/common/SourceListModal.tsx b/src/renderer/components/common/SourceListModal.tsx
-index a42823c46..925d17174 100644
---- a/src/renderer/components/common/SourceListModal.tsx
-+++ b/src/renderer/components/common/SourceListModal.tsx
-@@ -256,13 +256,12 @@ function SourceListModal({
-     };
-   }, [reloadPolling, sources, fetchSources]);
- 
--  const handleReloadClick = () => {
-+  const handleReloadClick = async () => {
-     setReloadPolling(true);
--    onReloadSources();
- 
--    // 完了イベントの購読を開始（ワンショット）
-+    // 完了イベントの購読を開始（リロード実行前に購読を確立）
-     const sourceApi = SourceApi.getInstance();
--    const unsubscribe = sourceApi.subscribeSourceReloadFinished(
-+    const unsubscribe = await sourceApi.subscribeSourceReloadFinished(
-       (payload: { success: boolean; error?: string }) => {
-         // ドキュメント更新完了時にポーリングを停止
-         setReloadPolling(false);
-@@ -296,6 +295,9 @@ function SourceListModal({
-         unsubscribe();
-       },
-     );
-+
-+    // 購読完了後にリロードを実行
-+    onReloadSources();
-   };
- 
-   const getStatusIcon = (status: Source['status'], error?: Source['error']) => {
-diff --git a/src/renderer/components/review/ReviewArea.tsx b/src/renderer/components/review/ReviewArea.tsx
-index 6233fca4d..2d2322987 100644
---- a/src/renderer/components/review/ReviewArea.tsx
-+++ b/src/renderer/components/review/ReviewArea.tsx
-@@ -1,5 +1,13 @@
- import React, { useEffect, useState, useCallback, useRef } from 'react';
--import { Box, Button, Paper, Stack, Typography } from '@mui/material';
-+import {
-+  Box,
-+  Button,
-+  Paper,
-+  Stack,
-+  Typography,
-+  LinearProgress,
-+  Alert,
-+} from '@mui/material';
- import CheckBoxIcon from '@mui/icons-material/CheckBox';
- import RateReviewIcon from '@mui/icons-material/RateReview';
- import StopIcon from '@mui/icons-material/Stop';
-@@ -55,7 +63,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
-   // イベント購読の解除関数を管理
-   const eventUnsubscribeRef = useRef<(() => void) | null>(null);
- 
--  // チェック履歴取得
-+  // チェックリスト履歴取得
-   const fetchChecklistResults = useCallback(async () => {
-     if (!selectedReviewHistoryId) return;
-     const reviewApi = ReviewApi.getInstance();
-@@ -103,12 +111,6 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
-       }
- 
-       setIsExtracting(false);
--
--      // イベント購読解除
--      if (eventUnsubscribeRef.current) {
--        eventUnsubscribeRef.current();
--        eventUnsubscribeRef.current = null;
+-      return result;
+-    } finally {
+-      // 一時ファイルのクリーンアップ
+-      if (tempPdfPath !== undefined) {
+-        await cleanupTempPdf(tempPdfPath);
 -      }
-     },
-     [selectedReviewHistoryId, fetchChecklistResults, addAlert],
-   );
-@@ -216,7 +218,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
-               setIsExtracting(true);
-               // チェックリスト抽出完了イベントを購読
-               const extractUnsubscribe =
--                reviewApi.subscribeChecklistExtractionFinished(
-+                await reviewApi.subscribeChecklistExtractionFinished(
-                   handleChecklistExtractionFinished,
-                 );
-               eventUnsubscribeRef.current = extractUnsubscribe;
-@@ -225,7 +227,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
-               setIsReviewing(true);
-               // レビュー実行完了イベントを購読
-               const reviewUnsubscribe =
--                reviewApi.subscribeReviewExtractionFinished(
-+                await reviewApi.subscribeReviewExtractionFinished(
-                   handleReviewExecutionFinished,
-                 );
-               eventUnsubscribeRef.current = reviewUnsubscribe;
-@@ -307,6 +309,19 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
-         setIsExtracting(true);
-         setIsModalOpen(false);
- 
-+        // 既存のイベント購読を解除
-+        if (eventUnsubscribeRef.current) {
-+          eventUnsubscribeRef.current();
-+          eventUnsubscribeRef.current = null;
-+        }
+-    }
++    // 変換後の PDF を読み込む
++    const data = await fs.readFile(pdfPath);
++    const result = new Uint8Array(
++      data.buffer,
++      data.byteOffset,
++      data.byteLength,
++    );
 +
-+        // 抽出完了イベントの購読を開始（API呼び出し前に購読を確立）
-+        const unsubscribe =
-+          await reviewApi.subscribeChecklistExtractionFinished(
-+            handleChecklistExtractionFinished,
-+          );
-+        eventUnsubscribeRef.current = unsubscribe;
-+
-         // チェックリスト抽出処理を開始
-         await reviewApi.extractChecklist(
-           selectedReviewHistoryId,
-@@ -315,18 +330,6 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
-           checklistRequirements,
-           { throwError: true, showAlert: false },
-         );
--
--        // 既存のイベント購読を解除
--        if (eventUnsubscribeRef.current) {
--          eventUnsubscribeRef.current();
--          eventUnsubscribeRef.current = null;
--        }
--
--        // 抽出完了イベントの購読を開始
--        const unsubscribe = reviewApi.subscribeChecklistExtractionFinished(
--          handleChecklistExtractionFinished,
--        );
--        eventUnsubscribeRef.current = unsubscribe;
-       } catch (error) {
-         console.error(error);
-         addAlert({
-@@ -337,6 +340,11 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
-           severity: 'error',
-         });
-         setIsExtracting(false);
-+        // エラー時は購読も解除
-+        if (eventUnsubscribeRef.current) {
-+          eventUnsubscribeRef.current();
-+          eventUnsubscribeRef.current = null;
-+        }
-       }
-     },
-     [selectedReviewHistoryId, addAlert, handleChecklistExtractionFinished],
-@@ -359,6 +367,12 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
-           eventUnsubscribeRef.current = null;
-         }
- 
-+        // レビュー完了イベントの購読を開始（API呼び出し前に購読を確立）
-+        const unsubscribe = await reviewApi.subscribeReviewExtractionFinished(
-+          handleReviewExecutionFinished as any,
-+        );
-+        eventUnsubscribeRef.current = unsubscribe;
-+
-         // レビュー実行処理を開始
-         await reviewApi.executeReview(
-           selectedReviewHistoryId,
-@@ -369,12 +383,6 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
-           commentFormat || commentFormat,
-           { throwError: true, showAlert: false },
-         );
--
--        // レビュー完了イベントの購読を開始
--        const unsubscribe = reviewApi.subscribeReviewExtractionFinished(
--          handleReviewExecutionFinished as any,
--        );
--        eventUnsubscribeRef.current = unsubscribe;
-       } catch (error) {
-         console.error(error);
-         addAlert({
-@@ -382,6 +390,11 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
-           severity: 'error',
-         });
-         setIsReviewing(false);
-+        // エラー時は購読も解除
-+        if (eventUnsubscribeRef.current) {
-+          eventUnsubscribeRef.current();
-+          eventUnsubscribeRef.current = null;
-+        }
-       }
-     },
-     [
-@@ -531,6 +544,18 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
-     >
-       {selectedReviewHistoryId && (
-         <>
-+          {/* 処理中インジケーター */}
-+          {(isExtracting || isReviewing) && (
-+            <Box sx={{ mb: 2 }}>
-+              <LinearProgress />
-+              {/* <Alert severity="info" sx={{ mt: 1 }}>
-+                {isExtracting
-+                  ? 'チェックリスト抽出実行中...'
-+                  : 'レビュー実行中...'}
-+              </Alert> */}
-+            </Box>
-+          )}
-+
-           {/* ヘッダー部分 */}
-           <Stack
-             direction="row"
-@@ -541,7 +566,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
-             <Stack direction="row" spacing={2}>
-               <Button
-                 variant="contained"
--                color={isExtracting ? 'error' : 'primary'}
-+                color={isExtracting ? 'warning' : 'primary'}
-                 startIcon={isExtracting ? <StopIcon /> : <CheckBoxIcon />}
-                 onClick={
-                   isExtracting
-@@ -557,7 +582,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
-               </Button>
-               <Button
-                 variant="contained"
--                color={isReviewing ? 'error' : 'primary'}
-+                color={isReviewing ? 'warning' : 'primary'}
-                 startIcon={isReviewing ? <StopIcon /> : <RateReviewIcon />}
-                 onClick={
-                   isReviewing
-diff --git a/src/renderer/components/review/ReviewSourceModal.tsx b/src/renderer/components/review/ReviewSourceModal.tsx
-index 1c9301bee..cb8e1576c 100644
---- a/src/renderer/components/review/ReviewSourceModal.tsx
-+++ b/src/renderer/components/review/ReviewSourceModal.tsx
-@@ -35,11 +35,12 @@ import {
-   Add as AddIcon,
-   ExpandMore as ExpandMoreIcon,
- } from '@mui/icons-material';
-+import Backdrop from '@mui/material/Backdrop';
- import {
-   DocumentType,
-   UploadFile,
--  PdfProcessMode,
--  PdfImageMode,
-+  ProcessMode,
-+  ImageMode,
-   EvaluationItem,
-   DocumentMode,
- } from '@/types';
-@@ -64,6 +65,20 @@ const getMimeTypeFromExtension = (extension: string): string => {
-   return mimeTypes[extension] || 'application/octet-stream';
- };
- 
-+// ドキュメントが画像化に対応しているかチェック
-+const supportsImageProcessing = (mimeType: string): boolean => {
-+  const supportedTypes = [
-+    'application/pdf',
-+    'application/msword',
-+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-+    'application/vnd.ms-excel',
-+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-+    'application/vnd.ms-powerpoint',
-+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-+  ];
-+  return supportedTypes.includes(mimeType);
-+};
-+
- const getButtonText = (modalMode: ReviewSourceModalProps['modalMode']) => {
-   if (modalMode === 'review') return 'ドキュメントレビュー実行';
-   if (modalMode === 'extract') return 'チェックリスト抽出';
-@@ -119,6 +134,17 @@ const getAlertMessage = ({
-   return null;
- };
- 
-+// 一括設定用の処理モード型定義
-+type BulkProcessMode = 'text' | 'image-merged' | 'image-pages';
-+
-+// 変換進捗情報の型定義
-+type ConversionProgress = {
-+  currentFileName: string;
-+  conversionType: 'pdf' | 'image';
-+  currentIndex: number;
-+  totalCount: number;
-+};
-+
- function ReviewSourceModal({
-   open,
-   onClose,
-@@ -135,6 +161,8 @@ function ReviewSourceModal({
- }: ReviewSourceModalProps): React.ReactElement {
-   const [uploadedFiles, setUploadedFiles] = useState<UploadFile[]>([]);
-   const [processing, setProcessing] = useState(false); // ★ 送信処理やPDF変換の進行中フラグ
-+  const [conversionProgress, setConversionProgress] =
-+    useState<ConversionProgress | null>(null); // 変換進捗情報
-   const [documentType, setDocumentType] =
-     useState<DocumentType>('checklist-ai');
-   const [checklistRequirements, setChecklistRequirements] = useState('');
-@@ -145,6 +173,8 @@ function ReviewSourceModal({
-     label: '',
-     description: '',
++    return result;
    });
-+  const [bulkProcessMode, setBulkProcessMode] =
-+    useState<BulkProcessMode>('text');
+ };
  
-   const addAlert = useAlertStore((state) => state.addAlert);
- 
-@@ -203,10 +233,11 @@ function ReviewSourceModal({
-               name: fileName,
-               path: filePath,
-               type: mimeType,
--              // ★ 画像化は最終決定時だけ行うので、ここでは mode だけ持つ
--              pdfProcessMode:
--                mimeType === 'application/pdf' ? 'text' : undefined,
--              pdfImageMode: 'merged', // デフォルトは統合画像
-+              // 画像化対応ドキュメントの場合はprocessModeを設定
-+              processMode: supportsImageProcessing(mimeType)
-+                ? 'text'
-+                : undefined,
-+              imageMode: 'pages', // デフォルトはページ単位
-             };
-           },
-         );
-@@ -226,28 +257,71 @@ function ReviewSourceModal({
-     setUploadedFiles((prev) => prev.filter((file) => file.id !== fileId));
-   };
- 
--  // ★ ここでは「モード切替」だけ。実際のPDF→画像変換は送信確定時にまとめて行う
--  const handlePdfProcessModeChange = (fileId: string, mode: PdfProcessMode) => {
-+  // ドキュメント処理モード切替ハンドラー
-+  const handleProcessModeChange = (fileId: string, mode: ProcessMode) => {
-     setUploadedFiles((prev) =>
-       prev.map((file) =>
-         file.id === fileId
--          ? { ...file, pdfProcessMode: mode, imageData: undefined }
-+          ? { ...file, processMode: mode, imageData: undefined }
-           : file,
-       ),
-     );
-   };
- 
--  // PDF画像化モードを変更するハンドラー
--  const handlePdfImageModeChange = (fileId: string, mode: PdfImageMode) => {
-+  // ドキュメント画像化モードを変更するハンドラー
-+  const handleImageModeChange = (fileId: string, mode: ImageMode) => {
-     setUploadedFiles((prev) =>
-       prev.map((file) =>
-         file.id === fileId
--          ? { ...file, pdfImageMode: mode, imageData: undefined }
-+          ? { ...file, imageMode: mode, imageData: undefined }
-           : file,
-       ),
-     );
-   };
- 
-+  // 一括設定を全ファイルに適用するハンドラー
-+  const handleApplyBulkSettings = () => {
-+    if (uploadedFiles.length === 0) {
-+      addAlert({
-+        message: '適用対象のファイルがありません',
-+        severity: 'warning',
-+      });
-+      return;
-+    }
-+
-+    setUploadedFiles((prev) =>
-+      prev.map((file) => {
-+        // 画像化非対応ファイルはスキップ
-+        if (!supportsImageProcessing(file.type)) {
-+          return file;
-+        }
-+
-+        if (bulkProcessMode === 'text') {
-+          return {
-+            ...file,
-+            processMode: 'text',
-+            imageData: undefined,
-+          };
-+        } else if (bulkProcessMode === 'image-merged') {
-+          return {
-+            ...file,
-+            processMode: 'image',
-+            imageMode: 'merged',
-+            imageData: undefined,
-+          };
-+        } else {
-+          // image-pages
-+          return {
-+            ...file,
-+            processMode: 'image',
-+            imageMode: 'pages',
-+            imageData: undefined,
-+          };
-+        }
-+      }),
-+    );
-+  };
-+
-   // 評価項目の追加
-   const handleAddEvaluationItem = () => {
-     setEditingItemIndex(-1); // -1は新規追加を表す
-@@ -338,21 +412,52 @@ function ReviewSourceModal({
- 
-     try {
-       const filesReady = [];
--      for (const f of uploadedFiles) {
--        if (f.type === 'application/pdf' && f.pdfProcessMode === 'image') {
--          // Mainから安全にPDFバイト列を取得（file:// fetch を使わない）
--          const fsApi = FsApi.getInstance();
--          const data = await fsApi.readFile(f.path, {
--            showAlert: false,
--            throwError: true,
-+      const fsApi = FsApi.getInstance();
-+      const totalFiles = uploadedFiles.length;
-+
-+      for (let i = 0; i < uploadedFiles.length; i++) {
-+        const f = uploadedFiles[i];
-+
-+        // 画像化モードの場合
-+        if (f.processMode === 'image') {
-+          let pdfData: Uint8Array;
-+
-+          // PDF以外の場合は、まずOffice→PDFに変換
-+          if (f.type !== 'application/pdf') {
-+            // 進捗状態を更新: PDF変換中
-+            setConversionProgress({
-+              currentFileName: f.name,
-+              conversionType: 'pdf',
-+              currentIndex: i + 1,
-+              totalCount: totalFiles,
-+            });
-+
-+            pdfData = (await fsApi.convertOfficeToPdf(f.path, {
-+              showAlert: false,
-+              throwError: true,
-+            }))!;
-+          } else {
-+            // PDFの場合は直接読み込み
-+            pdfData = (await fsApi.readFile(f.path, {
-+              showAlert: false,
-+              throwError: true,
-+            }))!;
-+          }
-+
-+          // 進捗状態を更新: 画像化中
-+          setConversionProgress({
-+            currentFileName: f.name,
-+            conversionType: 'image',
-+            currentIndex: i + 1,
-+            totalCount: totalFiles,
-           });
- 
-           // ブラウザ側で pdf.js にレンダリングさせて PNG を得る
--          const imagePages = await convertPdfBytesToImages(data!, {
-+          const imagePages = await convertPdfBytesToImages(pdfData, {
-             scale: 2.0,
-           });
- 
--          if (f.pdfImageMode === 'pages') {
-+          if (f.imageMode === 'pages') {
-             // ページ別画像モード: 各ページを個別に保存
-             // デバッグ用：各ページを個別にダウンロード
-             // imagePages.forEach((_pageImage, _index) => {
-@@ -379,10 +484,14 @@ function ReviewSourceModal({
-             filesReady.push({ ...f, imageData: [combined] });
-           }
-         } else {
-+          // テキスト抽出モードまたは画像化非対応ファイル
-           filesReady.push(f);
-         }
-       }
- 
-+      // 変換完了後、進捗状態をクリア
-+      setConversionProgress(null);
-+
-       // 呼び出し元に最終決定のファイルリストを渡す（必要ならこの先でMainに送る）
-       onSubmit(
-         filesReady,
-@@ -409,175 +518,282 @@ function ReviewSourceModal({
-       });
-     } finally {
-       setProcessing(false);
-+      setConversionProgress(null);
-     }
-   };
- 
-+  // モーダルクローズハンドラー（変換処理中は閉じられないように制御）
-+  const handleClose = () => {
-+    if (processing) {
-+      // 変換処理中はモーダルを閉じない
-+      return;
-+    }
-+    onClose();
-+  };
-+
-   return (
--    <Modal open={open} onClose={onClose}>
--      <Box
--        sx={{
--          position: 'absolute',
--          top: '50%',
--          left: '50%',
--          transform: 'translate(-50%, -50%)',
--          width: '80%',
--          maxWidth: 800,
--          bgcolor: 'background.paper',
--          boxShadow: 24,
--          p: 4,
--          maxHeight: '90vh',
--          overflow: 'auto',
--          borderRadius: 1,
--        }}
--      >
--        <Typography variant="h6" component="h2" gutterBottom>
--          {getTitle(modalMode)}
--        </Typography>
--
--        <Alert severity="info" sx={{ whiteSpace: 'pre-line', mb: 2 }}>
--          {getAlertMessage({ modalMode, documentType })}
--        </Alert>
--
--        {modalMode === 'extract' && (
--          <>
--            <FormControl component="fieldset" sx={{ mb: 2 }}>
--              <FormLabel component="legend">ドキュメント種別</FormLabel>
--              <RadioGroup
--                value={documentType}
--                onChange={(e) =>
--                  setDocumentType(e.target.value as DocumentType)
--                }
--              >
--                <FormControlLabel
--                  value="checklist-ai"
--                  control={<Radio />}
--                  label="チェックリストドキュメント（AI抽出）"
--                  disabled={processing}
--                />
--                <FormControlLabel
--                  value="checklist-csv"
--                  control={<Radio />}
--                  label={
--                    <Tooltip title="選択したファイル(Excel,CSV)の一列目の値を全てチェックリスト項目として抽出します">
--                      <span>
--                        チェックリストドキュメント（ファイルインポート）
--                      </span>
--                    </Tooltip>
-+    <Modal open={open} onClose={handleClose}>
-+      <>
-+        <Box
-+          sx={{
-+            position: 'absolute',
-+            top: '50%',
-+            left: '50%',
-+            transform: 'translate(-50%, -50%)',
-+            width: '80%',
-+            maxWidth: 800,
-+            bgcolor: 'background.paper',
-+            boxShadow: 24,
-+            p: 4,
-+            maxHeight: '90vh',
-+            overflow: 'auto',
-+            borderRadius: 1,
-+          }}
-+        >
-+          <Typography variant="h6" component="h2" gutterBottom>
-+            {getTitle(modalMode)}
-+          </Typography>
-+
-+          <Alert severity="info" sx={{ whiteSpace: 'pre-line', mb: 2 }}>
-+            {getAlertMessage({ modalMode, documentType })}
-+          </Alert>
-+
-+          {modalMode === 'extract' && (
-+            <>
-+              <FormControl component="fieldset" sx={{ mb: 2 }}>
-+                <FormLabel component="legend">ドキュメント種別</FormLabel>
-+                <RadioGroup
-+                  value={documentType}
-+                  onChange={(e) =>
-+                    setDocumentType(e.target.value as DocumentType)
-                   }
-+                >
-+                  <FormControlLabel
-+                    value="checklist-ai"
-+                    control={<Radio />}
-+                    label="チェックリストドキュメント（AI抽出）"
-+                    disabled={processing}
-+                  />
-+                  <FormControlLabel
-+                    value="checklist-csv"
-+                    control={<Radio />}
-+                    label={
-+                      <Tooltip title="選択したファイル(Excel,CSV)の一列目の値を全てチェックリスト項目として抽出します">
-+                        <span>
-+                          チェックリストドキュメント（ファイルインポート）
-+                        </span>
-+                      </Tooltip>
-+                    }
-+                    disabled={processing}
-+                  />
-+                  <FormControlLabel
-+                    value="general"
-+                    control={<Radio />}
-+                    label="一般ドキュメント（新規チェックリスト作成）"
-+                    disabled={processing}
-+                  />
-+                </RadioGroup>
-+              </FormControl>
-+
-+              {documentType === 'general' && (
-+                <TextField
-+                  fullWidth
-+                  multiline
-+                  rows={5}
-+                  label="チェックリスト作成要件"
-+                  placeholder="例：要件定義書をレビューするためのチェックリストを作成してください"
-+                  value={checklistRequirements}
-+                  onChange={(e) => setChecklistRequirements(e.target.value)}
-                   disabled={processing}
-+                  sx={{ mb: 2 }}
-+                  helperText="どのような観点でチェックリストを作成したいか具体的に記載してください（任意）"
-                 />
--                <FormControlLabel
--                  value="general"
--                  control={<Radio />}
--                  label="一般ドキュメント（新規チェックリスト作成）"
--                  disabled={processing}
--                />
--              </RadioGroup>
--            </FormControl>
-+              )}
-+            </>
-+          )}
-+
-+          {modalMode === 'review' && (
-+            <>
-+              <FormControl component="fieldset" sx={{ mb: 2 }}>
-+                <FormLabel component="legend">ドキュメント量</FormLabel>
-+                <RadioGroup
-+                  value={documentVolumeType}
-+                  onChange={(e) =>
-+                    setDocumentVolumeType(e.target.value as 'small' | 'large')
-+                  }
-+                >
-+                  <FormControlLabel
-+                    value="small"
-+                    control={<Radio />}
-+                    label={
-+                      <Tooltip title="選択されたドキュメントを全てそのままAIの入力コンテキストに与えてレビューを行います。ドキュメント量が少ない場合に選択してください。">
-+                        <span>
-+                          少量ドキュメント
-+                          <HelpIcon
-+                            fontSize="small"
-+                            sx={{ ml: 0.5, color: 'text.secondary' }}
-+                          />
-+                        </span>
-+                      </Tooltip>
-+                    }
-+                    disabled={processing}
-+                  />
-+                  <FormControlLabel
-+                    value="large"
-+                    control={<Radio />}
-+                    label={
-+                      <Tooltip title="ドキュメントを直接AIに入力するのではなく、個々のドキュメントの要約や分析を実行して整理し、最終的にレビューを行います。ドキュメント量が多い場合に選択してください。">
-+                        <span>
-+                          大量ドキュメント
-+                          <HelpIcon
-+                            fontSize="small"
-+                            sx={{ ml: 0.5, color: 'text.secondary' }}
-+                          />
-+                        </span>
-+                      </Tooltip>
-+                    }
-+                    disabled={processing}
-+                  />
-+                </RadioGroup>
-+              </FormControl>
- 
--            {documentType === 'general' && (
-               <TextField
-                 fullWidth
-                 multiline
--                rows={5}
--                label="チェックリスト作成要件"
--                placeholder="例：要件定義書をレビューするためのチェックリストを作成してください"
--                value={checklistRequirements}
--                onChange={(e) => setChecklistRequirements(e.target.value)}
-+                rows={3}
-+                label="追加指示"
-+                placeholder="例：特に技術的な観点から厳しくレビューしてください"
-+                value={additionalInstructions}
-+                onChange={(e) => setAdditionalInstructions(e.target.value)}
-                 disabled={processing}
-                 sx={{ mb: 2 }}
--                helperText="どのような観点でチェックリストを作成したいか具体的に記載してください（任意）"
-+                helperText="AIに対してレビューの進め方の追加指示がある場合は記載してください（任意）"
-               />
--            )}
--          </>
--        )}
--
--        {modalMode === 'review' && (
--          <>
--            <FormControl component="fieldset" sx={{ mb: 2 }}>
--              <FormLabel component="legend">ドキュメント量</FormLabel>
--              <RadioGroup
--                value={documentVolumeType}
--                onChange={(e) =>
--                  setDocumentVolumeType(e.target.value as 'small' | 'large')
--                }
--              >
--                <FormControlLabel
--                  value="small"
--                  control={<Radio />}
--                  label={
--                    <Tooltip title="選択されたドキュメントを全てそのままAIの入力コンテキストに与えてレビューを行います。ドキュメント量が少ない場合に選択してください。">
--                      <span>
--                        少量ドキュメント
--                        <HelpIcon
--                          fontSize="small"
--                          sx={{ ml: 0.5, color: 'text.secondary' }}
--                        />
--                      </span>
--                    </Tooltip>
--                  }
--                  disabled={processing}
--                />
--                <FormControlLabel
--                  value="large"
--                  control={<Radio />}
--                  label={
--                    <Tooltip title="ドキュメントを直接AIに入力するのではなく、個々のドキュメントの要約や分析を実行して整理し、最終的にレビューを行います。ドキュメント量が多い場合に選択してください。">
--                      <span>
--                        大量ドキュメント
--                        <HelpIcon
--                          fontSize="small"
--                          sx={{ ml: 0.5, color: 'text.secondary' }}
--                        />
--                      </span>
--                    </Tooltip>
--                  }
--                  disabled={processing}
--                />
--              </RadioGroup>
--            </FormControl>
--
--            <TextField
--              fullWidth
--              multiline
--              rows={3}
--              label="追加指示"
--              placeholder="例：特に技術的な観点から厳しくレビューしてください"
--              value={additionalInstructions}
--              onChange={(e) => setAdditionalInstructions(e.target.value)}
--              disabled={processing}
--              sx={{ mb: 2 }}
--              helperText="AIに対してレビューの進め方の追加指示がある場合は記載してください（任意）"
--            />
--
--            <TextField
--              fullWidth
--              multiline
--              rows={4}
--              label="コメントフォーマット"
--              value={commentFormat}
--              onChange={(e) => setCommentFormat(e.target.value)}
--              disabled={processing}
--              sx={{ mb: 2 }}
--              helperText="AIがレビューコメントを記載する際のフォーマットを指定してください"
--            />
--
--            <Accordion sx={{ mb: 2 }}>
--              <AccordionSummary expandIcon={<ExpandMoreIcon />}>
--                <Typography variant="subtitle1">評定項目設定</Typography>
--              </AccordionSummary>
--              <AccordionDetails>
--                <Stack spacing={2}>
--                  <Typography variant="body2" color="text.secondary">
--                    レビューで使用する評定項目を設定できます
--                  </Typography>
--
--                  {/* 評定項目一覧 */}
--                  {evaluationSettings.items.map((item, index) => (
--                    <Paper key={index} variant="outlined" sx={{ p: 2 }}>
--                      {editingItemIndex === index ? (
--                        // 編集モード
-+
-+              <TextField
-+                fullWidth
-+                multiline
-+                rows={4}
-+                label="コメントフォーマット"
-+                value={commentFormat}
-+                onChange={(e) => setCommentFormat(e.target.value)}
-+                disabled={processing}
-+                sx={{ mb: 2 }}
-+                helperText="AIがレビューコメントを記載する際のフォーマットを指定してください"
-+              />
-+
-+              <Accordion sx={{ mb: 2 }}>
-+                <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-+                  <Typography variant="subtitle1">評定項目設定</Typography>
-+                </AccordionSummary>
-+                <AccordionDetails>
-+                  <Stack spacing={2}>
-+                    <Typography variant="body2" color="text.secondary">
-+                      レビューで使用する評定項目を設定できます
-+                    </Typography>
-+
-+                    {/* 評定項目一覧 */}
-+                    {evaluationSettings.items.map((item, index) => (
-+                      <Paper key={index} variant="outlined" sx={{ p: 2 }}>
-+                        {editingItemIndex === index ? (
-+                          // 編集モード
-+                          <Stack spacing={2}>
-+                            <TextField
-+                              label="評定ラベル"
-+                              value={editingItem.label}
-+                              onChange={(e) =>
-+                                setEditingItem((prev) => ({
-+                                  ...prev,
-+                                  label: e.target.value,
-+                                }))
-+                              }
-+                              size="small"
-+                              helperText="例: 優秀, 良好, 要改善"
-+                            />
-+                            <TextField
-+                              label="評定説明"
-+                              value={editingItem.description}
-+                              onChange={(e) =>
-+                                setEditingItem((prev) => ({
-+                                  ...prev,
-+                                  description: e.target.value,
-+                                }))
-+                              }
-+                              multiline
-+                              rows={2}
-+                              size="small"
-+                              helperText="この評定の意味を説明してください"
-+                            />
-+                            <Stack direction="row" spacing={1}>
-+                              <Button
-+                                variant="contained"
-+                                size="small"
-+                                onClick={handleSaveEvaluationItem}
-+                              >
-+                                保存
-+                              </Button>
-+                              <Button
-+                                variant="outlined"
-+                                size="small"
-+                                onClick={handleCancelEditEvaluationItem}
-+                              >
-+                                キャンセル
-+                              </Button>
-+                            </Stack>
-+                          </Stack>
-+                        ) : (
-+                          // 表示モード
-+                          <Stack
-+                            direction="row"
-+                            justifyContent="space-between"
-+                            alignItems="center"
-+                          >
-+                            <Box>
-+                              <Typography
-+                                variant="body1"
-+                                component="span"
-+                                sx={{ fontWeight: 'bold', mr: 2 }}
-+                              >
-+                                {item.label}
-+                              </Typography>
-+                              <Typography
-+                                variant="body2"
-+                                color="text.secondary"
-+                              >
-+                                {item.description}
-+                              </Typography>
-+                            </Box>
-+                            <Stack direction="row" spacing={1}>
-+                              <IconButton
-+                                size="small"
-+                                onClick={() => handleEditEvaluationItem(index)}
-+                              >
-+                                <EditIcon />
-+                              </IconButton>
-+                              <IconButton
-+                                size="small"
-+                                onClick={() =>
-+                                  handleDeleteEvaluationItem(index)
-+                                }
-+                              >
-+                                <DeleteIcon />
-+                              </IconButton>
-+                            </Stack>
-+                          </Stack>
-+                        )}
-+                      </Paper>
-+                    ))}
-+
-+                    {/* 新規追加編集フォーム */}
-+                    {editingItemIndex === -1 && (
-+                      <Paper
-+                        variant="outlined"
-+                        sx={{ p: 2, border: '2px dashed' }}
-+                      >
-                         <Stack spacing={2}>
-+                          <Typography variant="subtitle2">
-+                            新しい評定項目を追加
-+                          </Typography>
-                           <TextField
-                             label="評定ラベル"
-                             value={editingItem.label}
-@@ -610,7 +826,7 @@ function ReviewSourceModal({
-                               size="small"
-                               onClick={handleSaveEvaluationItem}
-                             >
--                              保存
-+                              追加
-                             </Button>
-                             <Button
-                               variant="outlined"
-@@ -621,269 +837,340 @@ function ReviewSourceModal({
-                             </Button>
-                           </Stack>
-                         </Stack>
--                      ) : (
--                        // 表示モード
--                        <Stack
--                          direction="row"
--                          justifyContent="space-between"
--                          alignItems="center"
--                        >
--                          <Box>
--                            <Typography
--                              variant="body1"
--                              component="span"
--                              sx={{ fontWeight: 'bold', mr: 2 }}
--                            >
--                              {item.label}
--                            </Typography>
--                            <Typography variant="body2" color="text.secondary">
--                              {item.description}
--                            </Typography>
--                          </Box>
--                          <Stack direction="row" spacing={1}>
--                            <IconButton
--                              size="small"
--                              onClick={() => handleEditEvaluationItem(index)}
--                            >
--                              <EditIcon />
--                            </IconButton>
--                            <IconButton
--                              size="small"
--                              onClick={() => handleDeleteEvaluationItem(index)}
--                            >
--                              <DeleteIcon />
--                            </IconButton>
--                          </Stack>
--                        </Stack>
--                      )}
--                    </Paper>
--                  ))}
--
--                  {/* 新規追加編集フォーム */}
--                  {editingItemIndex === -1 && (
--                    <Paper
--                      variant="outlined"
--                      sx={{ p: 2, border: '2px dashed' }}
--                    >
--                      <Stack spacing={2}>
--                        <Typography variant="subtitle2">
--                          新しい評定項目を追加
--                        </Typography>
--                        <TextField
--                          label="評定ラベル"
--                          value={editingItem.label}
--                          onChange={(e) =>
--                            setEditingItem((prev) => ({
--                              ...prev,
--                              label: e.target.value,
--                            }))
-+                      </Paper>
-+                    )}
-+
-+                    {/* 追加ボタン */}
-+                    {editingItemIndex === null && (
-+                      <Button
-+                        variant="outlined"
-+                        startIcon={<AddIcon />}
-+                        onClick={handleAddEvaluationItem}
-+                        disabled={processing}
-+                      >
-+                        評定項目を追加
-+                      </Button>
-+                    )}
-+                  </Stack>
-+                </AccordionDetails>
-+              </Accordion>
-+            </>
-+          )}
-+
-+          <Box sx={{ mb: 2 }}>
-+            <Button
-+              variant="contained"
-+              onClick={handleFileUpload}
-+              startIcon={<UploadIcon />}
-+              disabled={processing}
-+            >
-+              ファイル選択ダイアログ
-+            </Button>
-+          </Box>
-+
-+          {uploadedFiles.length > 0 && (
-+            <Paper sx={{ mb: 2, p: 2 }}>
-+              <Typography variant="subtitle2" gutterBottom>
-+                選択済みファイル ({uploadedFiles.length}件)
-+              </Typography>
-+
-+              {/* 一括設定セクション */}
-+              {documentType !== 'checklist-csv' && (
-+                <Paper
-+                  // variant="outlined"
-+                  sx={{
-+                    p: 2,
-+                    mb: 2,
-+                    bgcolor: 'action.hover',
-+                    border: '1px solid',
-+                  }}
-+                >
-+                  <Stack spacing={2}>
-+                    <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>
-+                      一括設定
-+                    </Typography>
-+                    <FormControl component="fieldset">
-+                      <RadioGroup
-+                        value={bulkProcessMode}
-+                        onChange={(e) =>
-+                          setBulkProcessMode(e.target.value as BulkProcessMode)
-+                        }
-+                      >
-+                        <FormControlLabel
-+                          value="text"
-+                          control={<Radio size="small" />}
-+                          label={
-+                            <Box sx={{ display: 'flex', alignItems: 'center' }}>
-+                              <TextIcon fontSize="small" sx={{ mr: 0.5 }} />
-+                              テキスト抽出
-+                            </Box>
-                           }
--                          size="small"
--                          helperText="例: 優秀, 良好, 要改善"
-+                          disabled={processing}
-                         />
--                        <TextField
--                          label="評定説明"
--                          value={editingItem.description}
--                          onChange={(e) =>
--                            setEditingItem((prev) => ({
--                              ...prev,
--                              description: e.target.value,
--                            }))
-+                        <FormControlLabel
-+                          value="image-merged"
-+                          control={<Radio size="small" />}
-+                          label={
-+                            <Box sx={{ display: 'flex', alignItems: 'center' }}>
-+                              <ImageIcon fontSize="small" sx={{ mr: 0.5 }} />
-+                              <MergedIcon fontSize="small" sx={{ mr: 0.5 }} />
-+                              画像化（統合）
-+                              <Tooltip title="全ページを1つの縦長画像として統合します">
-+                                <HelpIcon
-+                                  fontSize="small"
-+                                  sx={{ ml: 0.5, color: 'text.secondary' }}
-+                                />
-+                              </Tooltip>
-+                            </Box>
-                           }
--                          multiline
--                          rows={2}
--                          size="small"
--                          helperText="この評定の意味を説明してください"
-+                          disabled={processing}
-                         />
--                        <Stack direction="row" spacing={1}>
--                          <Button
--                            variant="contained"
--                            size="small"
--                            onClick={handleSaveEvaluationItem}
--                          >
--                            追加
--                          </Button>
--                          <Button
--                            variant="outlined"
--                            size="small"
--                            onClick={handleCancelEditEvaluationItem}
--                          >
--                            キャンセル
--                          </Button>
--                        </Stack>
--                      </Stack>
--                    </Paper>
--                  )}
--
--                  {/* 追加ボタン */}
--                  {editingItemIndex === null && (
-+                        <FormControlLabel
-+                          value="image-pages"
-+                          control={<Radio size="small" />}
-+                          label={
-+                            <Box sx={{ display: 'flex', alignItems: 'center' }}>
-+                              <ImageIcon fontSize="small" sx={{ mr: 0.5 }} />
-+                              <PagesIcon fontSize="small" sx={{ mr: 0.5 }} />
-+                              画像化（ページ毎）
-+                              <Tooltip title="各ページを個別の画像として処理します">
-+                                <HelpIcon
-+                                  fontSize="small"
-+                                  sx={{ ml: 0.5, color: 'text.secondary' }}
-+                                />
-+                              </Tooltip>
-+                            </Box>
-+                          }
-+                          disabled={processing}
-+                        />
-+                      </RadioGroup>
-+                    </FormControl>
-                     <Button
--                      variant="outlined"
--                      startIcon={<AddIcon />}
--                      onClick={handleAddEvaluationItem}
-+                      variant="contained"
-+                      size="small"
-+                      onClick={handleApplyBulkSettings}
-                       disabled={processing}
-+                      sx={{ alignSelf: 'flex-start' }}
-                     >
--                      評定項目を追加
-+                      すべてに適用
-                     </Button>
--                  )}
--                </Stack>
--              </AccordionDetails>
--            </Accordion>
--          </>
--        )}
--
--        <Box sx={{ mb: 2 }}>
--          <Button
--            variant="contained"
--            onClick={handleFileUpload}
--            startIcon={<UploadIcon />}
--            disabled={processing}
--          >
--            ファイル選択ダイアログ
--          </Button>
--        </Box>
--
--        {uploadedFiles.length > 0 && (
--          <Paper sx={{ mb: 2, p: 2 }}>
--            <Typography variant="subtitle2" gutterBottom>
--              選択済みファイル ({uploadedFiles.length}件)
--            </Typography>
--            <List dense>
--              {uploadedFiles.map((file) => (
--                <ListItem
--                  key={file.id}
--                  secondaryAction={
--                    <IconButton
--                      edge="end"
--                      onClick={() => handleFileDelete(file.id)}
--                      disabled={processing}
--                    >
--                      <DeleteIcon />
--                    </IconButton>
--                  }
--                >
--                  <ListItemText
--                    primary={file.name}
--                    secondary={file.type === 'application/pdf' ? 'PDF' : ''}
--                  />
--                  {file.type === 'application/pdf' && (
--                    <Box sx={{ mr: 2 }}>
--                      <FormControl size="small">
--                        <RadioGroup
--                          row
--                          value={file.pdfProcessMode}
--                          onChange={(e) =>
--                            handlePdfProcessModeChange(
--                              file.id,
--                              e.target.value as PdfProcessMode,
--                            )
--                          }
--                        >
--                          <FormControlLabel
--                            value="text"
--                            control={<Radio size="small" />}
--                            label={
--                              <Box
--                                sx={{ display: 'flex', alignItems: 'center' }}
--                              >
--                                <TextIcon fontSize="small" sx={{ mr: 0.5 }} />
--                                テキスト
--                              </Box>
--                            }
--                          />
--                          <FormControlLabel
--                            value="image"
--                            control={<Radio size="small" />}
--                            label={
--                              <Box
--                                sx={{ display: 'flex', alignItems: 'center' }}
--                              >
--                                <ImageIcon fontSize="small" sx={{ mr: 0.5 }} />
--                                画像
--                                <Tooltip title="図形オブジェクトが多いPDFは画像化で精度が上がる場合があります">
--                                  <HelpIcon
--                                    fontSize="small"
--                                    sx={{ ml: 0.5, color: 'text.secondary' }}
--                                  />
--                                </Tooltip>
--                              </Box>
--                            }
--                          />
--                        </RadioGroup>
--                      </FormControl>
--                      {file.pdfProcessMode === 'image' && (
--                        <FormControl size="small" sx={{ ml: 1 }}>
--                          <RadioGroup
--                            row
--                            value={file.pdfImageMode}
--                            onChange={(e) =>
--                              handlePdfImageModeChange(
--                                file.id,
--                                e.target.value as PdfImageMode,
--                              )
--                            }
--                          >
--                            <FormControlLabel
--                              value="merged"
--                              control={<Radio size="small" />}
--                              label={
--                                <Box
--                                  sx={{ display: 'flex', alignItems: 'center' }}
--                                >
--                                  <MergedIcon
--                                    fontSize="small"
--                                    sx={{ mr: 0.5 }}
--                                  />
--                                  統合画像
--                                </Box>
-+                  </Stack>
-+                </Paper>
-+              )}
-+              <List dense>
-+                {uploadedFiles.map((file) => (
-+                  <ListItem
-+                    key={file.id}
-+                    secondaryAction={
-+                      <IconButton
-+                        edge="end"
-+                        onClick={() => handleFileDelete(file.id)}
-+                        disabled={processing}
-+                      >
-+                        <DeleteIcon />
-+                      </IconButton>
-+                    }
-+                  >
-+                    <ListItemText primary={file.name} />
-+                    {supportsImageProcessing(file.type) &&
-+                      documentType !== 'checklist-csv' && (
-+                        <Box sx={{ mr: 2 }}>
-+                          <FormControl size="small">
-+                            <RadioGroup
-+                              row
-+                              value={file.processMode}
-+                              onChange={(e) =>
-+                                handleProcessModeChange(
-+                                  file.id,
-+                                  e.target.value as ProcessMode,
-+                                )
-                               }
--                            />
--                            <FormControlLabel
--                              value="pages"
--                              control={<Radio size="small" />}
--                              label={
--                                <Box
--                                  sx={{ display: 'flex', alignItems: 'center' }}
--                                >
--                                  <PagesIcon
--                                    fontSize="small"
--                                    sx={{ mr: 0.5 }}
--                                  />
--                                  ページ別画像
--                                  <Tooltip title="ページ数が多い場合はページごとに画像化することを検討してください">
--                                    <HelpIcon
-+                            >
-+                              <FormControlLabel
-+                                value="text"
-+                                control={<Radio size="small" />}
-+                                label={
-+                                  <Box
-+                                    sx={{
-+                                      display: 'flex',
-+                                      alignItems: 'center',
-+                                    }}
-+                                  >
-+                                    <TextIcon
-                                       fontSize="small"
--                                      sx={{ ml: 0.5, color: 'text.secondary' }}
-+                                      sx={{ mr: 0.5 }}
-                                     />
--                                  </Tooltip>
--                                </Box>
--                              }
--                            />
--                          </RadioGroup>
--                        </FormControl>
-+                                    テキスト
-+                                  </Box>
-+                                }
-+                              />
-+                              <FormControlLabel
-+                                value="image"
-+                                control={<Radio size="small" />}
-+                                label={
-+                                  <Box
-+                                    sx={{
-+                                      display: 'flex',
-+                                      alignItems: 'center',
-+                                    }}
-+                                  >
-+                                    <ImageIcon
-+                                      fontSize="small"
-+                                      sx={{ mr: 0.5 }}
-+                                    />
-+                                    画像
-+                                    <Tooltip title="図形オブジェクトが多いドキュメントは画像化で精度が上がる場合があります">
-+                                      <HelpIcon
-+                                        fontSize="small"
-+                                        sx={{
-+                                          ml: 0.5,
-+                                          color: 'text.secondary',
-+                                        }}
-+                                      />
-+                                    </Tooltip>
-+                                  </Box>
-+                                }
-+                              />
-+                            </RadioGroup>
-+                          </FormControl>
-+                          {file.processMode === 'image' && (
-+                            <FormControl size="small" sx={{ ml: 1 }}>
-+                              <RadioGroup
-+                                row
-+                                value={file.imageMode}
-+                                onChange={(e) =>
-+                                  handleImageModeChange(
-+                                    file.id,
-+                                    e.target.value as ImageMode,
-+                                  )
-+                                }
-+                              >
-+                                <FormControlLabel
-+                                  value="merged"
-+                                  control={<Radio size="small" />}
-+                                  label={
-+                                    <Box
-+                                      sx={{
-+                                        display: 'flex',
-+                                        alignItems: 'center',
-+                                      }}
-+                                    >
-+                                      <MergedIcon
-+                                        fontSize="small"
-+                                        sx={{ mr: 0.5 }}
-+                                      />
-+                                      統合画像
-+                                    </Box>
-+                                  }
-+                                />
-+                                <FormControlLabel
-+                                  value="pages"
-+                                  control={<Radio size="small" />}
-+                                  label={
-+                                    <Box
-+                                      sx={{
-+                                        display: 'flex',
-+                                        alignItems: 'center',
-+                                      }}
-+                                    >
-+                                      <PagesIcon
-+                                        fontSize="small"
-+                                        sx={{ mr: 0.5 }}
-+                                      />
-+                                      ページ別画像
-+                                      <Tooltip title="ページ数が多い場合はページごとに画像化することを検討してください">
-+                                        <HelpIcon
-+                                          fontSize="small"
-+                                          sx={{
-+                                            ml: 0.5,
-+                                            color: 'text.secondary',
-+                                          }}
-+                                        />
-+                                      </Tooltip>
-+                                    </Box>
-+                                  }
-+                                />
-+                              </RadioGroup>
-+                            </FormControl>
-+                          )}
-+                        </Box>
-                       )}
--                    </Box>
--                  )}
--                </ListItem>
--              ))}
--            </List>
--          </Paper>
--        )}
--
--        <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
--          <Button variant="outlined" onClick={onClose} disabled={processing}>
--            キャンセル
--          </Button>
--          <Button
--            variant="contained"
--            onClick={handleSubmit}
--            disabled={processing || disabled || uploadedFiles.length === 0}
--            startIcon={processing ? <CircularProgress size={20} /> : null}
--          >
--            {processing ? '処理中...' : getButtonText(modalMode)}
--          </Button>
-+                  </ListItem>
-+                ))}
-+              </List>
-+            </Paper>
-+          )}
-+
-+          <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
-+            <Button
-+              variant="outlined"
-+              onClick={handleClose}
-+              disabled={processing}
-+            >
-+              キャンセル
-+            </Button>
-+            <Button
-+              variant="contained"
-+              onClick={handleSubmit}
-+              disabled={processing || disabled || uploadedFiles.length === 0}
-+              // startIcon={processing ? <CircularProgress size={20} /> : null}
-+            >
-+              {processing ? '処理中...' : getButtonText(modalMode)}
-+            </Button>
-+          </Box>
-         </Box>
--      </Box>
-+
-+        {/* 変換進捗表示用Backdrop */}
-+        <Backdrop
-+          open={!!conversionProgress}
-+          sx={{
-+            position: 'absolute',
-+            top: 0,
-+            left: 0,
-+            right: 0,
-+            bottom: 0,
-+            zIndex: (theme) => theme.zIndex.modal + 1,
-+            color: '#fff',
-+            backgroundColor: 'rgba(0, 0, 0, 0.7)',
-+          }}
-+        >
-+          <Box
-+            sx={{
-+              textAlign: 'center',
-+              p: 4,
-+              bgcolor: 'background.paper',
-+              borderRadius: 2,
-+              minWidth: 300,
-+              maxWidth: 500,
-+            }}
-+          >
-+            <CircularProgress size={60} sx={{ mb: 3 }} />
-+            <Typography variant="h6" gutterBottom color="text.primary">
-+              ファイルを変換しています
-+            </Typography>
-+            {conversionProgress && (
-+              <>
-+                <Typography variant="body1" color="text.primary" sx={{ mb: 1 }}>
-+                  {conversionProgress.currentFileName}
-+                </Typography>
-+                <Typography
-+                  variant="body2"
-+                  color="text.secondary"
-+                  sx={{ mb: 2 }}
-+                >
-+                  {conversionProgress.conversionType === 'pdf'
-+                    ? 'PDFに変換中...'
-+                    : '画像化中...'}
-+                </Typography>
-+                <Typography variant="body2" color="text.secondary">
-+                  処理済み: {conversionProgress.currentIndex} /{' '}
-+                  {conversionProgress.totalCount} ファイル
-+                </Typography>
-+              </>
-+            )}
-+          </Box>
-+        </Backdrop>
-+      </>
-     </Modal>
-   );
- }
-diff --git a/src/renderer/hooks/usePushChannel.ts b/src/renderer/hooks/usePushChannel.ts
-index 34fa7dc77..08b740fbf 100644
---- a/src/renderer/hooks/usePushChannel.ts
-+++ b/src/renderer/hooks/usePushChannel.ts
-@@ -22,17 +22,22 @@ export function usePushChannel<C extends Channel>(
-     const ac = new AbortController();
-     abortRef.current = ac;
- 
--    const unsub = client.subscribe<C>(
--      channel,
--      (ev) => {
--        setLast(ev);
--        cbRef.current?.(ev);
--      },
--      { signal: ac.signal },
--    );
-+    // 購読処理を非同期で実行
-+    let unsub: (() => void) | undefined;
-+    (async () => {
-+      unsub = await client.subscribeAsync<C>(
-+        channel,
-+        (ev) => {
-+          setLast(ev);
-+          cbRef.current?.(ev);
-+        },
-+        { signal: ac.signal },
-+      );
-+    })();
-+
-     return () => {
-       ac.abort();
--      unsub();
-+      unsub?.();
-     };
-   }, [channel, client]);
- 
-diff --git a/src/renderer/hooks/useSettings.ts b/src/renderer/hooks/useSettings.ts
-index eab2c17ee..60068c0ba 100644
---- a/src/renderer/hooks/useSettings.ts
-+++ b/src/renderer/hooks/useSettings.ts
-@@ -321,7 +321,7 @@ const useSettingsStore = () => {
-       });
- 
-       // 完了イベントの購読を開始（ワンショット）
--      const unsubscribe = settingsApi.subscribeSettingsUpdateFinished(
-+      const unsubscribe = await settingsApi.subscribeSettingsUpdateFinished(
-         (payload: { success: boolean; error?: string }) => {
-           // 設定更新完了時にポーリングを停止
-           setAgentStatusPolling(false);
-diff --git a/src/renderer/lib/ElectronPushClient.ts b/src/renderer/lib/ElectronPushClient.ts
-index 6f16f7c9f..a4589b3b8 100644
---- a/src/renderer/lib/ElectronPushClient.ts
-+++ b/src/renderer/lib/ElectronPushClient.ts
-@@ -25,4 +25,28 @@ export class ElectronPushClient implements PushClient {
-     });
-     return () => unsub();
-   }
-+
-+  /**
-+   * 購読を非同期で開始し、購読完了を待つ
-+   * イベントの取りこぼしを防ぐため、購読完了を保証する
-+   */
-+  async subscribeAsync<C extends Channel>(
-+    channel: C,
-+    onEvent: (ev: PushEvent<C>) => void,
-+    opts?: { signal?: AbortSignal },
-+  ): Promise<() => void> {
-+    if (!window.electron.pushApi) {
-+      throw internalError('pushApi not available', {
-+        expose: false,
-+      });
-+    }
-+    // preload経由で購読登録（完了を待つ）
-+    const unsub = await window.electron.pushApi.subscribe(channel, onEvent);
-+
-+    // AbortSignalで解除できるようにする
-+    opts?.signal?.addEventListener('abort', () => {
-+      unsub();
-+    });
-+    return unsub;
-+  }
- }
-diff --git a/src/renderer/service/chatApi.ts b/src/renderer/service/chatApi.ts
-index 28b44f9ab..7e99d3fcf 100644
---- a/src/renderer/service/chatApi.ts
-+++ b/src/renderer/service/chatApi.ts
-@@ -13,7 +13,7 @@ export interface IChatApi {
-     onMessage: (chunk: IpcEventPayload<typeof IpcChannels.CHAT_STREAM>) => void;
-     onDone: () => void;
-     onError: (error: Error) => void;
--  }): () => void;
-+  }): Promise<() => void>;
-   abortChatRequest(roomId: string, options?: ApiServiceDefaultOptions): void;
-   getChatMessages(
-     roomId: string,
-@@ -75,48 +75,49 @@ export class ChatApi implements IChatApi {
-     await invokeApi(() => window.electron.chat.deleteRoom(roomId), options);
-   }
- 
--  public streamResponse(callbacks: {
-+  public async streamResponse(callbacks: {
-     onMessage: (chunk: IpcEventPayload<typeof IpcChannels.CHAT_STREAM>) => void;
-     onDone: () => void;
-     onError: (error: Error) => void;
--  }): () => void {
-+  }): Promise<() => void> {
-     const pushClient = new ElectronPushClient();
-     const abortController = new AbortController();
- 
--    // ストリーミングイベントの購読
--    pushClient.subscribe(
--      IpcChannels.CHAT_STREAM,
--      (event) => {
--        callbacks.onMessage(event.payload);
--      },
--      { signal: abortController.signal },
--    );
--
--    // 完了イベントの購読
--    pushClient.subscribe(
--      IpcChannels.CHAT_COMPLETE,
--      () => {
--        // 購読を解除
--        abortController.abort();
--        // 完了コールバックを呼び出し
--        callbacks.onDone();
--      },
--      { signal: abortController.signal },
--    );
--
--    // エラーイベントの購読
--    pushClient.subscribe(
--      IpcChannels.CHAT_ERROR,
--      (event) => {
--        // 購読を解除
--        abortController.abort();
--        // エラーコールバックを呼び出し
--        callbacks.onError(
--          new Error(event.payload.message || '予期せぬエラーが発生しました'),
--        );
--      },
--      { signal: abortController.signal },
--    );
-+    // 3つのイベント購読を並列で実行し、全て完了を待つ
-+    await Promise.all([
-+      // ストリーミングイベントの購読
-+      pushClient.subscribeAsync(
-+        IpcChannels.CHAT_STREAM,
-+        (event) => {
-+          callbacks.onMessage(event.payload);
-+        },
-+        { signal: abortController.signal },
-+      ),
-+      // 完了イベントの購読
-+      pushClient.subscribeAsync(
-+        IpcChannels.CHAT_COMPLETE,
-+        () => {
-+          // 購読を解除
-+          abortController.abort();
-+          // 完了コールバックを呼び出し
-+          callbacks.onDone();
-+        },
-+        { signal: abortController.signal },
-+      ),
-+      // エラーイベントの購読
-+      pushClient.subscribeAsync(
-+        IpcChannels.CHAT_ERROR,
-+        (event) => {
-+          // 購読を解除
-+          abortController.abort();
-+          // エラーコールバックを呼び出し
-+          callbacks.onError(
-+            new Error(event.payload.message || '予期せぬエラーが発生しました'),
-+          );
-+        },
-+        { signal: abortController.signal },
-+      ),
-+    ]);
- 
-     // 購読解除のためのクリーンアップ
-     return () => {
-diff --git a/src/renderer/service/fsApi.ts b/src/renderer/service/fsApi.ts
-index 3de64d078..bf8cc05a5 100644
---- a/src/renderer/service/fsApi.ts
-+++ b/src/renderer/service/fsApi.ts
-@@ -11,6 +11,10 @@ export interface IFsApi {
-     filePath: string,
-     apiOptions?: ApiServiceDefaultOptions,
-   ): Promise<Uint8Array | null>;
-+  convertOfficeToPdf(
-+    filePath: string,
-+    apiOptions?: ApiServiceDefaultOptions,
-+  ): Promise<Uint8Array | null>;
-   access(
-     path: string,
-     apiOptions?: ApiServiceDefaultOptions,
-@@ -46,6 +50,16 @@ export class FsApi implements IFsApi {
-     return invokeApi(() => window.electron.fs.readFile(filePath), apiOptions);
-   }
- 
-+  public async convertOfficeToPdf(
-+    filePath: string,
-+    apiOptions?: ApiServiceDefaultOptions,
-+  ): Promise<Uint8Array | null> {
-+    return invokeApi(
-+      () => window.electron.fs.convertOfficeToPdf(filePath),
-+      apiOptions,
-+    );
-+  }
-+
-   public async access(
-     path: string,
-     apiOptions?: ApiServiceDefaultOptions,
-diff --git a/src/renderer/service/reviewApi.ts b/src/renderer/service/reviewApi.ts
-index 5783c587e..a735c8299 100644
---- a/src/renderer/service/reviewApi.ts
-+++ b/src/renderer/service/reviewApi.ts
-@@ -58,14 +58,14 @@ export interface IReviewApi {
-       status: ChecklistExtractionResultStatus;
-       error?: string;
-     }) => void,
--  ): () => void;
-+  ): Promise<() => void>;
-   subscribeReviewExtractionFinished(
-     callback: (payload: {
-       reviewHistoryId: string;
-       status: ReviewExecutionResultStatus;
-       error?: string;
-     }) => void,
--  ): () => void;
-+  ): Promise<() => void>;
-   updateChecklist(
-     historyId: string,
-     checklistEdits: ReviewChecklistEdit[],
-@@ -202,15 +202,15 @@ export class ReviewApi implements IReviewApi {
-     );
-   }
- 
--  public subscribeChecklistExtractionFinished(
-+  public async subscribeChecklistExtractionFinished(
-     callback: (payload: {
-       reviewHistoryId: string;
-       status: ChecklistExtractionResultStatus;
-       error?: string;
-     }) => void,
--  ): () => void {
-+  ): Promise<() => void> {
-     const pushClient = new ElectronPushClient();
--    return pushClient.subscribe(
-+    return pushClient.subscribeAsync(
-       IpcChannels.REVIEW_EXTRACT_CHECKLIST_FINISHED,
-       (event) => {
-         callback(event.payload);
-@@ -218,15 +218,15 @@ export class ReviewApi implements IReviewApi {
-     );
-   }
- 
--  public subscribeReviewExtractionFinished(
-+  public async subscribeReviewExtractionFinished(
-     callback: (payload: {
-       reviewHistoryId: string;
-       status: ReviewExecutionResultStatus;
-       error?: string;
-     }) => void,
--  ): () => void {
-+  ): Promise<() => void> {
-     const pushClient = new ElectronPushClient();
--    return pushClient.subscribe(
-+    return pushClient.subscribeAsync(
-       IpcChannels.REVIEW_EXECUTE_FINISHED,
-       (event) => {
-         callback(event.payload);
-diff --git a/src/renderer/service/settingsApi.ts b/src/renderer/service/settingsApi.ts
-index c793945c9..8ec061cbf 100644
---- a/src/renderer/service/settingsApi.ts
-+++ b/src/renderer/service/settingsApi.ts
-@@ -19,7 +19,7 @@ export interface ISettingsApi {
-   ): Promise<boolean | null>;
-   subscribeSettingsUpdateFinished(
-     callback: (payload: { success: boolean; error?: string }) => void,
--  ): () => void;
-+  ): Promise<() => void>;
- }
- 
- export class SettingsApi implements ISettingsApi {
-@@ -67,11 +67,11 @@ export class SettingsApi implements ISettingsApi {
-     return invokeApi(() => window.electron.settings.setSettings(settings), options);
-   }
- 
--  public subscribeSettingsUpdateFinished(
-+  public async subscribeSettingsUpdateFinished(
-     callback: (payload: { success: boolean; error?: string }) => void,
--  ): () => void {
-+  ): Promise<() => void> {
-     const pushClient = new ElectronPushClient();
--    return pushClient.subscribe(
-+    return pushClient.subscribeAsync(
-       IpcChannels.SETTINGS_UPDATE_FINISHED,
-       (event) => {
-         callback(event.payload);
-diff --git a/src/renderer/service/sourceApi.ts b/src/renderer/service/sourceApi.ts
-index 14c315a5c..76b2f9c6f 100644
---- a/src/renderer/service/sourceApi.ts
-+++ b/src/renderer/service/sourceApi.ts
-@@ -14,7 +14,7 @@ export interface ISourceApi {
-   ): Promise<void>;
-   subscribeSourceReloadFinished(
-     callback: (payload: { success: boolean; error?: string }) => void,
--  ): () => void;
-+  ): Promise<() => void>;
- }
- 
- export class SourceApi implements ISourceApi {
-@@ -55,11 +55,11 @@ export class SourceApi implements ISourceApi {
-     }), options);
-   }
- 
--  public subscribeSourceReloadFinished(
-+  public async subscribeSourceReloadFinished(
-     callback: (payload: { success: boolean; error?: string }) => void,
--  ): () => void {
-+  ): Promise<() => void> {
-     const pushClient = new ElectronPushClient();
--    return pushClient.subscribe(
-+    return pushClient.subscribeAsync(
-       IpcChannels.SOURCE_RELOAD_FINISHED,
-       (event) => {
-         callback(event.payload);
-diff --git a/src/types/eventPush.ts b/src/types/eventPush.ts
-index af166d2ef..fde34833e 100644
---- a/src/types/eventPush.ts
-+++ b/src/types/eventPush.ts
-@@ -33,4 +33,10 @@ export interface PushClient {
-     onEvent: (ev: PushEvent<C>) => void,
-     opts?: { signal?: AbortSignal },
-   ): () => void;
-+
-+  subscribeAsync<C extends Channel>(
-+    channel: C,
-+    onEvent: (ev: PushEvent<C>) => void,
-+    opts?: { signal?: AbortSignal },
-+  ): Promise<() => void>;
- }
-diff --git a/src/types/ipc.ts b/src/types/ipc.ts
-index 88dd8012b..3944736ab 100644
---- a/src/types/ipc.ts
-+++ b/src/types/ipc.ts
-@@ -65,6 +65,7 @@ export const IpcChannels = {
-   FS_CHECK_PATH_EXISTS: 'fs-check-path-exists',
-   FS_SHOW_OPEN_DIALOG: 'fs-show-open-dialog',
-   FS_READ_FILE: 'fs-read-file',
-+  FS_CONVERT_OFFICE_TO_PDF: 'fs-convert-office-to-pdf',
- 
-   // ドキュメントレビュー関連
-   REVIEW_GET_HISTORIES: 'review-get-histories', // ドキュメント履歴切り替え時やチェックリスト抽出・ドキュメントレビュー時のポーリング処理にて呼び出される
-@@ -101,6 +102,7 @@ export type IpcRequestPayloadMap = {
-   [IpcChannels.FS_CHECK_PATH_EXISTS]: string;
-   [IpcChannels.FS_SHOW_OPEN_DIALOG]: OpenDialogOptions;
-   [IpcChannels.FS_READ_FILE]: string; // file path
-+  [IpcChannels.FS_CONVERT_OFFICE_TO_PDF]: string; // file path
- 
-   // ソース関連
-   [IpcChannels.SOURCE_GET_ALL]: undefined;
-@@ -166,6 +168,7 @@ export type IpcResponsePayloadMap = {
-     canceled: boolean;
-   }>;
-   [IpcChannels.FS_READ_FILE]: IpcResult<Uint8Array>; // ファイルのバイナリデータ
-+  [IpcChannels.FS_CONVERT_OFFICE_TO_PDF]: IpcResult<Uint8Array>; // 変換後のPDFバイナリデータ
- 
-   // ソース関連
-   [IpcChannels.SOURCE_GET_ALL]: IpcResult<Source[]>;
-@@ -249,6 +252,7 @@ export const IpcNameMap = {
-   [IpcChannels.FS_CHECK_PATH_EXISTS]: 'ファイルパスの存在確認',
-   [IpcChannels.FS_SHOW_OPEN_DIALOG]: 'ファイルダイアログ表示',
-   [IpcChannels.FS_READ_FILE]: 'ファイル読み込み',
-+  [IpcChannels.FS_CONVERT_OFFICE_TO_PDF]: 'ファイルのPDF変換',
- 
-   // ソース関連
-   [IpcChannels.SOURCE_GET_ALL]: 'ドキュメント情報の取得',
-diff --git a/src/types/message.ts b/src/types/message.ts
-index 4253fc363..979bb1cda 100644
---- a/src/types/message.ts
-+++ b/src/types/message.ts
-@@ -12,6 +12,7 @@ export type MessageCode =
-   | 'REDMINE_API_CONNECTION_ERROR'
-   | 'REDMINE_API_ERROR'
-   | 'FILE_TEXT_EXTRACTION_ERROR'
-+  | 'FS_CONVERT_OFFICE_TO_PDF_ERROR'
-   | 'SOURCE_REGISTRATION_DIR_READING_ERROR'
-   | 'SOURCE_REGISTRATION_DIR_NOT_SET'
-   | 'REVIEW_CHECKLIST_EXTRACTION_ERROR'
-@@ -20,4 +21,5 @@ export type MessageCode =
-   | 'REVIEW_CHECKLIST_EXTRACTION_FROM_CSV_ERROR'
-   | 'REVIEW_EXECUTION_ERROR'
-   | 'REVIEW_EXECUTION_NO_TARGET_CHECKLIST'
--  | 'AI_API_ERROR';
-+  | 'AI_API_ERROR'
-+  | 'AI_MESSAGE_TOO_LARGE';
-diff --git a/src/types/review.ts b/src/types/review.ts
-index 5ce8d1adc..52578ffaa 100644
---- a/src/types/review.ts
-+++ b/src/types/review.ts
-@@ -58,11 +58,11 @@ export type ModalMode = 'extract' | 'review';
- 
- export type DocumentType = 'checklist-ai' | 'checklist-csv' | 'general';
- 
--// PDF処理方式の定義
--export type PdfProcessMode = 'text' | 'image';
-+// ドキュメント処理方式の定義（PDF, Word, Excel, PowerPoint対応）
-+export type ProcessMode = 'text' | 'image';
- 
--// PDF画像化方式の定義
--export type PdfImageMode = 'merged' | 'pages';
-+// ドキュメント画像化方式の定義
-+export type ImageMode = 'merged' | 'pages';
- 
- // ドキュメントレビューのモード定義
- export type DocumentMode = 'small' | 'large';
-@@ -73,9 +73,9 @@ export interface UploadFile {
-   name: string;
-   path: string;
-   type: string;
--  pdfProcessMode?: PdfProcessMode; // PDFファイルの場合のみ
--  pdfImageMode?: PdfImageMode; // PDF画像化の場合のみ (merged: 統合画像, pages: ページ別画像)
--  imageData?: string[]; // PDF画像変換時のBase64データ配列 (merged: 長さ1, pages: 各ページ)
-+  processMode?: ProcessMode; // ドキュメントファイル（PDF, Office）の処理方式
-+  imageMode?: ImageMode; // 画像化の場合のモード (merged: 統合画像, pages: ページ別画像)
-+  imageData?: string[]; // 画像変換時のBase64データ配列 (merged: 長さ1, pages: 各ページ)
- }
- 
- export type ChecklistExtractionResultStatus =
+@@ -677,6 +672,7 @@ const initialize = async () => {
+   await initializeAgentStatus();
+   setupElectronPushBroker();
+   FileExtractor.cleanCacheDirectory();
++  cleanPdfCacheDirectory();
+   setupSettingsHandlers();
+   setupChatHandlers();
+   setupFsHandlers();
