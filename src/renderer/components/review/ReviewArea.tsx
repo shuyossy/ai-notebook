@@ -1,5 +1,13 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { Box, Button, Paper, Stack, Typography } from '@mui/material';
+import {
+  Box,
+  Button,
+  Paper,
+  Stack,
+  Typography,
+  LinearProgress,
+  Alert,
+} from '@mui/material';
 import CheckBoxIcon from '@mui/icons-material/CheckBox';
 import RateReviewIcon from '@mui/icons-material/RateReview';
 import StopIcon from '@mui/icons-material/Stop';
@@ -58,7 +66,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
   // イベント購読の解除関数を管理
   const eventUnsubscribeRef = useRef<(() => void) | null>(null);
 
-  // チェック履歴取得
+  // チェックリスト履歴取得
   const fetchChecklistResults = useCallback(async () => {
     if (!selectedReviewHistoryId) return;
     const reviewApi = ReviewApi.getInstance();
@@ -107,12 +115,6 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
       }
 
       setIsExtracting(false);
-
-      // イベント購読解除
-      if (eventUnsubscribeRef.current) {
-        eventUnsubscribeRef.current();
-        eventUnsubscribeRef.current = null;
-      }
     },
     [selectedReviewHistoryId, fetchChecklistResults, addAlert],
   );
@@ -220,7 +222,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
               setIsExtracting(true);
               // チェックリスト抽出完了イベントを購読
               const extractUnsubscribe =
-                reviewApi.subscribeChecklistExtractionFinished(
+                await reviewApi.subscribeChecklistExtractionFinished(
                   handleChecklistExtractionFinished,
                 );
               eventUnsubscribeRef.current = extractUnsubscribe;
@@ -229,7 +231,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
               setIsReviewing(true);
               // レビュー実行完了イベントを購読
               const reviewUnsubscribe =
-                reviewApi.subscribeReviewExtractionFinished(
+                await reviewApi.subscribeReviewExtractionFinished(
                   handleReviewExecutionFinished,
                 );
               eventUnsubscribeRef.current = reviewUnsubscribe;
@@ -311,6 +313,19 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
         setIsExtracting(true);
         setIsModalOpen(false);
 
+        // 既存のイベント購読を解除
+        if (eventUnsubscribeRef.current) {
+          eventUnsubscribeRef.current();
+          eventUnsubscribeRef.current = null;
+        }
+
+        // 抽出完了イベントの購読を開始（API呼び出し前に購読を確立）
+        const unsubscribe =
+          await reviewApi.subscribeChecklistExtractionFinished(
+            handleChecklistExtractionFinished,
+          );
+        eventUnsubscribeRef.current = unsubscribe;
+
         // チェックリスト抽出処理を開始
         await reviewApi.extractChecklist(
           selectedReviewHistoryId,
@@ -319,18 +334,6 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
           checklistRequirements,
           { throwError: true, showAlert: false },
         );
-
-        // 既存のイベント購読を解除
-        if (eventUnsubscribeRef.current) {
-          eventUnsubscribeRef.current();
-          eventUnsubscribeRef.current = null;
-        }
-
-        // 抽出完了イベントの購読を開始
-        const unsubscribe = reviewApi.subscribeChecklistExtractionFinished(
-          handleChecklistExtractionFinished,
-        );
-        eventUnsubscribeRef.current = unsubscribe;
       } catch (error) {
         console.error(error);
         addAlert({
@@ -341,6 +344,11 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
           severity: 'error',
         });
         setIsExtracting(false);
+        // エラー時は購読も解除
+        if (eventUnsubscribeRef.current) {
+          eventUnsubscribeRef.current();
+          eventUnsubscribeRef.current = null;
+        }
       }
     },
     [selectedReviewHistoryId, addAlert, handleChecklistExtractionFinished],
@@ -363,6 +371,12 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
           eventUnsubscribeRef.current = null;
         }
 
+        // レビュー完了イベントの購読を開始（API呼び出し前に購読を確立）
+        const unsubscribe = await reviewApi.subscribeReviewExtractionFinished(
+          handleReviewExecutionFinished as any,
+        );
+        eventUnsubscribeRef.current = unsubscribe;
+
         // レビュー実行処理を開始
         await reviewApi.executeReview(
           selectedReviewHistoryId,
@@ -373,12 +387,6 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
           commentFormat || commentFormat,
           { throwError: true, showAlert: false },
         );
-
-        // レビュー完了イベントの購読を開始
-        const unsubscribe = reviewApi.subscribeReviewExtractionFinished(
-          handleReviewExecutionFinished as any,
-        );
-        eventUnsubscribeRef.current = unsubscribe;
       } catch (error) {
         console.error(error);
         addAlert({
@@ -386,6 +394,11 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
           severity: 'error',
         });
         setIsReviewing(false);
+        // エラー時は購読も解除
+        if (eventUnsubscribeRef.current) {
+          eventUnsubscribeRef.current();
+          eventUnsubscribeRef.current = null;
+        }
       }
     },
     [
@@ -535,6 +548,18 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
     >
       {selectedReviewHistoryId && (
         <>
+          {/* 処理中インジケーター */}
+          {(isExtracting || isReviewing) && (
+            <Box sx={{ mb: 2 }}>
+              <LinearProgress />
+              {/* <Alert severity="info" sx={{ mt: 1 }}>
+                {isExtracting
+                  ? 'チェックリスト抽出実行中...'
+                  : 'レビュー実行中...'}
+              </Alert> */}
+            </Box>
+          )}
+
           {/* ヘッダー部分 */}
           <Stack
             direction="row"
@@ -545,7 +570,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
             <Stack direction="row" spacing={2}>
               <Button
                 variant="contained"
-                color={isExtracting ? 'error' : 'primary'}
+                color={isExtracting ? 'warning' : 'primary'}
                 startIcon={isExtracting ? <StopIcon /> : <CheckBoxIcon />}
                 onClick={
                   isExtracting
@@ -561,7 +586,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
               </Button>
               <Button
                 variant="contained"
-                color={isReviewing ? 'error' : 'primary'}
+                color={isReviewing ? 'warning' : 'primary'}
                 startIcon={isReviewing ? <StopIcon /> : <RateReviewIcon />}
                 onClick={
                   isReviewing

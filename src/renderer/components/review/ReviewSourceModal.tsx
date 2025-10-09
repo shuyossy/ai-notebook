@@ -35,6 +35,7 @@ import {
   Add as AddIcon,
   ExpandMore as ExpandMoreIcon,
 } from '@mui/icons-material';
+import Backdrop from '@mui/material/Backdrop';
 import {
   DocumentType,
   UploadFile,
@@ -47,6 +48,7 @@ import { useAlertStore } from '@/renderer/stores/alertStore';
 import { getSafeErrorMessage } from '../../lib/error';
 import { ReviewSourceModalProps } from './types';
 import { FsApi } from '../../service/fsApi';
+import { ReviewApi } from '../../service/reviewApi';
 
 import { combineImages, convertPdfBytesToImages } from '../../lib/pdfUtils';
 
@@ -136,6 +138,20 @@ const getAlertMessage = ({
 // 一括設定用の処理モード型定義
 type BulkProcessMode = 'text' | 'image-merged' | 'image-pages';
 
+// 変換進捗情報の型定義
+type ConversionProgress = {
+  currentFileName: string;
+  conversionType: 'pdf' | 'image';
+  currentIndex: number;
+  totalCount: number;
+  progressDetail?: {
+    type: 'sheet-setup' | 'pdf-export';
+    sheetName?: string;
+    currentSheet?: number;
+    totalSheets?: number;
+  };
+};
+
 function ReviewSourceModal({
   open,
   onClose,
@@ -152,6 +168,8 @@ function ReviewSourceModal({
 }: ReviewSourceModalProps): React.ReactElement {
   const [uploadedFiles, setUploadedFiles] = useState<UploadFile[]>([]);
   const [processing, setProcessing] = useState(false); // ★ 送信処理やPDF変換の進行中フラグ
+  const [conversionProgress, setConversionProgress] =
+    useState<ConversionProgress | null>(null); // 変換進捗情報
   const [documentType, setDocumentType] =
     useState<DocumentType>('checklist-ai');
   const [checklistRequirements, setChecklistRequirements] = useState('');
@@ -399,17 +417,69 @@ function ReviewSourceModal({
 
     setProcessing(true);
 
+    // PDF変換進捗イベントの購読を開始
+    const reviewApi = ReviewApi.getInstance();
+    const unsubscribe = await reviewApi.subscribeOfficeToPdfProgress(
+      (payload) => {
+        const { fileName, progressType, sheetName, currentSheet, totalSheets } =
+          payload;
+
+        // 現在処理中のファイルのインデックスを探す
+        const currentIndex = uploadedFiles.findIndex(
+          (f) => f.name === fileName,
+        );
+
+        if (progressType === 'sheet-setup' && sheetName) {
+          setConversionProgress({
+            currentFileName: fileName,
+            conversionType: 'pdf',
+            currentIndex: currentIndex + 1,
+            totalCount: uploadedFiles.length,
+            progressDetail: {
+              type: 'sheet-setup',
+              sheetName,
+              currentSheet,
+              totalSheets,
+            },
+          });
+        }
+
+        if (progressType === 'pdf-export') {
+          setConversionProgress({
+            currentFileName: fileName,
+            conversionType: 'pdf',
+            currentIndex: currentIndex + 1,
+            totalCount: uploadedFiles.length,
+            progressDetail: {
+              type: 'pdf-export',
+            },
+          });
+        }
+      },
+    );
+
     try {
       const filesReady = [];
       const fsApi = FsApi.getInstance();
+      const totalFiles = uploadedFiles.length;
 
-      for (const f of uploadedFiles) {
+      for (let i = 0; i < uploadedFiles.length; i++) {
+        const f = uploadedFiles[i];
+
         // 画像化モードの場合
         if (f.processMode === 'image') {
           let pdfData: Uint8Array;
 
           // PDF以外の場合は、まずOffice→PDFに変換
           if (f.type !== 'application/pdf') {
+            // 進捗状態を更新: PDF変換中（詳細はイベントで更新される）
+            setConversionProgress({
+              currentFileName: f.name,
+              conversionType: 'pdf',
+              currentIndex: i + 1,
+              totalCount: totalFiles,
+            });
+
             pdfData = (await fsApi.convertOfficeToPdf(f.path, {
               showAlert: false,
               throwError: true,
@@ -421,6 +491,14 @@ function ReviewSourceModal({
               throwError: true,
             }))!;
           }
+
+          // 進捗状態を更新: 画像化中
+          setConversionProgress({
+            currentFileName: f.name,
+            conversionType: 'image',
+            currentIndex: i + 1,
+            totalCount: totalFiles,
+          });
 
           // ブラウザ側で pdf.js にレンダリングさせて PNG を得る
           const imagePages = await convertPdfBytesToImages(pdfData, {
@@ -459,6 +537,9 @@ function ReviewSourceModal({
         }
       }
 
+      // 変換完了後、進捗状態をクリア
+      setConversionProgress(null);
+
       // 呼び出し元に最終決定のファイルリストを渡す（必要ならこの先でMainに送る）
       onSubmit(
         filesReady,
@@ -484,176 +565,285 @@ function ReviewSourceModal({
         severity: 'error',
       });
     } finally {
+      // イベント購読を解除
+      unsubscribe();
       setProcessing(false);
+      setConversionProgress(null);
     }
   };
 
+  // モーダルクローズハンドラー（変換処理中は閉じられないように制御）
+  const handleClose = () => {
+    if (processing) {
+      // 変換処理中はモーダルを閉じない
+      return;
+    }
+    onClose();
+  };
+
   return (
-    <Modal open={open} onClose={onClose}>
-      <Box
-        sx={{
-          position: 'absolute',
-          top: '50%',
-          left: '50%',
-          transform: 'translate(-50%, -50%)',
-          width: '80%',
-          maxWidth: 800,
-          bgcolor: 'background.paper',
-          boxShadow: 24,
-          p: 4,
-          maxHeight: '90vh',
-          overflow: 'auto',
-          borderRadius: 1,
-        }}
-      >
-        <Typography variant="h6" component="h2" gutterBottom>
-          {getTitle(modalMode)}
-        </Typography>
+    <Modal open={open} onClose={handleClose}>
+      <>
+        <Box
+          sx={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            width: '80%',
+            maxWidth: 800,
+            bgcolor: 'background.paper',
+            boxShadow: 24,
+            p: 4,
+            maxHeight: '90vh',
+            overflow: 'auto',
+            borderRadius: 1,
+          }}
+        >
+          <Typography variant="h6" component="h2" gutterBottom>
+            {getTitle(modalMode)}
+          </Typography>
 
-        <Alert severity="info" sx={{ whiteSpace: 'pre-line', mb: 2 }}>
-          {getAlertMessage({ modalMode, documentType })}
-        </Alert>
+          <Alert severity="info" sx={{ whiteSpace: 'pre-line', mb: 2 }}>
+            {getAlertMessage({ modalMode, documentType })}
+          </Alert>
 
-        {modalMode === 'extract' && (
-          <>
-            <FormControl component="fieldset" sx={{ mb: 2 }}>
-              <FormLabel component="legend">ドキュメント種別</FormLabel>
-              <RadioGroup
-                value={documentType}
-                onChange={(e) =>
-                  setDocumentType(e.target.value as DocumentType)
-                }
-              >
-                <FormControlLabel
-                  value="checklist-ai"
-                  control={<Radio />}
-                  label="チェックリストドキュメント（AI抽出）"
-                  disabled={processing}
-                />
-                <FormControlLabel
-                  value="checklist-csv"
-                  control={<Radio />}
-                  label={
-                    <Tooltip title="選択したファイル(Excel,CSV)の一列目の値を全てチェックリスト項目として抽出します">
-                      <span>
-                        チェックリストドキュメント（ファイルインポート）
-                      </span>
-                    </Tooltip>
+          {modalMode === 'extract' && (
+            <>
+              <FormControl component="fieldset" sx={{ mb: 2 }}>
+                <FormLabel component="legend">ドキュメント種別</FormLabel>
+                <RadioGroup
+                  value={documentType}
+                  onChange={(e) =>
+                    setDocumentType(e.target.value as DocumentType)
                   }
-                  disabled={processing}
-                />
-                <FormControlLabel
-                  value="general"
-                  control={<Radio />}
-                  label="一般ドキュメント（新規チェックリスト作成）"
-                  disabled={processing}
-                />
-              </RadioGroup>
-            </FormControl>
+                >
+                  <FormControlLabel
+                    value="checklist-ai"
+                    control={<Radio />}
+                    label="チェックリストドキュメント（AI抽出）"
+                    disabled={processing}
+                  />
+                  <FormControlLabel
+                    value="checklist-csv"
+                    control={<Radio />}
+                    label={
+                      <Tooltip title="選択したファイル(Excel,CSV)の一列目の値を全てチェックリスト項目として抽出します">
+                        <span>
+                          チェックリストドキュメント（ファイルインポート）
+                        </span>
+                      </Tooltip>
+                    }
+                    disabled={processing}
+                  />
+                  <FormControlLabel
+                    value="general"
+                    control={<Radio />}
+                    label="一般ドキュメント（新規チェックリスト作成）"
+                    disabled={processing}
+                  />
+                </RadioGroup>
+              </FormControl>
 
-            {documentType === 'general' && (
+              {documentType === 'general' && (
+                <TextField
+                  fullWidth
+                  multiline
+                  rows={5}
+                  label="チェックリスト作成要件"
+                  placeholder="例：要件定義書をレビューするためのチェックリストを作成してください"
+                  value={checklistRequirements}
+                  onChange={(e) => setChecklistRequirements(e.target.value)}
+                  disabled={processing}
+                  sx={{ mb: 2 }}
+                  helperText="どのような観点でチェックリストを作成したいか具体的に記載してください（任意）"
+                />
+              )}
+            </>
+          )}
+
+          {modalMode === 'review' && (
+            <>
+              <FormControl component="fieldset" sx={{ mb: 2 }}>
+                <FormLabel component="legend">ドキュメント量</FormLabel>
+                <RadioGroup
+                  value={documentVolumeType}
+                  onChange={(e) =>
+                    setDocumentVolumeType(e.target.value as 'small' | 'large')
+                  }
+                >
+                  <FormControlLabel
+                    value="small"
+                    control={<Radio />}
+                    label={
+                      <Tooltip title="選択されたドキュメントを全てそのままAIの入力コンテキストに与えてレビューを行います。ドキュメント量が少ない場合に選択してください。">
+                        <span>
+                          少量ドキュメント
+                          <HelpIcon
+                            fontSize="small"
+                            sx={{ ml: 0.5, color: 'text.secondary' }}
+                          />
+                        </span>
+                      </Tooltip>
+                    }
+                    disabled={processing}
+                  />
+                  <FormControlLabel
+                    value="large"
+                    control={<Radio />}
+                    label={
+                      <Tooltip title="個々のドキュメントをAIの入力コンテキストに収まるまで分割してレビューを実行し、最終的にこれらの結果を統合します。ドキュメント量が多い場合に選択してください。">
+                        <span>
+                          大量ドキュメント
+                          <HelpIcon
+                            fontSize="small"
+                            sx={{ ml: 0.5, color: 'text.secondary' }}
+                          />
+                        </span>
+                      </Tooltip>
+                    }
+                    disabled={processing}
+                  />
+                </RadioGroup>
+              </FormControl>
+
               <TextField
                 fullWidth
                 multiline
-                rows={5}
-                label="チェックリスト作成要件"
-                placeholder="例：要件定義書をレビューするためのチェックリストを作成してください"
-                value={checklistRequirements}
-                onChange={(e) => setChecklistRequirements(e.target.value)}
+                rows={3}
+                label="追加指示"
+                placeholder="例：特に技術的な観点から厳しくレビューしてください"
+                value={additionalInstructions}
+                onChange={(e) => setAdditionalInstructions(e.target.value)}
                 disabled={processing}
                 sx={{ mb: 2 }}
-                helperText="どのような観点でチェックリストを作成したいか具体的に記載してください（任意）"
+                helperText="AIに対してレビューの進め方の追加指示がある場合は記載してください（任意）"
               />
-            )}
-          </>
-        )}
 
-        {modalMode === 'review' && (
-          <>
-            <FormControl component="fieldset" sx={{ mb: 2 }}>
-              <FormLabel component="legend">ドキュメント量</FormLabel>
-              <RadioGroup
-                value={documentVolumeType}
-                onChange={(e) =>
-                  setDocumentVolumeType(e.target.value as 'small' | 'large')
-                }
-              >
-                <FormControlLabel
-                  value="small"
-                  control={<Radio />}
-                  label={
-                    <Tooltip title="選択されたドキュメントを全てそのままAIの入力コンテキストに与えてレビューを行います。ドキュメント量が少ない場合に選択してください。">
-                      <span>
-                        少量ドキュメント
-                        <HelpIcon
-                          fontSize="small"
-                          sx={{ ml: 0.5, color: 'text.secondary' }}
-                        />
-                      </span>
-                    </Tooltip>
-                  }
-                  disabled={processing}
-                />
-                <FormControlLabel
-                  value="large"
-                  control={<Radio />}
-                  label={
-                    <Tooltip title="ドキュメントを直接AIに入力するのではなく、個々のドキュメントの要約や分析を実行して整理し、最終的にレビューを行います。ドキュメント量が多い場合に選択してください。">
-                      <span>
-                        大量ドキュメント
-                        <HelpIcon
-                          fontSize="small"
-                          sx={{ ml: 0.5, color: 'text.secondary' }}
-                        />
-                      </span>
-                    </Tooltip>
-                  }
-                  disabled={processing}
-                />
-              </RadioGroup>
-            </FormControl>
+              <TextField
+                fullWidth
+                multiline
+                rows={4}
+                label="コメントフォーマット"
+                value={commentFormat}
+                onChange={(e) => setCommentFormat(e.target.value)}
+                disabled={processing}
+                sx={{ mb: 2 }}
+                helperText="AIがレビューコメントを記載する際のフォーマットを指定してください"
+              />
 
-            <TextField
-              fullWidth
-              multiline
-              rows={3}
-              label="追加指示"
-              placeholder="例：特に技術的な観点から厳しくレビューしてください"
-              value={additionalInstructions}
-              onChange={(e) => setAdditionalInstructions(e.target.value)}
-              disabled={processing}
-              sx={{ mb: 2 }}
-              helperText="AIに対してレビューの進め方の追加指示がある場合は記載してください（任意）"
-            />
+              <Accordion sx={{ mb: 2 }}>
+                <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                  <Typography variant="subtitle1">評定項目設定</Typography>
+                </AccordionSummary>
+                <AccordionDetails>
+                  <Stack spacing={2}>
+                    <Typography variant="body2" color="text.secondary">
+                      レビューで使用する評定項目を設定できます
+                    </Typography>
 
-            <TextField
-              fullWidth
-              multiline
-              rows={4}
-              label="コメントフォーマット"
-              value={commentFormat}
-              onChange={(e) => setCommentFormat(e.target.value)}
-              disabled={processing}
-              sx={{ mb: 2 }}
-              helperText="AIがレビューコメントを記載する際のフォーマットを指定してください"
-            />
+                    {/* 評定項目一覧 */}
+                    {evaluationSettings.items.map((item, index) => (
+                      <Paper key={index} variant="outlined" sx={{ p: 2 }}>
+                        {editingItemIndex === index ? (
+                          // 編集モード
+                          <Stack spacing={2}>
+                            <TextField
+                              label="評定ラベル"
+                              value={editingItem.label}
+                              onChange={(e) =>
+                                setEditingItem((prev) => ({
+                                  ...prev,
+                                  label: e.target.value,
+                                }))
+                              }
+                              size="small"
+                              helperText="例: 優秀, 良好, 要改善"
+                            />
+                            <TextField
+                              label="評定説明"
+                              value={editingItem.description}
+                              onChange={(e) =>
+                                setEditingItem((prev) => ({
+                                  ...prev,
+                                  description: e.target.value,
+                                }))
+                              }
+                              multiline
+                              rows={2}
+                              size="small"
+                              helperText="この評定の意味を説明してください"
+                            />
+                            <Stack direction="row" spacing={1}>
+                              <Button
+                                variant="contained"
+                                size="small"
+                                onClick={handleSaveEvaluationItem}
+                              >
+                                保存
+                              </Button>
+                              <Button
+                                variant="outlined"
+                                size="small"
+                                onClick={handleCancelEditEvaluationItem}
+                              >
+                                キャンセル
+                              </Button>
+                            </Stack>
+                          </Stack>
+                        ) : (
+                          // 表示モード
+                          <Stack
+                            direction="row"
+                            justifyContent="space-between"
+                            alignItems="center"
+                          >
+                            <Box>
+                              <Typography
+                                variant="body1"
+                                component="span"
+                                sx={{ fontWeight: 'bold', mr: 2 }}
+                              >
+                                {item.label}
+                              </Typography>
+                              <Typography
+                                variant="body2"
+                                color="text.secondary"
+                              >
+                                {item.description}
+                              </Typography>
+                            </Box>
+                            <Stack direction="row" spacing={1}>
+                              <IconButton
+                                size="small"
+                                onClick={() => handleEditEvaluationItem(index)}
+                              >
+                                <EditIcon />
+                              </IconButton>
+                              <IconButton
+                                size="small"
+                                onClick={() =>
+                                  handleDeleteEvaluationItem(index)
+                                }
+                              >
+                                <DeleteIcon />
+                              </IconButton>
+                            </Stack>
+                          </Stack>
+                        )}
+                      </Paper>
+                    ))}
 
-            <Accordion sx={{ mb: 2 }}>
-              <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                <Typography variant="subtitle1">評定項目設定</Typography>
-              </AccordionSummary>
-              <AccordionDetails>
-                <Stack spacing={2}>
-                  <Typography variant="body2" color="text.secondary">
-                    レビューで使用する評定項目を設定できます
-                  </Typography>
-
-                  {/* 評定項目一覧 */}
-                  {evaluationSettings.items.map((item, index) => (
-                    <Paper key={index} variant="outlined" sx={{ p: 2 }}>
-                      {editingItemIndex === index ? (
-                        // 編集モード
+                    {/* 新規追加編集フォーム */}
+                    {editingItemIndex === -1 && (
+                      <Paper
+                        variant="outlined"
+                        sx={{ p: 2, border: '2px dashed' }}
+                      >
                         <Stack spacing={2}>
+                          <Typography variant="subtitle2">
+                            新しい評定項目を追加
+                          </Typography>
                           <TextField
                             label="評定ラベル"
                             value={editingItem.label}
@@ -686,7 +876,7 @@ function ReviewSourceModal({
                               size="small"
                               onClick={handleSaveEvaluationItem}
                             >
-                              保存
+                              追加
                             </Button>
                             <Button
                               variant="outlined"
@@ -697,348 +887,378 @@ function ReviewSourceModal({
                             </Button>
                           </Stack>
                         </Stack>
-                      ) : (
-                        // 表示モード
-                        <Stack
-                          direction="row"
-                          justifyContent="space-between"
-                          alignItems="center"
-                        >
-                          <Box>
-                            <Typography
-                              variant="body1"
-                              component="span"
-                              sx={{ fontWeight: 'bold', mr: 2 }}
-                            >
-                              {item.label}
-                            </Typography>
-                            <Typography variant="body2" color="text.secondary">
-                              {item.description}
-                            </Typography>
-                          </Box>
-                          <Stack direction="row" spacing={1}>
-                            <IconButton
-                              size="small"
-                              onClick={() => handleEditEvaluationItem(index)}
-                            >
-                              <EditIcon />
-                            </IconButton>
-                            <IconButton
-                              size="small"
-                              onClick={() => handleDeleteEvaluationItem(index)}
-                            >
-                              <DeleteIcon />
-                            </IconButton>
-                          </Stack>
-                        </Stack>
-                      )}
-                    </Paper>
-                  ))}
+                      </Paper>
+                    )}
 
-                  {/* 新規追加編集フォーム */}
-                  {editingItemIndex === -1 && (
-                    <Paper
-                      variant="outlined"
-                      sx={{ p: 2, border: '2px dashed' }}
-                    >
-                      <Stack spacing={2}>
-                        <Typography variant="subtitle2">
-                          新しい評定項目を追加
-                        </Typography>
-                        <TextField
-                          label="評定ラベル"
-                          value={editingItem.label}
-                          onChange={(e) =>
-                            setEditingItem((prev) => ({
-                              ...prev,
-                              label: e.target.value,
-                            }))
-                          }
-                          size="small"
-                          helperText="例: 優秀, 良好, 要改善"
-                        />
-                        <TextField
-                          label="評定説明"
-                          value={editingItem.description}
-                          onChange={(e) =>
-                            setEditingItem((prev) => ({
-                              ...prev,
-                              description: e.target.value,
-                            }))
-                          }
-                          multiline
-                          rows={2}
-                          size="small"
-                          helperText="この評定の意味を説明してください"
-                        />
-                        <Stack direction="row" spacing={1}>
-                          <Button
-                            variant="contained"
-                            size="small"
-                            onClick={handleSaveEvaluationItem}
-                          >
-                            追加
-                          </Button>
-                          <Button
-                            variant="outlined"
-                            size="small"
-                            onClick={handleCancelEditEvaluationItem}
-                          >
-                            キャンセル
-                          </Button>
-                        </Stack>
-                      </Stack>
-                    </Paper>
-                  )}
+                    {/* 追加ボタン */}
+                    {editingItemIndex === null && (
+                      <Button
+                        variant="outlined"
+                        startIcon={<AddIcon />}
+                        onClick={handleAddEvaluationItem}
+                        disabled={processing}
+                      >
+                        評定項目を追加
+                      </Button>
+                    )}
+                  </Stack>
+                </AccordionDetails>
+              </Accordion>
+            </>
+          )}
 
-                  {/* 追加ボタン */}
-                  {editingItemIndex === null && (
-                    <Button
-                      variant="outlined"
-                      startIcon={<AddIcon />}
-                      onClick={handleAddEvaluationItem}
-                      disabled={processing}
-                    >
-                      評定項目を追加
-                    </Button>
-                  )}
-                </Stack>
-              </AccordionDetails>
-            </Accordion>
-          </>
-        )}
-
-        <Box sx={{ mb: 2 }}>
-          <Button
-            variant="contained"
-            onClick={handleFileUpload}
-            startIcon={<UploadIcon />}
-            disabled={processing}
-          >
-            ファイル選択ダイアログ
-          </Button>
-        </Box>
-
-        {uploadedFiles.length > 0 && (
-          <Paper sx={{ mb: 2, p: 2 }}>
-            <Typography variant="subtitle2" gutterBottom>
-              選択済みファイル ({uploadedFiles.length}件)
-            </Typography>
-
-            {/* 一括設定セクション */}
-            <Paper
-              // variant="outlined"
-              sx={{
-                p: 2,
-                mb: 2,
-                bgcolor: 'action.hover',
-                border: '1px solid',
-              }}
+          <Box sx={{ mb: 2 }}>
+            <Button
+              variant="contained"
+              onClick={handleFileUpload}
+              startIcon={<UploadIcon />}
+              disabled={processing}
             >
-              <Stack spacing={2}>
-                <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>
-                  一括設定
-                </Typography>
-                <FormControl component="fieldset">
-                  <RadioGroup
-                    value={bulkProcessMode}
-                    onChange={(e) =>
-                      setBulkProcessMode(e.target.value as BulkProcessMode)
+              ファイル選択ダイアログ
+            </Button>
+          </Box>
+
+          {uploadedFiles.length > 0 && (
+            <Paper sx={{ mb: 2, p: 2 }}>
+              <Typography variant="subtitle2" gutterBottom>
+                選択済みファイル ({uploadedFiles.length}件)
+              </Typography>
+
+              {/* 一括設定セクション */}
+              {documentType !== 'checklist-csv' && (
+                <Paper
+                  // variant="outlined"
+                  sx={{
+                    p: 2,
+                    mb: 2,
+                    bgcolor: 'action.hover',
+                    border: '1px solid',
+                  }}
+                >
+                  <Stack spacing={2}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>
+                      一括設定
+                    </Typography>
+                    <FormControl component="fieldset">
+                      <RadioGroup
+                        value={bulkProcessMode}
+                        onChange={(e) =>
+                          setBulkProcessMode(e.target.value as BulkProcessMode)
+                        }
+                      >
+                        <FormControlLabel
+                          value="text"
+                          control={<Radio size="small" />}
+                          label={
+                            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                              <TextIcon fontSize="small" sx={{ mr: 0.5 }} />
+                              テキスト抽出
+                            </Box>
+                          }
+                          disabled={processing}
+                        />
+                        <FormControlLabel
+                          value="image-merged"
+                          control={<Radio size="small" />}
+                          label={
+                            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                              <ImageIcon fontSize="small" sx={{ mr: 0.5 }} />
+                              <MergedIcon fontSize="small" sx={{ mr: 0.5 }} />
+                              画像化（統合）
+                              <Tooltip title="全ページを1つの縦長画像として統合します。AIモデルは画像を一定の大きさに圧縮して読み込むので、ページ数が多い場合は利用しないでください。office文書の場合はPDFに変換してから画像化します。">
+                                <HelpIcon
+                                  fontSize="small"
+                                  sx={{ ml: 0.5, color: 'text.secondary' }}
+                                />
+                              </Tooltip>
+                            </Box>
+                          }
+                          disabled={processing}
+                        />
+                        <FormControlLabel
+                          value="image-pages"
+                          control={<Radio size="small" />}
+                          label={
+                            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                              <ImageIcon fontSize="small" sx={{ mr: 0.5 }} />
+                              <PagesIcon fontSize="small" sx={{ mr: 0.5 }} />
+                              画像化（ページ毎）
+                              <Tooltip title="各ページを個別の画像として処理します。office文書の場合はPDFに変換してから画像化します。">
+                                <HelpIcon
+                                  fontSize="small"
+                                  sx={{ ml: 0.5, color: 'text.secondary' }}
+                                />
+                              </Tooltip>
+                            </Box>
+                          }
+                          disabled={processing}
+                        />
+                      </RadioGroup>
+                    </FormControl>
+                    <Button
+                      variant="contained"
+                      size="small"
+                      onClick={handleApplyBulkSettings}
+                      disabled={processing}
+                      sx={{ alignSelf: 'flex-start' }}
+                    >
+                      すべてに適用
+                    </Button>
+                  </Stack>
+                </Paper>
+              )}
+              <List dense>
+                {uploadedFiles.map((file) => (
+                  <ListItem
+                    key={file.id}
+                    secondaryAction={
+                      <IconButton
+                        edge="end"
+                        onClick={() => handleFileDelete(file.id)}
+                        disabled={processing}
+                      >
+                        <DeleteIcon />
+                      </IconButton>
                     }
                   >
-                    <FormControlLabel
-                      value="text"
-                      control={<Radio size="small" />}
-                      label={
-                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                          <TextIcon fontSize="small" sx={{ mr: 0.5 }} />
-                          テキスト抽出
-                        </Box>
-                      }
-                      disabled={processing}
-                    />
-                    <FormControlLabel
-                      value="image-merged"
-                      control={<Radio size="small" />}
-                      label={
-                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                          <ImageIcon fontSize="small" sx={{ mr: 0.5 }} />
-                          <MergedIcon fontSize="small" sx={{ mr: 0.5 }} />
-                          画像化（統合）
-                          <Tooltip title="全ページを1つの縦長画像として統合します">
-                            <HelpIcon
-                              fontSize="small"
-                              sx={{ ml: 0.5, color: 'text.secondary' }}
-                            />
-                          </Tooltip>
-                        </Box>
-                      }
-                      disabled={processing}
-                    />
-                    <FormControlLabel
-                      value="image-pages"
-                      control={<Radio size="small" />}
-                      label={
-                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                          <ImageIcon fontSize="small" sx={{ mr: 0.5 }} />
-                          <PagesIcon fontSize="small" sx={{ mr: 0.5 }} />
-                          画像化（ページ毎）
-                          <Tooltip title="各ページを個別の画像として処理します">
-                            <HelpIcon
-                              fontSize="small"
-                              sx={{ ml: 0.5, color: 'text.secondary' }}
-                            />
-                          </Tooltip>
-                        </Box>
-                      }
-                      disabled={processing}
-                    />
-                  </RadioGroup>
-                </FormControl>
-                <Button
-                  variant="contained"
-                  size="small"
-                  onClick={handleApplyBulkSettings}
-                  disabled={processing}
-                  sx={{ alignSelf: 'flex-start' }}
-                >
-                  すべてに適用
-                </Button>
-              </Stack>
-            </Paper>
-            <List dense>
-              {uploadedFiles.map((file) => (
-                <ListItem
-                  key={file.id}
-                  secondaryAction={
-                    <IconButton
-                      edge="end"
-                      onClick={() => handleFileDelete(file.id)}
-                      disabled={processing}
-                    >
-                      <DeleteIcon />
-                    </IconButton>
-                  }
-                >
-                  <ListItemText primary={file.name} />
-                  {supportsImageProcessing(file.type) && (
-                    <Box sx={{ mr: 2 }}>
-                      <FormControl size="small">
-                        <RadioGroup
-                          row
-                          value={file.processMode}
-                          onChange={(e) =>
-                            handleProcessModeChange(
-                              file.id,
-                              e.target.value as ProcessMode,
-                            )
-                          }
-                        >
-                          <FormControlLabel
-                            value="text"
-                            control={<Radio size="small" />}
-                            label={
-                              <Box
-                                sx={{ display: 'flex', alignItems: 'center' }}
-                              >
-                                <TextIcon fontSize="small" sx={{ mr: 0.5 }} />
-                                テキスト
-                              </Box>
-                            }
-                          />
-                          <FormControlLabel
-                            value="image"
-                            control={<Radio size="small" />}
-                            label={
-                              <Box
-                                sx={{ display: 'flex', alignItems: 'center' }}
-                              >
-                                <ImageIcon fontSize="small" sx={{ mr: 0.5 }} />
-                                画像
-                                <Tooltip title="図形オブジェクトが多いドキュメントは画像化で精度が上がる場合があります">
-                                  <HelpIcon
-                                    fontSize="small"
-                                    sx={{ ml: 0.5, color: 'text.secondary' }}
-                                  />
-                                </Tooltip>
-                              </Box>
-                            }
-                          />
-                        </RadioGroup>
-                      </FormControl>
-                      {file.processMode === 'image' && (
-                        <FormControl size="small" sx={{ ml: 1 }}>
-                          <RadioGroup
-                            row
-                            value={file.imageMode}
-                            onChange={(e) =>
-                              handleImageModeChange(
-                                file.id,
-                                e.target.value as ImageMode,
-                              )
-                            }
-                          >
-                            <FormControlLabel
-                              value="merged"
-                              control={<Radio size="small" />}
-                              label={
-                                <Box
-                                  sx={{ display: 'flex', alignItems: 'center' }}
-                                >
-                                  <MergedIcon
-                                    fontSize="small"
-                                    sx={{ mr: 0.5 }}
-                                  />
-                                  統合画像
-                                </Box>
+                    <ListItemText primary={file.name} />
+                    {supportsImageProcessing(file.type) &&
+                      documentType !== 'checklist-csv' && (
+                        <Box sx={{ mr: 2 }}>
+                          <FormControl size="small">
+                            <RadioGroup
+                              row
+                              value={file.processMode}
+                              onChange={(e) =>
+                                handleProcessModeChange(
+                                  file.id,
+                                  e.target.value as ProcessMode,
+                                )
                               }
-                            />
-                            <FormControlLabel
-                              value="pages"
-                              control={<Radio size="small" />}
-                              label={
-                                <Box
-                                  sx={{ display: 'flex', alignItems: 'center' }}
-                                >
-                                  <PagesIcon
-                                    fontSize="small"
-                                    sx={{ mr: 0.5 }}
-                                  />
-                                  ページ別画像
-                                  <Tooltip title="ページ数が多い場合はページごとに画像化することを検討してください">
-                                    <HelpIcon
+                            >
+                              <FormControlLabel
+                                value="text"
+                                control={<Radio size="small" />}
+                                label={
+                                  <Box
+                                    sx={{
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                    }}
+                                  >
+                                    <TextIcon
                                       fontSize="small"
-                                      sx={{ ml: 0.5, color: 'text.secondary' }}
+                                      sx={{ mr: 0.5 }}
                                     />
-                                  </Tooltip>
-                                </Box>
-                              }
-                            />
-                          </RadioGroup>
-                        </FormControl>
+                                    テキスト
+                                  </Box>
+                                }
+                              />
+                              <FormControlLabel
+                                value="image"
+                                control={<Radio size="small" />}
+                                label={
+                                  <Box
+                                    sx={{
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                    }}
+                                  >
+                                    <ImageIcon
+                                      fontSize="small"
+                                      sx={{ mr: 0.5 }}
+                                    />
+                                    画像
+                                    <Tooltip title="図形オブジェクトが多いドキュメントは画像化で精度が上がる場合があります">
+                                      <HelpIcon
+                                        fontSize="small"
+                                        sx={{
+                                          ml: 0.5,
+                                          color: 'text.secondary',
+                                        }}
+                                      />
+                                    </Tooltip>
+                                  </Box>
+                                }
+                              />
+                            </RadioGroup>
+                          </FormControl>
+                          {file.processMode === 'image' && (
+                            <FormControl size="small" sx={{ ml: 1 }}>
+                              <RadioGroup
+                                row
+                                value={file.imageMode}
+                                onChange={(e) =>
+                                  handleImageModeChange(
+                                    file.id,
+                                    e.target.value as ImageMode,
+                                  )
+                                }
+                              >
+                                <FormControlLabel
+                                  value="merged"
+                                  control={<Radio size="small" />}
+                                  label={
+                                    <Box
+                                      sx={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                      }}
+                                    >
+                                      <MergedIcon
+                                        fontSize="small"
+                                        sx={{ mr: 0.5 }}
+                                      />
+                                      統合画像
+                                      <Tooltip title="全ページを1つの縦長画像として統合します。AIモデルは画像を一定の大きさに圧縮して読み込むので、ページ数が多い場合は利用しないでください。office文書の場合はPDFに変換してから画像化します。">
+                                        <HelpIcon
+                                          fontSize="small"
+                                          sx={{
+                                            ml: 0.5,
+                                            color: 'text.secondary',
+                                          }}
+                                        />
+                                      </Tooltip>
+                                    </Box>
+                                  }
+                                />
+                                <FormControlLabel
+                                  value="pages"
+                                  control={<Radio size="small" />}
+                                  label={
+                                    <Box
+                                      sx={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                      }}
+                                    >
+                                      <PagesIcon
+                                        fontSize="small"
+                                        sx={{ mr: 0.5 }}
+                                      />
+                                      ページ別画像
+                                      <Tooltip title="各ページを個別の画像として処理します。office文書の場合はPDFに変換してから画像化します。">
+                                        <HelpIcon
+                                          fontSize="small"
+                                          sx={{
+                                            ml: 0.5,
+                                            color: 'text.secondary',
+                                          }}
+                                        />
+                                      </Tooltip>
+                                    </Box>
+                                  }
+                                />
+                              </RadioGroup>
+                            </FormControl>
+                          )}
+                        </Box>
                       )}
-                    </Box>
-                  )}
-                </ListItem>
-              ))}
-            </List>
-          </Paper>
-        )}
+                  </ListItem>
+                ))}
+              </List>
+            </Paper>
+          )}
 
-        <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
-          <Button variant="outlined" onClick={onClose} disabled={processing}>
-            キャンセル
-          </Button>
-          <Button
-            variant="contained"
-            onClick={handleSubmit}
-            disabled={processing || disabled || uploadedFiles.length === 0}
-            startIcon={processing ? <CircularProgress size={20} /> : null}
-          >
-            {processing ? '処理中...' : getButtonText(modalMode)}
-          </Button>
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
+            <Button
+              variant="outlined"
+              onClick={handleClose}
+              disabled={processing}
+            >
+              キャンセル
+            </Button>
+            <Button
+              variant="contained"
+              onClick={handleSubmit}
+              disabled={processing || disabled || uploadedFiles.length === 0}
+              // startIcon={processing ? <CircularProgress size={20} /> : null}
+            >
+              {processing ? '処理中...' : getButtonText(modalMode)}
+            </Button>
+          </Box>
         </Box>
-      </Box>
+
+        {/* 変換進捗表示用Backdrop */}
+        <Backdrop
+          open={!!conversionProgress}
+          sx={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            zIndex: (theme) => theme.zIndex.modal + 1,
+            color: '#fff',
+            backgroundColor: 'rgba(0, 0, 0, 0.7)',
+          }}
+        >
+          <Box
+            sx={{
+              textAlign: 'center',
+              p: 4,
+              bgcolor: 'background.paper',
+              borderRadius: 2,
+              minWidth: 300,
+              maxWidth: 500,
+            }}
+          >
+            <CircularProgress size={60} sx={{ mb: 3 }} />
+            <Typography variant="h6" gutterBottom color="text.primary">
+              ファイルを変換しています
+            </Typography>
+            {conversionProgress && (
+              <>
+                <Typography variant="body1" color="text.primary" sx={{ mb: 1 }}>
+                  {conversionProgress.currentFileName}
+                </Typography>
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{ mb: 2 }}
+                >
+                  {conversionProgress.conversionType === 'pdf' ? (
+                    <>
+                      {conversionProgress.progressDetail?.type ===
+                        'sheet-setup' &&
+                      conversionProgress.progressDetail.sheetName ? (
+                        <>
+                          「{conversionProgress.progressDetail.sheetName}」
+                          シートPDF印刷設定中
+                          {conversionProgress.progressDetail.currentSheet &&
+                          conversionProgress.progressDetail.totalSheets ? (
+                            <>
+                              {' '}
+                              ({conversionProgress.progressDetail.currentSheet}/
+                              {conversionProgress.progressDetail.totalSheets})
+                            </>
+                          ) : null}
+                        </>
+                      ) : conversionProgress.progressDetail?.type ===
+                        'pdf-export' ? (
+                        <>PDFファイルへエクスポート中</>
+                      ) : (
+                        <>PDFに変換中...</>
+                      )}
+                      <br />
+                      ※<br />
+                      変換に時間がかかる場合があります
+                      <br />
+                      変換されたPDFファイルはファイルパス、最終更新時刻をキーにキャッシュされます
+                    </>
+                  ) : (
+                    '画像に変換中...'
+                  )}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  処理済み: {conversionProgress.currentIndex} /{' '}
+                  {conversionProgress.totalCount} ファイル
+                </Typography>
+              </>
+            )}
+          </Box>
+        </Backdrop>
+      </>
     </Modal>
   );
 }

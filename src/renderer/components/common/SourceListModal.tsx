@@ -256,13 +256,12 @@ function SourceListModal({
     };
   }, [reloadPolling, sources, fetchSources]);
 
-  const handleReloadClick = () => {
+  const handleReloadClick = async () => {
     setReloadPolling(true);
-    onReloadSources();
 
-    // 完了イベントの購読を開始（ワンショット）
+    // 完了イベントの購読を開始（リロード実行前に購読を確立）
     const sourceApi = SourceApi.getInstance();
-    const unsubscribe = sourceApi.subscribeSourceReloadFinished(
+    const unsubscribe = await sourceApi.subscribeSourceReloadFinished(
       (payload: { success: boolean; error?: string }) => {
         // ドキュメント更新完了時にポーリングを停止
         setReloadPolling(false);
@@ -296,6 +295,9 @@ function SourceListModal({
         unsubscribe();
       },
     );
+
+    // 購読完了後にリロードを実行
+    onReloadSources();
   };
 
   const getStatusIcon = (status: Source['status'], error?: Source['error']) => {

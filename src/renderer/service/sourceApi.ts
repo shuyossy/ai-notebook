@@ -14,7 +14,7 @@ export interface ISourceApi {
   ): Promise<void>;
   subscribeSourceReloadFinished(
     callback: (payload: { success: boolean; error?: string }) => void,
-  ): () => void;
+  ): Promise<() => void>;
 }
 
 export class SourceApi implements ISourceApi {
@@ -55,11 +55,11 @@ export class SourceApi implements ISourceApi {
     }), options);
   }
 
-  public subscribeSourceReloadFinished(
+  public async subscribeSourceReloadFinished(
     callback: (payload: { success: boolean; error?: string }) => void,
-  ): () => void {
+  ): Promise<() => void> {
     const pushClient = new ElectronPushClient();
-    return pushClient.subscribe(
+    return pushClient.subscribeAsync(
       IpcChannels.SOURCE_RELOAD_FINISHED,
       (event) => {
         callback(event.payload);

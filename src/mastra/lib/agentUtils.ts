@@ -3,7 +3,7 @@ import { RuntimeContext } from '@mastra/core/runtime-context';
 import { FinishReason } from 'ai';
 import { getSettingsRepository } from '@/adapter/db';
 import { BaseRuntimeContext } from '../agents/types';
-import { extractAIAPISafeError } from '@/main/lib/error';
+import { AppError, extractAIAPISafeError } from '@/main/lib/error';
 import { APICallError } from 'ai';
 
 // BaseRuntimeConotextに値を入れた上で、指定したRuntimeContextを返す関数
@@ -48,12 +48,16 @@ export function judgeFinishReason(finishReason: FinishReason): {
 export const judgeErrorIsContentLengthError = (error: unknown) => {
   const apiError = extractAIAPISafeError(error);
   if (!apiError) return false;
+  if (apiError instanceof AppError) {
+    return apiError.messageCode === 'AI_MESSAGE_TOO_LARGE';
+  }
   if (APICallError.isInstance(apiError)) {
     return (
       apiError.responseBody?.includes('maximum context length') ||
       apiError.responseBody?.includes('tokens_limit_reached') ||
-      apiError.responseBody?.includes('context_length_exceeded')
+      apiError.responseBody?.includes('context_length_exceeded') ||
+      apiError.responseBody?.includes('many images')
     );
   }
   return false;
-}
+};

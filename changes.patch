@@ -1,71 +1,403 @@
-diff --git a/src/main/service/reviewService.ts b/src/main/service/reviewService.ts
-index 8e7cffbea..c65bd4539 100644
---- a/src/main/service/reviewService.ts
-+++ b/src/main/service/reviewService.ts
-@@ -417,8 +417,6 @@ export class ReviewService implements IReviewService {
-         },
-       });
+diff --git a/CLAUDE.md b/CLAUDE.md
+index 070b05170..33069f026 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -193,6 +193,7 @@ ElectronのIPCを使用してフロントエンド・バックエンド間の通
+     - ライブラリを追加する際は安定稼働バージョンを採用すること
+ - eslintについては単純なフォーマットエラーの場合は対応する必要はない
+ - IDEからエラー内容を読み取り、必要があれば確り対応すること
++- Mainプロセスとrendererプロセス間のIPC通信（イベントpushも含む）については`src/types/ipc.ts`で型を一元管理しているので、IPC通信関連コードを実装する際はまずこのファイルを修正して型安全に進めること
+ - MainプロセスでのIPC処理について、`src/main.ts`のhandleIpcにてエラーを一元管理しているため、IPCハンドラ内のサービスロジックにおいては基本的にはエラーをtry-catchしてハンドリングする必要はない
+   - ただし、ユーザにエラーメッセージを通知する必要がある場合は適切なエラーハンドリングの下、`src/mian/lib/error.ts`にて提供されているAppErrorをthrowすること
+ - フロントエンドから外部（IPC）通信する場合は`src/renderer/service/~Api.ts`を経由すること
+@@ -209,17 +210,8 @@ ElectronのIPCを使用してフロントエンド・バックエンド間の通
  
--      console.log('レビュー実行結果:', JSON.stringify(result, null, 2));
+ ## 依頼タスク
+ - 要件
+-  - office文書をpdfに変換する際に、変換結果をキャッシュできるようにする
+-    - 目的
+-      - pdf変換は時間がかかるので、キャッシュを活用してユーザの待ち時間を軽減する
+-    - 実装方針
+-      - パスと最終更新時刻をキーにしてキャッシュを取得
+-      - メタデータ（パス、名前、最終更新時刻、キャッシュパス等）はJSONで保存し、pdfファイルは別で保存
+-      - アプリ起動時にキャッシュディレクトリをクリーニング
+-        - 元ファイルが存在しないキャッシュファイルを削除
+-        - ファイル更新日時が古いキャッシュファイルを削除
+-        - 不正なJSONキャッシュファイルを削除
 -
-       // 結果を確認
-       const checkResult = checkWorkflowResult(result);
+-### タスク実装時の注意点
+-- ほぼ同様の処理が`src/main/lib/fileExtractor.ts`に定義されているので、参考にすること
+-- 現在はファイルを作成後、最終的に削除処理を実行しているので注意すること
++  - レビュー機能にて、excel文書をpdfに変換する際に、`ReviewSourceModal`の変換進捗表示用`Backdrop`にシートの印刷設定中は「〇〇シートPDF印刷設定中」と表示しPDFファイルにエクスポートする際は「PDFファイルへエクスポート中」 と表示する
++  - 目的
++    - excelのpdf変換が特に時間がかかるので、ユーザに進捗を通知したいため（ユーザ体験の向上）
++  - 実装方針
++    - 最も効率的な方法を採用して欲しいが、イベント送信が無難か？
+diff --git a/src/main/lib/officeConverter.ts b/src/main/lib/officeConverter.ts
+index 0325f44aa..55663f57a 100644
+--- a/src/main/lib/officeConverter.ts
++++ b/src/main/lib/officeConverter.ts
+@@ -1,5 +1,4 @@
+-import { execFile } from 'child_process';
+-import { promisify } from 'util';
++import { spawn } from 'child_process';
+ import path from 'path';
+ import fs from 'fs/promises';
+ import { existsSync, mkdirSync } from 'fs';
+@@ -8,8 +7,8 @@ import { createHash } from 'crypto';
+ import { getMainLogger } from './logger';
+ import { internalError } from './error';
+ import { getCustomAppDataDir } from '../main';
++import { publishEvent } from '../lib/eventPayloadHelper';
  
-diff --git a/src/renderer/components/review/ReviewChecklistSection.tsx b/src/renderer/components/review/ReviewChecklistSection.tsx
-index fffb346cb..d37a5b5c9 100644
---- a/src/renderer/components/review/ReviewChecklistSection.tsx
-+++ b/src/renderer/components/review/ReviewChecklistSection.tsx
-@@ -175,28 +175,33 @@ const ReviewChecklistSection: React.FC<ReviewChecklistSectionProps> = ({
-             align="center"
-             sx={{
-               minWidth: 200,
--              maxHeight: '4.5em',
--              overflow: 'hidden',
--              overflowY: 'auto',
--              lineHeight: '1.5em',
--              whiteSpace: 'normal',
--              wordBreak: 'break-all',
--              '&:hover': {
--                overflowY: 'auto',
--              },
-             }}
-           >
--            <Tooltip title={src.fileName} placement="top">
--              <div>
--                <TableSortLabel
--                  active={sortBy === src.id}
--                  direction={sortBy === src.id ? sortDirection : 'desc'}
--                  onClick={() => handleSort(src.id)}
--                >
--                  {src.fileName}
--                </TableSortLabel>
--              </div>
--            </Tooltip>
-+            <Box
-+              sx={{
-+                maxHeight: '4.5em',
-+                overflow: 'hidden',
-+                overflowY: 'auto',
-+                lineHeight: '1.5em',
-+                whiteSpace: 'normal',
-+                wordBreak: 'break-all',
-+                '&:hover': {
-+                  overflowY: 'auto',
-+                },
-+              }}
-+            >
-+              <Tooltip title={src.fileName} placement="top">
-+                <div>
-+                  <TableSortLabel
-+                    active={sortBy === src.id}
-+                    direction={sortBy === src.id ? sortDirection : 'desc'}
-+                    onClick={() => handleSort(src.id)}
-+                  >
-+                    {src.fileName}
-+                  </TableSortLabel>
-+                </div>
-+              </Tooltip>
-+            </Box>
-           </TableCell>
-         ))}
-         <TableCell align="center" sx={{ minWidth: 120 }}>
+-const execFileP = promisify(execFile);
+ const logger = getMainLogger();
+ 
+ /**
+@@ -329,11 +328,24 @@ try {
+           if ($s -gt 1.0) { return 1.0 } else { return $s }
+         }
+ 
++        # 総シート数を取得
++        $totalSheets = 0
++        foreach ($ws in $workbook.Worksheets) {
++          if ($ws.Type -eq [Microsoft.Office.Interop.Excel.XlSheetType]::xlWorksheet.value__) {
++            $totalSheets++
++          }
++        }
++
++        $currentSheet = 0
+         foreach ($worksheet in $workbook.Worksheets) {
+           try {
+             # ワークシートのみ対象（Chart等はスキップ）
+             if ($worksheet.Type -ne [Microsoft.Office.Interop.Excel.XlSheetType]::xlWorksheet.value__) { continue }
+ 
++            $currentSheet++
++            # 進捗情報を出力
++            Write-Output ("PROGRESS:SHEET_SETUP:{0}:{1}:{2}" -f $worksheet.Name, $currentSheet, $totalSheets)
++
+             $ps = $worksheet.PageSetup
+ 
+             # まず余白を極小に設定（向き判定に効くため先に設定）
+@@ -393,8 +405,15 @@ try {
+           catch {
+             Write-Verbose "Skip on sheet '$($worksheet.Name)': $($_.Exception.Message)"
+           }
++          finally {
++            if ($used) { [Runtime.InteropServices.Marshal]::ReleaseComObject($used) | Out-Null }
++            $used = $null
++          }
+         }
+ 
++        # PDFエクスポート開始を通知
++        Write-Output "PROGRESS:PDF_EXPORT"
++
+         # PDF として保存 (xlTypePDF = 0)
+         $workbook.ExportAsFixedFormat(
+             0,  # Type: xlTypePDF
+@@ -415,7 +434,10 @@ try {
+     finally {
+         try { if ($workbook) { $workbook.Close(\$false) } } catch {}
+         try { if ($excel) { $excel.Quit()     } } catch {}
+-        [System.Runtime.Interopservices.Marshal]::ReleaseComObject($excel) | Out-Null
++        if ($workbook) { [Runtime.InteropServices.Marshal]::ReleaseComObject($workbook) | Out-Null }
++        if ($excel)    { [Runtime.InteropServices.Marshal]::ReleaseComObject($excel)    | Out-Null }
++        $workbook = $null
++        $excel    = $null
+     }
+ }
+ catch {
+@@ -563,20 +585,89 @@ export async function convertOfficeToPdf(inputPath: string): Promise<string> {
+       encoding: 'utf8',
+     });
+ 
+-    // PowerShellスクリプトを実行
+-    const { stdout, stderr } = await execFileP(
+-      'powershell.exe',
+-      ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', tmpScriptPath],
+-      { encoding: 'utf8', maxBuffer: 1024 * 1024 * 10 }, // 10 MiB
+-    );
++    // PowerShellスクリプトをspawnで実行（リアルタイム出力取得のため）
++    await new Promise<void>((resolve, reject) => {
++      const child = spawn('powershell.exe', [
++        '-NoProfile',
++        '-ExecutionPolicy',
++        'Bypass',
++        '-File',
++        tmpScriptPath,
++      ]);
++
++      let stdoutBuffer = '';
++      let stderrBuffer = '';
++
++      child.stdout.on('data', (data: Buffer) => {
++        const text = data.toString('utf8');
++        stdoutBuffer += text;
++
++        // 進捗情報をパース
++        const lines = text.split('\n');
++        for (const line of lines) {
++          const trimmed = line.trim();
++          if (trimmed.startsWith('PROGRESS:')) {
++            const parts = trimmed.substring('PROGRESS:'.length).split(':');
++            const progressType = parts[0];
++
++            if (progressType === 'SHEET_SETUP' && parts.length >= 4) {
++              const sheetName = parts[1];
++              const currentSheet = parseInt(parts[2], 10);
++              const totalSheets = parseInt(parts[3], 10);
++
++              // 進捗イベントをpublish
++              publishEvent(
++                'fs-convert-office-to-pdf-progress' as any,
++                {
++                  fileName: path.basename(inputPath),
++                  progressType: 'sheet-setup',
++                  sheetName,
++                  currentSheet,
++                  totalSheets,
++                } as any,
++              );
++            } else if (progressType === 'PDF_EXPORT') {
++              // PDFエクスポート開始イベントをpublish
++              publishEvent(
++                'fs-convert-office-to-pdf-progress' as any,
++                {
++                  fileName: path.basename(inputPath),
++                  progressType: 'pdf-export',
++                } as any,
++              );
++            }
++          }
++        }
++      });
+ 
+-    // スクリプトからの出力をログに記録
+-    if (stdout) {
+-      logger.debug({ stdout }, 'PowerShell stdout');
+-    }
+-    if (stderr) {
+-      logger.warn({ stderr }, 'PowerShell stderr');
+-    }
++      child.stderr.on('data', (data: Buffer) => {
++        stderrBuffer += data.toString('utf8');
++      });
++
++      child.on('error', (error: Error) => {
++        reject(error);
++      });
++
++      child.on('close', (code: number | null) => {
++        // スクリプトからの出力をログに記録
++        if (stdoutBuffer) {
++          logger.debug({ stdout: stdoutBuffer }, 'PowerShell stdout');
++        }
++        if (stderrBuffer) {
++          logger.warn({ stderr: stderrBuffer }, 'PowerShell stderr');
++        }
++
++        if (code !== 0) {
++          reject(
++            new Error(
++              `PowerShell script exited with code ${code}: ${stderrBuffer}`,
++            ),
++          );
++        } else {
++          resolve();
++        }
++      });
++    });
+ 
+     // 出力ファイルの存在確認
+     try {
+diff --git a/src/renderer/components/review/ReviewSourceModal.tsx b/src/renderer/components/review/ReviewSourceModal.tsx
+index c6428f77a..8260f0696 100644
+--- a/src/renderer/components/review/ReviewSourceModal.tsx
++++ b/src/renderer/components/review/ReviewSourceModal.tsx
+@@ -48,6 +48,7 @@ import { useAlertStore } from '@/renderer/stores/alertStore';
+ import { getSafeErrorMessage } from '../../lib/error';
+ import { ReviewSourceModalProps } from './types';
+ import { FsApi } from '../../service/fsApi';
++import { ReviewApi } from '../../service/reviewApi';
+ 
+ import { combineImages, convertPdfBytesToImages } from '../../lib/pdfUtils';
+ 
+@@ -143,6 +144,12 @@ type ConversionProgress = {
+   conversionType: 'pdf' | 'image';
+   currentIndex: number;
+   totalCount: number;
++  progressDetail?: {
++    type: 'sheet-setup' | 'pdf-export';
++    sheetName?: string;
++    currentSheet?: number;
++    totalSheets?: number;
++  };
+ };
+ 
+ function ReviewSourceModal({
+@@ -410,6 +417,47 @@ function ReviewSourceModal({
+ 
+     setProcessing(true);
+ 
++    // PDF変換進捗イベントの購読を開始
++    const reviewApi = ReviewApi.getInstance();
++    const unsubscribe = await reviewApi.subscribeOfficeToPdfProgress(
++      (payload) => {
++        const { fileName, progressType, sheetName, currentSheet, totalSheets } =
++          payload;
++
++        // 現在処理中のファイルのインデックスを探す
++        const currentIndex = uploadedFiles.findIndex(
++          (f) => f.name === fileName,
++        );
++
++        if (progressType === 'sheet-setup' && sheetName) {
++          setConversionProgress({
++            currentFileName: fileName,
++            conversionType: 'pdf',
++            currentIndex: currentIndex + 1,
++            totalCount: uploadedFiles.length,
++            progressDetail: {
++              type: 'sheet-setup',
++              sheetName,
++              currentSheet,
++              totalSheets,
++            },
++          });
++        }
++
++        if (progressType === 'pdf-export') {
++          setConversionProgress({
++            currentFileName: fileName,
++            conversionType: 'pdf',
++            currentIndex: currentIndex + 1,
++            totalCount: uploadedFiles.length,
++            progressDetail: {
++              type: 'pdf-export',
++            },
++          });
++        }
++      },
++    );
++
+     try {
+       const filesReady = [];
+       const fsApi = FsApi.getInstance();
+@@ -424,7 +472,7 @@ function ReviewSourceModal({
+ 
+           // PDF以外の場合は、まずOffice→PDFに変換
+           if (f.type !== 'application/pdf') {
+-            // 進捗状態を更新: PDF変換中
++            // 進捗状態を更新: PDF変換中（詳細はイベントで更新される）
+             setConversionProgress({
+               currentFileName: f.name,
+               conversionType: 'pdf',
+@@ -517,6 +565,8 @@ function ReviewSourceModal({
+         severity: 'error',
+       });
+     } finally {
++      // イベント購読を解除
++      unsubscribe();
+       setProcessing(false);
+       setConversionProgress(null);
+     }
+@@ -1169,7 +1219,27 @@ function ReviewSourceModal({
+                 >
+                   {conversionProgress.conversionType === 'pdf' ? (
+                     <>
+-                      PDFに変換中...
++                      {conversionProgress.progressDetail?.type ===
++                        'sheet-setup' &&
++                      conversionProgress.progressDetail.sheetName ? (
++                        <>
++                          「{conversionProgress.progressDetail.sheetName}」
++                          シートPDF印刷設定中
++                          {conversionProgress.progressDetail.currentSheet &&
++                          conversionProgress.progressDetail.totalSheets ? (
++                            <>
++                              {' '}
++                              ({conversionProgress.progressDetail.currentSheet}/
++                              {conversionProgress.progressDetail.totalSheets})
++                            </>
++                          ) : null}
++                        </>
++                      ) : conversionProgress.progressDetail?.type ===
++                        'pdf-export' ? (
++                        <>PDFファイルへエクスポート中</>
++                      ) : (
++                        <>PDFに変換中...</>
++                      )}
+                       <br />
+                       ※<br />
+                       変換に時間がかかる場合があります
+diff --git a/src/renderer/service/reviewApi.ts b/src/renderer/service/reviewApi.ts
+index a735c8299..02fc24edb 100644
+--- a/src/renderer/service/reviewApi.ts
++++ b/src/renderer/service/reviewApi.ts
+@@ -66,6 +66,15 @@ export interface IReviewApi {
+       error?: string;
+     }) => void,
+   ): Promise<() => void>;
++  subscribeOfficeToPdfProgress(
++    callback: (payload: {
++      fileName: string;
++      progressType: 'sheet-setup' | 'pdf-export';
++      sheetName?: string;
++      currentSheet?: number;
++      totalSheets?: number;
++    }) => void,
++  ): Promise<() => void>;
+   updateChecklist(
+     historyId: string,
+     checklistEdits: ReviewChecklistEdit[],
+@@ -234,6 +243,24 @@ export class ReviewApi implements IReviewApi {
+     );
+   }
+ 
++  public async subscribeOfficeToPdfProgress(
++    callback: (payload: {
++      fileName: string;
++      progressType: 'sheet-setup' | 'pdf-export';
++      sheetName?: string;
++      currentSheet?: number;
++      totalSheets?: number;
++    }) => void,
++  ): Promise<() => void> {
++    const pushClient = new ElectronPushClient();
++    return pushClient.subscribeAsync(
++      IpcChannels.FS_CONVERT_OFFICE_TO_PDF_PROGRESS,
++      (event) => {
++        callback(event.payload);
++      },
++    );
++  }
++
+   public async updateChecklist(
+     historyId: string,
+     checklistEdits: ReviewChecklistEdit[],
+diff --git a/src/types/ipc.ts b/src/types/ipc.ts
+index 3944736ab..0fc449d82 100644
+--- a/src/types/ipc.ts
++++ b/src/types/ipc.ts
+@@ -66,6 +66,7 @@ export const IpcChannels = {
+   FS_SHOW_OPEN_DIALOG: 'fs-show-open-dialog',
+   FS_READ_FILE: 'fs-read-file',
+   FS_CONVERT_OFFICE_TO_PDF: 'fs-convert-office-to-pdf',
++  FS_CONVERT_OFFICE_TO_PDF_PROGRESS: 'fs-convert-office-to-pdf-progress',
+ 
+   // ドキュメントレビュー関連
+   REVIEW_GET_HISTORIES: 'review-get-histories', // ドキュメント履歴切り替え時やチェックリスト抽出・ドキュメントレビュー時のポーリング処理にて呼び出される
+@@ -219,6 +220,13 @@ export type IpcEventPayloadMap = {
+     error?: string;
+   };
+   [IpcChannels.REVIEW_HISTORY_UPDATED]: undefined;
++  [IpcChannels.FS_CONVERT_OFFICE_TO_PDF_PROGRESS]: {
++    fileName: string;
++    progressType: 'sheet-setup' | 'pdf-export';
++    sheetName?: string;
++    currentSheet?: number;
++    totalSheets?: number;
++  };
+ };
+ 
+ /**

@@ -1,13 +1,33 @@
-import { execFile } from 'child_process';
-import { promisify } from 'util';
+import { spawn } from 'child_process';
 import path from 'path';
 import fs from 'fs/promises';
+import { existsSync, mkdirSync } from 'fs';
 import os from 'os';
+import { createHash } from 'crypto';
 import { getMainLogger } from './logger';
 import { internalError } from './error';
+import { getCustomAppDataDir } from '../main';
+import { publishEvent } from '../lib/eventPayloadHelper';
 
-const execFileP = promisify(execFile);
 const logger = getMainLogger();
+
+/**
+ * PDF変換キャッシュのメタデータ型定義
+ */
+interface PdfCacheMetadata {
+  /** 元ファイルのパス */
+  filePath: string;
+  /** 元ファイル名 */
+  fileName: string;
+  /** 元ファイルの最終更新時刻 */
+  lastModified: number;
+  /** 元ファイルのサイズ */
+  fileSize: number;
+  /** キャッシュされたPDFファイルのパス */
+  cachePdfPath: string;
+  /** キャッシュ作成日時 */
+  cachedAt: number;
+}
 
 /**
  * OfficeドキュメントのMIMEタイプ
@@ -77,6 +97,135 @@ export function isOfficeDocument(mimeType: string): boolean {
   return Object.values(OFFICE_MIME_TYPES).includes(
     mimeType as (typeof OFFICE_MIME_TYPES)[keyof typeof OFFICE_MIME_TYPES],
   );
+}
+
+/**
+ * キャッシュディレクトリのパスを取得
+ */
+function getCacheDir(): string {
+  const userDataPath = getCustomAppDataDir();
+  const cacheDir = path.join(userDataPath, 'pdf_caches');
+
+  // ディレクトリが存在しない場合は作成
+  if (!existsSync(cacheDir)) {
+    mkdirSync(cacheDir, { recursive: true });
+  }
+
+  return cacheDir;
+}
+
+/**
+ * キャッシュメタデータファイルのパスを生成
+ */
+function getCacheMetadataPath(filePath: string): string {
+  const hash = createHash('md5').update(filePath).digest('hex');
+  return path.join(getCacheDir(), `${hash}.json`);
+}
+
+/**
+ * キャッシュPDFファイルのパスを生成
+ */
+function getCachePdfPath(filePath: string): string {
+  const hash = createHash('md5').update(filePath).digest('hex');
+  return path.join(getCacheDir(), `${hash}.pdf`);
+}
+
+/**
+ * キャッシュからPDFファイルパスを読み込み
+ * ファイルが更新されている場合はnullを返す
+ */
+async function tryReadCache(filePath: string): Promise<string | null> {
+  try {
+    const metadataPath = getCacheMetadataPath(filePath);
+    const metadataContent = await fs.readFile(metadataPath, 'utf-8');
+    const metadata: PdfCacheMetadata = JSON.parse(metadataContent);
+
+    // ファイルの現在の情報を取得
+    const stats = await fs.stat(filePath);
+
+    // ファイルが更新されている場合はキャッシュを無効とする
+    if (stats.mtimeMs !== metadata.lastModified) {
+      logger.debug(
+        { filePath, metadataPath },
+        'ファイルが更新されているためキャッシュを無効化します',
+      );
+      await deleteCache(filePath);
+      return null;
+    }
+
+    // キャッシュされたPDFファイルの存在確認
+    try {
+      await fs.access(metadata.cachePdfPath);
+      return metadata.cachePdfPath;
+    } catch {
+      // PDFファイルが存在しない場合はメタデータも削除
+      logger.debug(
+        { filePath, cachePdfPath: metadata.cachePdfPath },
+        'キャッシュPDFファイルが存在しないため無効化します',
+      );
+      await deleteCache(filePath);
+      return null;
+    }
+  } catch (error) {
+    // ファイルが存在しない場合やJSONパースエラーの場合は null を返す
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+      logger.error({ error, filePath }, 'キャッシュの読み込みに失敗しました');
+    }
+    return null;
+  }
+}
+
+/**
+ * 変換後PDFをキャッシュに保存
+ */
+async function saveCache(
+  originalFilePath: string,
+  pdfPath: string,
+  stats: { mtimeMs: number; size: number },
+): Promise<void> {
+  try {
+    const cachePdfPath = getCachePdfPath(originalFilePath);
+    const metadataPath = getCacheMetadataPath(originalFilePath);
+
+    // PDFファイルをキャッシュディレクトリにコピー
+    await fs.copyFile(pdfPath, cachePdfPath);
+
+    // メタデータを保存
+    const metadata: PdfCacheMetadata = {
+      filePath: originalFilePath,
+      fileName: path.basename(originalFilePath),
+      lastModified: stats.mtimeMs,
+      fileSize: stats.size,
+      cachePdfPath,
+      cachedAt: Date.now(),
+    };
+    await fs.writeFile(metadataPath, JSON.stringify(metadata, null, 2), 'utf-8');
+
+    logger.debug({ originalFilePath, cachePdfPath }, 'PDFキャッシュを保存しました');
+  } catch (error) {
+    // キャッシュが保存できない場合は大きな問題にならないのでエラーは握りつぶす
+    logger.error({ error, originalFilePath }, 'キャッシュの保存に失敗しました');
+  }
+}
+
+/**
+ * キャッシュを削除
+ */
+async function deleteCache(filePath: string): Promise<void> {
+  try {
+    const metadataPath = getCacheMetadataPath(filePath);
+    const cachePdfPath = getCachePdfPath(filePath);
+
+    // メタデータファイルを削除
+    await fs.unlink(metadataPath).catch(() => void 0);
+    // PDFファイルを削除
+    await fs.unlink(cachePdfPath).catch(() => void 0);
+  } catch (error) {
+    // キャッシュが削除できない場合は大きな問題にならないのでエラーは握りつぶす
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+      logger.error(error, 'キャッシュの削除に失敗しました');
+    }
+  }
 }
 
 /**
@@ -179,10 +328,23 @@ try {
           if ($s -gt 1.0) { return 1.0 } else { return $s }
         }
 
+        # 総シート数を取得
+        $totalSheets = 0
+        foreach ($ws in $workbook.Worksheets) {
+          if ($ws.Type -eq [Microsoft.Office.Interop.Excel.XlSheetType]::xlWorksheet.value__) {
+            $totalSheets++
+          }
+        }
+
+        $currentSheet = 0
         foreach ($worksheet in $workbook.Worksheets) {
           try {
             # ワークシートのみ対象（Chart等はスキップ）
             if ($worksheet.Type -ne [Microsoft.Office.Interop.Excel.XlSheetType]::xlWorksheet.value__) { continue }
+
+            $currentSheet++
+            # 進捗情報を出力
+            Write-Output ("PROGRESS:SHEET_SETUP:{0}:{1}:{2}" -f $worksheet.Name, $currentSheet, $totalSheets)
 
             $ps = $worksheet.PageSetup
 
@@ -234,7 +396,7 @@ try {
             # 1シート=1ページ
             $ps.Zoom = $false
             $ps.FitToPagesWide = 1
-            # $ps.FitToPagesTall = 0
+            $ps.FitToPagesTall = 5
 
             # 視覚的安定のため（任意）
             $ps.CenterHorizontally = $true
@@ -243,18 +405,25 @@ try {
           catch {
             Write-Verbose "Skip on sheet '$($worksheet.Name)': $($_.Exception.Message)"
           }
+          finally {
+            if ($used) { [Runtime.InteropServices.Marshal]::ReleaseComObject($used) | Out-Null }
+            $used = $null
+          }
         }
+
+        # PDFエクスポート開始を通知
+        Write-Output "PROGRESS:PDF_EXPORT"
 
         # PDF として保存 (xlTypePDF = 0)
         $workbook.ExportAsFixedFormat(
             0,  # Type: xlTypePDF
-            $OutputPath,
-            0,  # Quality: xlQualityStandard
-            $true,  # IncludeDocProperties
-            $false,  # IgnorePrintAreas
-            $null,  # From (null = all)
-            $null,  # To (null = all)
-            $false  # OpenAfterPublish
+            $OutputPath
+            # 0,  # Quality: xlQualityStandard
+            # $true,  # IncludeDocProperties
+            # $false,  # IgnorePrintAreas
+            # $null,  # From (null = all)
+            # $null,  # To (null = all)
+            # $false  # OpenAfterPublish
         )
 
         $workbook.Close($false)
@@ -265,7 +434,10 @@ try {
     finally {
         try { if ($workbook) { $workbook.Close(\$false) } } catch {}
         try { if ($excel) { $excel.Quit()     } } catch {}
-        [System.Runtime.Interopservices.Marshal]::ReleaseComObject($excel) | Out-Null
+        if ($workbook) { [Runtime.InteropServices.Marshal]::ReleaseComObject($workbook) | Out-Null }
+        if ($excel)    { [Runtime.InteropServices.Marshal]::ReleaseComObject($excel)    | Out-Null }
+        $workbook = $null
+        $excel    = $null
     }
 }
 catch {
@@ -334,7 +506,7 @@ finally {
  * Office ドキュメントを PDF に変換
  *
  * @param inputPath 入力ファイルのパス
- * @returns 変換後の PDF ファイルのパス（一時ファイル）
+ * @returns 変換後の PDF ファイルのパス（キャッシュまたは一時ファイル）
  */
 export async function convertOfficeToPdf(inputPath: string): Promise<string> {
   // プラットフォームチェック（Windowsのみ対応）
@@ -346,9 +518,10 @@ export async function convertOfficeToPdf(inputPath: string): Promise<string> {
     });
   }
 
-  // ファイルの存在確認
+  // ファイルの存在確認と情報取得
+  let stats;
   try {
-    await fs.access(inputPath);
+    stats = await fs.stat(inputPath);
   } catch (error) {
     throw internalError({
       expose: true,
@@ -368,6 +541,13 @@ export async function convertOfficeToPdf(inputPath: string): Promise<string> {
         detail: `変換対象外のファイルを検知しました: ${mimeType}`,
       },
     });
+  }
+
+  // キャッシュをチェック
+  const cachedPdfPath = await tryReadCache(inputPath);
+  if (cachedPdfPath) {
+    logger.info({ inputPath, cachedPdfPath }, 'Using cached PDF');
+    return cachedPdfPath;
   }
 
   const documentType = getDocumentTypeFromMimeType(mimeType);
@@ -405,20 +585,89 @@ export async function convertOfficeToPdf(inputPath: string): Promise<string> {
       encoding: 'utf8',
     });
 
-    // PowerShellスクリプトを実行
-    const { stdout, stderr } = await execFileP(
-      'powershell.exe',
-      ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', tmpScriptPath],
-      { encoding: 'utf8', maxBuffer: 1024 * 1024 * 10 }, // 10 MiB
-    );
+    // PowerShellスクリプトをspawnで実行（リアルタイム出力取得のため）
+    await new Promise<void>((resolve, reject) => {
+      const child = spawn('powershell.exe', [
+        '-NoProfile',
+        '-ExecutionPolicy',
+        'Bypass',
+        '-File',
+        tmpScriptPath,
+      ]);
 
-    // スクリプトからの出力をログに記録
-    if (stdout) {
-      logger.debug({ stdout }, 'PowerShell stdout');
-    }
-    if (stderr) {
-      logger.warn({ stderr }, 'PowerShell stderr');
-    }
+      let stdoutBuffer = '';
+      let stderrBuffer = '';
+
+      child.stdout.on('data', (data: Buffer) => {
+        const text = data.toString('utf8');
+        stdoutBuffer += text;
+
+        // 進捗情報をパース
+        const lines = text.split('\n');
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (trimmed.startsWith('PROGRESS:')) {
+            const parts = trimmed.substring('PROGRESS:'.length).split(':');
+            const progressType = parts[0];
+
+            if (progressType === 'SHEET_SETUP' && parts.length >= 4) {
+              const sheetName = parts[1];
+              const currentSheet = parseInt(parts[2], 10);
+              const totalSheets = parseInt(parts[3], 10);
+
+              // 進捗イベントをpublish
+              publishEvent(
+                'fs-convert-office-to-pdf-progress' as any,
+                {
+                  fileName: path.basename(inputPath),
+                  progressType: 'sheet-setup',
+                  sheetName,
+                  currentSheet,
+                  totalSheets,
+                } as any,
+              );
+            } else if (progressType === 'PDF_EXPORT') {
+              // PDFエクスポート開始イベントをpublish
+              publishEvent(
+                'fs-convert-office-to-pdf-progress' as any,
+                {
+                  fileName: path.basename(inputPath),
+                  progressType: 'pdf-export',
+                } as any,
+              );
+            }
+          }
+        }
+      });
+
+      child.stderr.on('data', (data: Buffer) => {
+        stderrBuffer += data.toString('utf8');
+      });
+
+      child.on('error', (error: Error) => {
+        reject(error);
+      });
+
+      child.on('close', (code: number | null) => {
+        // スクリプトからの出力をログに記録
+        if (stdoutBuffer) {
+          logger.debug({ stdout: stdoutBuffer }, 'PowerShell stdout');
+        }
+        if (stderrBuffer) {
+          logger.warn({ stderr: stderrBuffer }, 'PowerShell stderr');
+        }
+
+        if (code !== 0) {
+          reject(
+            new Error(
+              `PowerShell script exited with code ${code}: ${stderrBuffer}`,
+            ),
+          );
+        } else {
+          resolve();
+        }
+      });
+    });
 
     // 出力ファイルの存在確認
     try {
@@ -433,7 +682,16 @@ export async function convertOfficeToPdf(inputPath: string): Promise<string> {
     }
 
     logger.info({ outputPath }, 'Successfully converted to PDF');
-    return outputPath;
+
+    // 変換後PDFをキャッシュに保存
+    await saveCache(inputPath, outputPath, stats);
+
+    // 一時PDFファイルを削除（キャッシュに保存済みのため）
+    await fs.unlink(outputPath).catch(() => void 0);
+
+    // キャッシュされたPDFのパスを返す
+    const cachedPdfPath = getCachePdfPath(inputPath);
+    return cachedPdfPath;
   } catch (error: any) {
     logger.error({ error, inputPath }, 'Office to PDF conversion error');
 
@@ -475,5 +733,108 @@ export async function cleanupTempPdf(pdfPath: string): Promise<void> {
     logger.debug({ pdfPath }, 'Cleaned up temporary PDF');
   } catch (error) {
     logger.warn({ error, pdfPath }, 'Failed to cleanup temporary PDF');
+  }
+}
+
+/**
+ * キャッシュディレクトリをクリーニングする
+ * - 元ファイルが存在しないキャッシュファイルを削除
+ * - ファイル更新日時が古いキャッシュファイルを削除
+ * - 不正なJSONキャッシュファイルを削除
+ * - 孤立したPDFファイル（メタデータがないもの）を削除
+ */
+export async function cleanCacheDirectory(): Promise<void> {
+  try {
+    const cacheDir = getCacheDir();
+    const cacheFiles = await fs.readdir(cacheDir);
+
+    logger.info(`PDFキャッシュディレクトリのクリーニングを開始: ${cacheDir}`);
+
+    let deletedCount = 0;
+    const processedHashes = new Set<string>();
+
+    for (const fileName of cacheFiles) {
+      const cacheFilePath = path.join(cacheDir, fileName);
+
+      try {
+        // .jsonファイル（メタデータ）を処理
+        if (fileName.endsWith('.json')) {
+          const hash = fileName.replace('.json', '');
+          processedHashes.add(hash);
+
+          // JSONメタデータファイルの内容を読み取り
+          const metadataContent = await fs.readFile(cacheFilePath, 'utf-8');
+          const metadata: PdfCacheMetadata = JSON.parse(metadataContent);
+
+          // 元ファイルの存在確認
+          const originalFilePath = metadata.filePath;
+
+          try {
+            const stats = await fs.stat(originalFilePath);
+
+            // ファイル更新日時が異なる場合は削除
+            if (stats.mtimeMs !== metadata.lastModified) {
+              await fs.unlink(cacheFilePath);
+              // 対応するPDFファイルも削除
+              await fs.unlink(metadata.cachePdfPath).catch(() => void 0);
+              deletedCount++;
+              logger.debug(
+                `ファイル更新日時が古いキャッシュを削除: ${fileName}`,
+              );
+            }
+          } catch (statError) {
+            // 元ファイルが存在しない場合は削除
+            if ((statError as NodeJS.ErrnoException).code === 'ENOENT') {
+              await fs.unlink(cacheFilePath);
+              // 対応するPDFファイルも削除
+              await fs.unlink(metadata.cachePdfPath).catch(() => void 0);
+              deletedCount++;
+              logger.debug(`元ファイルが存在しないキャッシュを削除: ${fileName}`);
+            }
+          }
+        }
+      } catch (processError) {
+        // JSONパースエラーなど、不正なキャッシュファイルは削除
+        try {
+          await fs.unlink(cacheFilePath);
+          deletedCount++;
+          logger.debug(`不正なキャッシュファイルを削除: ${fileName}`);
+        } catch (unlinkError) {
+          logger.error(
+            { error: unlinkError, fileName },
+            'キャッシュファイルの削除に失敗',
+          );
+        }
+      }
+    }
+
+    // 孤立したPDFファイル（メタデータがないもの）を削除
+    for (const fileName of cacheFiles) {
+      if (fileName.endsWith('.pdf')) {
+        const hash = fileName.replace('.pdf', '');
+        if (!processedHashes.has(hash)) {
+          const pdfFilePath = path.join(cacheDir, fileName);
+          try {
+            await fs.unlink(pdfFilePath);
+            deletedCount++;
+            logger.debug(`孤立したPDFファイルを削除: ${fileName}`);
+          } catch (unlinkError) {
+            logger.error(
+              { error: unlinkError, fileName },
+              '孤立PDFファイルの削除に失敗',
+            );
+          }
+        }
+      }
+    }
+
+    logger.info(
+      `PDFキャッシュクリーニング完了: ${deletedCount}個のファイルを削除`,
+    );
+  } catch (error) {
+    logger.error(
+      { error },
+      'PDFキャッシュディレクトリのクリーニングに失敗しました',
+    );
   }
 }

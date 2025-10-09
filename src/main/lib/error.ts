@@ -81,6 +81,15 @@ export function zodToAppError(e: ZodError) {
   });
 }
 
+// AIへの送信メッセージが巨大すぎる(例えば、base64画像を詰め込みすぎた場合など)場合に発生する RangeError を検知するための型ガード
+function isInvalidStringLengthError(err: unknown): err is RangeError {
+  return (
+    err instanceof RangeError &&
+    typeof err.message === 'string' &&
+    err.message.includes('Invalid string length')
+  );
+}
+
 /**
  * 予期しない例外を AppError に正規化。
  * - 既に AppError → そのまま
@@ -139,6 +148,13 @@ export function normalizeUnknownIpcError(
 export function extractAIAPISafeError(error: unknown): Error | null {
   if (APICallError.isInstance(error)) return error;
   if (error instanceof MastraError) {
+    if (isInvalidStringLengthError(error.cause)) {
+      return new AppError('VALIDATION', {
+        expose: true,
+        cause: error,
+        messageCode: 'AI_MESSAGE_TOO_LARGE',
+      });
+    }
     if (APICallError.isInstance(error.cause)) return error.cause;
     if (NoObjectGeneratedError.isInstance(error.cause)) return error.cause;
     if (RetryError.isInstance(error.cause)) {

@@ -64,8 +64,9 @@ const customFetch: typeof fetch = async (input, init) => {
     const chatApi = ChatApi.getInstance();
 
     const stream = new ReadableStream({
-      start(controller) {
-        unsubscribe = chatApi.streamResponse({
+      async start(controller) {
+        // イベント購読を確立してから処理を開始
+        unsubscribe = await chatApi.streamResponse({
           onMessage(raw) {
             controller.enqueue(encoder.encode(raw));
           },
@@ -88,6 +89,8 @@ const customFetch: typeof fetch = async (input, init) => {
           unsubscribe();
           controller.close();
         });
+
+        // 購読完了後にメッセージ送信
         chatApi.sendMessage(roomId!, messages, {
           // 上記onErrorでstreamのエラー処理として処理され、エラーメッセージが表示されるためここでは表示しない
           showAlert: false,
