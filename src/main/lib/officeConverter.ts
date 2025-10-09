@@ -1,5 +1,4 @@
-import { execFile } from 'child_process';
-import { promisify } from 'util';
+import { spawn } from 'child_process';
 import path from 'path';
 import fs from 'fs/promises';
 import { existsSync, mkdirSync } from 'fs';
@@ -8,8 +7,8 @@ import { createHash } from 'crypto';
 import { getMainLogger } from './logger';
 import { internalError } from './error';
 import { getCustomAppDataDir } from '../main';
+import { publishEvent } from '../lib/eventPayloadHelper';
 
-const execFileP = promisify(execFile);
 const logger = getMainLogger();
 
 /**
@@ -329,10 +328,23 @@ try {
           if ($s -gt 1.0) { return 1.0 } else { return $s }
         }
 
+        # 総シート数を取得
+        $totalSheets = 0
+        foreach ($ws in $workbook.Worksheets) {
+          if ($ws.Type -eq [Microsoft.Office.Interop.Excel.XlSheetType]::xlWorksheet.value__) {
+            $totalSheets++
+          }
+        }
+
+        $currentSheet = 0
         foreach ($worksheet in $workbook.Worksheets) {
           try {
             # ワークシートのみ対象（Chart等はスキップ）
             if ($worksheet.Type -ne [Microsoft.Office.Interop.Excel.XlSheetType]::xlWorksheet.value__) { continue }
+
+            $currentSheet++
+            # 進捗情報を出力
+            Write-Output "PROGRESS:SHEET_SETUP:$($worksheet.Name):$currentSheet:$totalSheets"
 
             $ps = $worksheet.PageSetup
 
@@ -394,6 +406,9 @@ try {
             Write-Verbose "Skip on sheet '$($worksheet.Name)': $($_.Exception.Message)"
           }
         }
+
+        # PDFエクスポート開始を通知
+        Write-Output "PROGRESS:PDF_EXPORT"
 
         # PDF として保存 (xlTypePDF = 0)
         $workbook.ExportAsFixedFormat(
@@ -563,20 +578,89 @@ export async function convertOfficeToPdf(inputPath: string): Promise<string> {
       encoding: 'utf8',
     });
 
-    // PowerShellスクリプトを実行
-    const { stdout, stderr } = await execFileP(
-      'powershell.exe',
-      ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', tmpScriptPath],
-      { encoding: 'utf8', maxBuffer: 1024 * 1024 * 10 }, // 10 MiB
-    );
+    // PowerShellスクリプトをspawnで実行（リアルタイム出力取得のため）
+    await new Promise<void>((resolve, reject) => {
+      const child = spawn('powershell.exe', [
+        '-NoProfile',
+        '-ExecutionPolicy',
+        'Bypass',
+        '-File',
+        tmpScriptPath,
+      ]);
 
-    // スクリプトからの出力をログに記録
-    if (stdout) {
-      logger.debug({ stdout }, 'PowerShell stdout');
-    }
-    if (stderr) {
-      logger.warn({ stderr }, 'PowerShell stderr');
-    }
+      let stdoutBuffer = '';
+      let stderrBuffer = '';
+
+      child.stdout.on('data', (data: Buffer) => {
+        const text = data.toString('utf8');
+        stdoutBuffer += text;
+
+        // 進捗情報をパース
+        const lines = text.split('\n');
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (trimmed.startsWith('PROGRESS:')) {
+            const parts = trimmed.substring('PROGRESS:'.length).split(':');
+            const progressType = parts[0];
+
+            if (progressType === 'SHEET_SETUP' && parts.length >= 4) {
+              const sheetName = parts[1];
+              const currentSheet = parseInt(parts[2], 10);
+              const totalSheets = parseInt(parts[3], 10);
+
+              // 進捗イベントをpublish
+              publishEvent(
+                'fs-convert-office-to-pdf-progress' as any,
+                {
+                  fileName: path.basename(inputPath),
+                  progressType: 'sheet-setup',
+                  sheetName,
+                  currentSheet,
+                  totalSheets,
+                } as any,
+              );
+            } else if (progressType === 'PDF_EXPORT') {
+              // PDFエクスポート開始イベントをpublish
+              publishEvent(
+                'fs-convert-office-to-pdf-progress' as any,
+                {
+                  fileName: path.basename(inputPath),
+                  progressType: 'pdf-export',
+                } as any,
+              );
+            }
+          }
+        }
+      });
+
+      child.stderr.on('data', (data: Buffer) => {
+        stderrBuffer += data.toString('utf8');
+      });
+
+      child.on('error', (error: Error) => {
+        reject(error);
+      });
+
+      child.on('close', (code: number | null) => {
+        // スクリプトからの出力をログに記録
+        if (stdoutBuffer) {
+          logger.debug({ stdout: stdoutBuffer }, 'PowerShell stdout');
+        }
+        if (stderrBuffer) {
+          logger.warn({ stderr: stderrBuffer }, 'PowerShell stderr');
+        }
+
+        if (code !== 0) {
+          reject(
+            new Error(
+              `PowerShell script exited with code ${code}: ${stderrBuffer}`,
+            ),
+          );
+        } else {
+          resolve();
+        }
+      });
+    });
 
     // 出力ファイルの存在確認
     try {

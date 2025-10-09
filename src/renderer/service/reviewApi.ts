@@ -66,6 +66,15 @@ export interface IReviewApi {
       error?: string;
     }) => void,
   ): Promise<() => void>;
+  subscribeOfficeToPdfProgress(
+    callback: (payload: {
+      fileName: string;
+      progressType: 'sheet-setup' | 'pdf-export';
+      sheetName?: string;
+      currentSheet?: number;
+      totalSheets?: number;
+    }) => void,
+  ): Promise<() => void>;
   updateChecklist(
     historyId: string,
     checklistEdits: ReviewChecklistEdit[],
@@ -228,6 +237,24 @@ export class ReviewApi implements IReviewApi {
     const pushClient = new ElectronPushClient();
     return pushClient.subscribeAsync(
       IpcChannels.REVIEW_EXECUTE_FINISHED,
+      (event) => {
+        callback(event.payload);
+      },
+    );
+  }
+
+  public async subscribeOfficeToPdfProgress(
+    callback: (payload: {
+      fileName: string;
+      progressType: 'sheet-setup' | 'pdf-export';
+      sheetName?: string;
+      currentSheet?: number;
+      totalSheets?: number;
+    }) => void,
+  ): Promise<() => void> {
+    const pushClient = new ElectronPushClient();
+    return pushClient.subscribeAsync(
+      IpcChannels.FS_CONVERT_OFFICE_TO_PDF_PROGRESS,
       (event) => {
         callback(event.payload);
       },

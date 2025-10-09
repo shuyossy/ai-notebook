@@ -48,6 +48,7 @@ import { useAlertStore } from '@/renderer/stores/alertStore';
 import { getSafeErrorMessage } from '../../lib/error';
 import { ReviewSourceModalProps } from './types';
 import { FsApi } from '../../service/fsApi';
+import { ReviewApi } from '../../service/reviewApi';
 
 import { combineImages, convertPdfBytesToImages } from '../../lib/pdfUtils';
 
@@ -143,6 +144,12 @@ type ConversionProgress = {
   conversionType: 'pdf' | 'image';
   currentIndex: number;
   totalCount: number;
+  progressDetail?: {
+    type: 'sheet-setup' | 'pdf-export';
+    sheetName?: string;
+    currentSheet?: number;
+    totalSheets?: number;
+  };
 };
 
 function ReviewSourceModal({
@@ -410,6 +417,47 @@ function ReviewSourceModal({
 
     setProcessing(true);
 
+    // PDF変換進捗イベントの購読を開始
+    const reviewApi = ReviewApi.getInstance();
+    const unsubscribe = await reviewApi.subscribeOfficeToPdfProgress(
+      (payload) => {
+        const { fileName, progressType, sheetName, currentSheet, totalSheets } =
+          payload;
+
+        // 現在処理中のファイルのインデックスを探す
+        const currentIndex = uploadedFiles.findIndex(
+          (f) => f.name === fileName,
+        );
+
+        if (progressType === 'sheet-setup' && sheetName) {
+          setConversionProgress({
+            currentFileName: fileName,
+            conversionType: 'pdf',
+            currentIndex: currentIndex + 1,
+            totalCount: uploadedFiles.length,
+            progressDetail: {
+              type: 'sheet-setup',
+              sheetName,
+              currentSheet,
+              totalSheets,
+            },
+          });
+        }
+
+        if (progressType === 'pdf-export') {
+          setConversionProgress({
+            currentFileName: fileName,
+            conversionType: 'pdf',
+            currentIndex: currentIndex + 1,
+            totalCount: uploadedFiles.length,
+            progressDetail: {
+              type: 'pdf-export',
+            },
+          });
+        }
+      },
+    );
+
     try {
       const filesReady = [];
       const fsApi = FsApi.getInstance();
@@ -424,7 +472,7 @@ function ReviewSourceModal({
 
           // PDF以外の場合は、まずOffice→PDFに変換
           if (f.type !== 'application/pdf') {
-            // 進捗状態を更新: PDF変換中
+            // 進捗状態を更新: PDF変換中（詳細はイベントで更新される）
             setConversionProgress({
               currentFileName: f.name,
               conversionType: 'pdf',
@@ -517,6 +565,8 @@ function ReviewSourceModal({
         severity: 'error',
       });
     } finally {
+      // イベント購読を解除
+      unsubscribe();
       setProcessing(false);
       setConversionProgress(null);
     }
@@ -1169,7 +1219,27 @@ function ReviewSourceModal({
                 >
                   {conversionProgress.conversionType === 'pdf' ? (
                     <>
-                      PDFに変換中...
+                      {conversionProgress.progressDetail?.type ===
+                        'sheet-setup' &&
+                      conversionProgress.progressDetail.sheetName ? (
+                        <>
+                          {conversionProgress.progressDetail.sheetName}
+                          シートPDF印刷設定中
+                          {conversionProgress.progressDetail.currentSheet &&
+                          conversionProgress.progressDetail.totalSheets ? (
+                            <>
+                              {' '}
+                              ({conversionProgress.progressDetail.currentSheet}/
+                              {conversionProgress.progressDetail.totalSheets})
+                            </>
+                          ) : null}
+                        </>
+                      ) : conversionProgress.progressDetail?.type ===
+                        'pdf-export' ? (
+                        <>PDFファイルへエクスポート中</>
+                      ) : (
+                        <>PDFに変換中...</>
+                      )}
                       <br />
                       ※<br />
                       変換に時間がかかる場合があります

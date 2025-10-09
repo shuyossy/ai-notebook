@@ -66,6 +66,7 @@ export const IpcChannels = {
   FS_SHOW_OPEN_DIALOG: 'fs-show-open-dialog',
   FS_READ_FILE: 'fs-read-file',
   FS_CONVERT_OFFICE_TO_PDF: 'fs-convert-office-to-pdf',
+  FS_CONVERT_OFFICE_TO_PDF_PROGRESS: 'fs-convert-office-to-pdf-progress',
 
   // ドキュメントレビュー関連
   REVIEW_GET_HISTORIES: 'review-get-histories', // ドキュメント履歴切り替え時やチェックリスト抽出・ドキュメントレビュー時のポーリング処理にて呼び出される
@@ -219,6 +220,13 @@ export type IpcEventPayloadMap = {
     error?: string;
   };
   [IpcChannels.REVIEW_HISTORY_UPDATED]: undefined;
+  [IpcChannels.FS_CONVERT_OFFICE_TO_PDF_PROGRESS]: {
+    fileName: string;
+    progressType: 'sheet-setup' | 'pdf-export';
+    sheetName?: string;
+    currentSheet?: number;
+    totalSheets?: number;
+  };
 };
 
 /**
