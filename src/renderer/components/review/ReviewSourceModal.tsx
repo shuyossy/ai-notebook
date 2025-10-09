@@ -1223,7 +1223,7 @@ function ReviewSourceModal({
                         'sheet-setup' &&
                       conversionProgress.progressDetail.sheetName ? (
                         <>
-                          {conversionProgress.progressDetail.sheetName}
+                          「{conversionProgress.progressDetail.sheetName}」
                           シートPDF印刷設定中
                           {conversionProgress.progressDetail.currentSheet &&
                           conversionProgress.progressDetail.totalSheets ? (

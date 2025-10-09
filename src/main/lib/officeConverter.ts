@@ -344,7 +344,7 @@ try {
 
             $currentSheet++
             # 進捗情報を出力
-            Write-Output "PROGRESS:SHEET_SETUP:$($worksheet.Name):$currentSheet:$totalSheets"
+            Write-Output ("PROGRESS:SHEET_SETUP:{0}:{1}:{2}" -f $worksheet.Name, $currentSheet, $totalSheets)
 
             $ps = $worksheet.PageSetup
 
@@ -405,6 +405,10 @@ try {
           catch {
             Write-Verbose "Skip on sheet '$($worksheet.Name)': $($_.Exception.Message)"
           }
+          finally {
+            if ($used) { [Runtime.InteropServices.Marshal]::ReleaseComObject($used) | Out-Null }
+            $used = $null
+          }
         }
 
         # PDFエクスポート開始を通知
@@ -430,7 +434,10 @@ try {
     finally {
         try { if ($workbook) { $workbook.Close(\$false) } } catch {}
         try { if ($excel) { $excel.Quit()     } } catch {}
-        [System.Runtime.Interopservices.Marshal]::ReleaseComObject($excel) | Out-Null
+        if ($workbook) { [Runtime.InteropServices.Marshal]::ReleaseComObject($workbook) | Out-Null }
+        if ($excel)    { [Runtime.InteropServices.Marshal]::ReleaseComObject($excel)    | Out-Null }
+        $workbook = $null
+        $excel    = $null
     }
 }
 catch {
