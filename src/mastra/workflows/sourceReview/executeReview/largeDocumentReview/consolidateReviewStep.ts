@@ -198,9 +198,13 @@ Please provide a consolidated review that synthesizes all individual document re
           const idsHash = createHash('md5')
             .update(combinedFileIds)
             .digest('hex');
-          const combinedFileNames = documentsWithReviewResults
-            .map((f) => f.name)
-            .join('/');
+          const combinedFileNames = [
+            ...new Set(
+              documentsWithReviewResults.map(
+                (f) => f.originalName || f.name,
+              ),
+            ),
+          ].join('/');
 
           await reviewRepository.upsertReviewResult(
             consolidatedResult.object.map((result) => ({

@@ -108,7 +108,7 @@ const individualDocumentReviewWorkflow = createWorkflow({
           }
           return {
             originalDocument: initData.originalDocument,
-            reviewInput: [],
+            reviewInput: initData.reviewInput,
             retryCount: nextRetryCount,
             status: isFailed
               ? ('failed' as stepStatus)
@@ -124,7 +124,7 @@ const individualDocumentReviewWorkflow = createWorkflow({
         if (initData.retryCount >= 5) {
           return {
             originalDocument: initData.originalDocument,
-            reviewInput: [],
+            reviewInput: initData.reviewInput,
             retryCount: nextRetryCount,
             status: 'failed' as stepStatus,
             errorMessage:
@@ -155,6 +155,7 @@ const individualDocumentReviewWorkflow = createWorkflow({
                 ...initData.originalDocument,
                 id: `${initData.originalDocument.id}_part${index + 1}`,
                 name: `${initData.originalDocument.name} (part ${index + 1}) (split into parts because the full content did not fit into context)`,
+                originalName: initData.originalDocument.originalName || initData.originalDocument.name,
                 textContent: chunk,
               },
             })),
@@ -181,6 +182,7 @@ const individualDocumentReviewWorkflow = createWorkflow({
                 ...initData.originalDocument,
                 id: `${initData.originalDocument.id}_part${index + 1}`,
                 name: `${initData.originalDocument.name} (part ${index + 1}) (split into parts because the full content did not fit into context)`,
+                originalName: initData.originalDocument.originalName || initData.originalDocument.name,
                 imageData: chunk,
               },
             })),
@@ -227,6 +229,7 @@ const individualDocumentReviewWorkflow = createWorkflow({
         );
         return {
           ...input.document,
+          originalName: input.document.originalName || input.document.name,
           reviewResults: reviewResult || [],
         };
       }),
