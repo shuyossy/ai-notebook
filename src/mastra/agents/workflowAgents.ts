@@ -62,7 +62,7 @@ export type ConsolidateReviewAgentRuntimeContext = BaseRuntimeContext & {
 
 // レビューチャット用エージェント
 export type ReviewChatPlanningAgentRuntimeContext = BaseRuntimeContext & {
-  availableDocuments: { id: string; originalFileName: string; fileName: string }[];
+  availableDocuments: { id: string; fileName: string }[];
   checklistInfo: string; // チェックリスト情報のテキスト
 };
 

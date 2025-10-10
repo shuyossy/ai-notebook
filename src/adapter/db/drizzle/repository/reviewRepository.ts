@@ -3,11 +3,11 @@ import {
   reviewHistories,
   reviewChecklists,
   reviewDocumentCaches,
-  reviewChecklistResultCaches,
+  reviewLargedocumentResultCaches,
   ReviewChecklistEntity,
   ReviewHistoryEntity,
   ReviewDocumentCacheEntity,
-  ReviewChecklistResultCacheEntity,
+  ReviewLargedocumentResultCacheEntity,
 } from '../schema';
 import getDb from '..';
 import type {
@@ -20,7 +20,7 @@ import type {
   ProcessingStatus,
   DocumentMode,
   ReviewDocumentCache,
-  ReviewChecklistResultCache,
+  ReviewLargedocumentResultCache,
   ProcessMode,
 } from '@/types';
 import { AppError } from '@/main/lib/error';
@@ -406,7 +406,6 @@ export class DrizzleReviewRepository implements IReviewRepository {
       id: entity.id,
       reviewHistoryId: entity.reviewHistoryId,
       documentId: entity.documentId,
-      originalFileName: entity.originalFileName,
       fileName: entity.fileName,
       processMode: entity.processMode as ProcessMode,
       createdAt: entity.createdAt,
@@ -463,7 +462,6 @@ export class DrizzleReviewRepository implements IReviewRepository {
         .values({
           reviewHistoryId: cache.reviewHistoryId,
           documentId: cache.documentId,
-          originalFileName: cache.originalFileName,
           fileName: cache.fileName,
           processMode: cache.processMode,
           cachePath,
@@ -525,43 +523,47 @@ export class DrizzleReviewRepository implements IReviewRepository {
   }
 
   /** チェックリスト結果キャッシュを作成 */
-  async createReviewChecklistResultCache(
-    cache: ReviewChecklistResultCache,
+  async createReviewLargedocumentResultCache(
+    cache: ReviewLargedocumentResultCache,
   ): Promise<void> {
     try {
       const db = await getDb();
-      await db.insert(reviewChecklistResultCaches).values({
+      await db.insert(reviewLargedocumentResultCaches).values({
         reviewDocumentCacheId: cache.reviewDocumentCacheId,
         reviewChecklistId: cache.reviewChecklistId,
         comment: cache.comment,
+        totalChunks: cache.totalChunks,
+        chunkIndex: cache.chunkIndex,
       });
     } catch (err) {
       throw repositoryError(
-        'チェックリスト結果キャッシュの作成に失敗しました',
+        '大量ドキュメント結果キャッシュの作成に失敗しました',
         err,
       );
     }
   }
 
   /** チェックリスト結果キャッシュ一覧を取得 */
-  async getReviewChecklistResultCaches(
+  async getReviewLargedocumentResultCaches(
     reviewHistoryId: string,
-  ): Promise<ReviewChecklistResultCache[]> {
+  ): Promise<ReviewLargedocumentResultCache[]> {
     try {
       const db = await getDb();
       // reviewDocumentCachesとjoinしてreviewHistoryIdで絞り込む
       const results = await db
         .select({
           reviewDocumentCacheId:
-            reviewChecklistResultCaches.reviewDocumentCacheId,
-          reviewChecklistId: reviewChecklistResultCaches.reviewChecklistId,
-          comment: reviewChecklistResultCaches.comment,
+            reviewLargedocumentResultCaches.reviewDocumentCacheId,
+          reviewChecklistId: reviewLargedocumentResultCaches.reviewChecklistId,
+          comment: reviewLargedocumentResultCaches.comment,
+          totalChunks: reviewLargedocumentResultCaches.totalChunks,
+          chunkIndex: reviewLargedocumentResultCaches.chunkIndex,
         })
-        .from(reviewChecklistResultCaches)
+        .from(reviewLargedocumentResultCaches)
         .innerJoin(
           reviewDocumentCaches,
           eq(
-            reviewChecklistResultCaches.reviewDocumentCacheId,
+            reviewLargedocumentResultCaches.reviewDocumentCacheId,
             reviewDocumentCaches.id,
           ),
         )
@@ -571,10 +573,12 @@ export class DrizzleReviewRepository implements IReviewRepository {
         reviewDocumentCacheId: row.reviewDocumentCacheId,
         reviewChecklistId: row.reviewChecklistId,
         comment: row.comment,
+        totalChunks: row.totalChunks,
+        chunkIndex: row.chunkIndex,
       }));
     } catch (err) {
       throw repositoryError(
-        'チェックリスト結果キャッシュの取得に失敗しました',
+        '大量ドキュメント結果キャッシュの取得に失敗しました',
         err,
       );
     }
@@ -608,7 +612,7 @@ export class DrizzleReviewRepository implements IReviewRepository {
         );
 
       // 個別レビュー結果キャッシュを取得
-      const individualCaches = await this.getReviewChecklistResultCaches(
+      const individualCaches = await this.getReviewLargedocumentResultCaches(
         reviewHistoryId,
       );
 

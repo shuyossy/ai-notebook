@@ -104,7 +104,6 @@ export interface ReviewDocumentCache {
   id: number;
   reviewHistoryId: string;
   documentId: string; // ワークフロー内のドキュメントID
-  originalFileName: string; // 元のファイル名
   fileName: string; // ワークフロー内での名前（分割時は "xxx (part 1)" など）
   processMode: ProcessMode;
   textContent?: string; // processMode='text'の場合
@@ -113,9 +112,11 @@ export interface ReviewDocumentCache {
   updatedAt: string;
 }
 
-// レビューチェックリスト結果キャッシュ（大量ドキュメントレビューの個別レビュー結果）
-export interface ReviewChecklistResultCache {
+// レビュー大量ドキュメント結果キャッシュ（大量ドキュメントレビューの個別レビュー結果）
+export interface ReviewLargedocumentResultCache {
   reviewDocumentCacheId: number;
   reviewChecklistId: number;
   comment: string;
+  totalChunks: number; // ドキュメント分割総数
+  chunkIndex: number; // 何番目のチャンクか（0から始まる）
 }

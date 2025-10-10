@@ -157,6 +157,8 @@ const individualDocumentReviewWorkflow = createWorkflow({
                 name: `${initData.originalDocument.name} (part ${index + 1}) (split into parts because the full content did not fit into context)`,
                 originalName: initData.originalDocument.originalName || initData.originalDocument.name,
                 textContent: chunk,
+                totalChunks: splitCount,
+                chunkIndex: index,
               },
             })),
             retryCount: nextRetryCount,
@@ -184,6 +186,8 @@ const individualDocumentReviewWorkflow = createWorkflow({
                 name: `${initData.originalDocument.name} (part ${index + 1}) (split into parts because the full content did not fit into context)`,
                 originalName: initData.originalDocument.originalName || initData.originalDocument.name,
                 imageData: chunk,
+                totalChunks: splitCount,
+                chunkIndex: index,
               },
             })),
             retryCount: nextRetryCount,
@@ -255,6 +259,8 @@ export const largeDocumentReviewWorkflow = createWorkflow({
           document: {
             ...document,
             originalName: document.name, // 分割された場合に元の名前を保持するため
+            totalChunks: 1,
+            chunkIndex: 0,
           },
           checklists: inputData.checklists,
           additionalInstructions: inputData.additionalInstructions,

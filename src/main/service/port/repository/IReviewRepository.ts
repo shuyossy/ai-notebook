@@ -7,7 +7,7 @@ import {
   ReviewChecklistCreatedBy,
   ReviewChecklistResult,
   ReviewDocumentCache,
-  ReviewChecklistResultCache,
+  ReviewLargedocumentResultCache,
   ReviewEvaluation,
 } from '@/types';
 
@@ -81,13 +81,13 @@ export interface IReviewRepository {
     documentId: string,
   ): Promise<ReviewDocumentCache | null>;
 
-  // チェックリスト結果キャッシュ管理
-  createReviewChecklistResultCache(
-    cache: ReviewChecklistResultCache,
+  // 大量ドキュメント結果キャッシュ管理
+  createReviewLargedocumentResultCache(
+    cache: ReviewLargedocumentResultCache,
   ): Promise<void>;
-  getReviewChecklistResultCaches(
+  getReviewLargedocumentResultCaches(
     reviewHistoryId: string,
-  ): Promise<ReviewChecklistResultCache[]>;
+  ): Promise<ReviewLargedocumentResultCache[]>;
 
   // レビューチャット用: チェックリスト結果と個別レビュー結果を取得
   getChecklistResultsWithIndividualResults(

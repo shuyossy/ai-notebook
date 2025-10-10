@@ -24,6 +24,8 @@ export const individualDocumentReviewStepInputSchema = z.object({
   reviewHistoryId: z.string().describe('レビュー履歴ID'),
   document: extractedDocumentSchema.extend({
     originalName: z.string(),
+    totalChunks: z.number().optional(), // ドキュメント分割総数
+    chunkIndex: z.number().optional(), // 何番目のチャンクか（0から始まる）
   }),
   // チェックリスト
   checklists: z.array(
@@ -192,26 +194,15 @@ Checklist Items to Review:\n${checklists.map((item) => `- ID: ${item.id} - ${ite
 
       // 全てのレビューが成功した場合
 
-      // ドキュメントキャッシュと個別レビュー結果を保存
+      // 個別レビュー結果を保存
       const reviewRepository = getReviewRepository();
-
-      // 1. ドキュメントキャッシュを保存
-      const savedCache = await reviewRepository.createReviewDocumentCache({
-        reviewHistoryId: inputData.reviewHistoryId,
-        documentId: document.id || '',
-        originalFileName: document.originalName,
-        fileName: document.name || '',
-        processMode: document.processMode || 'text',
-        textContent: document.textContent,
-        imageData: document.imageData,
-      });
-
-      // 2. 個別レビュー結果を保存
       for (const result of allReviewResults) {
-        await reviewRepository.createReviewChecklistResultCache({
-          reviewDocumentCacheId: savedCache.id,
+        await reviewRepository.createReviewLargedocumentResultCache({
+          reviewDocumentCacheId: document.cacheId!,
           reviewChecklistId: result.checklistId,
           comment: result.comment,
+          totalChunks: document.totalChunks ?? 1,
+          chunkIndex: document.chunkIndex ?? 0,
         });
       }
 

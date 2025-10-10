@@ -68,7 +68,6 @@ const planResearchStep = createStep({
       // RuntimeContext作成
       const availableDocuments = documentCaches.map(doc => ({
         id: doc.documentId,
-        originalFileName: doc.originalFileName,
         fileName: doc.fileName,
       }));
 

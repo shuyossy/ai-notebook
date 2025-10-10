@@ -155,6 +155,21 @@ export const executeReviewWorkflow = createWorkflow({
       initData.documentMode,
     );
 
+    // ドキュメントキャッシュを保存
+    for (const document of textExtractionResult.extractedDocuments || []) {
+      if (!document) continue;
+      const savedCache = await reviewRepository.createReviewDocumentCache({
+        reviewHistoryId: initData.reviewHistoryId,
+        documentId: document.id || '',
+        fileName: document.name || '',
+        processMode: document.processMode || 'text',
+        textContent: document.textContent,
+        imageData: document.imageData,
+      });
+      // キャッシュIDを付与
+      document.cacheId = savedCache.id;
+    }
+
     // レビュー対象の統合ドキュメント名を保存
     const targetDocumentName = (textExtractionResult.extractedDocuments || [])
       .map((doc) => doc?.name || '')

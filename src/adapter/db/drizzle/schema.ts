@@ -100,7 +100,6 @@ export const reviewDocumentCaches = sqliteTable('review_document_caches', {
     .notNull()
     .references(() => reviewHistories.id, { onDelete: 'cascade' }),
   documentId: text('document_id').notNull(), // ワークフロー内のドキュメントID
-  originalFileName: text('original_file_name').notNull(), // 元のファイル名
   fileName: text('file_name').notNull(), // ワークフロー内での名前（分割時は "xxx (part 1)" など）
   processMode: text('process_mode').notNull(), // 'text' or 'image'
   cachePath: text('cache_path').notNull(), // ファイル/ディレクトリパス
@@ -113,9 +112,9 @@ export const reviewDocumentCaches = sqliteTable('review_document_caches', {
     .$onUpdate(() => sql`(current_timestamp)`),
 });
 
-// レビューチェックリスト結果キャッシュを格納するテーブル（大量ドキュメントレビューの個別レビュー結果）
-export const reviewChecklistResultCaches = sqliteTable(
-  'review_checklist_result_caches',
+// レビュー大量ドキュメント結果キャッシュを格納するテーブル（大量ドキュメントレビューの個別レビュー結果）
+export const reviewLargedocumentResultCaches = sqliteTable(
+  'review_largedocument_result_caches',
   {
     reviewDocumentCacheId: integer('review_document_cache_id')
       .notNull()
@@ -124,10 +123,16 @@ export const reviewChecklistResultCaches = sqliteTable(
       .notNull()
       .references(() => reviewChecklists.id, { onDelete: 'cascade' }),
     comment: text('comment').notNull(), // 個別レビューコメント
+    totalChunks: integer('total_chunks').notNull(), // ドキュメント分割総数
+    chunkIndex: integer('chunk_index').notNull(), // 何番目のチャンクか（0から始まる）
   },
   (table) => ({
     pk: primaryKey({
-      columns: [table.reviewDocumentCacheId, table.reviewChecklistId],
+      columns: [
+        table.reviewDocumentCacheId,
+        table.reviewChecklistId,
+        table.chunkIndex,
+      ],
     }),
   }),
 );
@@ -145,7 +150,7 @@ export type ReviewDocumentCacheEntity =
   typeof reviewDocumentCaches.$inferSelect;
 export type InsertReviewDocumentCacheEntity =
   typeof reviewDocumentCaches.$inferInsert;
-export type ReviewChecklistResultCacheEntity =
-  typeof reviewChecklistResultCaches.$inferSelect;
-export type InsertReviewChecklistResultCacheEntity =
-  typeof reviewChecklistResultCaches.$inferInsert;
+export type ReviewLargedocumentResultCacheEntity =
+  typeof reviewLargedocumentResultCaches.$inferSelect;
+export type InsertReviewLargedocumentResultCacheEntity =
+  typeof reviewLargedocumentResultCaches.$inferInsert;

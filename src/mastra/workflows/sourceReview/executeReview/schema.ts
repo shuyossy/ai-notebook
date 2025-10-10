@@ -12,6 +12,7 @@ export const uploadedFileSchema = z.object({
 
 export const extractedDocumentSchema = z.object({
   id: z.string(),
+  cacheId: z.number().optional(),
   name: z.string(),
   path: z.string(),
   type: z.string(),
