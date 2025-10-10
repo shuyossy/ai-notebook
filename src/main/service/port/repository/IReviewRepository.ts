@@ -88,4 +88,18 @@ export interface IReviewRepository {
   getReviewChecklistResultCaches(
     reviewHistoryId: string,
   ): Promise<ReviewChecklistResultCache[]>;
+
+  // レビューチャット用: チェックリスト結果と個別レビュー結果を取得
+  getChecklistResultsWithIndividualResults(
+    reviewHistoryId: string,
+    checklistIds: number[],
+  ): Promise<
+    Array<{
+      checklistResult: ReviewChecklistResult;
+      individualResults?: Array<{
+        documentId: number;
+        comment: string;
+      }>;
+    }>
+  >;
 }

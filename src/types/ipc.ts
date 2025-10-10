@@ -81,6 +81,11 @@ export const IpcChannels = {
   REVIEW_EXECUTE_FINISHED: 'review-execute-finished', // レビュー実行が完了した際の通知
   REVIEW_EXECUTE_ABORT: 'review-execute-abort', // レビュー実行処理をキャンセルする
   REVIEW_HISTORY_UPDATED: 'review-history-updated', // レビュー履歴が更新された際の通知
+  REVIEW_CHAT_SEND_MESSAGE: 'review-chat-send-message', // レビューチャットメッセージ送信
+  REVIEW_CHAT_STREAM_RESPONSE: 'review-chat-stream-response', // レビューチャットストリーミング応答
+  REVIEW_CHAT_COMPLETE: 'review-chat-complete', // レビューチャット完了
+  REVIEW_CHAT_ERROR: 'review-chat-error', // レビューチャットエラー
+  REVIEW_CHAT_ABORT: 'review-chat-abort', // レビューチャット中断
 } as const;
 
 export type IpcChannel = (typeof IpcChannels)[keyof typeof IpcChannels];
@@ -150,6 +155,12 @@ export type IpcRequestPayloadMap = {
     documentMode: DocumentMode;
   };
   [IpcChannels.REVIEW_EXECUTE_ABORT]: string; // review history id
+  [IpcChannels.REVIEW_CHAT_SEND_MESSAGE]: {
+    reviewHistoryId: string;
+    checklistIds: number[];
+    question: string;
+  };
+  [IpcChannels.REVIEW_CHAT_ABORT]: string; // review history id
 };
 
 export type IpcResponsePayloadMap = {
@@ -202,6 +213,8 @@ export type IpcResponsePayloadMap = {
   [IpcChannels.REVIEW_UPDATE_CHECKLIST]: IpcResult;
   [IpcChannels.REVIEW_EXECUTE_CALL]: IpcResult;
   [IpcChannels.REVIEW_EXECUTE_ABORT]: IpcResult;
+  [IpcChannels.REVIEW_CHAT_SEND_MESSAGE]: IpcResult;
+  [IpcChannels.REVIEW_CHAT_ABORT]: IpcResult;
 };
 
 export type IpcEventPayloadMap = {
@@ -228,6 +241,9 @@ export type IpcEventPayloadMap = {
     currentSheet?: number;
     totalSheets?: number;
   };
+  [IpcChannels.REVIEW_CHAT_STREAM_RESPONSE]: any; // AI SDKが定義するDataStreamが入る想定(型がexportされていないためany型)
+  [IpcChannels.REVIEW_CHAT_COMPLETE]: unknown;
+  [IpcChannels.REVIEW_CHAT_ERROR]: { message: string };
 };
 
 /**
@@ -288,4 +304,8 @@ export const IpcNameMap = {
   [IpcChannels.REVIEW_UPDATE_CHECKLIST]: 'チェックリストの更新',
   [IpcChannels.REVIEW_EXECUTE_CALL]: 'ドキュメントレビューの実行',
   [IpcChannels.REVIEW_EXECUTE_ABORT]: 'ドキュメントレビューの中断',
+  [IpcChannels.REVIEW_CHAT_SEND_MESSAGE]: 'レビューチャットメッセージ送信',
+  [IpcChannels.REVIEW_CHAT_COMPLETE]: 'レビューチャット完了',
+  [IpcChannels.REVIEW_CHAT_ERROR]: 'レビューチャットエラー',
+  [IpcChannels.REVIEW_CHAT_ABORT]: 'レビューチャット中断',
 };

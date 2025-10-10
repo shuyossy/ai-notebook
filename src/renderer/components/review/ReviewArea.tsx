@@ -6,11 +6,11 @@ import {
   Stack,
   Typography,
   LinearProgress,
-  Alert,
 } from '@mui/material';
 import CheckBoxIcon from '@mui/icons-material/CheckBox';
 import RateReviewIcon from '@mui/icons-material/RateReview';
 import StopIcon from '@mui/icons-material/Stop';
+import ChatIcon from '@mui/icons-material/Chat';
 import {
   ReviewChecklistEdit,
   ReviewChecklistResult,
@@ -25,6 +25,7 @@ import {
 import { ReviewAreaProps } from './types';
 import ReviewChecklistSection from './ReviewChecklistSection';
 import ReviewSourceModal from './ReviewSourceModal';
+import ReviewChatPanel from './ReviewChatPanel';
 import { ReviewApi } from '../../service/reviewApi';
 import { useAlertStore } from '../../stores/alertStore';
 import { getSafeErrorMessage } from '../../lib/error';
@@ -60,6 +61,11 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
   const [commentFormat, setCommentFormat] = useState(defaultCommentFormat);
   const [evaluationSettings, setEvaluationSettings] =
     useState<CustomEvaluationSettings>(defaultEvaluationSettings);
+
+  // チャット関連の状態管理
+  const [chatPanelOpen, setChatPanelOpen] = useState(false);
+  const [chatPanelWidth, setChatPanelWidth] = useState(500);
+  const [isResizing, setIsResizing] = useState(false);
 
   const addAlert = useAlertStore((state) => state.addAlert);
 
@@ -530,6 +536,38 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
     setIsSaving(false);
   };
 
+  // リサイズハンドラ
+  const handleMouseDown = (e: React.MouseEvent) => {
+    setIsResizing(true);
+    e.preventDefault();
+  };
+
+  useEffect(() => {
+    if (!isResizing) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      // 画面右端からのマウス位置を計算
+      const newWidth = window.innerWidth - e.clientX;
+      // 最小幅350px、最大幅は画面の65%まで
+      const minWidth = 350;
+      const maxWidth = window.innerWidth * 0.65;
+      const clampedWidth = Math.max(minWidth, Math.min(newWidth, maxWidth));
+      setChatPanelWidth(clampedWidth);
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isResizing]);
+
   return (
     <Box
       sx={{
@@ -552,15 +590,10 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
           {(isExtracting || isReviewing) && (
             <Box sx={{ mb: 2 }}>
               <LinearProgress />
-              {/* <Alert severity="info" sx={{ mt: 1 }}>
-                {isExtracting
-                  ? 'チェックリスト抽出実行中...'
-                  : 'レビュー実行中...'}
-              </Alert> */}
             </Box>
           )}
 
-          {/* ヘッダー部分 */}
+          {/* ヘッダー部分 - 主要アクションボタン */}
           <Stack
             direction="row"
             justifyContent="space-between"
@@ -604,26 +637,85 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
               >
                 {isReviewing ? 'キャンセル' : 'レビュー実行'}
               </Button>
+              <Button
+                variant="contained"
+                color="primary"
+                startIcon={<ChatIcon />}
+                onClick={() => setChatPanelOpen(true)}
+                disabled={
+                  !selectedReviewHistoryId ||
+                  isExtracting ||
+                  isReviewing ||
+                  checklistResults.filter((cl) => cl.sourceEvaluation?.comment)
+                    .length === 0
+                }
+              >
+                質問
+              </Button>
             </Stack>
           </Stack>
 
-          {/* メインコンテンツ */}
-          <Paper
+          {/* メインコンテンツ - Split View */}
+          <Box
             sx={{
-              p: 2,
-              flex: 1,
               display: 'flex',
-              flexDirection: 'column',
+              flexDirection: 'row',
+              flex: 1,
               minHeight: 0,
+              gap: 0,
             }}
           >
-            <ReviewChecklistSection
-              checklistResults={checklistResults}
-              isLoading={isExtracting || isReviewing}
-              onSave={handleSaveChecklist}
-              targetDocumentName={targetDocumentName}
-            />
-          </Paper>
+            {/* レビュー結果エリア */}
+            <Paper
+              sx={{
+                p: 2,
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                minHeight: 0,
+                minWidth: chatPanelOpen ? 400 : 0,
+                overflow: 'hidden',
+              }}
+            >
+              <ReviewChecklistSection
+                checklistResults={checklistResults}
+                isLoading={isExtracting || isReviewing}
+                onSave={handleSaveChecklist}
+                targetDocumentName={targetDocumentName}
+              />
+            </Paper>
+
+            {/* リサイズハンドル */}
+            {chatPanelOpen && (
+              <Box
+                onMouseDown={handleMouseDown}
+                sx={{
+                  width: '6px',
+                  cursor: 'col-resize',
+                  bgcolor: 'divider',
+                  transition: 'background-color 0.2s',
+                  flexShrink: 0,
+                  userSelect: 'none',
+                }}
+              />
+            )}
+
+            {/* チャットパネル */}
+            {selectedReviewHistoryId && (
+              <ReviewChatPanel
+                open={chatPanelOpen}
+                onClose={() => setChatPanelOpen(false)}
+                reviewHistoryId={selectedReviewHistoryId}
+                checklists={checklistResults
+                  .filter((cl) => cl.sourceEvaluation?.comment)
+                  .map((cl) => ({
+                    id: cl.id,
+                    content: cl.content,
+                  }))}
+                width={chatPanelWidth}
+              />
+            )}
+          </Box>
 
           {/* モーダル */}
           <ReviewSourceModal

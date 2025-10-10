@@ -14,6 +14,9 @@ import {
   getDocumentReviewExecutionPrompt,
   getIndividualDocumentReviewPrompt,
   getConsolidateReviewPrompt,
+  getReviewChatPlanningPrompt,
+  getReviewChatResearchPrompt,
+  getReviewChatAnswerPrompt,
 } from './prompts';
 import { getOpenAICompatibleModel } from './model/openAICompatible';
 import { BaseRuntimeContext } from './types';
@@ -44,21 +47,6 @@ export type TopicChecklistAgentRuntimeContext = BaseRuntimeContext & {
   checklistRequirements?: string;
 };
 
-export type ReviewCheckReviewReadinessFirstRunAgentRuntimeContext = BaseRuntimeContext & {
-  checklistItems: { id: number; content: string }[];
-  additionalInstructions?: string;
-};
-
-export type ReviewCheckReviewReadinessSubsequentAgentRuntimeContext = BaseRuntimeContext & {
-  checklistItems: { id: number; content: string }[];
-  additionalInstructions?: string;
-  priorQnA: { documentId: string; documentName: string; qna: { question: string; answer: string }[] }[];
-};
-
-export type ReviewAnswerQuestionAgentRuntimeContext = BaseRuntimeContext & {
-  checklistItems: { id: number; content: string }[];
-};
-
 export type IndividualDocumentReviewAgentRuntimeContext = BaseRuntimeContext & {
   checklistItems: { id: number; content: string }[];
   additionalInstructions?: string;
@@ -70,6 +58,21 @@ export type ConsolidateReviewAgentRuntimeContext = BaseRuntimeContext & {
   additionalInstructions?: string;
   commentFormat?: string;
   evaluationSettings?: CustomEvaluationSettings;
+};
+
+// レビューチャット用エージェント
+export type ReviewChatPlanningAgentRuntimeContext = BaseRuntimeContext & {
+  availableDocuments: { id: string; originalFileName: string; fileName: string }[];
+  checklistInfo: string; // チェックリスト情報のテキスト
+};
+
+export type ReviewChatResearchAgentRuntimeContext = BaseRuntimeContext & {
+  researchContent: string; // 調査内容
+};
+
+export type ReviewChatAnswerAgentRuntimeContext = BaseRuntimeContext & {
+  userQuestion: string; // ユーザからの質問
+  checklistInfo: string; // チェックリスト情報のテキスト
 };
 
 export const summarizeSourceAgent = new Agent({
@@ -137,5 +140,23 @@ export const individualDocumentReviewAgent = new Agent({
 export const consolidateReviewAgent = new Agent({
   name: 'consolidateReviewAgent',
   instructions: getConsolidateReviewPrompt,
+  model: getOpenAICompatibleModel,
+});
+
+export const reviewChatPlanningAgent = new Agent({
+  name: 'reviewChatPlanningAgent',
+  instructions: getReviewChatPlanningPrompt,
+  model: getOpenAICompatibleModel,
+});
+
+export const reviewChatResearchAgent = new Agent({
+  name: 'reviewChatResearchAgent',
+  instructions: getReviewChatResearchPrompt,
+  model: getOpenAICompatibleModel,
+});
+
+export const reviewChatAnswerAgent = new Agent({
+  name: 'reviewChatAnswerAgent',
+  instructions: getReviewChatAnswerPrompt,
   model: getOpenAICompatibleModel,
 });

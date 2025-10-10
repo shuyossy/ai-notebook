@@ -1,4 +1,4 @@
-import { eq, and } from 'drizzle-orm';
+import { eq, and, inArray } from 'drizzle-orm';
 import {
   reviewHistories,
   reviewChecklists,
@@ -575,6 +575,71 @@ export class DrizzleReviewRepository implements IReviewRepository {
     } catch (err) {
       throw repositoryError(
         'チェックリスト結果キャッシュの取得に失敗しました',
+        err,
+      );
+    }
+  }
+
+  /** レビューチャット用: チェックリストと結果を取得 */
+  async getChecklistResultsWithIndividualResults(
+    reviewHistoryId: string,
+    checklistIds: number[],
+  ): Promise<
+    Array<{
+      checklistResult: ReviewChecklistResult;
+      individualResults?: Array<{
+        documentId: number;
+        comment: string;
+      }>;
+    }>
+  > {
+    try {
+      const db = await getDb();
+
+      // チェックリストを取得
+      const checklistEntities = await db
+        .select()
+        .from(reviewChecklists)
+        .where(
+          and(
+            eq(reviewChecklists.reviewHistoryId, reviewHistoryId),
+            inArray(reviewChecklists.id, checklistIds),
+          ),
+        );
+
+      // 個別レビュー結果キャッシュを取得
+      const individualCaches = await this.getReviewChecklistResultCaches(
+        reviewHistoryId,
+      );
+
+      // 結果を組み立て
+      return checklistEntities.map((entity) => {
+        // 個別レビュー結果を抽出
+        const individualResults = individualCaches
+          .filter((cache) => cache.reviewChecklistId === entity.id)
+          .map((cache) => ({
+            documentId: cache.reviewDocumentCacheId,
+            comment: cache.comment,
+          }));
+
+        // ReviewChecklistResult型を構築
+        const checklistResult: ReviewChecklistResult = {
+          id: entity.id,
+          content: entity.content,
+          sourceEvaluation: {
+            evaluation: entity.evaluation ?? undefined,
+            comment: entity.comment ?? undefined,
+          },
+        };
+
+        return {
+          checklistResult,
+          individualResults: individualResults.length > 0 ? individualResults : undefined,
+        };
+      });
+    } catch (err) {
+      throw repositoryError(
+        'チェックリストと結果の取得に失敗しました',
         err,
       );
     }

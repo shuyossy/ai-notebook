@@ -147,6 +147,13 @@ const electronHandler = {
     /** レビュー実行キャンセル */
     abortExecute: (reviewHistoryId: string) =>
       invokeIpc(IpcChannels.REVIEW_EXECUTE_ABORT, reviewHistoryId),
+    /** レビューチャットメッセージ送信 */
+    sendChatMessage: (
+      params: IpcRequestPayloadMap[typeof IpcChannels.REVIEW_CHAT_SEND_MESSAGE],
+    ) => invokeIpc(IpcChannels.REVIEW_CHAT_SEND_MESSAGE, params),
+    /** レビューチャット中断 */
+    abortChat: (reviewHistoryId: string) =>
+      invokeIpc(IpcChannels.REVIEW_CHAT_ABORT, reviewHistoryId),
   },
   pushApi: {
     async subscribe<C extends EventChannel>(

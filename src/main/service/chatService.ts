@@ -120,7 +120,6 @@ export class ChatService implements IChatService {
     userId: string,
     threadId: string,
     messages: ChatMessage[],
-    event: Electron.IpcMainInvokeEvent,
   ) {
     // 新しいAbortControllerを作成
     const controller = this.abortControllerManager.getOrCreateAbortController(

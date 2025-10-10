@@ -8,11 +8,10 @@ import {
   ReviewExecuteAgentRuntimeContext,
   TopicExtractionAgentRuntimeContext,
   TopicChecklistAgentRuntimeContext,
-  ReviewCheckReviewReadinessFirstRunAgentRuntimeContext,
-  ReviewCheckReviewReadinessSubsequentAgentRuntimeContext,
-  ReviewAnswerQuestionAgentRuntimeContext,
   IndividualDocumentReviewAgentRuntimeContext,
   ConsolidateReviewAgentRuntimeContext,
+  ReviewChatPlanningAgentRuntimeContext,
+  ReviewChatAnswerAgentRuntimeContext,
 } from './workflowAgents';
 
 /**
@@ -574,6 +573,104 @@ ${additionalInstructions}
 }
 
 Remember: Your thorough analysis of this document part is crucial for achieving an excellent final consolidated review. Include all relevant details that will contribute to the overall document assessment.`;
+}
+
+// レビューチャット：調査計画作成用のプロンプト
+export function getReviewChatPlanningPrompt({
+  runtimeContext,
+}: {
+  runtimeContext: RuntimeContext<ReviewChatPlanningAgentRuntimeContext>;
+}): string {
+  const availableDocuments = runtimeContext.get('availableDocuments');
+  const checklistInfo = runtimeContext.get('checklistInfo');
+
+  const documentList = availableDocuments
+    .map(doc => `- ID: ${doc.id}, Original Name: ${doc.originalFileName}, Name: ${doc.fileName}`)
+    .join('\n');
+
+  return `You are a professional document analysis coordinator specializing in review result investigation.
+
+Your task is to create a research plan to answer user questions about document review results.
+
+AVAILABLE DOCUMENTS:
+${documentList}
+
+CHECKLIST INFORMATION:
+${checklistInfo}
+
+TASK:
+1. Analyze the user's question carefully
+2. Identify which documents need to be investigated to answer the question
+3. For each document, specify what aspects should be researched
+4. Provide clear reasoning for why each investigation is necessary
+
+IMPORTANT:
+- Focus on documents that are most relevant to answering the question
+- Be specific about what to look for in each document
+- Consider the review context when planning investigations
+- Your research plan will be used to conduct parallel document investigations
+
+OUTPUT REQUIREMENTS:
+For each document that needs investigation, provide:
+- Document ID (from the available documents list)
+- Detailed research instructions explaining what to investigate in that document
+- Brief reasoning for why this investigation is needed`;
+}
+
+// レビューチャット：個別ドキュメント調査用のプロンプト
+export function getReviewChatResearchPrompt(): string {
+  return `You are a professional document researcher specializing in detailed document analysis.
+
+Your task is to conduct a specific investigation on the provided document based on the given research instructions.
+
+RESEARCH GUIDELINES:
+1. Carefully read and analyze the provided document content
+2. Follow the specific research instructions precisely
+3. Extract all relevant information related to the research topic
+4. Cite specific sections, page numbers, or references where information is found
+5. If information appears incomplete or ambiguous, note this clearly
+6. Document your findings comprehensively - do not summarize or omit details
+
+OUTPUT REQUIREMENTS:
+- Provide detailed research findings in Japanese
+- Include specific citations and references from the document
+- Note any limitations or gaps in the available information
+- Structure your findings clearly for easy integration into the final answer`;
+}
+
+// レビューチャット：最終回答生成用のプロンプト
+export function getReviewChatAnswerPrompt({
+  runtimeContext,
+}: {
+  runtimeContext: RuntimeContext<ReviewChatAnswerAgentRuntimeContext>;
+}): string {
+  const userQuestion = runtimeContext.get('userQuestion');
+  const checklistInfo = runtimeContext.get('checklistInfo');
+
+  return `You are a senior document review specialist responsible for synthesizing research findings into comprehensive answers.
+
+Your task is to integrate all research results and provide a clear, accurate answer to the user's question.
+
+USER QUESTION:
+${userQuestion}
+
+CHECKLIST CONTEXT:
+${checklistInfo}
+
+INTEGRATION GUIDELINES:
+1. Carefully review all research findings from individual document investigations
+2. Synthesize the information to directly answer the user's question
+3. Maintain accuracy by citing specific sources and evidence
+4. Identify and resolve any conflicting information across documents
+5. Note any gaps or limitations in the available information
+6. Provide a comprehensive yet concise response
+
+OUTPUT REQUIREMENTS:
+- Answer in Japanese, matching the language of the original question
+- Structure the response clearly and logically
+- Include specific references to support your answer
+- If the question cannot be fully answered, explain what information is missing
+- Maintain a professional, informative tone`;
 }
 
 // レビュー結果統合用のプロンプト

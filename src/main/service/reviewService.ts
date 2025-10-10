@@ -1,3 +1,6 @@
+import { createDataStream } from 'ai';
+// @ts-ignore
+import { RuntimeContext } from '@mastra/core/runtime-context';
 import { getReviewRepository } from '@/adapter/db';
 import {
   ReviewChecklistEdit,
@@ -21,6 +24,7 @@ import { mastra } from '@/mastra';
 import { checkWorkflowResult } from '@/mastra/lib/workflowUtils';
 import { formatMessage } from '../lib/messages';
 import { ReviewCacheHelper } from '@/main/lib/utils/reviewCacheHelper';
+import { ReviewChatWorkflowRuntimeContext } from '@/mastra/workflows/reviewChat';
 
 export interface IReviewService {
   getReviewHistories(): Promise<RevieHistory[]>;
@@ -51,6 +55,15 @@ export interface IReviewService {
     reviewHistoryId: string,
     files: UploadFile[],
   ): Promise<void>;
+  chatWithReview(
+    reviewHistoryId: string,
+    checklistIds: number[],
+    question: string,
+  ): Promise<ReturnType<typeof createDataStream>>;
+  abortReviewChat(reviewHistoryId: string): {
+    success: boolean;
+    error?: string;
+  };
 }
 
 const logger = getMainLogger();
@@ -132,7 +145,8 @@ export class ReviewService implements IReviewService {
     checklistEdits: ReviewChecklistEdit[],
   ) {
     // レビュー履歴が存在しない場合は新規作成
-    let reviewHistory = await this.reviewRepository.getReviewHistory(reviewHistoryId);
+    let reviewHistory =
+      await this.reviewRepository.getReviewHistory(reviewHistoryId);
     if (reviewHistory === null) {
       reviewHistory = await this.reviewRepository.createReviewHistory(
         generateReviewTitle(),
@@ -213,7 +227,9 @@ export class ReviewService implements IReviewService {
       }
 
       // システム作成のチェックリストを削除（手動作成分は保持）
-      await this.reviewRepository.deleteSystemCreatedChecklists(reviewHistoryId);
+      await this.reviewRepository.deleteSystemCreatedChecklists(
+        reviewHistoryId,
+      );
 
       const allChecklistItems: string[] = [];
 
@@ -239,7 +255,11 @@ export class ReviewService implements IReviewService {
 
       // チェックリスト項目をDBに保存
       for (const item of uniqueChecklistItems) {
-        await this.reviewRepository.createChecklist(reviewHistoryId, item, 'system');
+        await this.reviewRepository.createChecklist(
+          reviewHistoryId,
+          item,
+          'system',
+        );
       }
       // AI処理と同様のイベント通知を発火
       publishEvent(IpcChannels.REVIEW_EXTRACT_CHECKLIST_FINISHED, {
@@ -672,6 +692,114 @@ export class ReviewService implements IReviewService {
       }
     } catch (error) {
       logger.error(error, 'レビュー実行のキャンセルに失敗しました');
+      const err = normalizeUnknownError(error);
+      return { success: false, error: err.message };
+    }
+  }
+
+  /**
+   * レビューチャット実行
+   * @param reviewHistoryId レビュー履歴ID
+   * @param checklistIds チェックリストID配列
+   * @param question ユーザからの質問
+   * @returns DataStream
+   */
+  public async chatWithReview(
+    reviewHistoryId: string,
+    checklistIds: number[],
+    question: string,
+  ): Promise<ReturnType<typeof createDataStream>> {
+    // DataStreamを生成
+    const dataStream = createDataStream({
+      execute: async (writer) => {
+        try {
+          // Mastraワークフローを取得
+          const workflow = mastra.getWorkflow('reviewChatWorkflow');
+
+          if (!workflow) {
+            logger.error('レビュー実行ワークフローが見つかりません');
+            throw internalError({
+              expose: false,
+            });
+          }
+
+          // ランタイムコンテキストを作成
+          const runtimeContext =
+            new RuntimeContext<ReviewChatWorkflowRuntimeContext>();
+          runtimeContext.set('dataStreamWriter', writer);
+
+          const run = await workflow.createRunAsync();
+
+          // workflowをrunningWorkflowsに登録
+          const workflowKey = `chat_${reviewHistoryId}`;
+
+          // 実行中のワークフローを管理
+          this.runningWorkflows.set(workflowKey, {
+            cancel: () => run.cancel(),
+          });
+
+          // ストリーミングはworkflow内部で実行されるため、ここでは結果を待つだけ
+          const result = await run.start({
+            inputData: {
+              reviewHistoryId,
+              checklistIds,
+              question,
+            },
+            runtimeContext,
+          });
+
+          checkWorkflowResult(result);
+
+          // 処理が完了したらworkflowを削除
+          this.runningWorkflows.delete(workflowKey);
+        } catch (error) {
+          logger.error(error, 'レビューチャット実行に失敗しました');
+          // エラー時もworkflowを削除
+          this.runningWorkflows.delete(`chat_${reviewHistoryId}`);
+          throw error;
+        }
+      },
+      onError: (error) => {
+        logger.error(error, 'レビューチャット中にエラーが発生');
+        // エラー時もworkflowを削除
+        this.runningWorkflows.delete(`chat_${reviewHistoryId}`);
+        const normalizedError = normalizeUnknownError(error);
+        return formatMessage('UNKNOWN_ERROR', {
+          detail: normalizedError.message,
+        });
+      },
+    });
+
+    return dataStream;
+  }
+
+  /**
+   * レビューチャット中断
+   * @param reviewHistoryId レビュー履歴ID
+   */
+  public abortReviewChat(reviewHistoryId: string): {
+    success: boolean;
+    error?: string;
+  } {
+    try {
+      const workflowKey = `chat_${reviewHistoryId}`;
+      const runningWorkflow = this.runningWorkflows.get(workflowKey);
+      if (runningWorkflow) {
+        runningWorkflow.cancel();
+        this.runningWorkflows.delete(workflowKey);
+        logger.info(`レビューチャットをキャンセルしました: ${reviewHistoryId}`);
+        return { success: true };
+      } else {
+        logger.warn(
+          `キャンセル対象のレビューチャットが見つかりません: ${reviewHistoryId}`,
+        );
+        return {
+          success: false,
+          error: 'キャンセル対象の処理が見つかりません',
+        };
+      }
+    } catch (error) {
+      logger.error(error, 'レビューチャットのキャンセルに失敗しました');
       const err = normalizeUnknownError(error);
       return { success: false, error: err.message };
     }

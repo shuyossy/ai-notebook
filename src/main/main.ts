@@ -276,7 +276,6 @@ const setupChatHandlers = () => {
           userId,
           roomId,
           messages,
-          event,
         );
 
         // テキストストリームを処理
@@ -540,6 +539,44 @@ const setupReviewHandlers = () => {
         cause: new Error(result.error!),
       });
     }
+    return undefined as never;
+  });
+
+  // レビューチャットメッセージ送信ハンドラ
+  handleIpc(
+    IpcChannels.REVIEW_CHAT_SEND_MESSAGE,
+    async ({ reviewHistoryId, checklistIds, question }) => {
+      try {
+        const dataStream = await reviewService.chatWithReview(
+          reviewHistoryId,
+          checklistIds,
+          question,
+        );
+
+        // テキストストリームを処理
+        // @ts-ignore
+        for await (const chunk of dataStream) {
+          // チャンクをフロントエンドに送信
+          publishEvent(IpcChannels.REVIEW_CHAT_STREAM_RESPONSE, chunk);
+        }
+
+        return undefined as never;
+      } catch (error) {
+        // エラー時もAbortControllerを削除
+        reviewService.abortReviewChat(reviewHistoryId);
+        const normalizedError = normalizeUnknownError(error);
+        publishEvent(
+          IpcChannels.REVIEW_CHAT_ERROR,
+          { message: normalizedError.message },
+        );
+        throw normalizedError;
+      }
+    },
+  );
+
+  // レビューチャット中断ハンドラ
+  handleIpc(IpcChannels.REVIEW_CHAT_ABORT, async (reviewHistoryId) => {
+    const result = reviewService.abortReviewChat(reviewHistoryId);
     return undefined as never;
   });
 };

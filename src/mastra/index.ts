@@ -19,10 +19,14 @@ import {
   topicChecklistAgent,
   individualDocumentReviewAgent,
   consolidateReviewAgent,
+  reviewChatPlanningAgent,
+  reviewChatResearchAgent,
+  reviewChatAnswerAgent,
 } from './agents/workflowAgents';
 import { sourceRegistrationWorkflow } from './workflows/sourceRegistration/sourceRegistration';
 import { checklistExtractionWorkflow } from './workflows/sourceReview/checklistExtraction';
 import { executeReviewWorkflow } from './workflows/sourceReview/executeReview';
+import { reviewChatWorkflow } from './workflows/reviewChat';
 import fs from 'fs';
 import path from 'path';
 import { getLogLevel } from '@/main/lib/logger';
@@ -73,11 +77,15 @@ export const mastra: Mastra = new Mastra({
     topicChecklistAgent,
     individualDocumentReviewAgent,
     consolidateReviewAgent,
+    reviewChatPlanningAgent,
+    reviewChatResearchAgent,
+    reviewChatAnswerAgent,
   },
   workflows: {
     sourceRegistrationWorkflow,
     checklistExtractionWorkflow,
     executeReviewWorkflow,
+    reviewChatWorkflow,
   },
   logger,
 });
