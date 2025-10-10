@@ -88,6 +88,10 @@ export interface IReviewRepository {
   getReviewLargedocumentResultCaches(
     reviewHistoryId: string,
   ): Promise<ReviewLargedocumentResultCache[]>;
+  getMaxTotalChunksForDocument(
+    reviewHistoryId: string,
+    documentId: string,
+  ): Promise<number>;
 
   // レビューチャット用: チェックリスト結果と個別レビュー結果を取得
   getChecklistResultsWithIndividualResults(
@@ -99,6 +103,7 @@ export interface IReviewRepository {
       individualResults?: Array<{
         documentId: number;
         comment: string;
+        individualFileName: string;
       }>;
     }>
   >;

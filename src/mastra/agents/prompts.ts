@@ -585,7 +585,7 @@ export function getReviewChatPlanningPrompt({
   const checklistInfo = runtimeContext.get('checklistInfo');
 
   const documentList = availableDocuments
-    .map(doc => `- ID: ${doc.id}, Original Name: ${doc.originalFileName}, Name: ${doc.fileName}`)
+    .map(doc => `- ID: ${doc.id}, Name: ${doc.fileName}`)
     .join('\n');
 
   return `You are a professional document analysis coordinator specializing in review result investigation.

@@ -125,6 +125,7 @@ export const reviewLargedocumentResultCaches = sqliteTable(
     comment: text('comment').notNull(), // 個別レビューコメント
     totalChunks: integer('total_chunks').notNull(), // ドキュメント分割総数
     chunkIndex: integer('chunk_index').notNull(), // 何番目のチャンクか（0から始まる）
+    individualFileName: text('individual_file_name').notNull(), // 分割後の個別ドキュメント名（"xxx (part 1)" など）
   },
   (table) => ({
     pk: primaryKey({

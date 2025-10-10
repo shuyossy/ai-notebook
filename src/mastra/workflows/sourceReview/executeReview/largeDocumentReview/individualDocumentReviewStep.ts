@@ -203,6 +203,7 @@ Checklist Items to Review:\n${checklists.map((item) => `- ID: ${item.id} - ${ite
           comment: result.comment,
           totalChunks: document.totalChunks ?? 1,
           chunkIndex: document.chunkIndex ?? 0,
+          individualFileName: document.name,
         });
       }
 

@@ -234,9 +234,9 @@ ElectronのIPCを使用してフロントエンド・バックエンド間の通
           - `review_histories`と一対多の関係
           - ファイルのメタデータ(id, originalFileName(大量ドキュメントレビュー用), fileName, processMode('text' or 'image'), originalPath, cachePath,...等)を保存
         - `review_histories`テーブルに大量ドキュメントレビューか少量ドキュメントレビューかを示すフラグを追加
-        - `review_checklist_result_chaches`テーブルの作成
+        - `review_largedocument_result_chaches`テーブルの作成
           - `review_document_chaches`と`review_checklists`の中間テーブル
-          - 少量ドキュメントレビューの場合に、個別チェックリストに対して、個別ドキュメントをレビューするが、その際の結果を保存
+          - 少量ドキュメントレビューの場合に、個別チェックリストに対して、個別ドキュメントをレビューするが、その際のチャンクパラメータ(チャンク総数と個別ドキュメントのチャンクインデックス)と結果を保存
       - ドメイン型の更新
         - 上記に合わせてドメイン型(`src/types/review.ts`)の新規作成が必要
         - 今後も見据えて最善のドメイン型を作成してください
@@ -273,11 +273,12 @@ ElectronのIPCを使用してフロントエンド・バックエンド間の通
               1. AIにユーザからの質問と対象のチェックリストを与えて、調査対象ドキュメントとその調査内容のペアの配列を出力させる
                 - AI処理詳細
                   - システムプロンプト
-                    - ここでチェック対象ドキュメントがどのような個別ドキュメントで構成されているのか提示(id, originalFileName, FileName)して、出力時に質問対象ドキュメントを指定できるようにする
-                    - AIの役割：ユーザから与えられたチェックリスト結果と質問に対して、最終的に良い回答ができるように、調査すべきドキュメントとその調査内容を出力すること
+                    - 提示する内容
+                      - @で指定されたチェックリストの内容とレビュー結果（大量レビューの場合は個別のレビュー結果も） 
+                      - ドキュメントキャッシュ内容(id, FileName)
+                        - 出力時に質問対象ドキュメントを指定できるようにするため
+                      - AIの役割：ユーザから与えられたチェックリスト結果と質問に対して、最終的に良い回答ができるように、調査すべきドキュメントとその調査内容を出力すること
                   - ユーザコンテキスト
-                    - @で指定されたチェックリストの内容
-                      - そのチェックリストのレビュー結果と(少量ドキュメントレビューの場合は)個別レビュー結果
                       - ユーザからの質問
                   - 出力内容
                   ```
@@ -287,23 +288,16 @@ ElectronのIPCを使用してフロントエンド・バックエンド間の通
                   }[]
                   ```
               2. 1で指定されたドキュメント毎に以下ステップを並列実行(foreach)
-                - AIに調査対象ドキュメント(reviewRepository#getReviewDocumentCacheByDocumentIdを利用して取得)と調査内容を与えて、調査結果を出力する
+                - `review_largedocument_result_chaches`テーブル内のドキュメントキャッシュIDが一致するレコードからtotalChunksの最大値を取得
+                - 以下をループ(dountil)※`src/mastra/workflows/sourceReview/executeReview/largeDocumentReview/index.ts`の`individualDocumentReviewWorkflow`を参考にすること
+                  - ドキュメントをtotalChunks分のチャンクに分解して(`src/mastra/workflows/sourceReview/lib.ts`を利用)、それぞれに対して以下を並列実行(foreach)
+                    - AIに調査対象ドキュメント(reviewRepository#getReviewDocumentCacheByDocumentIdを利用して取得)と調査内容を与えて、調査結果を出力する
+                  - 並列処理の結果一つでもコンテキスト長エラーになっていた場合は、チャンク数を一つ増やして処理をループする（全てsuccessの場合はループ終了）
               3. 2の調査結果を全てAIに与えて、最終的にユーザ返す質問内容を出力する
             - workflowの最終的な処理結果はチャット機能と同様にAI SDK形式のチャンクをイベントpushで送信する(chatService#generateを参照)
     - 実装時の注意点
       - workflowの実装方法は大量ドキュメントレビュー実行時のworkflowを参考にすること
       - AIに与えるシステムプロンプトも大量ドキュメントレビュー実行時ものもを参考にすること(なぜその処理を実行させたいのか、背景もうまく伝えられるようにして欲しい)
-- 改善要望
-  - `review_document_chaches`テーブルと`review_checklist_result_chaches`テーブルの見直し
-    - 以下のように変更する
-      - `review_document_chaches`テーブルの役割変更：完了済
-        - レビュー時にアップロードされたドキュメント（大量レビューの分割前）を保持する
-          - ドキュメントキャッシュはテキスト抽出完了後(`src/mastra/workflows/sourceReview/executeReview/index.ts`)に保存する(大量レビューの分割前)
-      - `review_checklist_result_chaches`テーブルの役割変更：未済
-        - 名前を`review_largedocument_result_chaches`テーブルに変更
-          - 大量ドキュメントレビュー時の分割後のドキュメントとそれに対するレビュー結果を保持する目的を明確化するため
-        - 大量レビュー実行時のドキュメントを何分割した内の何番めのチャンクなのか、この二つの属性を新規追加
-      - ドメイン型の`ReviewChecklistResultCache`は`ReviewLargedocumentResultCache`に名前を変更
 ### タスク実装時の注意点
 - 全ての手順を理解した上で、最適な実装をすること
 - ユーザが直感的に操作できて、尚且つ一般的なUIにすること

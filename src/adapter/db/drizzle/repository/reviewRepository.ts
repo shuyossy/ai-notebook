@@ -1,4 +1,4 @@
-import { eq, and, inArray } from 'drizzle-orm';
+import { eq, and, inArray, max } from 'drizzle-orm';
 import {
   reviewHistories,
   reviewChecklists,
@@ -534,6 +534,7 @@ export class DrizzleReviewRepository implements IReviewRepository {
         comment: cache.comment,
         totalChunks: cache.totalChunks,
         chunkIndex: cache.chunkIndex,
+        individualFileName: cache.individualFileName,
       });
     } catch (err) {
       throw repositoryError(
@@ -558,6 +559,7 @@ export class DrizzleReviewRepository implements IReviewRepository {
           comment: reviewLargedocumentResultCaches.comment,
           totalChunks: reviewLargedocumentResultCaches.totalChunks,
           chunkIndex: reviewLargedocumentResultCaches.chunkIndex,
+          individualFileName: reviewLargedocumentResultCaches.individualFileName,
         })
         .from(reviewLargedocumentResultCaches)
         .innerJoin(
@@ -575,10 +577,53 @@ export class DrizzleReviewRepository implements IReviewRepository {
         comment: row.comment,
         totalChunks: row.totalChunks,
         chunkIndex: row.chunkIndex,
+        individualFileName: row.individualFileName,
       }));
     } catch (err) {
       throw repositoryError(
         '大量ドキュメント結果キャッシュの取得に失敗しました',
+        err,
+      );
+    }
+  }
+
+  /** 特定ドキュメントの最大totalChunks数を取得（レビューチャット用） */
+  async getMaxTotalChunksForDocument(
+    reviewHistoryId: string,
+    documentId: string,
+  ): Promise<number> {
+    try {
+      const db = await getDb();
+
+      // まずdocumentIdからreviewDocumentCacheIdを取得
+      const [cache] = await db
+        .select({ id: reviewDocumentCaches.id })
+        .from(reviewDocumentCaches)
+        .where(
+          and(
+            eq(reviewDocumentCaches.reviewHistoryId, reviewHistoryId),
+            eq(reviewDocumentCaches.documentId, documentId),
+          ),
+        );
+
+      if (!cache) {
+        // ドキュメントキャッシュが存在しない場合は1を返す
+        return 1;
+      }
+
+      // 該当ドキュメントのtotalChunksの最大値を取得
+      const result = await db
+        .select({ maxChunks: max(reviewLargedocumentResultCaches.totalChunks) })
+        .from(reviewLargedocumentResultCaches)
+        .where(eq(reviewLargedocumentResultCaches.reviewDocumentCacheId, cache.id));
+
+      const maxChunks = result[0]?.maxChunks;
+
+      // レコードが存在しない場合は1を返す（初回処理）
+      return maxChunks ?? 1;
+    } catch (err) {
+      throw repositoryError(
+        'ドキュメントの最大チャンク数取得に失敗しました',
         err,
       );
     }
@@ -594,6 +639,7 @@ export class DrizzleReviewRepository implements IReviewRepository {
       individualResults?: Array<{
         documentId: number;
         comment: string;
+        individualFileName: string;
       }>;
     }>
   > {
@@ -624,6 +670,7 @@ export class DrizzleReviewRepository implements IReviewRepository {
           .map((cache) => ({
             documentId: cache.reviewDocumentCacheId,
             comment: cache.comment,
+            individualFileName: cache.individualFileName,
           }));
 
         // ReviewChecklistResult型を構築

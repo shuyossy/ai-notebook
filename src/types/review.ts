@@ -119,4 +119,5 @@ export interface ReviewLargedocumentResultCache {
   comment: string;
   totalChunks: number; // ドキュメント分割総数
   chunkIndex: number; // 何番目のチャンクか（0から始まる）
+  individualFileName: string; // 分割後の個別ドキュメント名（"xxx (part 1)" など）
 }
