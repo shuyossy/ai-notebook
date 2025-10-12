@@ -1,15 +1,24 @@
 // @ts-ignore
 import { createWorkflow } from '@mastra/core';
+// @ts-ignore
+import { RuntimeContext } from '@mastra/core/runtime-context';
 import { DataStreamWriter } from 'ai';
 import { z } from 'zod';
 import { stepStatus } from '../types';
 import { planResearchStep } from './planResearchStep';
-import { generateAnswerStep, generateAnswerStepInputSchema, generateAnswerStepOutputSchema } from './generateAnswerStep';
+import {
+  generateAnswerStep,
+  generateAnswerStepInputSchema,
+  generateAnswerStepOutputSchema,
+} from './generateAnswerStep';
 import { researchDocumentWithRetryWorkflow } from './researchDocument';
+import { getReviewRepository } from '@/adapter/db';
 
 // ワークフローのラインタイムコンテキスト
 export type ReviewChatWorkflowRuntimeContext = {
   dataStreamWriter: DataStreamWriter;
+  // 擬似的なtoolCallを表現するためのID
+  toolCallId: string;
 };
 
 // 入力スキーマ
@@ -26,7 +35,7 @@ export const reviewChatWorkflow = createWorkflow({
   outputSchema: generateAnswerStepOutputSchema,
 })
   .then(planResearchStep)
-  .map(async ({ inputData, bail, getInitData }) => {
+  .map(async ({ inputData, bail, getInitData, runtimeContext }) => {
     if (inputData.status === 'failed') {
       return bail(inputData);
     }
@@ -35,6 +44,32 @@ export const reviewChatWorkflow = createWorkflow({
       typeof reviewChatInputSchema
     >;
 
+    // ユーザ体験向上のため、調査タスクを擬似的なtoolCallとして表現する
+    const toolCallId = (
+      runtimeContext as RuntimeContext<ReviewChatWorkflowRuntimeContext>
+    ).get('toolCallId');
+    const writer = (
+      runtimeContext as RuntimeContext<ReviewChatWorkflowRuntimeContext>
+    ).get('dataStreamWriter');
+    const reviewRepository = getReviewRepository();
+    const documentCaches = await reviewRepository.getReviewDocumentCaches(
+      initData.reviewHistoryId,
+    );
+    writer.write(
+      `9:${JSON.stringify({
+        toolCallId: `reviewChatResearchDocument-${toolCallId}`,
+        toolName: 'researchDocumentStart',
+        args: inputData.researchTasks?.map((task) => {
+          return {
+            documentName:
+              documentCaches.find((d) => d.documentId === task.documentId)
+                ?.fileName || 'Unknown',
+            researchContent: task.researchContent,
+          };
+        }),
+      })}\n`,
+    );
+
     return (inputData.researchTasks || []).map((task) => ({
       reviewHistoryId: initData.reviewHistoryId,
       documentId: task.documentId,
@@ -42,7 +77,7 @@ export const reviewChatWorkflow = createWorkflow({
     }));
   })
   .foreach(researchDocumentWithRetryWorkflow, { concurrency: 5 })
-  .map(async ({ inputData, bail, getInitData }) => {
+  .map(async ({ inputData, bail, getInitData, runtimeContext }) => {
     // 失敗があればエラー
     if (inputData.some((item) => item.status === 'failed')) {
       const failed = inputData.find((item) => item.status === 'failed');
@@ -55,6 +90,30 @@ export const reviewChatWorkflow = createWorkflow({
     const initData = (await getInitData()) as z.infer<
       typeof reviewChatInputSchema
     >;
+
+    // ユーザ体験向上のため、調査タスクを擬似的なtoolCallとして表現する
+    const toolCallId = (
+      runtimeContext as RuntimeContext<ReviewChatWorkflowRuntimeContext>
+    ).get('toolCallId');
+    const writer = (
+      runtimeContext as RuntimeContext<ReviewChatWorkflowRuntimeContext>
+    ).get('dataStreamWriter');
+    const reviewRepository = getReviewRepository();
+    const documentCaches = await reviewRepository.getReviewDocumentCaches(
+      initData.reviewHistoryId,
+    );
+    writer.write(
+      `a:${JSON.stringify({
+        toolCallId: `reviewChatResearchDocument-${toolCallId}`,
+        toolName: 'researchDocumentComplete',
+        result: inputData.map((item) => ({
+          documentName:
+            documentCaches.find((d) => d.documentId === item.documentId)
+              ?.fileName || 'Unknown',
+          researchResult: item.researchResult!,
+        })),
+      })}\n`,
+    );
 
     return {
       reviewHistoryId: initData.reviewHistoryId,

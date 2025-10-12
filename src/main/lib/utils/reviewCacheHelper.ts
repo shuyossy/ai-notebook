@@ -67,33 +67,45 @@ export class ReviewCacheHelper {
    * テキストキャッシュ読み込み
    * @param cachePath ファイルパス
    * @returns テキスト内容
+   * @throws ファイルが存在しない場合やアクセスできない場合にエラーをスロー
    */
   static async loadTextCache(cachePath: string): Promise<string> {
-    return fs.readFile(cachePath, 'utf-8');
+    try {
+      return await fs.readFile(cachePath, 'utf-8');
+    } catch (error) {
+      // ファイルが存在しない、またはアクセスできない場合
+      throw new Error(`Failed to load text cache from ${cachePath}: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
 
   /**
    * 画像キャッシュ読み込み
    * @param cacheDir ディレクトリパス
    * @returns Base64画像データ配列
+   * @throws ディレクトリが存在しない場合やアクセスできない場合にエラーをスロー
    */
   static async loadImageCache(cacheDir: string): Promise<string[]> {
-    const files = await fs.readdir(cacheDir);
-    const imageFiles = files
-      .filter((f) => f.endsWith('.b64'))
-      .sort((a, b) => {
-        const aNum = parseInt(a.match(/page_(\d+)\.b64/)?.[1] || '0');
-        const bNum = parseInt(b.match(/page_(\d+)\.b64/)?.[1] || '0');
-        return aNum - bNum;
-      });
+    try {
+      const files = await fs.readdir(cacheDir);
+      const imageFiles = files
+        .filter((f) => f.endsWith('.b64'))
+        .sort((a, b) => {
+          const aNum = parseInt(a.match(/page_(\d+)\.b64/)?.[1] || '0');
+          const bNum = parseInt(b.match(/page_(\d+)\.b64/)?.[1] || '0');
+          return aNum - bNum;
+        });
 
-    const imageData: string[] = [];
-    for (const file of imageFiles) {
-      const content = await fs.readFile(path.join(cacheDir, file), 'utf-8');
-      imageData.push(content);
+      const imageData: string[] = [];
+      for (const file of imageFiles) {
+        const content = await fs.readFile(path.join(cacheDir, file), 'utf-8');
+        imageData.push(content);
+      }
+
+      return imageData;
+    } catch (error) {
+      // ディレクトリが存在しない、またはアクセスできない場合
+      throw new Error(`Failed to load image cache from ${cacheDir}: ${error instanceof Error ? error.message : String(error)}`);
     }
-
-    return imageData;
   }
 
   /**

@@ -313,7 +313,8 @@ const renderPart = (
         <Accordion sx={{ width: '100%' }} key={ti.toolCallId}>
           <AccordionSummary expandIcon={<ExpandMoreIcon />}>
             <Box sx={{ display: 'flex', alignItems: 'center' }}>
-              {ti.toolName === 'documentQueryTool' ? (
+              {ti.toolName === 'documentQueryTool' ||
+              ti.toolCallId.startsWith('reviewChatResearchDocument-') ? (
                 <SearchIcon sx={{ mr: 1 }} />
               ) : (
                 <SmartToyOutlinedIcon sx={{ mr: 1 }} />

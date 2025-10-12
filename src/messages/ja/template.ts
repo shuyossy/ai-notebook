@@ -33,4 +33,5 @@ export const template = {
   REVIEW_CHECKLIST_EXTRACTION_FROM_CSV_ERROR: `CSVファイルからのチェックリスト抽出中に予期せぬエラーが発生しました`,
   AI_API_ERROR: `AIのAPIと通信中にエラーが発生しました\n{detail}`,
   AI_MESSAGE_TOO_LARGE: `AIへの入力データが大きすぎます。入力データを減らしてください。`,
+  REVIEW_DOCUMENT_CACHE_NOT_FOUND: `レビュー時にアップロードしたドキュメント情報が失われています。レビューを再実行してください`,
 } as const;

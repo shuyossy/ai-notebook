@@ -23,7 +23,7 @@ import type {
   ReviewLargedocumentResultCache,
   ProcessMode,
 } from '@/types';
-import { AppError } from '@/main/lib/error';
+import { AppError, internalError } from '@/main/lib/error';
 import { repositoryError } from '@/main/lib/error';
 import { IReviewRepository } from '@/main/service/port/repository';
 import { ReviewCacheHelper } from '@/main/lib/utils/reviewCacheHelper';
@@ -412,20 +412,33 @@ export class DrizzleReviewRepository implements IReviewRepository {
       updatedAt: entity.updatedAt,
     };
 
-    // cachePathからファイルを読み込む
-    if (entity.processMode === 'text') {
-      const textContent = await ReviewCacheHelper.loadTextCache(
-        entity.cachePath,
-      );
-      return { ...base, textContent };
-    } else if (entity.processMode === 'image') {
-      const imageData = await ReviewCacheHelper.loadImageCache(
-        entity.cachePath,
-      );
-      return { ...base, imageData };
-    }
+    try {
+      // cachePathからファイルを読み込む
+      if (entity.processMode === 'text') {
+        const textContent = await ReviewCacheHelper.loadTextCache(
+          entity.cachePath,
+        );
+        return { ...base, textContent };
+      } else if (entity.processMode === 'image') {
+        const imageData = await ReviewCacheHelper.loadImageCache(
+          entity.cachePath,
+        );
+        return { ...base, imageData };
+      }
 
-    throw repositoryError('無効なprocessModeです', null);
+      throw repositoryError('無効なprocessModeです', null);
+    } catch (error) {
+      // キャッシュファイル読み込みエラーの場合は専用のエラーメッセージを返す
+      if (error instanceof Error && error.message.includes('Failed to load')) {
+        throw internalError({
+          expose: true,
+          messageCode: 'REVIEW_DOCUMENT_CACHE_NOT_FOUND',
+          cause: error,
+        });
+      }
+      // その他のエラーはそのまま再スロー
+      throw error;
+    }
   }
 
   /** ドキュメントキャッシュを作成 */

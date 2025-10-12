@@ -25,4 +25,8 @@ export const TOOL_NAME_DISPLAY_MAP: Record<string, string> = {
   getMergeRequestDetail: 'マージリクエスト詳細取得',
   addMergeRequestComment: 'マージリクエストコメント追加',
   addMergeRequestDiffComment: 'マージリクエスト差分コメント追加',
+
+  // レビューチャット用
+  researchDocumentStart: 'ドキュメント調査中...',
+  researchDocumentComplete: 'ドキュメント調査完了',
 };

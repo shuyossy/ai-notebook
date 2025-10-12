@@ -1,6 +1,7 @@
 import { createDataStream } from 'ai';
 // @ts-ignore
 import { RuntimeContext } from '@mastra/core/runtime-context';
+import { v4 as uuid } from 'uuid';
 import { getReviewRepository } from '@/adapter/db';
 import {
   ReviewChecklistEdit,
@@ -753,6 +754,7 @@ export class ReviewService implements IReviewService {
           const runtimeContext =
             new RuntimeContext<ReviewChatWorkflowRuntimeContext>();
           runtimeContext.set('dataStreamWriter', writer);
+          runtimeContext.set('toolCallId', uuid());
 
           const run = await workflow.createRunAsync();
 
