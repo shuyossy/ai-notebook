@@ -4,7 +4,7 @@ import { DataStreamWriter } from 'ai';
 import { z } from 'zod';
 import { stepStatus } from '../types';
 import { planResearchStep } from './planResearchStep';
-import { generateAnswerStep, generateAnswerStepOutputSchema } from './generateAnswerStep';
+import { generateAnswerStep, generateAnswerStepInputSchema, generateAnswerStepOutputSchema } from './generateAnswerStep';
 import { researchDocumentWithRetryWorkflow } from './researchDocument';
 
 // ワークフローのラインタイムコンテキスト
@@ -66,7 +66,7 @@ export const reviewChatWorkflow = createWorkflow({
           documentId: item.documentId!,
           researchResult: item.researchResult!,
         })),
-    };
+    } as z.infer<typeof generateAnswerStepInputSchema>;
   })
   .then(generateAnswerStep)
   .commit();

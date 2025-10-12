@@ -239,6 +239,8 @@ const ReviewChatPanel: React.FC<ReviewChatPanelProps> = ({
         onEditContentChange={() => {}}
         onEditSubmit={async () => {}}
         onEditCancel={() => {}}
+        loadingMessage="ドキュメントの調査中..."
+        disableEdit
       />
 
       <Divider />

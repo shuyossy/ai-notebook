@@ -43,6 +43,9 @@ export const researchChunkStep = createStep({
       // RuntimeContext作成
       const runtimeContext = await createRuntimeContext<ReviewChatResearchAgentRuntimeContext>();
       runtimeContext.set('researchContent', researchContent);
+      runtimeContext.set('totalChunks', totalChunks);
+      runtimeContext.set('chunkIndex', chunkIndex);
+      runtimeContext.set('fileName', fileName);
 
       // メッセージを作成
       const messageContent = [];

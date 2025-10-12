@@ -723,6 +723,32 @@ export class ReviewService implements IReviewService {
             });
           }
 
+          // 質問テキストから本文のみを抽出
+          // フォーマット: @チェックリスト行 + 空行 + 本文
+          const lines = question.split('\n');
+          const bodyLines: string[] = [];
+          let foundEmptyLine = false;
+
+          for (const line of lines) {
+            // @で始まる行は除外
+            if (line.trim().startsWith('@')) {
+              continue;
+            }
+
+            // 最初の空行を見つけた後から本文開始
+            if (!foundEmptyLine && line.trim() === '') {
+              foundEmptyLine = true;
+              continue;
+            }
+
+            // 空行を見つけた後の行を本文として抽出
+            if (foundEmptyLine) {
+              bodyLines.push(line);
+            }
+          }
+
+          const bodyText = bodyLines.join('\n').trim();
+
           // ランタイムコンテキストを作成
           const runtimeContext =
             new RuntimeContext<ReviewChatWorkflowRuntimeContext>();
@@ -743,15 +769,25 @@ export class ReviewService implements IReviewService {
             inputData: {
               reviewHistoryId,
               checklistIds,
-              question,
+              question: bodyText,
             },
             runtimeContext,
           });
 
-          checkWorkflowResult(result);
+          const checkResult = checkWorkflowResult(result);
 
           // 処理が完了したらworkflowを削除
           this.runningWorkflows.delete(workflowKey);
+
+          if (checkResult.status !== 'success') {
+            throw internalError({
+              expose: true,
+              messageCode: 'PLAIN_MESSAGE',
+              messageParams: {
+                message: checkResult.errorMessage || '不明なエラー',
+              },
+            });
+          }
         } catch (error) {
           logger.error(error, 'レビューチャット実行に失敗しました');
           // エラー時もworkflowを削除
@@ -764,9 +800,7 @@ export class ReviewService implements IReviewService {
         // エラー時もworkflowを削除
         this.runningWorkflows.delete(`chat_${reviewHistoryId}`);
         const normalizedError = normalizeUnknownError(error);
-        return formatMessage('UNKNOWN_ERROR', {
-          detail: normalizedError.message,
-        });
+        return normalizedError.message;
       },
     });
 

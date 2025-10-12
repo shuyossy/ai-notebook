@@ -387,6 +387,7 @@ interface MessageProps {
   onEditStart: (messageId: string) => void;
   onEditContentChange: (content: string) => void;
   onEditCancel: () => void;
+  disableEdit?: boolean;
 }
 
 const MessageItem = forwardRef<HTMLDivElement, MessageProps>(
@@ -400,6 +401,7 @@ const MessageItem = forwardRef<HTMLDivElement, MessageProps>(
       onEditStart,
       onEditCancel,
       onEditContentChange,
+      disableEdit = false,
     },
     ref,
   ) => {
@@ -420,7 +422,7 @@ const MessageItem = forwardRef<HTMLDivElement, MessageProps>(
               maxWidth: isUser && !isEditing ? '70%' : '100%',
               width: isUser && !isEditing ? undefined : '100%',
               textAlign: 'left',
-              '&:hover .editBtn': { opacity: 1 },
+              ...(!disableEdit && { '&:hover .editBtn': { opacity: 1 } }),
             }}
           >
             <Paper
@@ -432,28 +434,31 @@ const MessageItem = forwardRef<HTMLDivElement, MessageProps>(
                 position: 'relative',
               }}
             >
-              {isUser && !message.experimental_attachments && !isEditing && (
-                <IconButton
-                  className="editBtn"
-                  size="small"
-                  onClick={() => {
-                    onEditStart?.(message.id);
-                    onEditContentChange(message.content ?? '');
-                  }}
-                  sx={{
-                    position: 'absolute',
-                    right: -36,
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    opacity: 0,
-                    transition: 'opacity 0.2s',
-                    bgcolor: 'background.paper',
-                  }}
-                  data-testid={`edit-message-button-${message.id}`}
-                >
-                  <EditIcon fontSize="small" />
-                </IconButton>
-              )}
+              {isUser &&
+                !message.experimental_attachments &&
+                !isEditing &&
+                !disableEdit && (
+                  <IconButton
+                    className="editBtn"
+                    size="small"
+                    onClick={() => {
+                      onEditStart?.(message.id);
+                      onEditContentChange(message.content ?? '');
+                    }}
+                    sx={{
+                      position: 'absolute',
+                      right: -36,
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      opacity: 0,
+                      transition: 'opacity 0.2s',
+                      bgcolor: 'background.paper',
+                    }}
+                    data-testid={`edit-message-button-${message.id}`}
+                  >
+                    <EditIcon fontSize="small" />
+                  </IconButton>
+                )}
               {/* eslint-disable-next-line */}
               {isEditing && !message.experimental_attachments && isUser ? (
                 <Box sx={{ p: 1, width: '100%' }}>

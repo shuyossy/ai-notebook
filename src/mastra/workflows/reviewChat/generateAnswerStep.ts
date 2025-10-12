@@ -8,17 +8,18 @@ import { stepStatus } from '../types';
 import { getReviewRepository } from '@/adapter/db';
 import { getMainLogger } from '@/main/lib/logger';
 import { normalizeUnknownError, internalError } from '@/main/lib/error';
+import { ReviewChatAnswerAgentRuntimeContext } from '@/mastra/agents/workflowAgents';
 import {
-  ReviewChatAnswerAgentRuntimeContext
-} from '@/mastra/agents/workflowAgents';
-import { createRuntimeContext, judgeFinishReason} from '@/mastra/lib/agentUtils';
+  createRuntimeContext,
+  judgeFinishReason,
+} from '@/mastra/lib/agentUtils';
 import { IpcChannels } from '@/types';
 import { publishEvent } from '@/main/lib/eventPayloadHelper';
 import { ReviewChatWorkflowRuntimeContext } from '.';
 
 const logger = getMainLogger();
 
-const generateAnswerStepInputSchema = z.object({
+export const generateAnswerStepInputSchema = z.object({
   reviewHistoryId: z.string(),
   checklistIds: z.array(z.number()),
   question: z.string(),
@@ -39,18 +40,33 @@ export const generateAnswerStep = createStep({
   description: '最終回答を生成するステップ（ストリーミング）',
   inputSchema: generateAnswerStepInputSchema,
   outputSchema: generateAnswerStepOutputSchema,
-  execute: async ({ inputData, bail, mastra, abortSignal, runtimeContext: workflowRuntimeContext }) => {
+  execute: async ({
+    inputData,
+    bail,
+    mastra,
+    abortSignal,
+    runtimeContext: workflowRuntimeContext,
+  }) => {
     try {
       const { reviewHistoryId, checklistIds, question, researchResults } =
         inputData;
       const reviewRepository = getReviewRepository();
-      const dataStreamWriter = (workflowRuntimeContext as RuntimeContext<ReviewChatWorkflowRuntimeContext>).get('dataStreamWriter');
+      const dataStreamWriter = (
+        workflowRuntimeContext as RuntimeContext<ReviewChatWorkflowRuntimeContext>
+      ).get('dataStreamWriter');
 
       // チェックリスト結果を取得
       const checklistResults =
         await reviewRepository.getChecklistResultsWithIndividualResults(
           reviewHistoryId,
           checklistIds,
+        );
+
+      // ドキュメントキャッシュ情報を取得
+      const documentCaches =
+        await reviewRepository.getReviewDocumentCacheByDocumentIds(
+          reviewHistoryId,
+          researchResults.map((r) => r.documentId),
         );
 
       const checklistInfo = checklistResults
@@ -67,12 +83,13 @@ export const generateAnswerStep = createStep({
       const researchSummary = researchResults
         .map(
           (result) =>
-            `Document ID: ${result.documentId}\nFindings: ${result.researchResult}`,
+            `Document ID: ${result.documentId}\nDocument Name: ${documentCaches.find((dc) => dc.documentId === result.documentId)?.fileName || 'Unknown'}\nFindings: ${result.researchResult}`,
         )
         .join('\n---\n');
 
       // RuntimeContext作成
-      const runtimeContext = await createRuntimeContext<ReviewChatAnswerAgentRuntimeContext>();
+      const runtimeContext =
+        await createRuntimeContext<ReviewChatAnswerAgentRuntimeContext>();
       runtimeContext.set('userQuestion', question);
       runtimeContext.set('checklistInfo', checklistInfo);
 
@@ -95,8 +112,10 @@ export const generateAnswerStep = createStep({
           stepResult.toolResults.forEach((toolResult) => {
             dataStreamWriter.write(`a:${JSON.stringify(toolResult)}\n`);
           });
-          dataStreamWriter.write(`e:${JSON.stringify({ finishReason: stepResult.finishReason, ...stepResult.usage })}\n`);
-        }
+          dataStreamWriter.write(
+            `e:${JSON.stringify({ finishReason: stepResult.finishReason, ...stepResult.usage })}\n`,
+          );
+        },
       });
 
       const { success, reason } = judgeFinishReason(result.finishReason);
@@ -109,7 +128,10 @@ export const generateAnswerStep = createStep({
       }
 
       // 最終的なfinish reasonとusage情報を送信
-      publishEvent(IpcChannels.REVIEW_CHAT_STREAM_RESPONSE, `d:${JSON.stringify({ finishReason: result.finishReason, ...result.usage })}\n`);
+      publishEvent(
+        IpcChannels.REVIEW_CHAT_STREAM_RESPONSE,
+        `d:${JSON.stringify({ finishReason: result.finishReason, ...result.usage })}\n`,
+      );
 
       // 完了イベント送信
       publishEvent(IpcChannels.REVIEW_CHAT_COMPLETE, undefined);
@@ -123,7 +145,9 @@ export const generateAnswerStep = createStep({
       const normalizedError = normalizeUnknownError(error);
 
       // エラーイベント送信
-      publishEvent(IpcChannels.REVIEW_CHAT_ERROR, { message: normalizedError.message });
+      publishEvent(IpcChannels.REVIEW_CHAT_ERROR, {
+        message: normalizedError.message,
+      });
 
       return bail({
         status: 'failed' as stepStatus,

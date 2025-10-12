@@ -80,6 +80,10 @@ export interface IReviewRepository {
     reviewHistoryId: string,
     documentId: string,
   ): Promise<ReviewDocumentCache | null>;
+  getReviewDocumentCacheByDocumentIds(
+    reviewHistoryId: string,
+    documentIds: string[],
+  ): Promise<ReviewDocumentCache[]>;
 
   // 大量ドキュメント結果キャッシュ管理
   createReviewLargedocumentResultCache(

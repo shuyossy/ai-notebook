@@ -14,6 +14,8 @@ interface MessageListProps {
   onEditSubmit: () => void;
   onEditContentChange: (ontent: string) => void;
   onEditCancel: () => void;
+  loadingMessage?: string;
+  disableEdit?: boolean;
 }
 
 const MessageList: React.FC<MessageListProps> = ({
@@ -27,6 +29,8 @@ const MessageList: React.FC<MessageListProps> = ({
   onEditSubmit,
   onEditContentChange,
   onEditCancel,
+  loadingMessage = 'AIKATA作業中…',
+  disableEdit = false,
 }) => {
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -64,12 +68,13 @@ const MessageList: React.FC<MessageListProps> = ({
               onEditSubmit={onEditSubmit}
               onEditContentChange={onEditContentChange}
               onEditCancel={onEditCancel}
+              disableEdit={disableEdit}
             />
           </Box>
         );
       })}
 
-      {status === 'streaming' && (
+      {(status === 'streaming' || status === 'submitted') && (
         <Box
           sx={{
             display: 'flex',
@@ -80,7 +85,7 @@ const MessageList: React.FC<MessageListProps> = ({
         >
           <CircularProgress size={24} />
           <Box component="span" sx={{ ml: 1 }}>
-            AIKATA作業中…
+            {loadingMessage}
           </Box>
         </Box>
       )}

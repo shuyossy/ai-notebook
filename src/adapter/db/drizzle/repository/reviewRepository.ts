@@ -490,7 +490,9 @@ export class DrizzleReviewRepository implements IReviewRepository {
 
       // 各EntityをDomain型に変換（ファイル読み込み含む）
       return Promise.all(
-        entities.map((entity) => this.convertDocumentCacheEntityToDomain(entity)),
+        entities.map((entity) =>
+          this.convertDocumentCacheEntityToDomain(entity),
+        ),
       );
     } catch (err) {
       throw repositoryError('ドキュメントキャッシュの取得に失敗しました', err);
@@ -517,6 +519,34 @@ export class DrizzleReviewRepository implements IReviewRepository {
       if (!entity) return null;
 
       return this.convertDocumentCacheEntityToDomain(entity);
+    } catch (err) {
+      throw repositoryError('ドキュメントキャッシュの取得に失敗しました', err);
+    }
+  }
+
+  /** ドキュメントキャッシュを取得（複数ID対応） */
+  async getReviewDocumentCacheByDocumentIds(
+    reviewHistoryId: string,
+    documentIds: string[],
+  ): Promise<ReviewDocumentCache[]> {
+    try {
+      const db = await getDb();
+      const entities = await db
+        .select()
+        .from(reviewDocumentCaches)
+        .where(
+          and(
+            eq(reviewDocumentCaches.reviewHistoryId, reviewHistoryId),
+            inArray(reviewDocumentCaches.documentId, documentIds),
+          ),
+        );
+
+      // 各EntityをDomain型に変換（ファイル読み込み含む）
+      return Promise.all(
+        entities.map((entity) =>
+          this.convertDocumentCacheEntityToDomain(entity),
+        ),
+      );
     } catch (err) {
       throw repositoryError('ドキュメントキャッシュの取得に失敗しました', err);
     }
@@ -559,7 +589,8 @@ export class DrizzleReviewRepository implements IReviewRepository {
           comment: reviewLargedocumentResultCaches.comment,
           totalChunks: reviewLargedocumentResultCaches.totalChunks,
           chunkIndex: reviewLargedocumentResultCaches.chunkIndex,
-          individualFileName: reviewLargedocumentResultCaches.individualFileName,
+          individualFileName:
+            reviewLargedocumentResultCaches.individualFileName,
         })
         .from(reviewLargedocumentResultCaches)
         .innerJoin(
@@ -615,7 +646,9 @@ export class DrizzleReviewRepository implements IReviewRepository {
       const result = await db
         .select({ maxChunks: max(reviewLargedocumentResultCaches.totalChunks) })
         .from(reviewLargedocumentResultCaches)
-        .where(eq(reviewLargedocumentResultCaches.reviewDocumentCacheId, cache.id));
+        .where(
+          eq(reviewLargedocumentResultCaches.reviewDocumentCacheId, cache.id),
+        );
 
       const maxChunks = result[0]?.maxChunks;
 
@@ -658,9 +691,8 @@ export class DrizzleReviewRepository implements IReviewRepository {
         );
 
       // 個別レビュー結果キャッシュを取得
-      const individualCaches = await this.getReviewLargedocumentResultCaches(
-        reviewHistoryId,
-      );
+      const individualCaches =
+        await this.getReviewLargedocumentResultCaches(reviewHistoryId);
 
       // 結果を組み立て
       return checklistEntities.map((entity) => {
@@ -685,14 +717,12 @@ export class DrizzleReviewRepository implements IReviewRepository {
 
         return {
           checklistResult,
-          individualResults: individualResults.length > 0 ? individualResults : undefined,
+          individualResults:
+            individualResults.length > 0 ? individualResults : undefined,
         };
       });
     } catch (err) {
-      throw repositoryError(
-        'チェックリストと結果の取得に失敗しました',
-        err,
-      );
+      throw repositoryError('チェックリストと結果の取得に失敗しました', err);
     }
   }
 }

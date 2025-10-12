@@ -79,6 +79,7 @@ export const planResearchStep = createStep({
       const researchTasksSchema = z.object({
         tasks: z.array(
           z.object({
+            reasoning: z.string().describe('Reason for selecting this document for research'),
             documentId: z.string().describe('Document ID to investigate'),
             researchContent: z.string().describe('Detailed research instructions for this document'),
           }),

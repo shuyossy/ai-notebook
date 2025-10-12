@@ -68,6 +68,9 @@ export type ReviewChatPlanningAgentRuntimeContext = BaseRuntimeContext & {
 
 export type ReviewChatResearchAgentRuntimeContext = BaseRuntimeContext & {
   researchContent: string; // 調査内容
+  totalChunks: number; // ドキュメントの総チャンク数
+  chunkIndex: number; // 現在のチャンクインデックス
+  fileName: string; // ドキュメント名
 };
 
 export type ReviewChatAnswerAgentRuntimeContext = BaseRuntimeContext & {
