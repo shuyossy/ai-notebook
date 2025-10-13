@@ -657,6 +657,8 @@ export function getReviewChatResearchPrompt({
   const totalChunks = runtimeContext.get('totalChunks');
   const chunkIndex = runtimeContext.get('chunkIndex');
   const fileName = runtimeContext.get('fileName');
+  const checklistInfo = runtimeContext.get('checklistInfo');
+  const userQuestion = runtimeContext.get('userQuestion');
 
   // ドキュメントが分割されているかどうかで異なるプロンプトを生成
   const isChunked = totalChunks > 1;
@@ -687,15 +689,27 @@ DOCUMENT CONTEXT:
   return `You are a professional document researcher specializing in detailed document analysis.
 
 Your task is to conduct a specific investigation on the provided document based on the given research instructions.
+
+BACKGROUND CONTEXT:
+This research is being conducted to help answer the following user question about a document review:
+
+User Question:
+${userQuestion}
+
+The review was conducted based on the following checklist(s):
+${checklistInfo}
+
+Understanding this context will help you focus your investigation on information that is truly relevant to answering the user's question about the review results.
 ${contextSection}
 RESEARCH GUIDELINES:
-1. Carefully read and analyze the provided document content
+1. Carefully read and analyze the provided document content with the user's question and checklist context in mind
 2. Follow the specific research instructions precisely
 3. Extract all relevant information related to the research topic
-4. Cite specific sections, headings, page indicators, or other references where information is found
-5. If information appears incomplete or ambiguous, note this clearly${isChunked ? ' (especially at chunk boundaries)' : ''}
-6. Document your findings comprehensively - do not summarize or omit details
-${isChunked ? '7. Remember: you can only report on what is visible in THIS chunk' : ''}
+4. Consider how your findings relate to the checklist items and review results mentioned above
+5. Cite specific sections, headings, page indicators, or other references where information is found
+6. If information appears incomplete or ambiguous, note this clearly${isChunked ? ' (especially at chunk boundaries)' : ''}
+7. Document your findings comprehensively - do not summarize or omit details
+${isChunked ? '8. Remember: you can only report on what is visible in THIS chunk' : ''}
 
 OUTPUT REQUIREMENTS:
 - Provide detailed research findings in Japanese

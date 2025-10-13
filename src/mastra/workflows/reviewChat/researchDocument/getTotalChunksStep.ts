@@ -9,7 +9,7 @@ import { normalizeUnknownError } from '@/main/lib/error';
 
 const logger = getMainLogger();
 
-const getTotalChunksStepInputSchema = z.object({
+export const getTotalChunksStepInputSchema = z.object({
   reviewHistoryId: z.string(),
   documentId: z.string(),
   researchContent: z.string(),

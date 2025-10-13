@@ -6,8 +6,9 @@ import { stepStatus } from '../../types';
 import { getReviewRepository } from '@/adapter/db';
 import { getMainLogger } from '@/main/lib/logger';
 import { makeChunksByCount } from '@/mastra/lib/util';
-import { getTotalChunksStep, getTotalChunksStepOutputSchema } from './getTotalChunksStep';
+import { getTotalChunksStep, getTotalChunksStepInputSchema, getTotalChunksStepOutputSchema } from './getTotalChunksStep';
 import { researchChunkStep, researchChunkStepInputSchema } from './researchDocumentChunk';
+import { input } from '@testing-library/user-event/dist/cjs/event/input.js';
 
 const logger = getMainLogger();
 
@@ -15,6 +16,8 @@ const researchDocumentWithRetryInputSchema = z.object({
   reviewHistoryId: z.string(),
   documentId: z.string(),
   researchContent: z.string(),
+  checklistIds: z.array(z.number()),
+  question: z.string(),
 });
 
 const researchDocumentWithRetryOutputSchema = baseStepOutputSchema.extend({
@@ -27,11 +30,31 @@ export const researchDocumentWithRetryWorkflow = createWorkflow({
   inputSchema: researchDocumentWithRetryInputSchema,
   outputSchema: researchDocumentWithRetryOutputSchema,
 })
+  .map(async ({ inputData }) => {
+    return inputData as z.infer<typeof getTotalChunksStepInputSchema>;
+  })
   .then(getTotalChunksStep)
+  .map(async ({ inputData, getInitData, bail }) => {
+    if (inputData.status === 'failed') {
+      return bail(inputData);
+    }
+    const initData = (await getInitData()) as z.infer<typeof researchDocumentWithRetryInputSchema>;
+    return {
+      ...inputData,
+      checklistIds: initData.checklistIds,
+      question: initData.question,
+    } as z.infer<typeof getTotalChunksStepOutputSchema> & {
+      checklistIds: number[];
+      question: string;
+    };
+  })
   .dountil(
     createWorkflow({
       id: 'chunkResearchInnerWorkflow',
-      inputSchema: getTotalChunksStepOutputSchema,
+      inputSchema: getTotalChunksStepOutputSchema.extend({
+        checklistIds: z.array(z.number()),
+        question: z.string(),
+      }),
       outputSchema: researchDocumentWithRetryOutputSchema,
     })
       .map(async ({ inputData }) => {
@@ -78,6 +101,8 @@ export const researchDocumentWithRetryWorkflow = createWorkflow({
           chunkIndex: index,
           totalChunks,
           fileName: documentCache.fileName,
+          checklistIds: inputData.checklistIds,
+          question: inputData.question,
         })) as z.infer<typeof researchChunkStepInputSchema>[];
       })
       .foreach(researchChunkStep, { concurrency: 5 })

@@ -74,7 +74,9 @@ export const reviewChatWorkflow = createWorkflow({
       reviewHistoryId: initData.reviewHistoryId,
       documentId: task.documentId,
       researchContent: task.researchContent,
-    }));
+      checklistIds: initData.checklistIds,
+      question: initData.question,
+    })) as z.infer<typeof researchDocumentWithRetryWorkflow.inputSchema>[];
   })
   .foreach(researchDocumentWithRetryWorkflow, { concurrency: 5 })
   .map(async ({ inputData, bail, getInitData, runtimeContext }) => {

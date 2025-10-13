@@ -5,10 +5,13 @@ import { baseStepOutputSchema } from '../../schema';
 import { stepStatus } from '../../types';
 import { getMainLogger } from '@/main/lib/logger';
 import { normalizeUnknownError, internalError } from '@/main/lib/error';
+import { ReviewChatResearchAgentRuntimeContext } from '@/mastra/agents/workflowAgents';
 import {
-  ReviewChatResearchAgentRuntimeContext,
-} from '@/mastra/agents/workflowAgents';
-import { createRuntimeContext, judgeFinishReason, judgeErrorIsContentLengthError } from '@/mastra/lib/agentUtils';
+  createRuntimeContext,
+  judgeFinishReason,
+  judgeErrorIsContentLengthError,
+} from '@/mastra/lib/agentUtils';
+import { getReviewRepository } from '@/adapter/db';
 
 const logger = getMainLogger();
 
@@ -23,6 +26,8 @@ export const researchChunkStepInputSchema = z.object({
   chunkIndex: z.number(),
   totalChunks: z.number(),
   fileName: z.string(),
+  checklistIds: z.array(z.number()),
+  question: z.string(),
 });
 
 const researchChunkStepOutputSchema = baseStepOutputSchema.extend({
@@ -36,16 +41,71 @@ export const researchChunkStep = createStep({
   description: 'チャンク単位でドキュメントを調査するステップ',
   inputSchema: researchChunkStepInputSchema,
   outputSchema: researchChunkStepOutputSchema,
-  execute: async ({ inputData, bail, mastra }) => {
+  execute: async ({ inputData, bail, mastra, getInitData }) => {
     try {
-      const { researchContent, chunkContent, chunkIndex, totalChunks, fileName } = inputData;
+      const {
+        researchContent,
+        chunkContent,
+        chunkIndex,
+        totalChunks,
+        fileName,
+        reviewHistoryId,
+        checklistIds,
+        question,
+      } = inputData;
+
+      // チェックリスト情報を生成（planResearchStepと同じロジック）
+      const reviewRepository = getReviewRepository();
+      const checklistResults =
+        await reviewRepository.getChecklistResultsWithIndividualResults(
+          reviewHistoryId,
+          checklistIds,
+        );
+
+      const checklistInfo = checklistResults
+        .map(
+          (item: {
+            checklistResult: {
+              id: number;
+              content: string;
+              sourceEvaluation?: { evaluation?: string; comment?: string };
+            };
+            individualResults?: Array<{
+              documentId: number;
+              comment: string;
+              individualFileName: string;
+            }>;
+          }) => {
+            let info = `Checklist ID: ${item.checklistResult.id}\nContent: ${item.checklistResult.content}\n`;
+            if (item.checklistResult.sourceEvaluation) {
+              info += `Review Result:\n  Evaluation: ${item.checklistResult.sourceEvaluation.evaluation || 'N/A'}\n  Comment: ${item.checklistResult.sourceEvaluation.comment || 'N/A'}\n`;
+            }
+            if (item.individualResults && item.individualResults.length > 0) {
+              info += `Individual Review Results:\n`;
+              item.individualResults.forEach(
+                (result: {
+                  documentId: number;
+                  comment: string;
+                  individualFileName: string;
+                }) => {
+                  info += `  - Document ID: ${result.documentId}\n    Document Name: ${result.individualFileName}\n    Comment: ${result.comment}\n`;
+                },
+              );
+            }
+            return info;
+          },
+        )
+        .join('\n---\n');
 
       // RuntimeContext作成
-      const runtimeContext = await createRuntimeContext<ReviewChatResearchAgentRuntimeContext>();
+      const runtimeContext =
+        await createRuntimeContext<ReviewChatResearchAgentRuntimeContext>();
       runtimeContext.set('researchContent', researchContent);
       runtimeContext.set('totalChunks', totalChunks);
       runtimeContext.set('chunkIndex', chunkIndex);
       runtimeContext.set('fileName', fileName);
+      runtimeContext.set('checklistInfo', checklistInfo);
+      runtimeContext.set('userQuestion', question);
 
       // メッセージを作成
       const messageContent = [];
@@ -73,12 +133,15 @@ export const researchChunkStep = createStep({
 
       // Mastraエージェント経由でAI呼び出し
       const researchAgent = mastra.getAgent('reviewChatResearchAgent');
-      const result = await researchAgent.generate({
-        role: 'user',
-        content: messageContent,
-      }, {
-        runtimeContext
-      });
+      const result = await researchAgent.generate(
+        {
+          role: 'user',
+          content: messageContent,
+        },
+        {
+          runtimeContext,
+        },
+      );
 
       const { success, reason } = judgeFinishReason(result.finishReason);
 

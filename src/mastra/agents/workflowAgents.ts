@@ -71,6 +71,8 @@ export type ReviewChatResearchAgentRuntimeContext = BaseRuntimeContext & {
   totalChunks: number; // ドキュメントの総チャンク数
   chunkIndex: number; // 現在のチャンクインデックス
   fileName: string; // ドキュメント名
+  checklistInfo: string; // チェックリスト情報（内容とレビュー結果）
+  userQuestion: string; // ユーザからの質問
 };
 
 export type ReviewChatAnswerAgentRuntimeContext = BaseRuntimeContext & {
