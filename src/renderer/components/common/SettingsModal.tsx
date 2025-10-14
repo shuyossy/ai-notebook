@@ -10,7 +10,7 @@ import {
 } from '@mui/material';
 import Modal from './Modal';
 import useSettingsStore from '../../hooks/useSettings';
-import { StoreSchema as Settings } from '../../../main/store';
+import { StoreSchema as Settings } from '../../../adapter/db/electron-store/store';
 
 interface SettingsModalProps {
   open: boolean;

@@ -11,7 +11,7 @@ import { v4 as uuidv4 } from 'uuid';
 import Sidebar from '@/renderer/components/sidebar/Sidebar';
 import type { ChatRoom, ProcessStatus } from '@/types';
 import type { Source } from '@/db/schema';
-import { StoreSchema as Settings } from '@/main/store';
+import { StoreSchema as Settings } from '@/adapter/db/electron-store/store';
 import { createMockElectronWithOptions } from '@/__tests__/test-utils/mockElectronHandler';
 import ChatRoomList from '@/renderer/components/chat/ChatRoomList';
 import ReviewHistoryList from '@/renderer/components/review/ReviewHistoryList';

@@ -1,3 +1,3 @@
 export * from './sourceRepository';
 export * from './reviewRepository';
-export * from './settingsRepository';
+export * from '../../electron-store/repository/settingsRepository';

@@ -6,7 +6,7 @@ import { Memory } from '@mastra/memory';
 import { TokenLimiter } from '@mastra/memory/processors';
 // @ts-ignore
 import { LibSQLStore } from '@mastra/libsql';
-import { getStore } from '@/main/store';
+import { getStore } from '@/adapter/db/electron-store/store';
 import { getOrchestratorSystemPrompt } from './prompts';
 import { getOpenAICompatibleModel } from './model/openAICompatible';
 import { isPathExists, toAbsoluteFileURL } from '@/main/lib/util';

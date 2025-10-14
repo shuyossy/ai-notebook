@@ -3,7 +3,7 @@ import { join } from 'path';
 import { drizzle, type LibSQLDatabase } from 'drizzle-orm/libsql';
 import { migrate } from 'drizzle-orm/libsql/migrator';
 import * as schema from './schema';
-import { getStore } from '@/main/store';
+import { getStore } from '@/adapter/db/electron-store/store';
 import { toAbsoluteFileURL } from '@/main/lib/util';
 
 // データベースの型定義

@@ -6,8 +6,8 @@ import {
 import {
   DrizzleReviewRepository,
   DrizzleSourceRepository,
-  ElectronStoreSettingsRepository,
 } from './drizzle/repository';
+import { ElectronStoreSettingsRepository } from './electron-store/repository/settingsRepository';
 
 let sourceRepository: ISourceRepository | null = null;
 
