@@ -122,7 +122,9 @@ export async function createCombinedMessage(
       }
     } else {
       // テキスト抽出処理
-      const { content: fileContent } = await FileExtractor.extractText(file.path);
+      const { content: fileContent } = await FileExtractor.extractText(
+        file.path,
+      );
 
       // ファイルごとに個別のcontent要素として追加
       content.push({
@@ -181,7 +183,11 @@ export function createCombinedMessageFromExtractedDocument(
     if (document.imageData && document.imageData.length > 0) {
       // 各ページごとに個別の説明と画像を追加
       const totalPages = document.imageData.length;
-      for (let pageIndex = 0; pageIndex < document.imageData.length; pageIndex++) {
+      for (
+        let pageIndex = 0;
+        pageIndex < document.imageData.length;
+        pageIndex++
+      ) {
         const currentPage = pageIndex + 1;
 
         // ページ番号を含むテキスト説明を追加

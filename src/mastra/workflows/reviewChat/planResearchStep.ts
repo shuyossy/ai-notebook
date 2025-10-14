@@ -6,10 +6,11 @@ import { stepStatus } from '../types';
 import { getReviewRepository } from '@/adapter/db';
 import { getMainLogger } from '@/main/lib/logger';
 import { normalizeUnknownError, internalError } from '@/main/lib/error';
+import { ReviewChatPlanningAgentRuntimeContext } from '@/mastra/agents/workflowAgents';
 import {
-  ReviewChatPlanningAgentRuntimeContext,
-} from '@/mastra/agents/workflowAgents';
-import { createRuntimeContext, judgeFinishReason} from '@/mastra/lib/agentUtils';
+  createRuntimeContext,
+  judgeFinishReason,
+} from '@/mastra/lib/agentUtils';
 import { reviewChatInputSchema } from '.';
 
 const logger = getMainLogger();
@@ -48,7 +49,7 @@ export const planResearchStep = createStep({
         await reviewRepository.getReviewDocumentCaches(reviewHistoryId);
 
       // RuntimeContext作成
-      const availableDocuments = documentCaches.map(doc => ({
+      const availableDocuments = documentCaches.map((doc) => ({
         id: doc.documentId,
         fileName: doc.fileName,
       }));
@@ -71,7 +72,8 @@ export const planResearchStep = createStep({
         .join('\n---\n');
 
       // RuntimeContext作成
-      const runtimeContext = await createRuntimeContext<ReviewChatPlanningAgentRuntimeContext>();
+      const runtimeContext =
+        await createRuntimeContext<ReviewChatPlanningAgentRuntimeContext>();
       runtimeContext.set('availableDocuments', availableDocuments);
       runtimeContext.set('checklistInfo', checklistInfo);
 
@@ -79,9 +81,13 @@ export const planResearchStep = createStep({
       const researchTasksSchema = z.object({
         tasks: z.array(
           z.object({
-            reasoning: z.string().describe('Reason for selecting this document for research'),
+            reasoning: z
+              .string()
+              .describe('Reason for selecting this document for research'),
             documentId: z.string().describe('Document ID to investigate'),
-            researchContent: z.string().describe('Detailed research instructions for this document'),
+            researchContent: z
+              .string()
+              .describe('Detailed research instructions for this document'),
           }),
         ),
       });

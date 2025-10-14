@@ -74,7 +74,9 @@ export class ReviewCacheHelper {
       return await fs.readFile(cachePath, 'utf-8');
     } catch (error) {
       // ファイルが存在しない、またはアクセスできない場合
-      throw new Error(`Failed to load text cache from ${cachePath}: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(
+        `Failed to load text cache from ${cachePath}: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 
@@ -104,7 +106,9 @@ export class ReviewCacheHelper {
       return imageData;
     } catch (error) {
       // ディレクトリが存在しない、またはアクセスできない場合
-      throw new Error(`Failed to load image cache from ${cacheDir}: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(
+        `Failed to load image cache from ${cacheDir}: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 

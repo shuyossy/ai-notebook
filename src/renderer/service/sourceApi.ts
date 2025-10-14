@@ -49,10 +49,14 @@ export class SourceApi implements ISourceApi {
     enabled: boolean,
     options?: ApiServiceDefaultOptions,
   ): Promise<void> {
-    await invokeApi(() => window.electron.source.updateSourceEnabled({
-      sourceId: id,
-      isEnabled: enabled,
-    }), options);
+    await invokeApi(
+      () =>
+        window.electron.source.updateSourceEnabled({
+          sourceId: id,
+          isEnabled: enabled,
+        }),
+      options,
+    );
   }
 
   public async subscribeSourceReloadFinished(

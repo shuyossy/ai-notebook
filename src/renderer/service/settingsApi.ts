@@ -47,7 +47,10 @@ export class SettingsApi implements ISettingsApi {
     messageId: string,
     options?: ApiServiceDefaultOptions,
   ): Promise<void> {
-    await invokeApi(() => window.electron.settings.removeMessage(messageId), options);
+    await invokeApi(
+      () => window.electron.settings.removeMessage(messageId),
+      options,
+    );
   }
 
   public async reinitialize(options?: ApiServiceDefaultOptions): Promise<void> {
@@ -64,7 +67,10 @@ export class SettingsApi implements ISettingsApi {
     settings: Settings,
     options?: ApiServiceDefaultOptions,
   ): Promise<boolean | null> {
-    return invokeApi(() => window.electron.settings.setSettings(settings), options);
+    return invokeApi(
+      () => window.electron.settings.setSettings(settings),
+      options,
+    );
   }
 
   public async subscribeSettingsUpdateFinished(

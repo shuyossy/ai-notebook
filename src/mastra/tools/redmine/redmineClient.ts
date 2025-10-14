@@ -92,7 +92,9 @@ export class RedmineClient {
         throw internalError({
           expose: true,
           messageCode: 'REDMINE_API_ERROR',
-          messageParams: { detail: `${response.status} ${response.statusText}` },
+          messageParams: {
+            detail: `${response.status} ${response.statusText}`,
+          },
         });
       }
       if (response.status === 204) {

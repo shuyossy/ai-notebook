@@ -6,8 +6,15 @@ import { stepStatus } from '../../types';
 import { getReviewRepository } from '@/adapter/db';
 import { getMainLogger } from '@/main/lib/logger';
 import { makeChunksByCount } from '@/mastra/lib/util';
-import { getTotalChunksStep, getTotalChunksStepInputSchema, getTotalChunksStepOutputSchema } from './getTotalChunksStep';
-import { researchChunkStep, researchChunkStepInputSchema } from './researchDocumentChunk';
+import {
+  getTotalChunksStep,
+  getTotalChunksStepInputSchema,
+  getTotalChunksStepOutputSchema,
+} from './getTotalChunksStep';
+import {
+  researchChunkStep,
+  researchChunkStepInputSchema,
+} from './researchDocumentChunk';
 import { input } from '@testing-library/user-event/dist/cjs/event/input.js';
 
 const logger = getMainLogger();
@@ -38,7 +45,9 @@ export const researchDocumentWithRetryWorkflow = createWorkflow({
     if (inputData.status === 'failed') {
       return bail(inputData);
     }
-    const initData = (await getInitData()) as z.infer<typeof researchDocumentWithRetryInputSchema>;
+    const initData = (await getInitData()) as z.infer<
+      typeof researchDocumentWithRetryInputSchema
+    >;
     return {
       ...inputData,
       checklistIds: initData.checklistIds,
@@ -58,14 +67,16 @@ export const researchDocumentWithRetryWorkflow = createWorkflow({
       outputSchema: researchDocumentWithRetryOutputSchema,
     })
       .map(async ({ inputData }) => {
-        const { reviewHistoryId, documentId, researchContent, totalChunks } = inputData;
+        const { reviewHistoryId, documentId, researchContent, totalChunks } =
+          inputData;
         const reviewRepository = getReviewRepository();
 
         // ドキュメントキャッシュを取得
-        const documentCache = await reviewRepository.getReviewDocumentCacheByDocumentId(
-          reviewHistoryId,
-          documentId,
-        );
+        const documentCache =
+          await reviewRepository.getReviewDocumentCacheByDocumentId(
+            reviewHistoryId,
+            documentId,
+          );
 
         if (!documentCache) {
           throw new Error(`Document not found: ${documentId}`);
@@ -76,16 +87,30 @@ export const researchDocumentWithRetryWorkflow = createWorkflow({
 
         if (documentCache.processMode === 'text' && documentCache.textContent) {
           // テキストをチャンク分割
-          const chunkRanges = makeChunksByCount(documentCache.textContent, totalChunks, 0);
-          chunkRanges.forEach(range => {
+          const chunkRanges = makeChunksByCount(
+            documentCache.textContent,
+            totalChunks,
+            0,
+          );
+          chunkRanges.forEach((range) => {
             chunks.push({
-              text: documentCache.textContent!.substring(range.start, range.end),
+              text: documentCache.textContent!.substring(
+                range.start,
+                range.end,
+              ),
             });
           });
-        } else if (documentCache.processMode === 'image' && documentCache.imageData) {
+        } else if (
+          documentCache.processMode === 'image' &&
+          documentCache.imageData
+        ) {
           // 画像配列をチャンク分割
-          const chunkRanges = makeChunksByCount(documentCache.imageData, totalChunks, 0);
-          chunkRanges.forEach(range => {
+          const chunkRanges = makeChunksByCount(
+            documentCache.imageData,
+            totalChunks,
+            0,
+          );
+          chunkRanges.forEach((range) => {
             chunks.push({
               images: documentCache.imageData!.slice(range.start, range.end),
             });
@@ -111,7 +136,7 @@ export const researchDocumentWithRetryWorkflow = createWorkflow({
 
         // いずれかのチャンクでコンテキスト長エラーがあったかチェック
         const hasContentLengthError = results.some(
-          (result) => result.finishReason === 'content_length'
+          (result) => result.finishReason === 'content_length',
         );
 
         // 失敗があればエラー
@@ -124,7 +149,9 @@ export const researchDocumentWithRetryWorkflow = createWorkflow({
           });
         }
 
-        const initData = (await getInitData()) as z.infer<typeof getTotalChunksStepOutputSchema>;
+        const initData = (await getInitData()) as z.infer<
+          typeof getTotalChunksStepOutputSchema
+        >;
 
         if (hasContentLengthError) {
           // チャンク数を増やして再試行

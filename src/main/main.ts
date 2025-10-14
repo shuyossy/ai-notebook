@@ -272,11 +272,7 @@ const setupChatHandlers = () => {
     IpcChannels.CHAT_SEND_MESSAGE,
     async ({ roomId, messages }, { event }) => {
       try {
-        const dataStream = await chatService.generate(
-          userId,
-          roomId,
-          messages,
-        );
+        const dataStream = await chatService.generate(userId, roomId, messages);
 
         // テキストストリームを処理
         // @ts-ignore
@@ -565,10 +561,9 @@ const setupReviewHandlers = () => {
         // エラー時もAbortControllerを削除
         reviewService.abortReviewChat(reviewHistoryId);
         const normalizedError = normalizeUnknownError(error);
-        publishEvent(
-          IpcChannels.REVIEW_CHAT_ERROR,
-          { message: normalizedError.message },
-        );
+        publishEvent(IpcChannels.REVIEW_CHAT_ERROR, {
+          message: normalizedError.message,
+        });
         throw normalizedError;
       }
     },

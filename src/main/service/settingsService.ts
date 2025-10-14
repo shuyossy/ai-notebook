@@ -257,13 +257,17 @@ export class SettingsService implements ISettingsService {
       publishEvent(IpcChannels.SETTINGS_UPDATE_FINISHED, { success: true });
     } catch (error) {
       // 設定更新完了イベントを発行（失敗）
-      const errorMessage = error instanceof Error ? error.message : '不明なエラーが発生しました';
-      publishEvent(IpcChannels.SETTINGS_UPDATE_FINISHED, { success: false, error: errorMessage });
+      const errorMessage =
+        error instanceof Error ? error.message : '不明なエラーが発生しました';
+      publishEvent(IpcChannels.SETTINGS_UPDATE_FINISHED, {
+        success: false,
+        error: errorMessage,
+      });
 
       // エラーを再throw
       throw error;
     }
-  }
+  };
   /**
    * 設定を取得する
    */

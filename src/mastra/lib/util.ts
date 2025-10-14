@@ -8,7 +8,7 @@
 export function makeChunksByCount<T extends { length: number }>(
   data: T,
   splitCount: number,
-  overlap: number
+  overlap: number,
 ): Array<{ start: number; end: number }> {
   const total = data.length;
 

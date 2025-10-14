@@ -166,7 +166,10 @@ export default class FileExtractor {
 
       // ファイルが更新されている場合はキャッシュを無効とする
       if (stats.mtimeMs !== cacheData.metadata.lastModified) {
-        logger.debug({ filePath, cachePath }, 'ファイルが更新されているためキャッシュを無効化します');
+        logger.debug(
+          { filePath, cachePath },
+          'ファイルが更新されているためキャッシュを無効化します',
+        );
         await this.deleteCache(filePath);
         return null;
       }
@@ -200,7 +203,11 @@ export default class FileExtractor {
           extractedAt: Date.now(),
         },
       };
-      await fs.writeFile(cachePath, JSON.stringify(cacheData, null, 2), 'utf-8');
+      await fs.writeFile(
+        cachePath,
+        JSON.stringify(cacheData, null, 2),
+        'utf-8',
+      );
     } catch (error) {
       // キャッシュが保存できない場合は大きな問題にならないのでエラーは握りつぶす
       logger.error({ error, filePath }, 'キャッシュの保存に失敗しました');
@@ -738,14 +745,18 @@ try {
             if (stats.mtimeMs !== cacheData.metadata.lastModified) {
               await fs.unlink(cacheFilePath);
               deletedCount++;
-              logger.debug(`ファイル更新日時が古いキャッシュを削除: ${fileName}`);
+              logger.debug(
+                `ファイル更新日時が古いキャッシュを削除: ${fileName}`,
+              );
             }
           } catch (statError) {
             // 元ファイルが存在しない場合は削除
             if ((statError as NodeJS.ErrnoException).code === 'ENOENT') {
               await fs.unlink(cacheFilePath);
               deletedCount++;
-              logger.debug(`元ファイルが存在しないキャッシュを削除: ${fileName}`);
+              logger.debug(
+                `元ファイルが存在しないキャッシュを削除: ${fileName}`,
+              );
             }
           }
         } catch (processError) {
@@ -755,14 +766,22 @@ try {
             deletedCount++;
             logger.debug(`不正なキャッシュファイルを削除: ${fileName}`);
           } catch (unlinkError) {
-            logger.error({ error: unlinkError, fileName }, 'キャッシュファイルの削除に失敗');
+            logger.error(
+              { error: unlinkError, fileName },
+              'キャッシュファイルの削除に失敗',
+            );
           }
         }
       }
 
-      logger.info(`キャッシュクリーニング完了: ${deletedCount}個のファイルを削除`);
+      logger.info(
+        `キャッシュクリーニング完了: ${deletedCount}個のファイルを削除`,
+      );
     } catch (error) {
-      logger.error({ error }, 'キャッシュディレクトリのクリーニングに失敗しました');
+      logger.error(
+        { error },
+        'キャッシュディレクトリのクリーニングに失敗しました',
+      );
     }
   }
 }

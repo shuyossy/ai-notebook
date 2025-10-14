@@ -55,7 +55,6 @@ try {
   console.error('ログファイル初期化に失敗:', err);
 }
 
-
 // ロガーの作成
 export const logger = new PinoLogger({
   name: 'AIKATA',

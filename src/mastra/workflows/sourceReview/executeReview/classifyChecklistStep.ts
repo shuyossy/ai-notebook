@@ -1,40 +1,46 @@
-import { z } from "zod";
-import { baseStepOutputSchema } from "../../schema";
+import { z } from 'zod';
+import { baseStepOutputSchema } from '../../schema';
 // @ts-ignore
-import { createStep } from "@mastra/core";
+import { createStep } from '@mastra/core';
 // @ts-ignore
-import { MastraError } from "@mastra/core/error";
+import { MastraError } from '@mastra/core/error';
 import { NoObjectGeneratedError } from 'ai';
-import { getReviewRepository } from "@/adapter/db";
-import { extractAIAPISafeError, internalError, normalizeUnknownError } from "@/main/lib/error";
-import { MAX_CATEGORIES, MAX_CHECKLISTS_PER_CATEGORY } from ".";
-import { stepStatus } from "../../types";
-import { splitChecklistEquallyByMaxSize } from "../lib";
-import { createRuntimeContext } from "@/mastra/lib/agentUtils";
-import { ClassifyCategoryAgentRuntimeContext } from "@/mastra/agents/workflowAgents";
-import { getMainLogger } from "@/main/lib/logger";
+import { getReviewRepository } from '@/adapter/db';
+import {
+  extractAIAPISafeError,
+  internalError,
+  normalizeUnknownError,
+} from '@/main/lib/error';
+import { MAX_CATEGORIES, MAX_CHECKLISTS_PER_CATEGORY } from '.';
+import { stepStatus } from '../../types';
+import { splitChecklistEquallyByMaxSize } from '../lib';
+import { createRuntimeContext } from '@/mastra/lib/agentUtils';
+import { ClassifyCategoryAgentRuntimeContext } from '@/mastra/agents/workflowAgents';
+import { getMainLogger } from '@/main/lib/logger';
 
 const logger = getMainLogger();
 
 export const classifyChecklistsByCategoryInputSchema = z.object({
-  reviewHistoryId: z.string().describe("レビュー履歴ID"),
+  reviewHistoryId: z.string().describe('レビュー履歴ID'),
 });
 
 // カテゴリ分類ステップの出力スキーマ
-export const classifyChecklistsByCategoryOutputSchema = baseStepOutputSchema.extend({
-  categories: z
-    .array(
-      z.object({
-        name: z.string(),
-        checklists: z.array(
-          z.object({
-            id: z.number(),
-            content: z.string().describe('チェックリストの内容'),
-          }),
-        ),
-      }),
-    ).optional(),
-});
+export const classifyChecklistsByCategoryOutputSchema =
+  baseStepOutputSchema.extend({
+    categories: z
+      .array(
+        z.object({
+          name: z.string(),
+          checklists: z.array(
+            z.object({
+              id: z.number(),
+              content: z.string().describe('チェックリストの内容'),
+            }),
+          ),
+        }),
+      )
+      .optional(),
+  });
 
 export const classifyChecklistsByCategoryStep = createStep({
   id: 'classifyChecklistsByCategoryStep',

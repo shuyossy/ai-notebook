@@ -155,7 +155,9 @@ const individualDocumentReviewWorkflow = createWorkflow({
                 ...initData.originalDocument,
                 id: `${initData.originalDocument.id}_part${index + 1}`,
                 name: `${initData.originalDocument.name} (part ${index + 1}) (split into parts because the full content did not fit into context)`,
-                originalName: initData.originalDocument.originalName || initData.originalDocument.name,
+                originalName:
+                  initData.originalDocument.originalName ||
+                  initData.originalDocument.name,
                 textContent: chunk,
                 totalChunks: splitCount,
                 chunkIndex: index,
@@ -184,7 +186,9 @@ const individualDocumentReviewWorkflow = createWorkflow({
                 ...initData.originalDocument,
                 id: `${initData.originalDocument.id}_part${index + 1}`,
                 name: `${initData.originalDocument.name} (part ${index + 1}) (split into parts because the full content did not fit into context)`,
-                originalName: initData.originalDocument.originalName || initData.originalDocument.name,
+                originalName:
+                  initData.originalDocument.originalName ||
+                  initData.originalDocument.name,
                 imageData: chunk,
                 totalChunks: splitCount,
                 chunkIndex: index,

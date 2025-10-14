@@ -40,7 +40,10 @@ export class FsApi implements IFsApi {
     options: OpenDialogOptions,
     apiOptions?: ApiServiceDefaultOptions,
   ): Promise<{ filePaths: string[]; canceled: boolean } | null> {
-    return invokeApi(() => window.electron.fs.showOpenDialog(options), apiOptions);
+    return invokeApi(
+      () => window.electron.fs.showOpenDialog(options),
+      apiOptions,
+    );
   }
 
   public async readFile(

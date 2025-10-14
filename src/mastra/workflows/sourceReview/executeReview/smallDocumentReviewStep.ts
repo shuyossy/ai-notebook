@@ -162,7 +162,10 @@ Please review the document against the above checklist items.`;
         // 最大試行回数に達した場合、レビューに失敗したドキュメントを記録
         return bail({
           status: 'failed' as stepStatus,
-          errorMessage: getChecklistsErrorMessage(targetChecklists, 'AIの出力にレビュー結果が含まれませんでした'),
+          errorMessage: getChecklistsErrorMessage(
+            targetChecklists,
+            'AIの出力にレビュー結果が含まれませんでした',
+          ),
         });
       }
       // 全てのレビューが成功した場合

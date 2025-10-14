@@ -199,9 +199,16 @@ async function saveCache(
       cachePdfPath,
       cachedAt: Date.now(),
     };
-    await fs.writeFile(metadataPath, JSON.stringify(metadata, null, 2), 'utf-8');
+    await fs.writeFile(
+      metadataPath,
+      JSON.stringify(metadata, null, 2),
+      'utf-8',
+    );
 
-    logger.debug({ originalFilePath, cachePdfPath }, 'PDFキャッシュを保存しました');
+    logger.debug(
+      { originalFilePath, cachePdfPath },
+      'PDFキャッシュを保存しました',
+    );
   } catch (error) {
     // キャッシュが保存できない場合は大きな問題にならないのでエラーは握りつぶす
     logger.error({ error, originalFilePath }, 'キャッシュの保存に失敗しました');
@@ -789,7 +796,9 @@ export async function cleanCacheDirectory(): Promise<void> {
               // 対応するPDFファイルも削除
               await fs.unlink(metadata.cachePdfPath).catch(() => void 0);
               deletedCount++;
-              logger.debug(`元ファイルが存在しないキャッシュを削除: ${fileName}`);
+              logger.debug(
+                `元ファイルが存在しないキャッシュを削除: ${fileName}`,
+              );
             }
           }
         }

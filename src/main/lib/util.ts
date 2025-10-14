@@ -32,7 +32,9 @@ export function toAbsolutePath(dirOrPath: string, fileName?: string): string {
       throw internalError({
         expose: false,
         messageCode: 'VALIDATION_ERROR',
-        messageParams: { detail: `第一引数にファイル名が含まれています: "${dirOrPath}". fileName と重複指定はできません。` },
+        messageParams: {
+          detail: `第一引数にファイル名が含まれています: "${dirOrPath}". fileName と重複指定はできません。`,
+        },
       });
     }
     // ディレクトリ部を取り出して結合
@@ -68,7 +70,9 @@ export function isPathExists(dirOrPath: string): boolean {
     throw internalError({
       expose: true,
       messageCode: 'VALIDATION_ERROR',
-      messageParams: { detail: `パスの存在確認中にエラーが発生しました: ${error instanceof Error ? error.message : JSON.stringify(error)}` },
+      messageParams: {
+        detail: `パスの存在確認中にエラーが発生しました: ${error instanceof Error ? error.message : JSON.stringify(error)}`,
+      },
     });
   }
 }

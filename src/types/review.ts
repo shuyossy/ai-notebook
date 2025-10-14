@@ -93,11 +93,11 @@ export type ReviewExecutionResultStatus =
 
 // 処理ステータスの型定義
 export type ProcessingStatus =
-  | 'idle'        // アイドル状態
-  | 'extracting'  // チェックリスト抽出中
-  | 'extracted'   // チェックリスト抽出完了
-  | 'reviewing'   // レビュー実行中
-  | 'completed';  // レビュー完了
+  | 'idle' // アイドル状態
+  | 'extracting' // チェックリスト抽出中
+  | 'extracted' // チェックリスト抽出完了
+  | 'reviewing' // レビュー実行中
+  | 'completed'; // レビュー完了
 
 // レビュードキュメントキャッシュ（サービス層で使用）
 export interface ReviewDocumentCache {

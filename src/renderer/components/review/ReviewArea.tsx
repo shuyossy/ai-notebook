@@ -48,9 +48,9 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
   const [checklistResults, setChecklistResults] = useState<
     ReviewChecklistResult[]
   >([]);
-  const [targetDocumentName, setTargetDocumentName] = useState<
-    string | null
-  >(null);
+  const [targetDocumentName, setTargetDocumentName] = useState<string | null>(
+    null,
+  );
   // チェックリスト更新処理中であるかどうか
   const [isSaving, setIsSaving] = useState(false);
   const [isExtracting, setIsExtracting] = useState(false);

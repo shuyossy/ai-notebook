@@ -129,9 +129,13 @@ export class ChatApi implements IChatApi {
     roomId: string,
     options?: ApiServiceDefaultOptions,
   ): Promise<void> {
-    await invokeApi(() => window.electron.chat.requestAbort({
-      threadId: roomId,
-    }), options);
+    await invokeApi(
+      () =>
+        window.electron.chat.requestAbort({
+          threadId: roomId,
+        }),
+      options,
+    );
   }
 
   public async getChatMessages(
@@ -146,7 +150,10 @@ export class ChatApi implements IChatApi {
     title: string,
     options?: ApiServiceDefaultOptions,
   ): Promise<void> {
-    await invokeApi(() => window.electron.chat.createThread({ roomId, title }), options);
+    await invokeApi(
+      () => window.electron.chat.createThread({ roomId, title }),
+      options,
+    );
   }
 
   public async sendMessage(
@@ -154,7 +161,10 @@ export class ChatApi implements IChatApi {
     messages: ChatMessage[],
     options?: ApiServiceDefaultOptions,
   ): Promise<void> {
-    await invokeApi(() => window.electron.chat.sendMessage({ roomId, messages }), options);
+    await invokeApi(
+      () => window.electron.chat.sendMessage({ roomId, messages }),
+      options,
+    );
     console.log('Message sent via IPC:', { roomId, messages });
   }
 
@@ -163,9 +173,13 @@ export class ChatApi implements IChatApi {
     messageId: string,
     options?: ApiServiceDefaultOptions,
   ): Promise<void> {
-    await invokeApi(() => window.electron.chat.deleteMessagesBeforeSpecificId({
-      threadId: roomId,
-      messageId,
-    }), options);
+    await invokeApi(
+      () =>
+        window.electron.chat.deleteMessagesBeforeSpecificId({
+          threadId: roomId,
+          messageId,
+        }),
+      options,
+    );
   }
 }

@@ -14,10 +14,7 @@ export type ErrorCode =
 /**
  * フロントエンドで利用するエラーコード
  */
-export type FrontErrorCode =
-  | 'APP_API'
-  | 'APP_API_CALL'
-  | 'INTERNAL';
+export type FrontErrorCode = 'APP_API' | 'APP_API_CALL' | 'INTERNAL';
 
 /**
  * クライアントへ返す標準エラー形

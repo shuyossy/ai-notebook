@@ -87,7 +87,10 @@ export const consolidateReviewStep = createStep({
       // 個別レビュー結果を整理
       const consolidatedInput = documentsWithReviewResults.map((docResult) => {
         return {
-          originalName: docResult?.originalName || docResult?.name || `Document ${docResult.id}`,
+          originalName:
+            docResult?.originalName ||
+            docResult?.name ||
+            `Document ${docResult.id}`,
           documentName: docResult?.name || `Document ${docResult.id}`,
           reviewResults: docResult.reviewResults,
         };
@@ -102,7 +105,7 @@ export const consolidateReviewStep = createStep({
             text: `Please consolidate the following individual document review results into a comprehensive final review.
 
 ## Document Set Information:
-Original Files: ${[...new Set(consolidatedInput.map(doc => doc.originalName))].join(', ')}
+Original Files: ${[...new Set(consolidatedInput.map((doc) => doc.originalName))].join(', ')}
 
 ## Individual Document Review Results:
 ${consolidatedInput

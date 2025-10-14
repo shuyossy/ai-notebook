@@ -101,7 +101,7 @@ export class CsvParser {
    * @returns 空行の場合true
    */
   private static isEmptyRow(row: string[]): boolean {
-    return row.every(cell => cell.trim() === '');
+    return row.every((cell) => cell.trim() === '');
   }
 
   /**
@@ -109,7 +109,10 @@ export class CsvParser {
    * @param csvText CSVテキスト
    * @returns 検証結果
    */
-  public static validate(csvText: string): { isValid: boolean; error?: string } {
+  public static validate(csvText: string): {
+    isValid: boolean;
+    error?: string;
+  } {
     try {
       let inQuotes = false;
       let quoteCount = 0;
