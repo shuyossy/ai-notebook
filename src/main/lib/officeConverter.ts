@@ -458,7 +458,6 @@ finally {
 try {
     # PowerPoint Application を作成
     $powerpoint = New-Object -ComObject PowerPoint.Application
-    $powerpoint.Visible = [Microsoft.Office.Core.MsoTriState]::msoFalse
 
     try {
         # プレゼンテーションを開く（ReadOnly）
