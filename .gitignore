@@ -43,7 +43,6 @@ source
 /db
 local_docker
 mcp.log
-electron-store
 .erb/chrome.exe
 /release/app/drizzle
 dev_appdata
