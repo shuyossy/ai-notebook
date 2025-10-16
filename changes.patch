@@ -1,81 +1,89 @@
 diff --git a/CLAUDE.md b/CLAUDE.md
-index 33069f026..81694e235 100644
+index 81694e235..41e3d7adf 100644
 --- a/CLAUDE.md
 +++ b/CLAUDE.md
-@@ -210,8 +210,4 @@ ElectronのIPCを使用してフロントエンド・バックエンド間の通
+@@ -209,5 +209,6 @@ ElectronのIPCを使用してフロントエンド・バックエンド間の通
+ 
  
  ## 依頼タスク
- - 要件
--  - レビュー機能にて、excel文書をpdfに変換する際に、`ReviewSourceModal`の変換進捗表示用`Backdrop`にシートの印刷設定中は「〇〇シートPDF印刷設定中」と表示しPDFファイルにエクスポートする際は「PDFファイルへエクスポート中」 と表示する
--  - 目的
--    - excelのpdf変換が特に時間がかかるので、ユーザに進捗を通知したいため（ユーザ体験の向上）
--  - 実装方針
--    - 最も効率的な方法を採用して欲しいが、イベント送信が無難か？
-+  - 大量ドキュメントレビューの結果を表示する際に、ドキュメント分割した際に一時的に付与したファイル名が全て結合されてしまっており、結果が見にくい。少量ドキュメントレビューと同じようにファイルアップロードした元のファイル名のみ結合するように変更する。
-diff --git a/src/mastra/workflows/sourceReview/executeReview/largeDocumentReview/consolidateReviewStep.ts b/src/mastra/workflows/sourceReview/executeReview/largeDocumentReview/consolidateReviewStep.ts
-index 60120af8d..cafb8793c 100644
---- a/src/mastra/workflows/sourceReview/executeReview/largeDocumentReview/consolidateReviewStep.ts
-+++ b/src/mastra/workflows/sourceReview/executeReview/largeDocumentReview/consolidateReviewStep.ts
-@@ -198,9 +198,13 @@ Please provide a consolidated review that synthesizes all individual document re
-           const idsHash = createHash('md5')
-             .update(combinedFileIds)
-             .digest('hex');
--          const combinedFileNames = documentsWithReviewResults
--            .map((f) => f.name)
--            .join('/');
-+          const combinedFileNames = [
-+            ...new Set(
-+              documentsWithReviewResults.map(
-+                (f) => f.originalName || f.name,
-+              ),
-+            ),
-+          ].join('/');
+-- 要件
+-  - 大量ドキュメントレビューの結果を表示する際に、ドキュメント分割した際に一時的に付与したファイル名が全て結合されてしまっており、結果が見にくい。少量ドキュメントレビューと同じようにファイルアップロードした元のファイル名のみ結合するように変更する。
++- 修正依頼
++  - ドキュメントレビュー機能において、チェックリスト抽出処理やレビュー実行処理をキャンセルした際に、`review_histories`テーブルのprocessingStatusフィールドが変更できていないため、コンポーネント等では実行中と認識されてしまう
++    - processingStatusフィールドはキャンセルした場合は'canceled'としたい
+diff --git a/src/main/main.ts b/src/main/main.ts
+index 047392026..bc1ed6ea3 100644
+--- a/src/main/main.ts
++++ b/src/main/main.ts
+@@ -516,7 +516,7 @@ const setupReviewHandlers = () => {
+   handleIpc(
+     IpcChannels.REVIEW_EXTRACT_CHECKLIST_ABORT,
+     async (reviewHistoryId) => {
+-      const result = reviewService.abortExtractChecklist(reviewHistoryId);
++      const result = await reviewService.abortExtractChecklist(reviewHistoryId);
+       if (!result.success) {
+         throw internalError({
+           expose: true,
+@@ -531,7 +531,7 @@ const setupReviewHandlers = () => {
  
-           await reviewRepository.upsertReviewResult(
-             consolidatedResult.object.map((result) => ({
-diff --git a/src/mastra/workflows/sourceReview/executeReview/largeDocumentReview/index.ts b/src/mastra/workflows/sourceReview/executeReview/largeDocumentReview/index.ts
-index 3e9bea206..c6f8371b8 100644
---- a/src/mastra/workflows/sourceReview/executeReview/largeDocumentReview/index.ts
-+++ b/src/mastra/workflows/sourceReview/executeReview/largeDocumentReview/index.ts
-@@ -108,7 +108,7 @@ const individualDocumentReviewWorkflow = createWorkflow({
-           }
-           return {
-             originalDocument: initData.originalDocument,
--            reviewInput: [],
-+            reviewInput: initData.reviewInput,
-             retryCount: nextRetryCount,
-             status: isFailed
-               ? ('failed' as stepStatus)
-@@ -124,7 +124,7 @@ const individualDocumentReviewWorkflow = createWorkflow({
-         if (initData.retryCount >= 5) {
-           return {
-             originalDocument: initData.originalDocument,
--            reviewInput: [],
-+            reviewInput: initData.reviewInput,
-             retryCount: nextRetryCount,
-             status: 'failed' as stepStatus,
-             errorMessage:
-@@ -155,6 +155,7 @@ const individualDocumentReviewWorkflow = createWorkflow({
-                 ...initData.originalDocument,
-                 id: `${initData.originalDocument.id}_part${index + 1}`,
-                 name: `${initData.originalDocument.name} (part ${index + 1}) (split into parts because the full content did not fit into context)`,
-+                originalName: initData.originalDocument.originalName || initData.originalDocument.name,
-                 textContent: chunk,
-               },
-             })),
-@@ -181,6 +182,7 @@ const individualDocumentReviewWorkflow = createWorkflow({
-                 ...initData.originalDocument,
-                 id: `${initData.originalDocument.id}_part${index + 1}`,
-                 name: `${initData.originalDocument.name} (part ${index + 1}) (split into parts because the full content did not fit into context)`,
-+                originalName: initData.originalDocument.originalName || initData.originalDocument.name,
-                 imageData: chunk,
-               },
-             })),
-@@ -227,6 +229,7 @@ const individualDocumentReviewWorkflow = createWorkflow({
+   // レビュー実行キャンセルハンドラ
+   handleIpc(IpcChannels.REVIEW_EXECUTE_ABORT, async (reviewHistoryId) => {
+-    const result = reviewService.abortExecuteReview(reviewHistoryId);
++    const result = await reviewService.abortExecuteReview(reviewHistoryId);
+     if (!result.success) {
+       throw internalError({
+         expose: true,
+diff --git a/src/main/service/reviewService.ts b/src/main/service/reviewService.ts
+index c65bd4539..053ad71c0 100644
+--- a/src/main/service/reviewService.ts
++++ b/src/main/service/reviewService.ts
+@@ -601,15 +601,22 @@ export class ReviewService implements IReviewService {
+    * チェックリスト抽出処理をキャンセル
+    * @param reviewHistoryId レビュー履歴ID
+    */
+-  public abortExtractChecklist(reviewHistoryId: string): {
++  public async abortExtractChecklist(reviewHistoryId: string): Promise<{
+     success: boolean;
+     error?: string;
+-  } {
++  }> {
+     try {
+       const runningWorkflow = this.runningWorkflows.get(reviewHistoryId);
+       if (runningWorkflow) {
+         runningWorkflow.cancel();
+         this.runningWorkflows.delete(reviewHistoryId);
++
++        // processingStatusを'idle'に更新
++        await this.reviewRepository.updateReviewHistoryProcessingStatus(
++          reviewHistoryId,
++          'idle',
++        );
++
+         logger.info(
+           `チェックリスト抽出処理をキャンセルしました: ${reviewHistoryId}`,
          );
-         return {
-           ...input.document,
-+          originalName: input.document.originalName || input.document.name,
-           reviewResults: reviewResult || [],
-         };
-       }),
+@@ -634,15 +641,22 @@ export class ReviewService implements IReviewService {
+    * レビュー実行処理をキャンセル
+    * @param reviewHistoryId レビュー履歴ID
+    */
+-  public abortExecuteReview(reviewHistoryId: string): {
++  public async abortExecuteReview(reviewHistoryId: string): Promise<{
+     success: boolean;
+     error?: string;
+-  } {
++  }> {
+     try {
+       const runningWorkflow = this.runningWorkflows.get(reviewHistoryId);
+       if (runningWorkflow) {
+         runningWorkflow.cancel();
+         this.runningWorkflows.delete(reviewHistoryId);
++
++        // processingStatusを'extracted'に更新
++        await this.reviewRepository.updateReviewHistoryProcessingStatus(
++          reviewHistoryId,
++          'extracted',
++        );
++
+         logger.info(`レビュー実行処理をキャンセルしました: ${reviewHistoryId}`);
+         return { success: true };
+       } else {
