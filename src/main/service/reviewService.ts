@@ -9,6 +9,7 @@ import {
   ChecklistExtractionResultStatus,
   ReviewExecutionResultStatus,
   DocumentMode,
+  ProcessingStatus,
 } from '@/types';
 import { generateReviewTitle } from '@/mastra/workflows/sourceReview/lib';
 import { RevieHistory } from '@/types';
@@ -23,6 +24,7 @@ import { formatMessage } from '../lib/messages';
 
 export interface IReviewService {
   getReviewHistories(): Promise<RevieHistory[]>;
+  getReviewHistoryById(reviewHistoryId: string): Promise<RevieHistory>;
   getReviewHistoryDetail(reviewHistoryId: string): Promise<{
     checklistResults: ReviewChecklistResult[];
   }>;
@@ -74,6 +76,22 @@ export class ReviewService implements IReviewService {
    */
   public async getReviewHistories() {
     return this.reviewRepository.getAllReviewHistories();
+  }
+
+  /**
+   * 特定のレビュー履歴を取得
+   */
+  public async getReviewHistoryById(reviewHistoryId: string) {
+    const history = await this.reviewRepository.getReviewHistory(reviewHistoryId);
+    if (!history) {
+      throw internalError({
+        expose: true,
+        messageCode: 'UNKNOWN_ERROR',
+        messageParams: { detail: `レビュー履歴が見つかりません: ${reviewHistoryId}` },
+        cause: new Error(`Review history not found: ${reviewHistoryId}`),
+      });
+    }
+    return history;
   }
 
   /**
@@ -310,7 +328,15 @@ export class ReviewService implements IReviewService {
       this.runningWorkflows.delete(reviewHistoryId);
 
       // 処理ステータスを更新
-      const newStatus = checkResult.status === 'success' ? 'extracted' : 'idle';
+      let newStatus: ProcessingStatus;
+      if (checkResult.status === 'success') {
+        newStatus = 'extracted';
+      } else if (checkResult.status === 'canceled') {
+        newStatus = 'idle'; // キャンセル時はidleに戻す
+      } else {
+        newStatus = 'idle'; // failed, suspended時もidleに戻す
+      }
+
       await this.reviewRepository.updateReviewHistoryProcessingStatus(
         reviewHistoryId,
         newStatus,
@@ -424,8 +450,15 @@ export class ReviewService implements IReviewService {
       this.runningWorkflows.delete(reviewHistoryId);
 
       // 処理ステータスを更新
-      const newStatus =
-        checkResult.status === 'success' ? 'completed' : 'extracted';
+      let newStatus: ProcessingStatus;
+      if (checkResult.status === 'success') {
+        newStatus = 'completed';
+      } else if (checkResult.status === 'canceled') {
+        newStatus = 'extracted'; // キャンセル時はextractedに戻す
+      } else {
+        newStatus = 'extracted'; // failed, suspended時もextractedに戻す
+      }
+
       await this.reviewRepository.updateReviewHistoryProcessingStatus(
         reviewHistoryId,
         newStatus,
@@ -608,17 +641,17 @@ export class ReviewService implements IReviewService {
     try {
       const runningWorkflow = this.runningWorkflows.get(reviewHistoryId);
       if (runningWorkflow) {
+        // processingStatusを'canceling-extract'に更新（キャンセル処理中）
+        await this.reviewRepository.updateReviewHistoryProcessingStatus(
+          reviewHistoryId,
+          'canceling-extract',
+        );
+
         runningWorkflow.cancel();
         this.runningWorkflows.delete(reviewHistoryId);
 
-        // processingStatusを'idle'に更新
-        await this.reviewRepository.updateReviewHistoryProcessingStatus(
-          reviewHistoryId,
-          'idle',
-        );
-
         logger.info(
-          `チェックリスト抽出処理をキャンセルしました: ${reviewHistoryId}`,
+          `チェックリスト抽出処理のキャンセルを開始しました: ${reviewHistoryId}`,
         );
         return { success: true };
       } else {
@@ -648,16 +681,16 @@ export class ReviewService implements IReviewService {
     try {
       const runningWorkflow = this.runningWorkflows.get(reviewHistoryId);
       if (runningWorkflow) {
+        // processingStatusを'canceling-review'に更新（キャンセル処理中）
+        await this.reviewRepository.updateReviewHistoryProcessingStatus(
+          reviewHistoryId,
+          'canceling-review',
+        );
+
         runningWorkflow.cancel();
         this.runningWorkflows.delete(reviewHistoryId);
 
-        // processingStatusを'extracted'に更新
-        await this.reviewRepository.updateReviewHistoryProcessingStatus(
-          reviewHistoryId,
-          'extracted',
-        );
-
-        logger.info(`レビュー実行処理をキャンセルしました: ${reviewHistoryId}`);
+        logger.info(`レビュー実行処理のキャンセルを開始しました: ${reviewHistoryId}`);
         return { success: true };
       } else {
         logger.warn(

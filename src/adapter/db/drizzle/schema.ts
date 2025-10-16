@@ -62,7 +62,7 @@ export const reviewHistories = sqliteTable('review_histories', {
   additionalInstructions: text('additional_instructions'), // レビューの追加指示
   commentFormat: text('comment_format'), // レビューのコメントフォーマット
   evaluationSettings: text('evaluation_settings'), // 評定項目設定（JSON形式）
-  processingStatus: text('processing_status').notNull().default('idle'), // 処理ステータス: idle, extracting, extracted, reviewing, completed
+  processingStatus: text('processing_status').notNull().default('idle'), // 処理ステータス: idle, extracting, canceling-extract, extracted, reviewing, canceling-review, completed
   createdAt: text('created_at')
     .notNull()
     .default(sql`(current_timestamp)`),

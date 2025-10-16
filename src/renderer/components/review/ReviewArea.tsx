@@ -21,6 +21,7 @@ import {
   ChecklistExtractionResultStatus,
   ReviewExecutionResultStatus,
   DocumentMode,
+  ProcessingStatus,
 } from '@/types';
 import { ReviewAreaProps } from './types';
 import ReviewChecklistSection from './ReviewChecklistSection';
@@ -51,6 +52,8 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
   const [isSaving, setIsSaving] = useState(false);
   const [isExtracting, setIsExtracting] = useState(false);
   const [isReviewing, setIsReviewing] = useState(false);
+  const [processingStatus, setProcessingStatus] =
+    useState<ProcessingStatus>('idle');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<ModalMode | null>(null);
   const [additionalInstructions, setAdditionalInstructions] = useState('');
@@ -68,11 +71,21 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
     if (!selectedReviewHistoryId) return;
     const reviewApi = ReviewApi.getInstance();
 
+    // チェックリスト結果を取得
     const result = await reviewApi.getReviewHistoryDetail(
       selectedReviewHistoryId,
       { throwError: true, showAlert: true },
     );
     setChecklistResults(result?.checklistResults || []);
+
+    // processingStatusも取得して更新
+    const currentHistory = await reviewApi.getHistoryById(
+      selectedReviewHistoryId,
+      { throwError: true, showAlert: true },
+    );
+    if (currentHistory) {
+      setProcessingStatus(currentHistory.processingStatus);
+    }
   }, [selectedReviewHistoryId]);
 
   // チェックリスト抽出完了の共通処理ハンドラー
@@ -107,6 +120,11 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
         addAlert({
           message: `チェックリストの抽出に失敗しました\n${payload.error}`,
           severity: 'error',
+        });
+      } else if (payload.status === 'canceled') {
+        addAlert({
+          message: 'チェックリスト抽出をキャンセルしました',
+          severity: 'info',
         });
       }
 
@@ -148,6 +166,11 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
           message: `レビューに失敗しました\n${payload.error}`,
           severity: 'error',
         });
+      } else if (payload.status === 'canceled') {
+        addAlert({
+          message: 'レビュー実行をキャンセルしました',
+          severity: 'info',
+        });
       }
 
       setIsReviewing(false);
@@ -177,6 +200,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
     setChecklistResults([]);
     setIsExtracting(false);
     setIsReviewing(false);
+    setProcessingStatus('idle');
     setAdditionalInstructions('');
     setCommentFormat(defaultCommentFormat);
     setEvaluationSettings(defaultEvaluationSettings);
@@ -203,18 +227,19 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
         );
 
         // レビュー履歴の詳細から処理ステータスを取得
-        const histories = await reviewApi.getHistories({
-          throwError: true,
-          showAlert: true,
-        });
-        const currentHistory = histories?.find(
-          (h) => h.id === selectedReviewHistoryId,
+        const currentHistory = await reviewApi.getHistoryById(
+          selectedReviewHistoryId,
+          { throwError: true, showAlert: true },
         );
 
         if (currentHistory) {
+          // processingStatusを設定
+          setProcessingStatus(currentHistory.processingStatus);
+
           // 処理ステータスに応じて状態とイベント購読を設定
           switch (currentHistory.processingStatus) {
             case 'extracting':
+            case 'canceling-extract':
               setIsExtracting(true);
               // チェックリスト抽出完了イベントを購読
               const extractUnsubscribe =
@@ -224,6 +249,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
               eventUnsubscribeRef.current = extractUnsubscribe;
               break;
             case 'reviewing':
+            case 'canceling-review':
               setIsReviewing(true);
               // レビュー実行完了イベントを購読
               const reviewUnsubscribe =
@@ -418,9 +444,9 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
         showAlert: false,
         throwError: true,
       });
-      setIsExtracting(false);
+      // キャンセル完了はイベントで通知されるため、ここでは状態を変更しない
       addAlert({
-        message: 'チェックリスト抽出をキャンセルしました',
+        message: 'チェックリスト抽出のキャンセル処理を開始しました',
         severity: 'info',
       });
       // 抽出結果の再取得
@@ -450,12 +476,12 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
 
     try {
       await reviewApi.abortExecuteReview(selectedReviewHistoryId, {
-        showAlert: true,
+        showAlert: false,
         throwError: true,
       });
-      setIsReviewing(false);
+      // キャンセル完了はイベントで通知されるため、ここでは状態を変更しない
       addAlert({
-        message: 'レビュー実行をキャンセルしました',
+        message: 'レビュー実行のキャンセル処理を開始しました',
         severity: 'info',
       });
       fetchChecklistResults().catch((error) => {
@@ -576,9 +602,17 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
                         setIsModalOpen(true);
                       }
                 }
-                disabled={!selectedReviewHistoryId || isReviewing}
+                disabled={
+                  !selectedReviewHistoryId ||
+                  isReviewing ||
+                  processingStatus === 'canceling-extract'
+                }
               >
-                {isExtracting ? 'キャンセル' : 'チェックリスト抽出'}
+                {isExtracting
+                  ? processingStatus === 'canceling-extract'
+                    ? 'キャンセル処理中'
+                    : 'キャンセル'
+                  : 'チェックリスト抽出'}
               </Button>
               <Button
                 variant="contained"
@@ -595,10 +629,15 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
                 disabled={
                   !selectedReviewHistoryId ||
                   isExtracting ||
-                  (checklistResults.length === 0 && !isReviewing)
+                  (checklistResults.length === 0 && !isReviewing) ||
+                  processingStatus === 'canceling-review'
                 }
               >
-                {isReviewing ? 'キャンセル' : 'レビュー実行'}
+                {isReviewing
+                  ? processingStatus === 'canceling-review'
+                    ? 'キャンセル処理中'
+                    : 'キャンセル'
+                  : 'レビュー実行'}
               </Button>
             </Stack>
           </Stack>

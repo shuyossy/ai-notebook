@@ -18,6 +18,10 @@ export interface IReviewApi {
   getHistories(
     options?: ApiServiceDefaultOptions,
   ): Promise<RevieHistory[] | null>;
+  getHistoryById(
+    historyId: string,
+    options?: ApiServiceDefaultOptions,
+  ): Promise<RevieHistory | null>;
   deleteHistory(
     historyId: string,
     options?: ApiServiceDefaultOptions,
@@ -101,6 +105,13 @@ export class ReviewApi implements IReviewApi {
     options?: ApiServiceDefaultOptions,
   ): Promise<RevieHistory[] | null> {
     return invokeApi(() => window.electron.review.getHistories(), options);
+  }
+
+  public async getHistoryById(
+    historyId: string,
+    options?: ApiServiceDefaultOptions,
+  ): Promise<RevieHistory | null> {
+    return invokeApi(() => window.electron.review.getHistoryById(historyId), options);
   }
 
   public async deleteHistory(
