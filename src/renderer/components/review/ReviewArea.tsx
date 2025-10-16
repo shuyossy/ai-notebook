@@ -190,6 +190,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
     setAdditionalInstructions('');
     setCommentFormat(defaultCommentFormat);
     setEvaluationSettings(defaultEvaluationSettings);
+    setChatPanelOpen(false);
 
     // 初期データ取得（エラーが発生しなくなるまでポーリング）
     const loadInitialData = async () => {

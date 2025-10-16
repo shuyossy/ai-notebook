@@ -11,13 +11,13 @@ const logger = getMainLogger();
 
 export const getTotalChunksStepInputSchema = z.object({
   reviewHistoryId: z.string(),
-  documentId: z.string(),
+  documentCacheId: z.number(),
   researchContent: z.string(),
 });
 
 export const getTotalChunksStepOutputSchema = baseStepOutputSchema.extend({
   reviewHistoryId: z.string(),
-  documentId: z.string(),
+  documentCacheId: z.number(),
   researchContent: z.string(),
   totalChunks: z.number(),
 });
@@ -29,19 +29,18 @@ export const getTotalChunksStep = createStep({
   outputSchema: getTotalChunksStepOutputSchema,
   execute: async ({ inputData, bail }) => {
     try {
-      const { reviewHistoryId, documentId, researchContent } = inputData;
+      const { reviewHistoryId, documentCacheId, researchContent } = inputData;
       const reviewRepository = getReviewRepository();
 
       // 既存の最大チャンク数を取得
       const totalChunks = await reviewRepository.getMaxTotalChunksForDocument(
-        reviewHistoryId,
-        documentId,
+        documentCacheId,
       );
 
       return {
         status: 'success' as stepStatus,
         reviewHistoryId,
-        documentId,
+        documentCacheId,
         researchContent,
         totalChunks,
       };

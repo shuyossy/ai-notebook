@@ -103,7 +103,6 @@ export type ProcessingStatus =
 export interface ReviewDocumentCache {
   id: number;
   reviewHistoryId: string;
-  documentId: string; // ワークフロー内のドキュメントID
   fileName: string; // ワークフロー内での名前（分割時は "xxx (part 1)" など）
   processMode: ProcessMode;
   textContent?: string; // processMode='text'の場合

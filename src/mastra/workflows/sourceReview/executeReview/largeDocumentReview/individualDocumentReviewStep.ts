@@ -103,6 +103,7 @@ Checklist Items to Review:\n${checklists.map((item) => `- ID: ${item.id} - ${ite
       let attempt = 0;
       let targetChecklists = checklists;
       const allReviewResults: Array<{
+        documentId: string;
         checklistId: number;
         comment: string;
       }> = [];
@@ -193,23 +194,8 @@ Checklist Items to Review:\n${checklists.map((item) => `- ID: ${item.id} - ${ite
       }
 
       // 全てのレビューが成功した場合
-
-      // 個別レビュー結果を保存
-      const reviewRepository = getReviewRepository();
-      for (const result of allReviewResults) {
-        await reviewRepository.createReviewLargedocumentResultCache({
-          reviewDocumentCacheId: document.cacheId!,
-          reviewChecklistId: result.checklistId,
-          comment: result.comment,
-          totalChunks: document.totalChunks ?? 1,
-          chunkIndex: document.chunkIndex ?? 0,
-          individualFileName: document.name,
-        });
-      }
-
       return {
         status: 'success' as stepStatus,
-        documentId: document.id,
         reviewResults: allReviewResults,
         finishReason: 'success',
       };

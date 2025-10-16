@@ -147,6 +147,13 @@ export const executeReviewWorkflow = createWorkflow({
 
     // 既存のレビュー結果を全て削除
     const reviewRepository = getReviewRepository();
+    // 大量ドキュメント結果キャッシュを削除
+    await reviewRepository.deleteReviewLargedocumentResultCaches(
+      initData.reviewHistoryId,
+    );
+    // ドキュメントキャッシュを削除（ファイルシステムのキャッシュも削除）
+    await reviewRepository.deleteReviewDocumentCaches(initData.reviewHistoryId);
+    // レビュー結果を削除
     await reviewRepository.deleteAllReviewResults(initData.reviewHistoryId);
 
     // documentModeを保存
@@ -160,7 +167,6 @@ export const executeReviewWorkflow = createWorkflow({
       if (!document) continue;
       const savedCache = await reviewRepository.createReviewDocumentCache({
         reviewHistoryId: initData.reviewHistoryId,
-        documentId: document.id || '',
         fileName: document.name || '',
         processMode: document.processMode || 'text',
         textContent: document.textContent,

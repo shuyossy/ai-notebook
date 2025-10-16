@@ -63,6 +63,11 @@ export interface IReviewRepository {
   ): Promise<ReviewChecklistResult[]>;
   deleteAllReviewResults(reviewHistoryId: string): Promise<void>;
 
+  // ドキュメントキャッシュ削除
+  deleteReviewDocumentCaches(reviewHistoryId: string): Promise<void>;
+  // 大量ドキュメント結果キャッシュ削除
+  deleteReviewLargedocumentResultCaches(reviewHistoryId: string): Promise<void>;
+
   // documentModeの保存
   updateReviewHistoryDocumentMode(
     id: string,
@@ -76,14 +81,8 @@ export interface IReviewRepository {
   getReviewDocumentCaches(
     reviewHistoryId: string,
   ): Promise<ReviewDocumentCache[]>;
-  getReviewDocumentCacheByDocumentId(
-    reviewHistoryId: string,
-    documentId: string,
-  ): Promise<ReviewDocumentCache | null>;
-  getReviewDocumentCacheByDocumentIds(
-    reviewHistoryId: string,
-    documentIds: string[],
-  ): Promise<ReviewDocumentCache[]>;
+  getReviewDocumentCacheById(id: number): Promise<ReviewDocumentCache | null>;
+  getReviewDocumentCacheByIds(ids: number[]): Promise<ReviewDocumentCache[]>;
 
   // 大量ドキュメント結果キャッシュ管理
   createReviewLargedocumentResultCache(
@@ -93,8 +92,7 @@ export interface IReviewRepository {
     reviewHistoryId: string,
   ): Promise<ReviewLargedocumentResultCache[]>;
   getMaxTotalChunksForDocument(
-    reviewHistoryId: string,
-    documentId: string,
+    reviewDocumentCacheId: number,
   ): Promise<number>;
 
   // レビューチャット用: チェックリスト結果と個別レビュー結果を取得

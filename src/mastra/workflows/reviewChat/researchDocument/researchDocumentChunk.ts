@@ -12,12 +12,16 @@ import {
   judgeErrorIsContentLengthError,
 } from '@/mastra/lib/agentUtils';
 import { getReviewRepository } from '@/adapter/db';
+import {
+  judgeReviewMode,
+  buildResearchChecklistInfo,
+} from '../lib';
 
 const logger = getMainLogger();
 
 export const researchChunkStepInputSchema = z.object({
   reviewHistoryId: z.string(),
-  documentId: z.string(),
+  documentCacheId: z.number(),
   researchContent: z.string(),
   chunkContent: z.object({
     text: z.string().optional(),
@@ -28,6 +32,7 @@ export const researchChunkStepInputSchema = z.object({
   fileName: z.string(),
   checklistIds: z.array(z.number()),
   question: z.string(),
+  reasoning: z.string(),
 });
 
 const researchChunkStepOutputSchema = baseStepOutputSchema.extend({
@@ -52,9 +57,10 @@ export const researchChunkStep = createStep({
         reviewHistoryId,
         checklistIds,
         question,
+        reasoning,
       } = inputData;
 
-      // チェックリスト情報を生成（planResearchStepと同じロジック）
+      // チェックリスト情報を生成（ヘルパー関数を利用）
       const reviewRepository = getReviewRepository();
       const checklistResults =
         await reviewRepository.getChecklistResultsWithIndividualResults(
@@ -62,40 +68,11 @@ export const researchChunkStep = createStep({
           checklistIds,
         );
 
-      const checklistInfo = checklistResults
-        .map(
-          (item: {
-            checklistResult: {
-              id: number;
-              content: string;
-              sourceEvaluation?: { evaluation?: string; comment?: string };
-            };
-            individualResults?: Array<{
-              documentId: number;
-              comment: string;
-              individualFileName: string;
-            }>;
-          }) => {
-            let info = `Checklist ID: ${item.checklistResult.id}\nContent: ${item.checklistResult.content}\n`;
-            if (item.checklistResult.sourceEvaluation) {
-              info += `Review Result:\n  Evaluation: ${item.checklistResult.sourceEvaluation.evaluation || 'N/A'}\n  Comment: ${item.checklistResult.sourceEvaluation.comment || 'N/A'}\n`;
-            }
-            if (item.individualResults && item.individualResults.length > 0) {
-              info += `Individual Review Results:\n`;
-              item.individualResults.forEach(
-                (result: {
-                  documentId: number;
-                  comment: string;
-                  individualFileName: string;
-                }) => {
-                  info += `  - Document ID: ${result.documentId}\n    Document Name: ${result.individualFileName}\n    Comment: ${result.comment}\n`;
-                },
-              );
-            }
-            return info;
-          },
-        )
-        .join('\n---\n');
+      // レビューモードを判定（ヘルパー関数を利用）
+      const reviewMode = judgeReviewMode(checklistResults);
+
+      // チェックリスト情報の文字列を生成（ヘルパー関数を利用）
+      const checklistInfo = buildResearchChecklistInfo(checklistResults);
 
       // RuntimeContext作成
       const runtimeContext =
@@ -106,6 +83,8 @@ export const researchChunkStep = createStep({
       runtimeContext.set('fileName', fileName);
       runtimeContext.set('checklistInfo', checklistInfo);
       runtimeContext.set('userQuestion', question);
+      runtimeContext.set('reasoning', reasoning);
+      runtimeContext.set('reviewMode', reviewMode);
 
       // メッセージを作成
       const messageContent = [];
@@ -114,13 +93,13 @@ export const researchChunkStep = createStep({
         // テキストチャンクの場合
         messageContent.push({
           type: 'text' as const,
-          text: `Document: ${fileName}\nChunk: ${chunkIndex + 1}/${totalChunks}\n\nResearch Instructions: ${researchContent}\n\nDocument Content:\n${chunkContent.text}`,
+          text: `Document: ${fileName}\n\nResearch Instructions: ${researchContent}\n\nDocument Content:\n${chunkContent.text}`,
         });
       } else if (chunkContent.images && chunkContent.images.length > 0) {
         // 画像チャンクの場合
         messageContent.push({
           type: 'text' as const,
-          text: `Document: ${fileName}\nChunk: ${chunkIndex + 1}/${totalChunks}\n\nResearch Instructions: ${researchContent}\n\nPlease analyze the following document images:`,
+          text: `Document: ${fileName}\n\nResearch Instructions: ${researchContent}\n\nPlease analyze the following document images:`,
         });
 
         chunkContent.images.forEach((imageBase64) => {

@@ -99,7 +99,6 @@ export const reviewDocumentCaches = sqliteTable('review_document_caches', {
   reviewHistoryId: text('review_history_id')
     .notNull()
     .references(() => reviewHistories.id, { onDelete: 'cascade' }),
-  documentId: text('document_id').notNull(), // ワークフロー内のドキュメントID
   fileName: text('file_name').notNull(), // ワークフロー内での名前（分割時は "xxx (part 1)" など）
   processMode: text('process_mode').notNull(), // 'text' or 'image'
   cachePath: text('cache_path').notNull(), // ファイル/ディレクトリパス

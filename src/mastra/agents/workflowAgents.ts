@@ -62,8 +62,9 @@ export type ConsolidateReviewAgentRuntimeContext = BaseRuntimeContext & {
 
 // レビューチャット用エージェント
 export type ReviewChatPlanningAgentRuntimeContext = BaseRuntimeContext & {
-  availableDocuments: { id: string; fileName: string }[];
+  availableDocuments: { id: number; fileName: string }[];
   checklistInfo: string; // チェックリスト情報のテキスト
+  reviewMode: 'large' | 'small'; // レビュー方式（大量レビュー/少量レビュー）
 };
 
 export type ReviewChatResearchAgentRuntimeContext = BaseRuntimeContext & {
@@ -73,11 +74,14 @@ export type ReviewChatResearchAgentRuntimeContext = BaseRuntimeContext & {
   fileName: string; // ドキュメント名
   checklistInfo: string; // チェックリスト情報（内容とレビュー結果）
   userQuestion: string; // ユーザからの質問
+  reasoning?: string; // 調査計画の理由
+  reviewMode: 'large' | 'small'; // レビュー方式（大量レビュー/少量レビュー）
 };
 
 export type ReviewChatAnswerAgentRuntimeContext = BaseRuntimeContext & {
   userQuestion: string; // ユーザからの質問
   checklistInfo: string; // チェックリスト情報のテキスト
+  reviewMode: 'large' | 'small'; // レビュー方式（大量レビュー/少量レビュー）
 };
 
 export const summarizeSourceAgent = new Agent({

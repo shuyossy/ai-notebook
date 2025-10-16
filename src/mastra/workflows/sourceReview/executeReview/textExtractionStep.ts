@@ -22,8 +22,7 @@ export const textExtractionOutputSchema = baseStepOutputSchema.extend({
 
 export const textExtractionStep = createStep({
   id: 'textExtractionStep',
-  description:
-    'ドキュメントからテキストを抽出し、ワークフロー用のIDを付与するステップ',
+  description: 'ドキュメントからテキストを抽出するステップ',
   inputSchema: textExtractionInputSchema,
   outputSchema: textExtractionOutputSchema,
   execute: async ({ inputData, abortSignal, bail }) => {
@@ -36,7 +35,7 @@ export const textExtractionStep = createStep({
     })();
 
     try {
-      const extractedDocuments = [];
+      const extractedDocuments: z.infer<typeof extractedDocumentSchema>[] = [];
 
       // 各ファイルからテキストを抽出
       for (const file of files) {
@@ -56,7 +55,7 @@ export const textExtractionStep = createStep({
             path: file.path,
             type: file.type,
             processMode: file.processMode,
-            imageMode: file.imageMode,
+            imageMode: file.imageMode as 'merged' | 'pages' | undefined,
             textContent: undefined,
             imageData: file.imageData,
           });
@@ -70,8 +69,8 @@ export const textExtractionStep = createStep({
             path: file.path,
             type: file.type,
             textContent: content,
-            processMode: file.processMode,
-            imageMode: file.imageMode,
+            processMode: file.processMode as 'text' | 'image' | undefined,
+            imageMode: file.imageMode as 'merged' | 'pages' | undefined,
             imageData: undefined,
           });
         }

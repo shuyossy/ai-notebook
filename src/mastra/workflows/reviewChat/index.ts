@@ -62,7 +62,7 @@ export const reviewChatWorkflow = createWorkflow({
         args: inputData.researchTasks?.map((task) => {
           return {
             documentName:
-              documentCaches.find((d) => d.documentId === task.documentId)
+              documentCaches.find((d) => d.id === task.documentCacheId)
                 ?.fileName || 'Unknown',
             researchContent: task.researchContent,
           };
@@ -72,8 +72,9 @@ export const reviewChatWorkflow = createWorkflow({
 
     return (inputData.researchTasks || []).map((task) => ({
       reviewHistoryId: initData.reviewHistoryId,
-      documentId: task.documentId,
+      documentCacheId: task.documentCacheId,
       researchContent: task.researchContent,
+      reasoning: task.reasoning,
       checklistIds: initData.checklistIds,
       question: initData.question,
     })) as z.infer<typeof researchDocumentWithRetryWorkflow.inputSchema>[];
@@ -110,7 +111,7 @@ export const reviewChatWorkflow = createWorkflow({
         toolName: 'researchDocumentComplete',
         result: inputData.map((item) => ({
           documentName:
-            documentCaches.find((d) => d.documentId === item.documentId)
+            documentCaches.find((d) => d.id === item.documentCacheId)
               ?.fileName || 'Unknown',
           researchResult: item.researchResult!,
         })),
@@ -124,7 +125,7 @@ export const reviewChatWorkflow = createWorkflow({
       researchResults: inputData
         .filter((item) => item.status === 'success')
         .map((item) => ({
-          documentId: item.documentId!,
+          documentCacheId: item.documentCacheId!,
           researchResult: item.researchResult!,
         })),
     } as z.infer<typeof generateAnswerStepInputSchema>;

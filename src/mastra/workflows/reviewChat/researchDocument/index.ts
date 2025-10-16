@@ -9,27 +9,40 @@ import { makeChunksByCount } from '@/mastra/lib/util';
 import {
   getTotalChunksStep,
   getTotalChunksStepInputSchema,
-  getTotalChunksStepOutputSchema,
 } from './getTotalChunksStep';
 import {
   researchChunkStep,
   researchChunkStepInputSchema,
 } from './researchDocumentChunk';
-import { input } from '@testing-library/user-event/dist/cjs/event/input.js';
+import { internalError } from '@/main/lib/error';
 
 const logger = getMainLogger();
 
 const researchDocumentWithRetryInputSchema = z.object({
   reviewHistoryId: z.string(),
-  documentId: z.string(),
+  documentCacheId: z.number(),
   researchContent: z.string(),
+  reasoning: z.string(),
   checklistIds: z.array(z.number()),
   question: z.string(),
 });
 
 const researchDocumentWithRetryOutputSchema = baseStepOutputSchema.extend({
-  documentId: z.string().optional(),
+  documentCacheId: z.number().optional(),
   researchResult: z.string().optional(),
+});
+
+const chunkResearchInnerWorkflowInputSchema = baseStepOutputSchema.extend({
+  checklistIds: z.array(z.number()),
+  question: z.string(),
+  retryCount: z.number(),
+  reviewHistoryId: z.string(),
+  documentCacheId: z.number(),
+  researchContent: z.string(),
+  reasoning: z.string(),
+  totalChunks: z.number(),
+  researchResult: z.string().optional(),
+  finishReason: z.enum(['success', 'error', 'content_length']),
 });
 
 export const researchDocumentWithRetryWorkflow = createWorkflow({
@@ -52,34 +65,35 @@ export const researchDocumentWithRetryWorkflow = createWorkflow({
       ...inputData,
       checklistIds: initData.checklistIds,
       question: initData.question,
-    } as z.infer<typeof getTotalChunksStepOutputSchema> & {
-      checklistIds: number[];
-      question: string;
-    };
+      reasoning: initData.reasoning,
+      retryCount: 0,
+      finishReason: 'error' as const,
+    } as z.infer<typeof chunkResearchInnerWorkflowInputSchema>;
   })
   .dountil(
     createWorkflow({
       id: 'chunkResearchInnerWorkflow',
-      inputSchema: getTotalChunksStepOutputSchema.extend({
-        checklistIds: z.array(z.number()),
-        question: z.string(),
-      }),
-      outputSchema: researchDocumentWithRetryOutputSchema,
+      inputSchema: chunkResearchInnerWorkflowInputSchema,
+      outputSchema: chunkResearchInnerWorkflowInputSchema,
     })
       .map(async ({ inputData }) => {
-        const { reviewHistoryId, documentId, researchContent, totalChunks } =
-          inputData;
+        const {
+          reviewHistoryId,
+          documentCacheId,
+          researchContent,
+          totalChunks,
+        } = inputData;
         const reviewRepository = getReviewRepository();
 
         // ドキュメントキャッシュを取得
         const documentCache =
-          await reviewRepository.getReviewDocumentCacheByDocumentId(
-            reviewHistoryId,
-            documentId,
-          );
+          await reviewRepository.getReviewDocumentCacheById(documentCacheId);
 
         if (!documentCache) {
-          throw new Error(`Document not found: ${documentId}`);
+          throw internalError({
+            expose: true,
+            messageCode: 'REVIEW_DOCUMENT_CACHE_NOT_FOUND',
+          });
         }
 
         // ドキュメントをtotalChunks分に分割
@@ -90,7 +104,7 @@ export const researchDocumentWithRetryWorkflow = createWorkflow({
           const chunkRanges = makeChunksByCount(
             documentCache.textContent,
             totalChunks,
-            0,
+            300,
           );
           chunkRanges.forEach((range) => {
             chunks.push({
@@ -108,7 +122,7 @@ export const researchDocumentWithRetryWorkflow = createWorkflow({
           const chunkRanges = makeChunksByCount(
             documentCache.imageData,
             totalChunks,
-            0,
+            3,
           );
           chunkRanges.forEach((range) => {
             chunks.push({
@@ -120,7 +134,7 @@ export const researchDocumentWithRetryWorkflow = createWorkflow({
         // 各チャンクに対する調査タスクを作成
         return chunks.map((chunk, index) => ({
           reviewHistoryId,
-          documentId,
+          documentCacheId,
           researchContent,
           chunkContent: chunk,
           chunkIndex: index,
@@ -128,10 +142,15 @@ export const researchDocumentWithRetryWorkflow = createWorkflow({
           fileName: documentCache.fileName,
           checklistIds: inputData.checklistIds,
           question: inputData.question,
+          reasoning: inputData.reasoning,
         })) as z.infer<typeof researchChunkStepInputSchema>[];
       })
       .foreach(researchChunkStep, { concurrency: 5 })
       .map(async ({ inputData, bail, getInitData }) => {
+        const initData = (await getInitData()) as z.infer<
+          typeof chunkResearchInnerWorkflowInputSchema
+        >;
+
         const results = inputData;
 
         // いずれかのチャンクでコンテキスト長エラーがあったかチェック
@@ -139,52 +158,85 @@ export const researchDocumentWithRetryWorkflow = createWorkflow({
           (result) => result.finishReason === 'content_length',
         );
 
-        // 失敗があればエラー
-        if (results.some((result) => result.status === 'failed')) {
+        // コンテキスト長エラーがない場合、失敗が一つでもある場合は失敗として返す
+        if (
+          !hasContentLengthError &&
+          results.some((result) => result.status === 'failed')
+        ) {
           const failed = results.find((result) => result.status === 'failed');
-          return bail({
+          return {
             status: 'failed' as stepStatus,
-            errorMessage: failed?.errorMessage || 'チャンク調査に失敗しました',
+            errorMessage: failed?.errorMessage,
             finishReason: 'error' as const,
-          });
+            retryCount: initData.retryCount,
+            documentCacheId: initData.documentCacheId,
+          } as z.infer<typeof chunkResearchInnerWorkflowInputSchema>;
         }
 
-        const initData = (await getInitData()) as z.infer<
-          typeof getTotalChunksStepOutputSchema
-        >;
+        // リトライ回数が5回を超えたら終了
+        // レビュー実行時にドキュメント分割できることを確認しているため、ここには到達しないはず
+        if (initData.retryCount >= 5) {
+          return {
+            status: 'failed' as stepStatus,
+            errorMessage: 'ドキュメントが長すぎて処理できませんでした。',
+            finishReason: 'error' as const,
+            retryCount: initData.retryCount,
+            documentCacheId: initData.documentCacheId,
+          } as z.infer<typeof chunkResearchInnerWorkflowInputSchema>;
+        }
 
         if (hasContentLengthError) {
           // チャンク数を増やして再試行
           return {
             status: 'success' as stepStatus,
             reviewHistoryId: initData.reviewHistoryId,
-            documentId: initData.documentId,
+            documentCacheId: initData.documentCacheId,
             researchContent: initData.researchContent,
+            reasoning: initData.reasoning,
             totalChunks: initData.totalChunks + 1,
             finishReason: 'content_length' as const,
-          };
+            checklistIds: initData.checklistIds,
+            question: initData.question,
+            retryCount: initData.retryCount + 1,
+          } as z.infer<typeof chunkResearchInnerWorkflowInputSchema>;
         }
 
         // すべて成功したらチャンク結果を統合
+        // ドキュメントキャッシュを取得
+        const reviewRepository = getReviewRepository();
+        const documentCache = await reviewRepository.getReviewDocumentCacheById(
+          initData.documentCacheId,
+        );
+        if (!documentCache) {
+          throw internalError({
+            expose: true,
+            messageCode: 'REVIEW_DOCUMENT_CACHE_NOT_FOUND',
+          });
+        }
+        // チャンク情報は削除し、調査結果のみを結合
         const combinedResult = results
           .filter((result) => result.chunkResult)
-          .map((result, index) => `[Chunk ${index + 1}]\n${result.chunkResult}`)
-          .join('\n\n');
+          .map(
+            (result) =>
+              `Document Name:\n${documentCache.fileName}${initData.totalChunks > 1 ? ` ※(Chunk ${result.chunkIndex! + 1}/${initData.totalChunks})(split into chunks because the full content did not fit into context)` : ''}\nResearch Findings:\n${result.chunkResult}`,
+          )
+          .join('\n\n---\n\n');
 
         return {
           status: 'success' as stepStatus,
-          documentId: initData.documentId,
+          documentCacheId: initData.documentCacheId,
           researchResult: combinedResult,
           finishReason: 'success' as const,
-        };
+          retryCount: initData.retryCount,
+        } as z.infer<typeof chunkResearchInnerWorkflowInputSchema>;
       })
       .commit(),
     async ({ inputData }) => {
       // 再試行上限または成功したら終了
-      if ((inputData as any).totalChunks >= 10) {
+      if (inputData.retryCount >= 5) {
         return true;
       }
-      if ((inputData as any).finishReason !== 'content_length') {
+      if (inputData.finishReason !== 'content_length') {
         return true;
       }
       return false;
@@ -194,9 +246,9 @@ export const researchDocumentWithRetryWorkflow = createWorkflow({
     // 最終結果を返す
     return {
       status: inputData.status,
-      documentId: inputData.documentId,
+      documentCacheId: inputData.documentCacheId,
       researchResult: inputData.researchResult,
-      errorMessage: (inputData as any).errorMessage,
+      errorMessage: inputData.errorMessage,
     };
   })
   .commit();

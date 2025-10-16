@@ -21,19 +21,19 @@ export class ReviewCacheHelper {
   /**
    * テキストキャッシュ保存
    * @param reviewHistoryId レビュー履歴ID
-   * @param documentId ドキュメントID
+   * @param id ドキュメントキャッシュID
    * @param content テキスト内容
    * @returns ファイルパス
    */
   static async saveTextCache(
     reviewHistoryId: string,
-    documentId: string,
+    id: number,
     content: string,
   ): Promise<string> {
     const baseDir = this.getCacheBaseDir(reviewHistoryId);
     await fs.mkdir(baseDir, { recursive: true });
 
-    const cachePath = path.join(baseDir, `${documentId}.txt`);
+    const cachePath = path.join(baseDir, `${id}.txt`);
     await fs.writeFile(cachePath, content, 'utf-8');
 
     return cachePath;
@@ -42,17 +42,17 @@ export class ReviewCacheHelper {
   /**
    * 画像キャッシュ保存（複数ページ対応）
    * @param reviewHistoryId レビュー履歴ID
-   * @param documentId ドキュメントID
+   * @param id ドキュメントキャッシュID
    * @param imageData Base64画像データ配列
    * @returns ディレクトリパス
    */
   static async saveImageCache(
     reviewHistoryId: string,
-    documentId: string,
+    id: number,
     imageData: string[],
   ): Promise<string> {
     const baseDir = this.getCacheBaseDir(reviewHistoryId);
-    const imageCacheDir = path.join(baseDir, documentId);
+    const imageCacheDir = path.join(baseDir, `${id}`);
     await fs.mkdir(imageCacheDir, { recursive: true });
 
     for (let i = 0; i < imageData.length; i++) {

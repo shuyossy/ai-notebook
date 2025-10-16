@@ -12,6 +12,7 @@ import {
 import { baseStepOutputSchema } from '@/mastra/workflows/schema';
 import { makeChunksByCount } from '@/mastra/lib/util';
 import { extractedDocumentSchema } from '../schema';
+import { getReviewRepository } from '@/adapter/db';
 
 const logger = getMainLogger();
 
@@ -229,6 +230,29 @@ const individualDocumentReviewWorkflow = createWorkflow({
         errorMessage: inputData.errorMessage,
       } as z.infer<typeof individualDocumentReviewWorkflowOutputSchema>;
     }
+
+    // 個別レビュー結果を保存
+    const reviewRepository = getReviewRepository();
+    for (const result of inputData.reviewResults || []) {
+      const targetDocument = inputData.reviewInput.find((input) => {
+        return result.documentId === input.document.id;
+      })?.document;
+      if (!targetDocument) {
+        logger.warn(
+          `Could not find target document for review result: documentId=${result.documentId}, checklistId=${result.checklistId}`,
+        );
+        continue;
+      }
+      await reviewRepository.createReviewLargedocumentResultCache({
+        reviewDocumentCacheId: inputData.originalDocument.cacheId!,
+        reviewChecklistId: result.checklistId,
+        comment: result.comment,
+        totalChunks: targetDocument.totalChunks ?? 1,
+        chunkIndex: targetDocument.chunkIndex ?? 0,
+        individualFileName: targetDocument.name,
+      });
+    }
+
     return {
       status: 'success' as stepStatus,
       documentsWithReviewResults: inputData.reviewInput.map((input) => {

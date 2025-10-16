@@ -12,6 +12,10 @@ import {
   judgeFinishReason,
 } from '@/mastra/lib/agentUtils';
 import { reviewChatInputSchema } from '.';
+import {
+  judgeReviewMode,
+  buildPlanningChecklistInfo,
+} from './lib';
 
 const logger = getMainLogger();
 
@@ -20,8 +24,9 @@ const planResearchStepOutputSchema = baseStepOutputSchema.extend({
   researchTasks: z
     .array(
       z.object({
-        documentId: z.string(),
+        documentCacheId: z.number(),
         researchContent: z.string(),
+        reasoning: z.string(), // 調査理由を追加
       }),
     )
     .optional(),
@@ -50,32 +55,22 @@ export const planResearchStep = createStep({
 
       // RuntimeContext作成
       const availableDocuments = documentCaches.map((doc) => ({
-        id: doc.documentId,
+        id: doc.id,
         fileName: doc.fileName,
       }));
 
-      // チェックリスト情報の文字列を生成
-      const checklistInfo = checklistResults
-        .map((item) => {
-          let info = `Checklist ID: ${item.checklistResult.id}\nContent: ${item.checklistResult.content}\n`;
-          if (item.checklistResult.sourceEvaluation) {
-            info += `Review Result:\n  Evaluation: ${item.checklistResult.sourceEvaluation.evaluation || 'N/A'}\n  Comment: ${item.checklistResult.sourceEvaluation.comment || 'N/A'}\n`;
-          }
-          if (item.individualResults && item.individualResults.length > 0) {
-            info += `Individual Review Results:\n`;
-            item.individualResults.forEach((result) => {
-              info += `  - Document ID: ${result.documentId}\n    Document Name: ${result.individualFileName}\n    Comment: ${result.comment}\n`;
-            });
-          }
-          return info;
-        })
-        .join('\n---\n');
+      // レビュー方式を判定（ヘルパー関数を利用）
+      const reviewMode = judgeReviewMode(checklistResults);
+
+      // チェックリスト情報の文字列を生成（ヘルパー関数を利用）
+      const checklistInfo = buildPlanningChecklistInfo(checklistResults);
 
       // RuntimeContext作成
       const runtimeContext =
         await createRuntimeContext<ReviewChatPlanningAgentRuntimeContext>();
       runtimeContext.set('availableDocuments', availableDocuments);
       runtimeContext.set('checklistInfo', checklistInfo);
+      runtimeContext.set('reviewMode', reviewMode);
 
       // 構造化出力用のスキーマ
       const researchTasksSchema = z.object({
@@ -109,7 +104,11 @@ export const planResearchStep = createStep({
       }
 
       // 構造化出力から調査タスクを取得
-      const researchTasks = result.object?.tasks || [];
+      const researchTasks = (result.object?.tasks || []).map((task) => ({
+        documentCacheId: Number(task.documentId),
+        researchContent: task.researchContent,
+        reasoning: task.reasoning,
+      }));
 
       return {
         status: 'success' as stepStatus,

@@ -16,6 +16,10 @@ import {
 import { IpcChannels } from '@/types';
 import { publishEvent } from '@/main/lib/eventPayloadHelper';
 import { ReviewChatWorkflowRuntimeContext } from '.';
+import {
+  judgeReviewMode,
+  buildAnswerChecklistInfo,
+} from './lib';
 
 const logger = getMainLogger();
 
@@ -25,7 +29,7 @@ export const generateAnswerStepInputSchema = z.object({
   question: z.string(),
   researchResults: z.array(
     z.object({
-      documentId: z.string(),
+      documentCacheId: z.number(),
       researchResult: z.string(),
     }),
   ),
@@ -62,36 +66,34 @@ export const generateAnswerStep = createStep({
           checklistIds,
         );
 
+      // レビュー方式を判定（ヘルパー関数を利用）
+      const reviewMode = judgeReviewMode(checklistResults);
+
       // ドキュメントキャッシュ情報を取得
       const documentCaches =
-        await reviewRepository.getReviewDocumentCacheByDocumentIds(
-          reviewHistoryId,
-          researchResults.map((r) => r.documentId),
+        await reviewRepository.getReviewDocumentCacheByIds(
+          researchResults.map((r) => r.documentCacheId),
         );
 
-      const checklistInfo = checklistResults
-        .map((item) => {
-          let info = `Checklist: ${item.checklistResult.content}\n`;
-          if (item.checklistResult.sourceEvaluation) {
-            info += `Evaluation: ${item.checklistResult.sourceEvaluation.evaluation || 'N/A'}, Comment: ${item.checklistResult.sourceEvaluation.comment || 'N/A'}`;
-          }
-          return info;
-        })
-        .join('\n');
+      // チェックリスト情報の文字列を生成（ヘルパー関数を利用）
+      const checklistInfo = buildAnswerChecklistInfo(checklistResults);
 
       // 調査結果を統合
       const researchSummary = researchResults
-        .map(
-          (result) =>
-            `Document ID: ${result.documentId}\nDocument Name: ${documentCaches.find((dc) => dc.documentId === result.documentId)?.fileName || 'Unknown'}\nFindings: ${result.researchResult}`,
-        )
-        .join('\n---\n');
+        .map((result) => {
+          const doc = documentCaches.find((dc) => dc.id === result.documentCacheId);
+          return `Document: ${doc?.fileName || 'Unknown'}
+Research Findings:
+${result.researchResult}`;
+        })
+        .join('\n\n---\n\n');
 
       // RuntimeContext作成
       const runtimeContext =
         await createRuntimeContext<ReviewChatAnswerAgentRuntimeContext>();
       runtimeContext.set('userQuestion', question);
       runtimeContext.set('checklistInfo', checklistInfo);
+      runtimeContext.set('reviewMode', reviewMode);
 
       const promptText = `User Question: ${question}\n\nResearch Findings:\n${researchSummary}`;
 

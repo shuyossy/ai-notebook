@@ -1,0 +1,1 @@
+ALTER TABLE `review_document_caches` DROP COLUMN `document_id`;

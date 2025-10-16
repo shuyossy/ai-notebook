@@ -377,6 +377,56 @@ export class DrizzleReviewRepository implements IReviewRepository {
     }
   }
 
+  /** ドキュメントキャッシュを削除（DBとファイルシステム） */
+  async deleteReviewDocumentCaches(reviewHistoryId: string): Promise<void> {
+    try {
+      const db = await getDb();
+      
+      // まずDBレコードを削除
+      await db
+        .delete(reviewDocumentCaches)
+        .where(eq(reviewDocumentCaches.reviewHistoryId, reviewHistoryId));
+      
+      // ファイルシステムのキャッシュディレクトリも削除
+      await ReviewCacheHelper.deleteCacheDirectory(reviewHistoryId);
+    } catch (err) {
+      throw repositoryError('ドキュメントキャッシュの削除に失敗しました', err);
+    }
+  }
+
+  /** 大量ドキュメント結果キャッシュを削除 */
+  async deleteReviewLargedocumentResultCaches(
+    reviewHistoryId: string,
+  ): Promise<void> {
+    try {
+      const db = await getDb();
+      
+      // reviewDocumentCachesとjoinしてreviewHistoryIdで絞り込んで削除
+      const caches = await db
+        .select({ id: reviewDocumentCaches.id })
+        .from(reviewDocumentCaches)
+        .where(eq(reviewDocumentCaches.reviewHistoryId, reviewHistoryId));
+      
+      const cacheIds = caches.map((c) => c.id);
+      
+      if (cacheIds.length > 0) {
+        await db
+          .delete(reviewLargedocumentResultCaches)
+          .where(
+            inArray(
+              reviewLargedocumentResultCaches.reviewDocumentCacheId,
+              cacheIds,
+            ),
+          );
+      }
+    } catch (err) {
+      throw repositoryError(
+        '大量ドキュメント結果キャッシュの削除に失敗しました',
+        err,
+      );
+    }
+  }
+
   /** documentModeを更新 */
   async updateReviewHistoryDocumentMode(
     id: string,
@@ -405,7 +455,6 @@ export class DrizzleReviewRepository implements IReviewRepository {
     const base = {
       id: entity.id,
       reviewHistoryId: entity.reviewHistoryId,
-      documentId: entity.documentId,
       fileName: entity.fileName,
       processMode: entity.processMode as ProcessMode,
       createdAt: entity.createdAt,
@@ -446,19 +495,31 @@ export class DrizzleReviewRepository implements IReviewRepository {
     cache: Omit<ReviewDocumentCache, 'id' | 'createdAt' | 'updatedAt'>,
   ): Promise<ReviewDocumentCache> {
     try {
-      // 1. ファイルシステムにキャッシュを保存
+      // 1. 一時的なcachePathでDBにメタデータを保存（IDを取得するため）
+      const db = await getDb();
+      const [entity] = await db
+        .insert(reviewDocumentCaches)
+        .values({
+          reviewHistoryId: cache.reviewHistoryId,
+          fileName: cache.fileName,
+          processMode: cache.processMode,
+          cachePath: '', // 一時的に空文字列を設定
+        })
+        .returning();
+
+      // 2. 取得したIDを使用してファイルシステムにキャッシュを保存
       let cachePath: string;
 
       if (cache.processMode === 'text' && cache.textContent) {
         cachePath = await ReviewCacheHelper.saveTextCache(
           cache.reviewHistoryId,
-          cache.documentId,
+          entity.id,
           cache.textContent,
         );
       } else if (cache.processMode === 'image' && cache.imageData) {
         cachePath = await ReviewCacheHelper.saveImageCache(
           cache.reviewHistoryId,
-          cache.documentId,
+          entity.id,
           cache.imageData,
         );
       } else {
@@ -468,21 +529,15 @@ export class DrizzleReviewRepository implements IReviewRepository {
         );
       }
 
-      // 2. DBにメタデータを保存
-      const db = await getDb();
-      const [entity] = await db
-        .insert(reviewDocumentCaches)
-        .values({
-          reviewHistoryId: cache.reviewHistoryId,
-          documentId: cache.documentId,
-          fileName: cache.fileName,
-          processMode: cache.processMode,
-          cachePath,
-        })
-        .returning();
+      // 3. cachePathを更新
+      await db
+        .update(reviewDocumentCaches)
+        .set({ cachePath })
+        .where(eq(reviewDocumentCaches.id, entity.id));
 
-      // 3. ファイルから読み込んでドメイン型に変換して返す
-      return this.convertDocumentCacheEntityToDomain(entity);
+      // 4. 更新されたエンティティを取得してドメイン型に変換して返す
+      const updatedEntity = { ...entity, cachePath };
+      return this.convertDocumentCacheEntityToDomain(updatedEntity);
     } catch (err) {
       if (err instanceof AppError) throw err;
       throw repositoryError('ドキュメントキャッシュの作成に失敗しました', err);
@@ -512,22 +567,16 @@ export class DrizzleReviewRepository implements IReviewRepository {
     }
   }
 
-  /** documentIdでドキュメントキャッシュを取得 */
-  async getReviewDocumentCacheByDocumentId(
-    reviewHistoryId: string,
-    documentId: string,
+  /** IDでドキュメントキャッシュを取得 */
+  async getReviewDocumentCacheById(
+    id: number,
   ): Promise<ReviewDocumentCache | null> {
     try {
       const db = await getDb();
       const [entity] = await db
         .select()
         .from(reviewDocumentCaches)
-        .where(
-          and(
-            eq(reviewDocumentCaches.reviewHistoryId, reviewHistoryId),
-            eq(reviewDocumentCaches.documentId, documentId),
-          ),
-        );
+        .where(eq(reviewDocumentCaches.id, id));
 
       if (!entity) return null;
 
@@ -538,21 +587,15 @@ export class DrizzleReviewRepository implements IReviewRepository {
   }
 
   /** ドキュメントキャッシュを取得（複数ID対応） */
-  async getReviewDocumentCacheByDocumentIds(
-    reviewHistoryId: string,
-    documentIds: string[],
+  async getReviewDocumentCacheByIds(
+    ids: number[],
   ): Promise<ReviewDocumentCache[]> {
     try {
       const db = await getDb();
       const entities = await db
         .select()
         .from(reviewDocumentCaches)
-        .where(
-          and(
-            eq(reviewDocumentCaches.reviewHistoryId, reviewHistoryId),
-            inArray(reviewDocumentCaches.documentId, documentIds),
-          ),
-        );
+        .where(inArray(reviewDocumentCaches.id, ids));
 
       // 各EntityをDomain型に変換（ファイル読み込み含む）
       return Promise.all(
@@ -633,34 +676,20 @@ export class DrizzleReviewRepository implements IReviewRepository {
 
   /** 特定ドキュメントの最大totalChunks数を取得（レビューチャット用） */
   async getMaxTotalChunksForDocument(
-    reviewHistoryId: string,
-    documentId: string,
+    reviewDocumentCacheId: number,
   ): Promise<number> {
     try {
       const db = await getDb();
-
-      // まずdocumentIdからreviewDocumentCacheIdを取得
-      const [cache] = await db
-        .select({ id: reviewDocumentCaches.id })
-        .from(reviewDocumentCaches)
-        .where(
-          and(
-            eq(reviewDocumentCaches.reviewHistoryId, reviewHistoryId),
-            eq(reviewDocumentCaches.documentId, documentId),
-          ),
-        );
-
-      if (!cache) {
-        // ドキュメントキャッシュが存在しない場合は1を返す
-        return 1;
-      }
 
       // 該当ドキュメントのtotalChunksの最大値を取得
       const result = await db
         .select({ maxChunks: max(reviewLargedocumentResultCaches.totalChunks) })
         .from(reviewLargedocumentResultCaches)
         .where(
-          eq(reviewLargedocumentResultCaches.reviewDocumentCacheId, cache.id),
+          eq(
+            reviewLargedocumentResultCaches.reviewDocumentCacheId,
+            reviewDocumentCacheId,
+          ),
         );
 
       const maxChunks = result[0]?.maxChunks;
