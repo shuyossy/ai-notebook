@@ -106,6 +106,7 @@ export const researchChunkStep = createStep({
           messageContent.push({
             type: 'image' as const,
             image: imageBase64,
+            mimeType: 'image/png',
           });
         });
       }
