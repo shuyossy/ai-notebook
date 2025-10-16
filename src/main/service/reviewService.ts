@@ -601,15 +601,22 @@ export class ReviewService implements IReviewService {
    * チェックリスト抽出処理をキャンセル
    * @param reviewHistoryId レビュー履歴ID
    */
-  public abortExtractChecklist(reviewHistoryId: string): {
+  public async abortExtractChecklist(reviewHistoryId: string): Promise<{
     success: boolean;
     error?: string;
-  } {
+  }> {
     try {
       const runningWorkflow = this.runningWorkflows.get(reviewHistoryId);
       if (runningWorkflow) {
         runningWorkflow.cancel();
         this.runningWorkflows.delete(reviewHistoryId);
+
+        // processingStatusを'idle'に更新
+        await this.reviewRepository.updateReviewHistoryProcessingStatus(
+          reviewHistoryId,
+          'idle',
+        );
+
         logger.info(
           `チェックリスト抽出処理をキャンセルしました: ${reviewHistoryId}`,
         );
@@ -634,15 +641,22 @@ export class ReviewService implements IReviewService {
    * レビュー実行処理をキャンセル
    * @param reviewHistoryId レビュー履歴ID
    */
-  public abortExecuteReview(reviewHistoryId: string): {
+  public async abortExecuteReview(reviewHistoryId: string): Promise<{
     success: boolean;
     error?: string;
-  } {
+  }> {
     try {
       const runningWorkflow = this.runningWorkflows.get(reviewHistoryId);
       if (runningWorkflow) {
         runningWorkflow.cancel();
         this.runningWorkflows.delete(reviewHistoryId);
+
+        // processingStatusを'extracted'に更新
+        await this.reviewRepository.updateReviewHistoryProcessingStatus(
+          reviewHistoryId,
+          'extracted',
+        );
+
         logger.info(`レビュー実行処理をキャンセルしました: ${reviewHistoryId}`);
         return { success: true };
       } else {
