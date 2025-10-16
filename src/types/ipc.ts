@@ -200,7 +200,7 @@ export type IpcResponsePayloadMap = {
 
   // ドキュメントレビュー関連
   [IpcChannels.REVIEW_GET_HISTORIES]: IpcResult<RevieHistory[]>;
-  [IpcChannels.REVIEW_GET_HISTORY_BY_ID]: IpcResult<RevieHistory>;
+  [IpcChannels.REVIEW_GET_HISTORY_BY_ID]: IpcResult<RevieHistory | null>;
   [IpcChannels.REVIEW_GET_HISTORY_DETAIL]: IpcResult<{
     checklistResults?: ReviewChecklistResult[];
     targetDocumentName?: string | null;

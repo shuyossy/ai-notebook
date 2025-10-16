@@ -30,7 +30,7 @@ import { ReviewChatWorkflowRuntimeContext } from '@/mastra/workflows/reviewChat'
 
 export interface IReviewService {
   getReviewHistories(): Promise<RevieHistory[]>;
-  getReviewHistoryById(reviewHistoryId: string): Promise<RevieHistory>;
+  getReviewHistoryById(reviewHistoryId: string): Promise<RevieHistory | null>;
   getReviewHistoryDetail(reviewHistoryId: string): Promise<{
     checklistResults: ReviewChecklistResult[];
     targetDocumentName?: string | null;
@@ -99,12 +99,6 @@ export class ReviewService implements IReviewService {
    */
   public async getReviewHistoryById(reviewHistoryId: string) {
     const history = await this.reviewRepository.getReviewHistory(reviewHistoryId);
-    if (!history) {
-      throw internalError({
-        expose: true,
-        messageCode: 'REVIEW_HISTORY_NOT_FOUND',
-      });
-    }
     return history;
   }
 
