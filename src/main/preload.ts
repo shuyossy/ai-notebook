@@ -120,6 +120,9 @@ const electronHandler = {
   review: {
     /** レビュー履歴一覧 */
     getHistories: () => invokeIpc(IpcChannels.REVIEW_GET_HISTORIES),
+    /** 特定のレビュー履歴取得 */
+    getHistoryById: (historyId: string) =>
+      invokeIpc(IpcChannels.REVIEW_GET_HISTORY_BY_ID, historyId),
     /** 履歴詳細 */
     getHistoryDetail: (historyId: string) =>
       invokeIpc(IpcChannels.REVIEW_GET_HISTORY_DETAIL, historyId),

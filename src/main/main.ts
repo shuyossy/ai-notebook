@@ -407,6 +407,12 @@ const setupReviewHandlers = () => {
     return histories;
   });
 
+  // 特定のレビュー履歴の取得ハンドラ
+  handleIpc(IpcChannels.REVIEW_GET_HISTORY_BY_ID, async (historyId) => {
+    const history = await reviewService.getReviewHistoryById(historyId);
+    return history;
+  });
+
   // チェックリストの取得ハンドラ
   handleIpc(IpcChannels.REVIEW_GET_HISTORY_DETAIL, async (historyId) => {
     const detail = await reviewService.getReviewHistoryDetail(historyId);

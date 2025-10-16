@@ -70,6 +70,7 @@ export const IpcChannels = {
 
   // ドキュメントレビュー関連
   REVIEW_GET_HISTORIES: 'review-get-histories', // ドキュメント履歴切り替え時やチェックリスト抽出・ドキュメントレビュー時のポーリング処理にて呼び出される
+  REVIEW_GET_HISTORY_BY_ID: 'review-get-history-by-id', // 特定のレビュー履歴を取得
   REVIEW_GET_HISTORY_DETAIL: 'review-get-history-detail',
   REVIEW_GET_HISTORY_INSTRUCTION: 'review-get-history-instruction',
   REVIEW_DELETE_HISTORY: 'review-delete-history',
@@ -132,6 +133,7 @@ export type IpcRequestPayloadMap = {
 
   // ドキュメントレビュー関連
   [IpcChannels.REVIEW_GET_HISTORIES]: undefined;
+  [IpcChannels.REVIEW_GET_HISTORY_BY_ID]: string; // review history id
   [IpcChannels.REVIEW_GET_HISTORY_DETAIL]: string; // review history id
   [IpcChannels.REVIEW_GET_HISTORY_INSTRUCTION]: string; // review history id
   [IpcChannels.REVIEW_DELETE_HISTORY]: string; // review history id
@@ -198,6 +200,7 @@ export type IpcResponsePayloadMap = {
 
   // ドキュメントレビュー関連
   [IpcChannels.REVIEW_GET_HISTORIES]: IpcResult<RevieHistory[]>;
+  [IpcChannels.REVIEW_GET_HISTORY_BY_ID]: IpcResult<RevieHistory>;
   [IpcChannels.REVIEW_GET_HISTORY_DETAIL]: IpcResult<{
     checklistResults?: ReviewChecklistResult[];
     targetDocumentName?: string | null;
@@ -296,6 +299,7 @@ export const IpcNameMap = {
 
   // ドキュメントレビュー関連
   [IpcChannels.REVIEW_GET_HISTORIES]: 'レビュー結果一覧の取得',
+  [IpcChannels.REVIEW_GET_HISTORY_BY_ID]: 'レビュー結果の取得',
   [IpcChannels.REVIEW_GET_HISTORY_DETAIL]: 'レビュー結果詳細の取得',
   [IpcChannels.REVIEW_GET_HISTORY_INSTRUCTION]: 'レビュー指示内容の取得',
   [IpcChannels.REVIEW_DELETE_HISTORY]: 'レビュー結果の削除',
