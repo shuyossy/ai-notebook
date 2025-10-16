@@ -511,7 +511,7 @@ const setupReviewHandlers = () => {
   handleIpc(
     IpcChannels.REVIEW_EXTRACT_CHECKLIST_ABORT,
     async (reviewHistoryId) => {
-      const result = reviewService.abortExtractChecklist(reviewHistoryId);
+      const result = await reviewService.abortExtractChecklist(reviewHistoryId);
       if (!result.success) {
         throw internalError({
           expose: true,
@@ -526,7 +526,7 @@ const setupReviewHandlers = () => {
 
   // レビュー実行キャンセルハンドラ
   handleIpc(IpcChannels.REVIEW_EXECUTE_ABORT, async (reviewHistoryId) => {
-    const result = reviewService.abortExecuteReview(reviewHistoryId);
+    const result = await reviewService.abortExecuteReview(reviewHistoryId);
     if (!result.success) {
       throw internalError({
         expose: true,
