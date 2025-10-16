@@ -86,9 +86,7 @@ export class ReviewService implements IReviewService {
     if (!history) {
       throw internalError({
         expose: true,
-        messageCode: 'UNKNOWN_ERROR',
-        messageParams: { detail: `レビュー履歴が見つかりません: ${reviewHistoryId}` },
-        cause: new Error(`Review history not found: ${reviewHistoryId}`),
+        messageCode: 'REVIEW_HISTORY_NOT_FOUND',
       });
     }
     return history;
