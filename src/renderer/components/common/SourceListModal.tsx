@@ -147,6 +147,7 @@ function SourceListModal({
     // 各ソースの状態を更新
     targetSources.forEach(async (source) => {
       try {
+        console.log(`Updating source ${source.id} to ${newValue}`);
         const sourceApi = SourceApi.getInstance();
         await sourceApi.updateSourceEnabled(source.id, newValue, {
           showAlert: true,

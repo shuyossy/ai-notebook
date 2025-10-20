@@ -7,7 +7,7 @@ import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 
 import SettingsModal from '../../renderer/components/common/SettingsModal';
-import { createMockElectronWithOptions } from '../../__tests__/test-utils/mockElectronHandler';
+import { createMockElectronWithOptions } from './test-utils/mockElectronHandler';
 
 describe('SettingsModal Component', () => {
   // 共通のプロップス
@@ -41,7 +41,7 @@ describe('SettingsModal Component', () => {
 
     // 設定値が取得されるまで待機
     await waitFor(() => {
-      expect(window.electron.store.get).toHaveBeenCalledTimes(7);
+      expect(window.electron.settings.getSettings).toHaveBeenCalledTimes(1);
     });
 
     // データベース設定
@@ -58,7 +58,7 @@ describe('SettingsModal Component', () => {
     );
 
     // API設定
-    const apiKeyInput = screen.getAllByLabelText('APIキー')[0];
+    const apiKeyInput = screen.getByLabelText('APIキー');
     expect(apiKeyInput).toHaveValue('test-api-key');
     expect(screen.getByLabelText('APIエンドポイントURL')).toHaveValue(
       'https://api.test.com',
@@ -77,9 +77,10 @@ describe('SettingsModal Component', () => {
     expect(gitlabEndpoint).toHaveValue('https://gitlab.test.com');
     expect(gitlabApiKey).toHaveValue('test-gitlab-key');
 
-    // MCPサーバー設定
+    // MCPサーバー設定 (文字列形式)
+    // URLオブジェクトは自動的に末尾に'/'が追加される
     expect(screen.getByLabelText('MCPサーバー設定（JSON）')).toHaveValue(
-      '{"testMcp": {"url": "https://mcp.test.com"} }',
+      JSON.stringify({ testMcp: { url: 'https://mcp.test.com/' } }, null, 2),
     );
 
     // システムプロンプト設定
@@ -102,17 +103,17 @@ describe('SettingsModal Component', () => {
     );
 
     await waitFor(() => {
-      expect(window.electron.store.get).toHaveBeenCalledTimes(7);
+      expect(window.electron.settings.getSettings).toHaveBeenCalledTimes(1);
     });
 
     // 全ての入力フィールドが有効になるまで待機
     await waitFor(() => {
-      const apiKeyInput = screen.getAllByLabelText('APIキー')[0];
+      const apiKeyInput = screen.getByLabelText('APIキー');
       expect(apiKeyInput).toBeEnabled();
     });
 
     // API設定の更新
-    const apiKeyInput = screen.getAllByLabelText('APIキー')[0];
+    const apiKeyInput = screen.getByLabelText('APIキー');
     const apiEndpointInput = screen.getByLabelText('APIエンドポイントURL');
     const apiModelInput = screen.getByLabelText('モデル名');
 
@@ -180,46 +181,30 @@ describe('SettingsModal Component', () => {
     });
     await user.click(screen.getByText('保存'));
 
-    // 各設定の更新が正しく呼ばれることを確認
+    // 設定の一括保存が正しく呼ばれることを確認
     await waitFor(() => {
-      // API設定
-      expect(window.electron.store.set).toHaveBeenCalledWith('api', {
+      const call = (window.electron.settings.setSettings as jest.Mock).mock.calls[0][0];
+
+      // 保存された設定を検証（MCPは文字列からパースされたオブジェクト）
+      expect(call.api).toEqual({
         key: 'new-test-api-key',
         url: 'https://new.api.test.com',
         model: 'new-test-model',
       });
-
-      // データベース設定
-      expect(window.electron.store.set).toHaveBeenCalledWith('database', {
-        dir: '/new/test/db',
-      });
-
-      // ソース設定
-      expect(window.electron.store.set).toHaveBeenCalledWith('source', {
-        registerDir: './new/test/source',
-      });
-
-      // Redmine設定
-      expect(window.electron.store.set).toHaveBeenCalledWith('redmine', {
+      expect(call.database).toEqual({ dir: '/new/test/db' });
+      expect(call.source).toEqual({ registerDir: './new/test/source' });
+      expect(call.redmine).toEqual({
         endpoint: 'https://new.redmine.test.com',
         apiKey: 'new-test-redmine-key',
       });
-
-      // GitLab設定
-      expect(window.electron.store.set).toHaveBeenCalledWith('gitlab', {
+      expect(call.gitlab).toEqual({
         endpoint: 'https://new.gitlab.test.com',
         apiKey: 'new-test-gitlab-key',
       });
+      expect(call.systemPrompt).toEqual({ content: 'new test system prompt' });
 
-      // MCP設定
-      expect(window.electron.store.set).toHaveBeenCalledWith('mcp', {
-        serverConfigText: JSON.stringify(validMcpConfig, null, 2),
-      });
-
-      // システムプロンプト設定
-      expect(window.electron.store.set).toHaveBeenCalledWith('systemPrompt', {
-        content: 'new test system prompt',
-      });
+      // MCPは文字列からパースされたオブジェクトになる
+      expect(call.mcp.serverConfig).toEqual(validMcpConfig);
     });
 
     // エージェントの再初期化が呼ばれることを確認
@@ -233,6 +218,16 @@ describe('SettingsModal Component', () => {
 
   // テスト3: バリデーションエラーが正しく表示されること
   test('バリデーションエラーが正しく表示されること', async () => {
+    // checkPathExists関数をモック化して、fsAccessの結果を使うようにする
+    const settingModule = require('@/types/setting');
+    jest.spyOn(settingModule, 'checkPathExists').mockImplementation(
+      async (...args: unknown[]): Promise<boolean> => {
+        const path = args[0] as string;
+        const result = await window.electron.fs.access(path);
+        return result.success === true && result.data === true;
+      },
+    );
+
     window.electron = createMockElectronWithOptions({
       fsAccess: false,
     });
@@ -249,7 +244,7 @@ describe('SettingsModal Component', () => {
     );
 
     await waitFor(() => {
-      expect(window.electron.store.get).toHaveBeenCalledTimes(7);
+      expect(window.electron.settings.getSettings).toHaveBeenCalledTimes(1);
     });
 
     // 必須フィールドを空にする
@@ -267,6 +262,14 @@ describe('SettingsModal Component', () => {
     await user.clear(apiEndpointInput);
     await user.clear(apiModelInput);
     await user.clear(dbDirInput);
+
+    // 存在しないパスを入力（データベース設定）
+    await user.type(dbDirInput, '/nonexistent/path');
+
+    // 存在しないパスを入力（ソース設定）
+    const sourceInput = screen.getByLabelText('ドキュメント格納フォルダ');
+    await user.clear(sourceInput);
+    await user.type(sourceInput, './nonexistent/source');
 
     // 無効なURL形式を入力
     const redmineEndpoint = screen.getByLabelText('Redmineエンドポイント');
@@ -290,24 +293,27 @@ describe('SettingsModal Component', () => {
     );
 
     // バリデーションエラーメッセージが表示されることを確認
-    await waitFor(() => {
-      // 必須フィールドのエラー
-      expect(screen.getByText('APIキーは必須です')).toBeInTheDocument();
-      expect(screen.getByText('モデル名は必須です')).toBeInTheDocument();
+    await waitFor(
+      () => {
+        // 必須フィールドのエラー
+        expect(screen.getByText('APIキーは必須です')).toBeInTheDocument();
+        expect(screen.getByText('モデル名は必須です')).toBeInTheDocument();
 
-      // パスが存在しないエラー（DB,ドキュメント登録フォルダ）
-      expect(
-        screen.getAllByText('指定されたパスが存在しません').length,
-      ).toEqual(2);
+        // パス存在エラー（DB + ドキュメント登録フォルダ）
+        expect(
+          screen.getAllByText('指定されたパスが存在しません').length,
+        ).toEqual(2);
 
-      // 無効なURL形式のエラー
-      expect(screen.getAllByText('有効なURLを入力してください').length).toEqual(
-        3,
-      );
+        // 無効なURL形式のエラー
+        expect(screen.getAllByText('有効なURLを入力してください').length).toEqual(
+          3,
+        );
 
-      // MCPサーバー設定のエラー
-      expect(screen.getByText('JSONの形式が不正です')).toBeInTheDocument();
-    });
+        // MCPサーバー設定のエラー
+        expect(screen.getByText('JSONの形式が不正です')).toBeInTheDocument();
+      },
+      { timeout: 10000 },
+    );
 
     // 保存ボタンが無効化されていることを確認
     expect(screen.getByText('保存')).toBeDisabled();
@@ -316,6 +322,9 @@ describe('SettingsModal Component', () => {
     await waitFor(() => {
       expect(defaultProps.onValidChange).toHaveBeenLastCalledWith(false);
     });
+
+    // モックをクリーンアップ
+    jest.restoreAllMocks();
   }, 30000);
 
   // テスト4: MCPスキーマのバリデーションエラーが正しく表示されること
@@ -332,7 +341,7 @@ describe('SettingsModal Component', () => {
     );
 
     await waitFor(() => {
-      expect(window.electron.store.get).toHaveBeenCalledTimes(7);
+      expect(window.electron.settings.getSettings).toHaveBeenCalledTimes(1);
     });
 
     const mcpConfigInput = screen.getByLabelText('MCPサーバー設定（JSON）');
@@ -444,8 +453,8 @@ describe('SettingsModal Component', () => {
   test('保存に失敗した場合のエラー表示を確認', async () => {
     const user = userEvent.setup({ delay: null });
 
-    // ストアの更新に失敗するようにモックを設定
-    window.electron.store.set = jest
+    // 設定の保存に失敗するようにモックを設定
+    window.electron.settings.setSettings = jest
       .fn()
       .mockRejectedValue(new Error('Failed to save settings'));
 
@@ -459,11 +468,11 @@ describe('SettingsModal Component', () => {
     );
 
     await waitFor(() => {
-      expect(window.electron.store.get).toHaveBeenCalledTimes(7);
+      expect(window.electron.settings.getSettings).toHaveBeenCalledTimes(1);
     });
 
     // APIキーを更新してバリデーション完了を待機
-    const apiKeyInput = screen.getAllByLabelText('APIキー')[0];
+    const apiKeyInput = screen.getByLabelText('APIキー');
     await waitFor(() => {
       expect(apiKeyInput).toBeEnabled();
     });
@@ -485,7 +494,7 @@ describe('SettingsModal Component', () => {
 
     // エラーメッセージが表示されることを確認
     await waitFor(() => {
-      expect(screen.getByText('Failed to save settings')).toBeInTheDocument();
+      expect(screen.getByText('API通信に失敗しました')).toBeInTheDocument();
     });
 
     // モーダルが閉じられないことを確認
@@ -506,11 +515,11 @@ describe('SettingsModal Component', () => {
     );
 
     await waitFor(() => {
-      expect(window.electron.store.get).toHaveBeenCalledTimes(7);
+      expect(window.electron.settings.getSettings).toHaveBeenCalledTimes(1);
     });
 
     // APIキーを更新
-    const apiKeyInput = screen.getAllByLabelText('APIキー')[0];
+    const apiKeyInput = screen.getByLabelText('APIキー');
     await waitFor(() => {
       expect(apiKeyInput).toBeEnabled();
     });
@@ -520,8 +529,8 @@ describe('SettingsModal Component', () => {
     // キャンセルボタンをクリック
     await user.click(screen.getByText('キャンセル'));
 
-    // storeのset関数が呼ばれないことを確認
-    expect(window.electron.store.set).not.toHaveBeenCalled();
+    // setSettings関数が呼ばれないことを確認
+    expect(window.electron.settings.setSettings).not.toHaveBeenCalled();
 
     // モーダルが閉じられることを確認
     expect(defaultProps.onClose).toHaveBeenCalled();
@@ -529,19 +538,34 @@ describe('SettingsModal Component', () => {
 
   // テスト7: ローディング状態の表示を確認
   test('ローディング状態の表示を確認', async () => {
-    // ストアの取得を遅延させる
-    window.electron.store.get = jest.fn().mockImplementation((key: string) => {
+    // 設定の取得を遅延させる
+    window.electron.settings.getSettings = jest.fn().mockImplementation(() => {
       return new Promise((resolve) => {
         setTimeout(() => {
-          if (key === 'api') {
-            resolve({
-              key: 'test-api-key',
-              url: 'https://api.test.com',
-              model: 'test-model',
-            });
-          } else {
-            resolve(undefined);
-          }
+          resolve({
+            success: true,
+            data: {
+              database: { dir: '/test/db' },
+              source: { registerDir: './test/source' },
+              api: {
+                key: 'test-api-key',
+                url: 'https://api.test.com',
+                model: 'test-model',
+              },
+              redmine: {
+                endpoint: 'https://redmine.test.com',
+                apiKey: 'test-redmine-key',
+              },
+              gitlab: {
+                endpoint: 'https://gitlab.test.com',
+                apiKey: 'test-gitlab-key',
+              },
+              mcp: {
+                serverConfig: { testMcp: { url: new URL('https://mcp.test.com') } },
+              },
+              systemPrompt: { content: 'test system prompt' },
+            },
+          });
         }, 100);
       });
     });
@@ -575,12 +599,12 @@ describe('SettingsModal Component', () => {
   test('保存中の状態表示を確認', async () => {
     const user = userEvent.setup({ delay: null });
 
-    // ストアの更新を遅延させる
-    window.electron.store.set = jest.fn().mockImplementation(
+    // 設定の保存を遅延させる
+    window.electron.settings.setSettings = jest.fn().mockImplementation(
       () =>
         new Promise((resolve) => {
           setTimeout(() => {
-            resolve(undefined);
+            resolve({ success: true, data: true });
           }, 100);
         }),
     );
@@ -595,11 +619,11 @@ describe('SettingsModal Component', () => {
     );
 
     await waitFor(() => {
-      expect(window.electron.store.get).toHaveBeenCalledTimes(7);
+      expect(window.electron.settings.getSettings).toHaveBeenCalledTimes(1);
     });
 
     // APIキーを更新
-    const apiKeyInput = screen.getAllByLabelText('APIキー')[0];
+    const apiKeyInput = screen.getByLabelText('APIキー');
     await waitFor(() => {
       expect(apiKeyInput).toBeEnabled();
     });
@@ -650,8 +674,8 @@ describe('SettingsModal Component', () => {
       .spyOn(console, 'error')
       .mockImplementation(() => {});
 
-    // ストアの取得に失敗するようにモックを設定
-    window.electron.store.get = jest
+    // 設定の取得に失敗するようにモックを設定
+    window.electron.settings.getSettings = jest
       .fn()
       .mockRejectedValue(new Error('Failed to get settings'));
 
@@ -667,7 +691,7 @@ describe('SettingsModal Component', () => {
     // エラーログが出力されることを確認
     await waitFor(() => {
       expect(consoleSpy).toHaveBeenCalledWith(
-        'Failed to get value for key "database":',
+        '設定の読み込みに処理失敗しました:',
         expect.any(Error),
       );
     });

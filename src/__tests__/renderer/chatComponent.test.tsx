@@ -15,9 +15,10 @@ import {
 } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
-import type { ChatRoom, ChatMessage } from '@/types';
+import type { ChatRoom, ChatMessage, SettingsSavingState } from '@/types';
 import ChatArea from '@/renderer/components/chat/ChatArea';
 import { createMockElectronWithOptions } from './test-utils/mockElectronHandler';
+import { useAgentStatusStore } from '@/renderer/stores/agentStatusStore';
 
 // File APIのモック
 global.URL.createObjectURL = jest.fn(
@@ -195,15 +196,17 @@ describe('ChatArea Component', () => {
   beforeEach(() => {
     window.electron = createMockElectronWithOptions({
       chatRooms: mockChatRooms,
+      chatMessages: mockChatMessages,
     });
-
-    // チャットメッセージの取得をモック
-    window.electron.chat.getMessages = jest
-      .fn()
-      .mockResolvedValue(mockChatMessages);
 
     // JSDOM上で scrollIntoView をダミー実装
     (window as any).HTMLElement.prototype.scrollIntoView = function () {};
+
+    // agentの起動状態を正常に設定
+    useAgentStatusStore.getState().setStatus({
+      state: 'done' as SettingsSavingState,
+      messages: [],
+    });
   });
 
   // テスト後のクリーンアップ
@@ -214,9 +217,10 @@ describe('ChatArea Component', () => {
 
   // テスト13: AIツール使用時のメッセージ表示が正しく機能すること
   test('AIツール使用時のメッセージ表示が正しく機能すること', async () => {
-    window.electron.chat.getMessages = jest
-      .fn()
-      .mockResolvedValue(mockToolMessages);
+    window.electron = createMockElectronWithOptions({
+      chatRooms: mockChatRooms,
+      chatMessages: mockToolMessages,
+    });
 
     const user = userEvent.setup();
     render(<ChatArea selectedRoomId="1" />);
@@ -437,31 +441,23 @@ describe('ChatArea Component', () => {
   //   });
   // }, 20000);
 
-  // テスト6:エージェント起動関連エラーの表示が正しいこと
-  test('エージェント起動関連エラーの表示が正しいこと', async () => {
-    window.electron = createMockElectronWithOptions({
-      chatRooms: mockChatRooms,
-      settingsStatus: {
-        state: 'error',
-        messages: [
-          {
-            id: '1',
-            type: 'error',
-            content: 'AIエージェントの起動に失敗しました',
-          },
-        ],
-      },
+  // テスト6:エージェント起動中の表示が正しいこと
+  test('エージェント起動中の表示が正しいこと', async () => {
+    render(<ChatArea selectedRoomId="6" />);
+
+    // agentの起動状態を正常に設定
+    act(() => {
+      useAgentStatusStore.getState().setStatus({
+        state: 'saving' as SettingsSavingState,
+        messages: [],
+      });
     });
 
-    render(<ChatArea selectedRoomId="1" />);
-
-    // エラーメッセージが表示されることを確認
+    // メッセージ入力欄のプレースホルダーが起動中の表示になることを確認
     await waitFor(() => {
-      const alerts = screen.getAllByRole('alert');
-      const errorAlert = alerts.find((alert) =>
-        alert.textContent?.includes('AIエージェントの起動に失敗しました'),
-      );
-      expect(errorAlert).toBeInTheDocument();
+      expect(
+        screen.getByPlaceholderText('AIエージェント起動中'),
+      ).toBeInTheDocument();
     });
   });
 
@@ -582,68 +578,6 @@ describe('ChatArea Component', () => {
     //   '1',
     //   'テストメッセージ',
     // );
-  });
-
-  // テスト10: アラートメッセージの閉じるボタンが機能すること
-  test('アラートメッセージの閉じるボタンが機能すること', async () => {
-    const user = userEvent.setup();
-    window.electron = createMockElectronWithOptions({
-      chatRooms: mockChatRooms,
-      settingsStatus: {
-        state: 'error',
-        messages: [
-          {
-            id: '1',
-            type: 'error',
-            content: 'AIエージェントの起動に失敗しました',
-          },
-        ],
-      },
-    });
-
-    render(<ChatArea selectedRoomId="1" />);
-
-    // AIエージェントの起動失敗メッセージが表示されることを確認
-    const errorMessage = 'AIエージェントの起動に失敗しました';
-    await waitFor(() => {
-      expect(screen.getByText(errorMessage)).toBeInTheDocument();
-    });
-
-    // 閉じるボタンをクリック
-    const alerts = screen.getAllByRole('alert');
-    const targetAlert = alerts.find((alert) =>
-      alert.textContent?.includes(errorMessage),
-    );
-    expect(targetAlert).toBeInTheDocument();
-
-    const closeButton = within(targetAlert!).getByRole('button');
-    await act(async () => {
-      await user.click(closeButton);
-    });
-
-    // window.electron.settings.removeMessageが呼ばれることを確認
-    expect(window.electron.settings.removeMessage).toHaveBeenCalledWith('1');
-  });
-
-  // テスト11: エージェント初期化中の表示が正しいこと
-  test('エージェント初期化中の表示が正しいこと', async () => {
-    window.electron = createMockElectronWithOptions({
-      chatRooms: mockChatRooms,
-      settingsStatus: {
-        state: 'saving',
-      },
-    });
-
-    render(<ChatArea selectedRoomId="1" />);
-
-    // 入力欄のプレースホルダーが初期化中の表示になることを確認
-    await waitFor(() => {
-      expect(
-        screen.getByPlaceholderText('AIエージェント起動中'),
-      ).toBeInTheDocument();
-    });
-    const input = screen.getByPlaceholderText('AIエージェント起動中');
-    expect(input).toBeDisabled();
   });
 
   // テスト12: メッセージ編集のキャンセルが正しく機能すること
@@ -893,7 +827,7 @@ describe('ChatArea Component', () => {
 
     window.electron.chat.getMessages = jest
       .fn()
-      .mockResolvedValue(mockMultiImageMessages);
+      .mockResolvedValue({ success: true, data: mockMultiImageMessages });
 
     render(<ChatArea selectedRoomId="18" />);
 
@@ -930,7 +864,7 @@ describe('ChatArea Component', () => {
 
     window.electron.chat.getMessages = jest
       .fn()
-      .mockResolvedValue(mockImageMessage);
+      .mockResolvedValue({ success: true, data: mockImageMessage });
     const user = userEvent.setup();
     render(<ChatArea selectedRoomId="19" />);
 

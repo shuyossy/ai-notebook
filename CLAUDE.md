@@ -214,12 +214,12 @@ ElectronのIPCを使用してフロントエンド・バックエンド間の通
 ## 依頼中タスク
 - テストの強化
   - 既存テストの修復: 実施中
+    - しばらく前に大規模リファクタリングをしたことをきっかけにテストが壊れているので、修復する
     - 既存テストは以下
-      - `src/__tests__/renderer/chatComponent.test.tsx`: 実施中
-      - `src/__tests__/renderer/SettingsModal.test.tsx`: 今後実行予定
-      - `src/__tests__/renderer/Sidebar.test.tsx`: 今後実行予定
-      - `src/__tests__/renderer/SourceListModal.test.tsx`: 今後実行予定
-    - しばらく前に大規模リファクタリングをしたことをきっかけにテストが壊れているので、修復する: 今後実行予定
+      - `src/__tests__/renderer/chatComponent.test.tsx`: 完了
+      - `src/__tests__/renderer/SettingsModal.test.tsx`: 完了
+      - `src/__tests__/renderer/Sidebar.test.tsx`: 完了
+      - `src/__tests__/renderer/SourceListModal.test.tsx`: 実施中
   - 既存テストの強化: 今後実行予定
     - ブラックボックス、ホワイトボックス的な観点が足りているか検証
     - 分岐カバレッジも100%になっているか検証
@@ -237,3 +237,7 @@ ElectronのIPCを使用してフロントエンド・バックエンド間の通
           - 少量ドキュメントレビュー
           - 大量ドキュメントレビュー
       - ドキュメント登録機能関連のserviceロジック
+
+## 依頼中タスクの注意点
+- テストを修正した後は必ず、テストを実行して成功するかどうか確かめてください
+- テスト実行にはかなりの時間がかかるので、コンテキスト節約等の工夫をしてください

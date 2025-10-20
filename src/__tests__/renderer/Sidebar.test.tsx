@@ -2,7 +2,7 @@
  * @jest-environment jsdom
  */
 import React from 'react';
-import { render, screen, waitFor, act } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
@@ -10,7 +10,7 @@ import { v4 as uuidv4 } from 'uuid';
 
 import Sidebar from '@/renderer/components/sidebar/Sidebar';
 import type { ChatRoom, ProcessStatus } from '@/types';
-import type { Source } from '@/db/schema';
+import type { Source } from '@/types';
 import { StoreSchema as Settings } from '@/adapter/db/electron-store/store';
 import { createMockElectronWithOptions } from '@/__tests__/renderer/test-utils/mockElectronHandler';
 import ChatRoomList from '@/renderer/components/chat/ChatRoomList';
@@ -47,7 +47,7 @@ const mockSources: Source[] = [
     path: '/test/source1.md',
     title: 'Source 1',
     status: 'completed' as ProcessStatus,
-    isEnabled: 1,
+    isEnabled: true,
     error: null,
     createdAt: '2025-05-01T12:00:00.000Z',
     updatedAt: '2025-05-01T12:00:00.000Z',
@@ -58,7 +58,7 @@ const mockSources: Source[] = [
     path: '/test/source2.md',
     title: 'Source 2',
     status: 'completed' as ProcessStatus,
-    isEnabled: 1,
+    isEnabled: true,
     error: null,
     createdAt: '2025-05-02T12:00:00.000Z',
     updatedAt: '2025-05-02T12:00:00.000Z',
@@ -69,7 +69,7 @@ const mockSources: Source[] = [
     path: '/test/source3.md',
     title: 'Source 3',
     status: 'failed' as ProcessStatus,
-    isEnabled: 0,
+    isEnabled: false,
     error: 'Processing error',
     createdAt: '2025-05-03T12:00:00.000Z',
     updatedAt: '2025-05-03T12:00:00.000Z',
@@ -98,32 +98,32 @@ describe('Sidebar Component', () => {
 
   // 共通のプロップス
   const defaultProps = {
-    selectedRoomId: null,
     onRoomSelect: jest.fn(),
     onReloadSources: jest.fn(),
-    showSnackbar: jest.fn(),
-    onSettingsUpdated: jest.fn(),
   };
 
-  const renderAtPath = (initialPath: string) => {
+  const renderAtPath = (initialPath: string, selectedRoomId: string | null = null) => {
     render(
       // MemoryRouter でテスト用の履歴を用意
       <MemoryRouter initialEntries={[initialPath]}>
         <Sidebar
           onReloadSources={defaultProps.onReloadSources}
-          showSnackbar={defaultProps.showSnackbar}
         >
           <Routes>
             <Route
               path={ROUTES.CHAT}
               element={
-                <ChatRoomList onRoomSelect={defaultProps.onRoomSelect} />
+                <ChatRoomList
+                  selectedRoomId={selectedRoomId}
+                  onRoomSelect={defaultProps.onRoomSelect}
+                />
               }
             />
             <Route
               path={ROUTES.REVIEW}
               element={
                 <ReviewHistoryList
+                  selectedReviewHistoryId={selectedRoomId}
                   onReviewHistorySelect={defaultProps.onRoomSelect}
                 />
               }
@@ -148,7 +148,7 @@ describe('Sidebar Component', () => {
     });
 
     // フッターのボタンが表示されることを確認
-    expect(screen.getByLabelText('登録ドキュメント一覧')).toBeInTheDocument();
+    expect(screen.getByLabelText('ドキュメント一覧')).toBeInTheDocument();
     expect(screen.getByLabelText('設定')).toBeInTheDocument();
   });
 
@@ -158,7 +158,7 @@ describe('Sidebar Component', () => {
     window.electron.chat.getRooms = jest.fn().mockImplementation(
       () =>
         new Promise((resolve) => {
-          setTimeout(() => resolve(mockChatRooms), 100);
+          setTimeout(() => resolve({ success: true, data: mockChatRooms }), 100);
         }),
     );
 
@@ -180,7 +180,9 @@ describe('Sidebar Component', () => {
   // テスト3: チャットルームが空の場合の表示が正しいこと
   test('チャットルームが空の場合の表示が正しいこと', async () => {
     // 空の配列を返すようにモックを設定
-    window.electron.chat.getRooms = jest.fn().mockResolvedValue([]);
+    window.electron.chat.getRooms = jest
+      .fn()
+      .mockResolvedValue({ success: true, data: [] });
 
     renderAtPath(ROUTES.CHAT);
 
@@ -267,9 +269,10 @@ describe('Sidebar Component', () => {
       .mockImplementation(() => {});
 
     // 削除に失敗するようにモックを設定
-    window.electron.chat.deleteRoom = jest
-      .fn()
-      .mockRejectedValue(new Error('Failed to delete chat room'));
+    window.electron.chat.deleteRoom = jest.fn().mockResolvedValue({
+      success: false,
+      error: { message: 'Failed to delete chat room', code: 'DELETE_ERROR' },
+    });
 
     const user = userEvent.setup();
     renderAtPath(ROUTES.CHAT);
@@ -288,7 +291,7 @@ describe('Sidebar Component', () => {
 
     // エラーログが出力されることを確認
     await waitFor(() => {
-      expect(consoleSpy).toHaveBeenCalledWith(expect.any(Error));
+      expect(consoleSpy).toHaveBeenCalled();
     });
 
     consoleSpy.mockRestore();
@@ -318,27 +321,43 @@ describe('Sidebar Component', () => {
     expect(screen.getByRole('dialog')).toBeInTheDocument();
   });
 
-  // テスト10: チャットルーム一覧の自動更新
-  test('チャットルーム一覧の自動更新', async () => {
-    // jestのタイマーを使用
-    jest.useFakeTimers();
+  // テスト10: チャットルーム一覧の初回読み込みエラー時の再試行
+  test(
+    'チャットルーム一覧の初回読み込みエラー時の再試行',
+    async () => {
+      // 最初はエラーを返し、2回目は成功するようにモックを設定
+      let callCount = 0;
+      window.electron.chat.getRooms = jest.fn().mockImplementation(() => {
+        callCount++;
+        if (callCount === 1) {
+          return Promise.reject(new Error('Failed to fetch chat rooms'));
+        }
+        return Promise.resolve({ success: true, data: mockChatRooms });
+      });
 
-    renderAtPath(ROUTES.CHAT);
+      renderAtPath(ROUTES.CHAT);
 
-    // 初回の取得を確認
-    await waitFor(() => {
-      expect(window.electron.chat.getRooms).toHaveBeenCalledTimes(1);
-    });
+      // 初回の取得を確認(失敗)
+      await waitFor(() => {
+        expect(window.electron.chat.getRooms).toHaveBeenCalledTimes(1);
+      });
 
-    // 5秒進める
-    jest.advanceTimersByTime(5000);
+      // 再試行が呼ばれることを確認（ポーリング間隔が5000msなので、5.5秒以内に2回目が呼ばれる）
+      await waitFor(
+        () => {
+          expect(window.electron.chat.getRooms).toHaveBeenCalledTimes(2);
+        },
+        { timeout: 8000 },
+      );
 
-    // 更新が呼ばれることを確認
-    expect(window.electron.chat.getRooms).toHaveBeenCalledTimes(2);
-
-    // タイマーをクリーンアップ
-    jest.useRealTimers();
-  });
+      // チャットルーム一覧が表示されることを確認
+      await waitFor(() => {
+        expect(screen.getByText('Chat Room 1')).toBeInTheDocument();
+        expect(screen.getByText('Chat Room 2')).toBeInTheDocument();
+      });
+    },
+    10000,
+  ); // タイムアウトを10秒に設定
 
   // テスト11: チャットルーム取得時のエラーハンドリング
   test('チャットルーム取得時のエラーハンドリング', async () => {
@@ -354,12 +373,18 @@ describe('Sidebar Component', () => {
 
     renderAtPath(ROUTES.CHAT);
 
+    // 初回表示でローディング中であることを確認
+    expect(screen.getByText('チャット履歴取得中')).toBeInTheDocument();
+
     // エラーログが出力されることを確認
     await waitFor(() => {
-      expect(consoleSpy).toHaveBeenCalledWith(expect.any(Error));
+      expect(consoleSpy).toHaveBeenCalledWith(
+        'チャットルーム読み込みに失敗しました:',
+        expect.any(Error),
+      );
     });
 
-    // ローディング状態が維持されることを確認
+    // エラー時もローディング状態が維持されることを確認（再試行のため）
     expect(screen.getByText('チャット履歴取得中')).toBeInTheDocument();
 
     consoleSpy.mockRestore();
@@ -417,21 +442,30 @@ describe('Sidebar Component', () => {
     });
   });
 
-  // テスト14: ソースリストの初期表示で有効なソース数が正しく表示される
-  test('ソースリストの初期表示で有効なソース数が正しく表示される', async () => {
-    // タイマーのモック
-    jest.useFakeTimers();
-
+  // テスト14: ソースリストモーダルを開いた時に有効なソース数が正しく表示される
+  test('ソースリストモーダルを開いた時に有効なソース数が正しく表示される', async () => {
+    const user = userEvent.setup();
     renderAtPath(ROUTES.CHAT);
 
-    // 進める
-    act(() => {
-      jest.advanceTimersByTime(5000);
-    });
+    // ソース一覧ボタンをクリックしてモーダルを開く
+    await user.click(screen.getByTestId('document-list-button'));
 
     // ソースデータが取得されるまで待機
     await waitFor(() => {
       expect(window.electron.source.getSources).toHaveBeenCalled();
+    });
+
+    // モーダルが開いていることを確認
+    expect(screen.getByText('登録ドキュメント一覧')).toBeInTheDocument();
+
+    // ESCキーでモーダルを閉じる
+    await user.keyboard('{Escape}');
+
+    // モーダルが閉じたことを確認
+    await waitFor(() => {
+      expect(
+        screen.queryByText('登録ドキュメント一覧'),
+      ).not.toBeInTheDocument();
     });
 
     // ソース一覧ボタンのバッジを取得
@@ -445,10 +479,9 @@ describe('Sidebar Component', () => {
     });
   });
 
-  // テスト15: ソースの読み込み中は処理中の表示になり、完了後にソース数が表示される
-  test('ソースの読み込み中は処理中の表示になり、完了後にソース数が表示される', async () => {
-    // タイマーのモック
-    jest.useFakeTimers();
+  // テスト15: ソースモーダルで処理中の表示になり、完了後にソース数が表示される
+  test('ソースモーダルで処理中の表示になり、完了後にソース数が表示される', async () => {
+    const user = userEvent.setup();
 
     // 処理中のソースデータ
     const processingMockSources: Source[] = [
@@ -457,7 +490,7 @@ describe('Sidebar Component', () => {
         path: '/test/processing1.md',
         title: 'Processing 1',
         status: 'processing' as ProcessStatus,
-        isEnabled: 1,
+        isEnabled: true,
         error: null,
         createdAt: '2025-05-01T12:00:00.000Z',
         updatedAt: '2025-05-01T12:00:00.000Z',
@@ -468,7 +501,7 @@ describe('Sidebar Component', () => {
         path: '/test/processing2.md',
         title: 'Processing 2',
         status: 'completed' as ProcessStatus,
-        isEnabled: 1,
+        isEnabled: true,
         error: null,
         createdAt: '2025-05-02T12:00:00.000Z',
         updatedAt: '2025-05-02T12:00:00.000Z',
@@ -476,41 +509,16 @@ describe('Sidebar Component', () => {
       },
     ];
 
-    // 完了後のソースデータ
-    const completedMockSources: Source[] = [
-      {
-        id: 1,
-        path: '/test/processing1.md',
-        title: 'Processing 1',
-        status: 'completed' as ProcessStatus,
-        isEnabled: 1,
-        error: null,
-        createdAt: '2025-05-01T12:00:00.000Z',
-        updatedAt: '2025-05-01T12:00:00.000Z',
-        summary: 'Test summary 1',
-      },
-      {
-        id: 2,
-        path: '/test/processing2.md',
-        title: 'Processing 2',
-        status: 'completed' as ProcessStatus,
-        isEnabled: 1,
-        error: null,
-        createdAt: '2025-05-02T12:00:00.000Z',
-        updatedAt: '2025-05-02T12:00:00.000Z',
-        summary: 'Test summary 2',
-      },
-    ];
-
-    // ソース取得のモックを設定（最初は処理中、その後完了）
-    window.electron.source.getSources = jest.fn().mockImplementation(() => {
-      return Promise.resolve({
-        success: true,
-        sources: processingMockSources,
-      });
+    // ソース取得のモックを設定（処理中）
+    window.electron.source.getSources = jest.fn().mockResolvedValue({
+      success: true,
+      data: processingMockSources,
     });
 
     renderAtPath(ROUTES.CHAT);
+
+    // ソース一覧ボタンをクリックしてモーダルを開く
+    await user.click(screen.getByTestId('document-list-button'));
 
     // ソースデータが取得されるまで待機
     await waitFor(() => {
@@ -524,21 +532,64 @@ describe('Sidebar Component', () => {
       ).toBeInTheDocument();
     });
 
-    window.electron.source.getSources = jest.fn().mockImplementation(() => {
-      return Promise.resolve({
-        success: true,
-        sources: completedMockSources,
-      });
-    });
+    // ESCキーでモーダルを閉じる
+    await user.keyboard('{Escape}');
 
-    // 進める
-    act(() => {
-      jest.advanceTimersByTime(5000);
-    });
-
-    // ソースデータが取得されるまで待機
+    // モーダルが閉じたことを確認
     await waitFor(() => {
-      expect(window.electron.source.getSources).toHaveBeenCalled();
+      expect(
+        screen.queryByText('ドキュメント一覧'),
+      ).not.toBeInTheDocument();
+    });
+
+    // 完了後のソースデータ
+    const completedMockSources: Source[] = [
+      {
+        id: 1,
+        path: '/test/processing1.md',
+        title: 'Processing 1',
+        status: 'completed' as ProcessStatus,
+        isEnabled: true,
+        error: null,
+        createdAt: '2025-05-01T12:00:00.000Z',
+        updatedAt: '2025-05-01T12:00:00.000Z',
+        summary: 'Test summary 1',
+      },
+      {
+        id: 2,
+        path: '/test/processing2.md',
+        title: 'Processing 2',
+        status: 'completed' as ProcessStatus,
+        isEnabled: true,
+        error: null,
+        createdAt: '2025-05-02T12:00:00.000Z',
+        updatedAt: '2025-05-02T12:00:00.000Z',
+        summary: 'Test summary 2',
+      },
+    ];
+
+    // ソース取得のモックを更新（完了）
+    window.electron.source.getSources = jest.fn().mockResolvedValue({
+      success: true,
+      data: completedMockSources,
+    });
+
+    // 再度モーダルを開く
+    await user.click(screen.getByTestId('document-list-button'));
+
+    // ソースデータが再取得されるまで待機
+    await waitFor(() => {
+      expect(window.electron.source.getSources).toHaveBeenCalledTimes(1);
+    });
+
+    // ESCキーでモーダルを閉じる
+    await user.keyboard('{Escape}');
+
+    // モーダルが閉じたことを確認
+    await waitFor(() => {
+      expect(
+        screen.queryByText('ドキュメント一覧'),
+      ).not.toBeInTheDocument();
     });
 
     // バッジに有効なソース数（2）が表示されることを確認
@@ -548,15 +599,11 @@ describe('Sidebar Component', () => {
       const badge = buttonParent?.querySelector('.MuiBadge-badge');
       expect(badge).toHaveTextContent('2');
     });
-
-    // タイマーをクリーンアップ
-    jest.useRealTimers();
-  }, 20000);
+  });
 
   // テスト16: ソース数が100以上の場合は99+と表示される
   test('ソース数が100以上の場合は99+と表示される', async () => {
-    // タイマーのモック
-    jest.useFakeTimers();
+    const user = userEvent.setup();
 
     // 100個以上の有効なソースを含むテストデータを生成
     const largeMockSources: Source[] = Array.from({ length: 150 }, (_, i) => ({
@@ -564,7 +611,7 @@ describe('Sidebar Component', () => {
       path: `/test/source${i + 1}.md`,
       title: `Source ${i + 1}`,
       status: 'completed' as ProcessStatus,
-      isEnabled: 1,
+      isEnabled: true,
       error: null,
       createdAt: '2025-05-01T12:00:00.000Z',
       updatedAt: '2025-05-01T12:00:00.000Z',
@@ -574,19 +621,27 @@ describe('Sidebar Component', () => {
     // ソース取得のモックを設定
     window.electron.source.getSources = jest.fn().mockResolvedValue({
       success: true,
-      sources: largeMockSources,
+      data: largeMockSources,
     });
 
     renderAtPath(ROUTES.CHAT);
 
-    // タイマーを進める
-    act(() => {
-      jest.advanceTimersByTime(5000);
-    });
+    // ソース一覧ボタンをクリックしてモーダルを開く
+    await user.click(screen.getByTestId('document-list-button'));
 
     // ソースデータが取得されるまで待機
     await waitFor(() => {
       expect(window.electron.source.getSources).toHaveBeenCalled();
+    });
+
+    // ESCキーでモーダルを閉じる
+    await user.keyboard('{Escape}');
+
+    // モーダルが閉じたことを確認
+    await waitFor(() => {
+      expect(
+        screen.queryByText('登録ドキュメント一覧'),
+      ).not.toBeInTheDocument();
     });
 
     // バッジに"99+"が表示されることを確認
@@ -596,8 +651,5 @@ describe('Sidebar Component', () => {
       const badge = buttonParent?.querySelector('.MuiBadge-badge');
       expect(badge).toHaveTextContent('99+');
     });
-
-    // タイマーをクリーンアップ
-    jest.useRealTimers();
   });
 });

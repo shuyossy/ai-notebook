@@ -4,6 +4,7 @@ import React, {
   useCallback,
   forwardRef,
   useImperativeHandle,
+  useRef,
 } from 'react';
 import {
   List,
@@ -42,6 +43,8 @@ const ChatRoomList = forwardRef<ChatRoomListRef, ChatRoomListProps>(
     const [menuAnchorEl, setMenuAnchorEl] = useState<null | HTMLElement>(null);
     // メニュー選択中のチャットルームID
     const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
+    // ポーリング用のintervalIdを保持（useEffectの再実行でクリアされないようにする）
+    const intervalIdRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     // チャットルーム一覧を取得
     const fetchChatRooms = useCallback(async () => {
@@ -63,7 +66,6 @@ const ChatRoomList = forwardRef<ChatRoomListRef, ChatRoomListProps>(
     // 初期データ読み込み
     useEffect(() => {
       setLoading(true);
-      let intervalId: ReturnType<typeof setInterval> | null = null;
 
       const loadChatRooms = async () => {
         try {
@@ -71,15 +73,15 @@ const ChatRoomList = forwardRef<ChatRoomListRef, ChatRoomListProps>(
           setLoading(false);
 
           // 読み込み成功したらポーリングを停止
-          if (intervalId) {
-            clearInterval(intervalId);
-            intervalId = null;
+          if (intervalIdRef.current) {
+            clearInterval(intervalIdRef.current);
+            intervalIdRef.current = null;
           }
         } catch (error) {
           console.error('チャットルーム読み込みに失敗しました:', error);
           // 失敗時はポーリングを継続（既に設定済みの場合は何もしない）
-          if (!intervalId) {
-            intervalId = setInterval(loadChatRooms, 5000);
+          if (!intervalIdRef.current) {
+            intervalIdRef.current = setInterval(loadChatRooms, 5000);
           }
         }
       };
@@ -89,8 +91,9 @@ const ChatRoomList = forwardRef<ChatRoomListRef, ChatRoomListProps>(
 
       // クリーンアップでポーリング停止
       return () => {
-        if (intervalId) {
-          clearInterval(intervalId);
+        if (intervalIdRef.current) {
+          clearInterval(intervalIdRef.current);
+          intervalIdRef.current = null;
         }
       };
     }, [fetchChatRooms]);
