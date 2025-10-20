@@ -17,7 +17,7 @@ import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import type { ChatRoom, ChatMessage } from '@/types';
 import ChatArea from '@/renderer/components/chat/ChatArea';
-import { createMockElectronWithOptions } from '../test-utils/mockElectronHandler';
+import { createMockElectronWithOptions } from './test-utils/mockElectronHandler';
 
 // File APIのモック
 global.URL.createObjectURL = jest.fn(
@@ -380,6 +380,7 @@ describe('ChatArea Component', () => {
   // テスト5: ストリーミングレスポンスの処理が正しく機能すること
   // このテストは、ストリーミングレスポンスの処理を確認するためのものですが、
   // JSDOM環境でReadableStreamがサポートされていないため、実行不可
+  // テスト不可であることを残すため、コメントアウトをそのまま残す
   // whatwg-fetchを使用してReadableStreamをモック化してもuseChatのストリーミング処理が正しく動作しないため、コメントアウト
   // test('ストリーミングレスポンスの処理が正しく機能すること', async () => {
   //   let streamCallback: (data: any) => void = () => {};
@@ -517,6 +518,7 @@ describe('ChatArea Component', () => {
 
   // テスト8: ストリーミング中に停止ボタンが機能すること
   // ストリーミング処理が実施されないため停止ボタンも表示されない
+  // テスト不可であることを残すため、コメントアウトをそのまま残す
   // test('ストリーミング中に停止ボタンが機能すること', async () => {
   //   const user = userEvent.setup();
   //   render(<ChatArea selectedRoomId="1" />);
@@ -567,6 +569,7 @@ describe('ChatArea Component', () => {
     expect(window.electron.chat.sendMessage).not.toHaveBeenCalled();
 
     // fireEventでIME変換をシミュレートした場合、Enterキーを押してもIME変換が確定しないため、後続はコメントアウト
+    // テスト不可であることを残すため、コメントアウトをそのまま残す
 
     // // IME変換確定イベントをシミュレート
     // fireEvent.compositionEnd(input);

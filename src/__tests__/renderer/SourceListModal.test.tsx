@@ -14,7 +14,7 @@ import '@testing-library/jest-dom';
 import SourceListModal from '@/renderer/components/common/SourceListModal';
 import type { Source } from '@/db/schema';
 import { ProcessStatus } from '@/types';
-import { createMockElectronWithOptions } from '@/__tests__/test-utils/mockElectronHandler';
+import { createMockElectronWithOptions } from '@/__tests__/renderer/test-utils/mockElectronHandler';
 
 // テスト用のモックデータ
 const mockSources: Source[] = [
