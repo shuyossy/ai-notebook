@@ -64,10 +64,13 @@ const analyzeSourceStep = createStep({
         summary: z.string(),
       });
 
-      const analysisResult = await summarizeSourceAgent.generate(content, {
-        runtimeContext: await createRuntimeContext(),
-        output: outputSchema,
-      });
+      const analysisResult = await summarizeSourceAgent.generateLegacy(
+        content,
+        {
+          runtimeContext: await createRuntimeContext(),
+          output: outputSchema,
+        },
+      );
 
       const { success, reason } = judgeFinishReason(
         analysisResult.finishReason,
@@ -154,7 +157,7 @@ const extractTopicAndSummaryStep = createStep({
         ),
       });
 
-      const analysisResult = await summarizeTopicAgent.generate(content, {
+      const analysisResult = await summarizeTopicAgent.generateLegacy(content, {
         runtimeContext: await createRuntimeContext(),
         output: outputSchema,
       });

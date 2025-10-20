@@ -222,7 +222,7 @@ export class SourceService implements ISourceService {
             try {
               // Mastraインスタンスからワークフローを取得して実行
               const workflow = mastra.getWorkflow('sourceRegistrationWorkflow');
-              const run = workflow.createRun();
+              const run = await workflow.createRunAsync();
               const result = await run.start({
                 inputData: { filePath },
               });

@@ -165,7 +165,7 @@ export const documentQueryTool = createTool({
 
             runtimeContext.set('documentContent', content);
 
-            const res = await documentExpertAgent.generate(item.query, {
+            const res = await documentExpertAgent.generateLegacy(item.query, {
               abortSignal: options?.abortSignal,
               runtimeContext,
             });

@@ -118,11 +118,14 @@ Please review the document against the above checklist items.`;
         };
 
         // レビューエージェントを使用してレビューを実行
-        const reviewResult = await reviewAgent.generate(messageWithReminder, {
-          output: outputSchema,
-          runtimeContext,
-          abortSignal,
-        });
+        const reviewResult = await reviewAgent.generateLegacy(
+          messageWithReminder,
+          {
+            output: outputSchema,
+            runtimeContext,
+            abortSignal,
+          },
+        );
         const { success, reason } = judgeFinishReason(
           reviewResult.finishReason,
         );

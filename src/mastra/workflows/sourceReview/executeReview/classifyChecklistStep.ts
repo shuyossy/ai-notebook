@@ -103,7 +103,7 @@ export const classifyChecklistsByCategoryStep = createStep({
       );
       runtimeContext.set('maxCategories', MAX_CATEGORIES);
       // チェックリスト項目をカテゴリごとに分類
-      const classificationResult = await classifiCategoryAgent.generate(
+      const classificationResult = await classifiCategoryAgent.generateLegacy(
         `checklist items:
   ${checklistData.map((item) => `ID: ${item.id} - ${item.content}`).join('\n')}`,
         {

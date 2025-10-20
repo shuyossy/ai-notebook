@@ -170,7 +170,7 @@ Please provide a consolidated review that synthesizes all individual document re
         runtimeContext.set('checklistItems', targetChecklists);
 
         // 統合レビューエージェントを使用して統合レビューを実行
-        const consolidatedResult = await consolidateAgent.generate(
+        const consolidatedResult = await consolidateAgent.generateLegacy(
           reviewMessage,
           {
             output: outputSchema,

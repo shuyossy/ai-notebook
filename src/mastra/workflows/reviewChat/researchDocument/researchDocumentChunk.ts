@@ -12,10 +12,7 @@ import {
   judgeErrorIsContentLengthError,
 } from '@/mastra/lib/agentUtils';
 import { getReviewRepository } from '@/adapter/db';
-import {
-  judgeReviewMode,
-  buildResearchChecklistInfo,
-} from '../lib';
+import { judgeReviewMode, buildResearchChecklistInfo } from '../lib';
 
 const logger = getMainLogger();
 
@@ -113,7 +110,7 @@ export const researchChunkStep = createStep({
 
       // Mastraエージェント経由でAI呼び出し
       const researchAgent = mastra.getAgent('reviewChatResearchAgent');
-      const result = await researchAgent.generate(
+      const result = await researchAgent.generateLegacy(
         {
           role: 'user',
           content: messageContent,

@@ -322,7 +322,7 @@ const setupChatHandlers = () => {
 
   // スレッド作成ハンドラ
   handleIpc(IpcChannels.CHAT_CREATE_THREAD, async ({ roomId, title }) => {
-    await chatService.createThread(roomId, title, userId);
+    await chatService.createThread(userId, roomId, title);
     return undefined as never;
   });
 };

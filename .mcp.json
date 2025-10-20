@@ -4,7 +4,7 @@
       "command": "npx",
       "args": [
         "-y",
-        "@mastra/mcp-docs-server@0.13.13"
+        "@mastra/mcp-docs-server@0.13.31"
       ],
       "autoApprove": [
         "mastraDocs",

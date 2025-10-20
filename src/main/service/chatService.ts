@@ -179,7 +179,7 @@ export class ChatService implements IChatService {
           value: 'processing',
         });
         // streaming falseの場合のメッセージ送信処理
-        const res = await orchestratorAgent.generate(messages, {
+        const res = await orchestratorAgent.generateLegacy(messages, {
           runtimeContext,
           toolsets,
           resourceId: userId,
@@ -278,24 +278,11 @@ export class ChatService implements IChatService {
         messageParams: { detail: '対象メッセージが見つかりません' },
       });
     }
-    // 最初のメッセージからmessageIdに対応するメッセージまでの履歴を取得
-    const history = messages.slice(0, targetMessageIndex);
+    // 対象メッセージを含めたそれ以降のメッセージを抽出
+    const messagesToDelete = messages.slice(targetMessageIndex);
 
-    // スレッドを削除
-    await memory.storage.deleteThread({ threadId });
-
-    // スレッドを再作成
-    // await this.memory.createThread({
-    //   resourceId: 'user',
-    //   title: '',
-    //   threadId,
-    // });
-
-    // 取得した履歴をメモリに保存
-    await memory.saveMessages({
-      messages: history,
-      memoryConfig: undefined,
-    });
+    // 抽出したメッセージを削除
+    await memory.deleteMessages(messagesToDelete.map((msg) => msg.id));
   }
 
   /**

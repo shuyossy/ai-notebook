@@ -16,10 +16,7 @@ import {
 import { IpcChannels } from '@/types';
 import { publishEvent } from '@/main/lib/eventPayloadHelper';
 import { ReviewChatWorkflowRuntimeContext } from '.';
-import {
-  judgeReviewMode,
-  buildAnswerChecklistInfo,
-} from './lib';
+import { judgeReviewMode, buildAnswerChecklistInfo } from './lib';
 
 const logger = getMainLogger();
 
@@ -70,10 +67,9 @@ export const generateAnswerStep = createStep({
       const reviewMode = judgeReviewMode(checklistResults);
 
       // ドキュメントキャッシュ情報を取得
-      const documentCaches =
-        await reviewRepository.getReviewDocumentCacheByIds(
-          researchResults.map((r) => r.documentCacheId),
-        );
+      const documentCaches = await reviewRepository.getReviewDocumentCacheByIds(
+        researchResults.map((r) => r.documentCacheId),
+      );
 
       // チェックリスト情報の文字列を生成（ヘルパー関数を利用）
       const checklistInfo = buildAnswerChecklistInfo(checklistResults);
@@ -81,7 +77,9 @@ export const generateAnswerStep = createStep({
       // 調査結果を統合
       const researchSummary = researchResults
         .map((result) => {
-          const doc = documentCaches.find((dc) => dc.id === result.documentCacheId);
+          const doc = documentCaches.find(
+            (dc) => dc.id === result.documentCacheId,
+          );
           return `Document: ${doc?.fileName || 'Unknown'}
 Research Findings:
 ${result.researchResult}`;
@@ -99,7 +97,7 @@ ${result.researchResult}`;
 
       // Mastraエージェント経由でストリーミングAI呼び出し
       const answerAgent = mastra.getAgent('reviewChatAnswerAgent');
-      const result = await answerAgent.generate(promptText, {
+      const result = await answerAgent.generateLegacy(promptText, {
         runtimeContext,
         abortSignal,
         onStepFinish: (stepResult) => {

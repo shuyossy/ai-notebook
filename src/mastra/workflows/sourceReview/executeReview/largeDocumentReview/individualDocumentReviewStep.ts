@@ -129,7 +129,7 @@ Checklist Items to Review:\n${checklists.map((item) => `- ID: ${item.id} - ${ite
         runtimeContext.set('commentFormat', commentFormat);
 
         // レビューエージェントを使用してレビューを実行
-        const reviewResult = await reviewAgent.generate(reviewMessage, {
+        const reviewResult = await reviewAgent.generateLegacy(reviewMessage, {
           output: outputSchema,
           runtimeContext,
           abortSignal,

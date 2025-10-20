@@ -8,7 +8,7 @@ import { getMainLogger } from '@/main/lib/logger';
 const logger = getMainLogger();
 
 // workflowの結果を確認するための関数
-export function checkWorkflowResult(result: WorkflowResult<any, any>): {
+export function checkWorkflowResult(result: WorkflowResult<any, any, any, any>): {
   status: 'success' | 'failed' | 'suspended' | 'canceled';
   errorMessage?: string;
 } {

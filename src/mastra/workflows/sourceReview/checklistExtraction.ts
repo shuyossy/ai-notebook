@@ -118,7 +118,7 @@ const checklistDocumentExtractionStep = createStep({
           await createRuntimeContext<ChecklistExtractionAgentRuntimeContext>();
         // これまでに抽出したチェックリスト項目
         runtimeContext.set('extractedItems', accumulated);
-        const extractionResult = await checklistExtractionAgent.generate(
+        const extractionResult = await checklistExtractionAgent.generateLegacy(
           message,
           {
             output: outputSchema,
@@ -279,11 +279,14 @@ const topicExtractionStep = createStep({
         runtimeContext.set('checklistRequirements', checklistRequirements);
       }
 
-      const extractionResult = await topicExtractionAgent.generate(message, {
-        output: outputSchema,
-        runtimeContext,
-        abortSignal,
-      });
+      const extractionResult = await topicExtractionAgent.generateLegacy(
+        message,
+        {
+          output: outputSchema,
+          runtimeContext,
+          abortSignal,
+        },
+      );
 
       logger.debug(
         `Combined document extracted topics for creating checklist:`,
@@ -358,7 +361,7 @@ const topicChecklistCreationStep = createStep({
         runtimeContext.set('checklistRequirements', checklistRequirements);
       }
 
-      const result = await topicChecklistAgent.generate(message, {
+      const result = await topicChecklistAgent.generateLegacy(message, {
         output: outputSchema,
         runtimeContext,
         abortSignal,
@@ -437,7 +440,7 @@ const topicChecklistCreationStep = createStep({
 
 //       // const allItemsText = allChecklistItems.join('\n- ');
 
-//       // const result = await checklistIntegrationAgent.generate(
+//       // const result = await checklistIntegrationAgent.generateLegacy(
 //       //   allItemsText,
 //       //   {
 //       //     output: outputSchema,

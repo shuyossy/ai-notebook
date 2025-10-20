@@ -1,6 +1,5 @@
 // @ts-ignore
 import { RuntimeContext } from '@mastra/core/runtime-context';
-import { FinishReason } from 'ai';
 import { getSettingsRepository } from '@/adapter/db';
 import { BaseRuntimeContext } from '../agents/types';
 import { AppError, extractAIAPISafeError } from '@/main/lib/error';
@@ -21,10 +20,13 @@ export async function createRuntimeContext<T extends BaseRuntimeContext>() {
 }
 
 // finishreasonを元に正常終了かどうかを判定する関数
-export function judgeFinishReason(finishReason: FinishReason): {
+export function judgeFinishReason(finishReason?: string): {
   success: boolean;
   reason: string;
 } {
+  if (!finishReason) {
+    return { success: true, reason: '不明な終了理由' };
+  }
   switch (finishReason) {
     case 'stop':
       return { success: true, reason: '正常終了' };

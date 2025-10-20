@@ -90,12 +90,14 @@ const customFetch: typeof fetch = async (input, init) => {
           controller.close();
         });
 
-        // 購読完了後にメッセージ送信
-        chatApi.sendMessage(roomId!, messages, {
-          // 上記onErrorでstreamのエラー処理として処理され、エラーメッセージが表示されるためここでは表示しない
-          showAlert: false,
-          throwError: false,
-        });
+        if (init?.method === 'POST') {
+          // 購読完了後にメッセージ送信
+          chatApi.sendMessage(roomId!, messages, {
+            // 上記onErrorでstreamのエラー処理として処理され、エラーメッセージが表示されるためここでは表示しない
+            showAlert: false,
+            throwError: false,
+          });
+        }
       },
       cancel() {
         unsubscribe();
@@ -361,7 +363,6 @@ const ChatArea: React.FC<ChatAreaProps> = ({
       setEditMessageId('');
       setEditMessageContent('');
       setIsEditHistory(false);
-      reload();
     }
   };
 

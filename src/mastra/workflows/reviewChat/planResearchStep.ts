@@ -12,10 +12,7 @@ import {
   judgeFinishReason,
 } from '@/mastra/lib/agentUtils';
 import { reviewChatInputSchema } from '.';
-import {
-  judgeReviewMode,
-  buildPlanningChecklistInfo,
-} from './lib';
+import { judgeReviewMode, buildPlanningChecklistInfo } from './lib';
 
 const logger = getMainLogger();
 
@@ -89,7 +86,7 @@ export const planResearchStep = createStep({
 
       // Mastraエージェント経由でAI呼び出し（構造化出力）
       const planningAgent = mastra.getAgent('reviewChatPlanningAgent');
-      const result = await planningAgent.generate(question, {
+      const result = await planningAgent.generateLegacy(question, {
         runtimeContext,
         output: researchTasksSchema,
       });
