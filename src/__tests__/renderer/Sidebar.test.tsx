@@ -2,7 +2,7 @@
  * @jest-environment jsdom
  */
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, act } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
@@ -651,5 +651,128 @@ describe('Sidebar Component', () => {
       const badge = buttonParent?.querySelector('.MuiBadge-badge');
       expect(badge).toHaveTextContent('99+');
     });
+  });
+
+  // テスト17: チャットルーム一覧の初回データ取得が成功した場合は、ポーリングを解除すること
+  test('チャットルーム一覧の初回データ取得が成功した場合は、ポーリングを解除すること', async () => {
+    // タイマーをモック化
+    jest.useFakeTimers();
+
+    // 1回目はエラー、2回目以降は成功するモック
+    window.electron.chat.getRooms = jest
+      .fn()
+      .mockRejectedValueOnce(new Error('Failed to fetch chat rooms'))
+      .mockResolvedValue({ success: true, data: mockChatRooms });
+
+    // コンソールエラーをスパイ
+    const consoleSpy = jest
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
+
+    renderAtPath(ROUTES.CHAT);
+
+    // 初回呼び出し（エラー）を待機
+    await waitFor(() => {
+      expect(window.electron.chat.getRooms).toHaveBeenCalledTimes(1);
+    });
+
+    // 5秒進める前にマイクロタスクを処理してポーリングを設定
+    await act(async () => {
+      await Promise.resolve();
+      jest.advanceTimersByTime(5000);
+      await Promise.resolve();
+    });
+
+    // 2回目の呼び出し（成功）を待機
+    await waitFor(() => {
+      expect(window.electron.chat.getRooms).toHaveBeenCalledTimes(2);
+    });
+
+    // さらに10秒進めてもそれ以上呼ばれないことを確認
+    await act(async () => {
+      jest.advanceTimersByTime(10000);
+      await Promise.resolve();
+    });
+
+    // 少し待ってから確認
+    await waitFor(() => {
+      expect(window.electron.chat.getRooms).toHaveBeenCalledTimes(2);
+    });
+
+    consoleSpy.mockRestore();
+    jest.useRealTimers();
+  });
+
+  // テスト18: チャットルーム一覧コンポーネントがアンマウントされた際、ポーリングが停止すること
+  test('チャットルーム一覧コンポーネントがアンマウントされた際、ポーリングが停止すること', async () => {
+    // タイマーをモック化
+    jest.useFakeTimers();
+
+    // 常にエラーを返すモック（ポーリングが継続するようにする）
+    window.electron.chat.getRooms = jest
+      .fn()
+      .mockRejectedValue(new Error('Failed to fetch chat rooms'));
+
+    // コンソールエラーをスパイ
+    const consoleSpy = jest
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
+
+    // コンポーネントをレンダリング
+    const { unmount } = render(
+      <MemoryRouter initialEntries={[ROUTES.CHAT]}>
+        <Sidebar onReloadSources={defaultProps.onReloadSources}>
+          <Routes>
+            <Route
+              path={ROUTES.CHAT}
+              element={
+                <ChatRoomList
+                  selectedRoomId={null}
+                  onRoomSelect={defaultProps.onRoomSelect}
+                />
+              }
+            />
+          </Routes>
+        </Sidebar>
+      </MemoryRouter>,
+    );
+
+    // 初回呼び出しを待機
+    await waitFor(() => {
+      expect(window.electron.chat.getRooms).toHaveBeenCalled();
+    });
+
+    // 5秒進める（ポーリング1回目）
+    await act(async () => {
+      await Promise.resolve();
+      jest.advanceTimersByTime(5000);
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(window.electron.chat.getRooms).toHaveBeenCalled();
+    });
+
+    const callCountBeforeUnmount = (window.electron.chat.getRooms as jest.Mock)
+      .mock.calls.length;
+
+    // コンポーネントをアンマウント
+    unmount();
+
+    // さらに10秒進める
+    await act(async () => {
+      jest.advanceTimersByTime(10000);
+      await Promise.resolve();
+    });
+
+    // ポーリングが停止していることを確認（呼び出し回数が増えない）
+    await waitFor(() => {
+      expect(
+        (window.electron.chat.getRooms as jest.Mock).mock.calls.length,
+      ).toBe(callCountBeforeUnmount);
+    });
+
+    consoleSpy.mockRestore();
+    jest.useRealTimers();
   });
 });

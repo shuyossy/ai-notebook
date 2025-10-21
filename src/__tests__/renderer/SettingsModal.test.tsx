@@ -2,7 +2,7 @@
  * @jest-environment jsdom
  */
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 
@@ -697,5 +697,944 @@ describe('SettingsModal Component', () => {
     });
 
     consoleSpy.mockRestore();
+  });
+
+  // テスト10: 初回設定データ取得がエラーの場合、ポーリングで初回データ取得を継続すること
+  test('初回設定データ取得がエラーの場合、ポーリングで初回データ取得を継続すること', async () => {
+    // タイマーをモック化
+    jest.useFakeTimers();
+
+    // 常にエラーを返すモック
+    window.electron.settings.getSettings = jest
+      .fn()
+      .mockRejectedValue(new Error('Failed to get settings'));
+
+    // コンソールエラーをスパイ
+    const consoleSpy = jest
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
+
+    render(
+      <SettingsModal
+        open={defaultProps.open}
+        onClose={defaultProps.onClose}
+        onSettingsUpdated={defaultProps.onSettingsUpdated}
+        onValidChange={defaultProps.onValidChange}
+      />,
+    );
+
+    // 初回呼び出しを待機
+    await waitFor(() => {
+      expect(window.electron.settings.getSettings).toHaveBeenCalledTimes(1);
+    });
+
+    // エラーログが出力されることを確認
+    expect(consoleSpy).toHaveBeenCalledWith(
+      '設定の読み込みに処理失敗しました:',
+      expect.any(Error),
+    );
+
+    // 5秒進める（ポーリング1回目）
+    await act(async () => {
+      await Promise.resolve();
+      jest.advanceTimersByTime(5000);
+      await Promise.resolve();
+    });
+
+    // 2回目の呼び出しを待機
+    await waitFor(() => {
+      expect(window.electron.settings.getSettings).toHaveBeenCalledTimes(2);
+    });
+
+    // さらに5秒進める（ポーリング2回目）
+    await act(async () => {
+      jest.advanceTimersByTime(5000);
+      await Promise.resolve();
+    });
+
+    // 3回目の呼び出しを待機
+    await waitFor(() => {
+      expect(window.electron.settings.getSettings).toHaveBeenCalledTimes(3);
+    });
+
+    consoleSpy.mockRestore();
+    jest.useRealTimers();
+  });
+
+  // テスト11: 初回設定データ取得が成功した場合は、ポーリングを解除すること
+  test('初回設定データ取得が成功した場合は、ポーリングを解除すること', async () => {
+    // タイマーをモック化
+    jest.useFakeTimers();
+
+    // 1回目はエラー、2回目以降は成功するモック
+    window.electron.settings.getSettings = jest
+      .fn()
+      .mockRejectedValueOnce(new Error('Failed to get settings'))
+      .mockResolvedValue({
+        success: true,
+        data: {
+          database: { dir: '/test/db' },
+          source: { registerDir: './test/source' },
+          api: {
+            key: 'test-api-key',
+            url: 'https://api.test.com',
+            model: 'test-model',
+          },
+          redmine: {
+            endpoint: 'https://redmine.test.com',
+            apiKey: 'test-redmine-key',
+          },
+          gitlab: {
+            endpoint: 'https://gitlab.test.com',
+            apiKey: 'test-gitlab-key',
+          },
+          mcp: {
+            serverConfig: { testMcp: { url: new URL('https://mcp.test.com') } },
+          },
+          systemPrompt: { content: 'test system prompt' },
+        },
+      });
+
+    // コンソールエラーをスパイ
+    const consoleSpy = jest
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
+
+    render(
+      <SettingsModal
+        open={defaultProps.open}
+        onClose={defaultProps.onClose}
+        onSettingsUpdated={defaultProps.onSettingsUpdated}
+        onValidChange={defaultProps.onValidChange}
+      />,
+    );
+
+    // 初回呼び出し（エラー）を待機
+    await waitFor(() => {
+      expect(window.electron.settings.getSettings).toHaveBeenCalledTimes(1);
+    });
+
+    // 5秒進める前にマイクロタスクを処理してポーリングを設定
+    await act(async () => {
+      await Promise.resolve();
+      jest.advanceTimersByTime(5000);
+      await Promise.resolve();
+    });
+
+    // 2回目の呼び出し（成功）を待機
+    await waitFor(() => {
+      expect(window.electron.settings.getSettings).toHaveBeenCalledTimes(2);
+    });
+
+    // さらに10秒進めてもそれ以上呼ばれないことを確認
+    await act(async () => {
+      jest.advanceTimersByTime(10000);
+      await Promise.resolve();
+    });
+
+    // 少し待ってから確認
+    await waitFor(() => {
+      expect(window.electron.settings.getSettings).toHaveBeenCalledTimes(2);
+    });
+
+    consoleSpy.mockRestore();
+    jest.useRealTimers();
+  });
+
+  // テスト12: 初回エージェント状態取得がエラーの場合、ポーリングで取得を継続すること
+  test('初回エージェント状態取得がエラーの場合、ポーリングで取得を継続すること', async () => {
+    // タイマーをモック化
+    jest.useFakeTimers();
+
+    // getStatusが常にエラーを返すモック
+    window.electron.settings.getStatus = jest
+      .fn()
+      .mockRejectedValue(new Error('Failed to get agent status'));
+
+    // コンソールエラーをスパイ
+    const consoleSpy = jest
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
+
+    render(
+      <SettingsModal
+        open={defaultProps.open}
+        onClose={defaultProps.onClose}
+        onSettingsUpdated={defaultProps.onSettingsUpdated}
+        onValidChange={defaultProps.onValidChange}
+      />,
+    );
+
+    // 初回呼び出しを待機
+    await waitFor(() => {
+      expect(window.electron.settings.getStatus).toHaveBeenCalled();
+    });
+
+    // エラーログが出力されることを確認（invokeApiのログ）
+    expect(consoleSpy).toHaveBeenCalledWith(
+      'API通信に失敗しました:',
+      expect.any(Error),
+    );
+
+    const initialCallCount = (window.electron.settings.getStatus as jest.Mock)
+      .mock.calls.length;
+
+    // 5秒進める（ポーリング1回目）
+    await act(async () => {
+      await Promise.resolve();
+      jest.advanceTimersByTime(5000);
+      await Promise.resolve();
+    });
+
+    // 呼び出し回数が増えることを確認
+    await waitFor(() => {
+      expect(
+        (window.electron.settings.getStatus as jest.Mock).mock.calls.length,
+      ).toBeGreaterThan(initialCallCount);
+    });
+
+    const afterFirstPollCallCount = (
+      window.electron.settings.getStatus as jest.Mock
+    ).mock.calls.length;
+
+    // さらに5秒進める（ポーリング2回目）
+    await act(async () => {
+      jest.advanceTimersByTime(5000);
+      await Promise.resolve();
+    });
+
+    // さらに呼び出し回数が増えることを確認
+    await waitFor(() => {
+      expect(
+        (window.electron.settings.getStatus as jest.Mock).mock.calls.length,
+      ).toBeGreaterThan(afterFirstPollCallCount);
+    });
+
+    consoleSpy.mockRestore();
+    jest.useRealTimers();
+  });
+
+  // テスト13: エージェント状態が'saving'の場合、ポーリングで取得を継続すること
+  test("エージェント状態が'saving'の場合、ポーリングで取得を継続すること", async () => {
+    // タイマーをモック化
+    jest.useFakeTimers();
+
+    // 最初2回は'saving'、3回目以降は'ready'を返すモック
+    window.electron.settings.getStatus = jest
+      .fn()
+      .mockResolvedValueOnce({
+        success: true,
+        data: {
+          state: 'saving' as const,
+          messages: [],
+          tools: {
+            document: false,
+            redmine: false,
+            gitlab: false,
+            mcp: false,
+          },
+        },
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        data: {
+          state: 'saving' as const,
+          messages: [],
+          tools: {
+            document: false,
+            redmine: false,
+            gitlab: false,
+            mcp: false,
+          },
+        },
+      })
+      .mockResolvedValue({
+        success: true,
+        data: {
+          state: 'done' as const,
+          messages: [],
+          tools: {
+            document: false,
+            redmine: false,
+            gitlab: false,
+            mcp: false,
+          },
+        },
+      });
+
+    // コンソールエラーをスパイ
+    const consoleSpy = jest
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
+
+    render(
+      <SettingsModal
+        open={defaultProps.open}
+        onClose={defaultProps.onClose}
+        onSettingsUpdated={defaultProps.onSettingsUpdated}
+        onValidChange={defaultProps.onValidChange}
+      />,
+    );
+
+    // 初回呼び出しを待機（state: 'saving'）
+    await waitFor(() => {
+      expect(window.electron.settings.getStatus).toHaveBeenCalledTimes(1);
+    });
+
+    // エラーログが出力されることを確認（'saving'の場合もthrowされるのでログが出る）
+    await waitFor(() => {
+      expect(consoleSpy).toHaveBeenCalledWith(
+        'エージェント状態の取得に失敗しました:',
+        expect.any(Error),
+      );
+    });
+
+    // 5秒進める（ポーリング1回目）
+    await act(async () => {
+      await Promise.resolve();
+      jest.advanceTimersByTime(5000);
+      await Promise.resolve();
+    });
+
+    // 2回目の呼び出しを待機（まだstate: 'saving'）
+    await waitFor(() => {
+      expect(window.electron.settings.getStatus).toHaveBeenCalledTimes(2);
+    });
+
+    // さらに5秒進める（ポーリング2回目）
+    await act(async () => {
+      jest.advanceTimersByTime(5000);
+      await Promise.resolve();
+    });
+
+    // 3回目の呼び出しを待機（state: 'done'になる）
+    await waitFor(() => {
+      expect(window.electron.settings.getStatus).toHaveBeenCalledTimes(3);
+    });
+
+    // さらに10秒進めてもそれ以上呼ばれないことを確認（ポーリング停止）
+    await act(async () => {
+      jest.advanceTimersByTime(10000);
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(window.electron.settings.getStatus).toHaveBeenCalledTimes(3);
+    });
+
+    consoleSpy.mockRestore();
+    jest.useRealTimers();
+  });
+
+  // テスト14: 初回エージェント状態取得が成功した場合は、ポーリングを解除すること
+  test('初回エージェント状態取得が成功した場合は、ポーリングを解除すること', async () => {
+    // タイマーをモック化
+    jest.useFakeTimers();
+
+    // 1回目はエラー、2回目以降は成功するモック
+    window.electron.settings.getStatus = jest
+      .fn()
+      .mockRejectedValueOnce(new Error('Failed to get agent status'))
+      .mockResolvedValue({
+        success: true,
+        data: {
+          state: 'done' as const,
+          messages: [],
+          tools: {
+            document: false,
+            redmine: false,
+            gitlab: false,
+            mcp: false,
+          },
+        },
+      });
+
+    // コンソールエラーをスパイ
+    const consoleSpy = jest
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
+
+    render(
+      <SettingsModal
+        open={defaultProps.open}
+        onClose={defaultProps.onClose}
+        onSettingsUpdated={defaultProps.onSettingsUpdated}
+        onValidChange={defaultProps.onValidChange}
+      />,
+    );
+
+    // 初回呼び出し（エラー）を待機
+    await waitFor(() => {
+      expect(window.electron.settings.getStatus).toHaveBeenCalled();
+    });
+
+    const initialCallCount = (window.electron.settings.getStatus as jest.Mock)
+      .mock.calls.length;
+
+    // 5秒進める前にマイクロタスクを処理してポーリングを設定
+    await act(async () => {
+      await Promise.resolve();
+      jest.advanceTimersByTime(5000);
+      await Promise.resolve();
+    });
+
+    // 2回目の呼び出し（成功）を待機
+    await waitFor(() => {
+      expect(
+        (window.electron.settings.getStatus as jest.Mock).mock.calls.length,
+      ).toBeGreaterThan(initialCallCount);
+    });
+
+    const afterSuccessCallCount = (
+      window.electron.settings.getStatus as jest.Mock
+    ).mock.calls.length;
+
+    // さらに10秒進めてもそれ以上呼ばれないことを確認
+    await act(async () => {
+      jest.advanceTimersByTime(10000);
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(
+        (window.electron.settings.getStatus as jest.Mock).mock.calls.length,
+      ).toBe(afterSuccessCallCount);
+    });
+
+    consoleSpy.mockRestore();
+    jest.useRealTimers();
+  });
+
+  // テスト15: 保存ボタン押下後、settings-update-finishedイベントまでエージェント状態をポーリングすること
+  test('保存ボタン押下後、settings-update-finishedイベントまでエージェント状態をポーリングすること', async () => {
+    // タイマーをモック化
+    jest.useFakeTimers();
+
+    // pushApi.subscribeをモック化して、購読関数を保存
+    let updateFinishedCallback: ((event: any) => void) | null = null;
+    (window.electron.pushApi.subscribe as jest.Mock).mockImplementation(
+      (channel, callback) => {
+        if (channel === 'settings-update-finished') {
+          updateFinishedCallback = callback;
+        }
+        return Promise.resolve(jest.fn()); // unsubscribe関数を返す
+      },
+    );
+
+    const user = userEvent.setup({ delay: null, advanceTimers: jest.advanceTimersByTime });
+
+    render(
+      <SettingsModal
+        open={defaultProps.open}
+        onClose={defaultProps.onClose}
+        onSettingsUpdated={defaultProps.onSettingsUpdated}
+        onValidChange={defaultProps.onValidChange}
+      />,
+    );
+
+    // 初回データ読み込みを待機
+    await waitFor(() => {
+      expect(window.electron.settings.getSettings).toHaveBeenCalled();
+    });
+
+    // APIキーを更新してバリデーション完了を待機
+    const apiKeyInput = screen.getByLabelText('APIキー');
+    await waitFor(() => {
+      expect(apiKeyInput).toBeEnabled();
+    });
+
+    await user.type(apiKeyInput, 'new-api-key');
+
+    // バリデーションの完了を待機
+    await waitFor(() => {
+      expect(defaultProps.onValidChange).toHaveBeenCalledWith(true);
+    });
+
+    // 保存前のgetStatus呼び出し回数を記録
+    const beforeSaveCallCount = (window.electron.settings.getStatus as jest.Mock)
+      .mock.calls.length;
+
+    // 保存ボタンをクリック
+    await user.click(screen.getByText('保存'));
+
+    // pushApi.subscribeが呼ばれることを確認
+    await waitFor(() => {
+      expect(window.electron.pushApi.subscribe).toHaveBeenCalledWith(
+        'settings-update-finished',
+        expect.any(Function),
+      );
+    });
+
+    // 5秒進める（ポーリング1回目）
+    await act(async () => {
+      await Promise.resolve();
+      jest.advanceTimersByTime(5000);
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(
+        (window.electron.settings.getStatus as jest.Mock).mock.calls.length,
+      ).toBeGreaterThan(beforeSaveCallCount);
+    });
+
+    const afterFirstPollCallCount = (
+      window.electron.settings.getStatus as jest.Mock
+    ).mock.calls.length;
+
+    // さらに5秒進める（ポーリング2回目）
+    await act(async () => {
+      await Promise.resolve();
+      jest.advanceTimersByTime(5000);
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(
+        (window.electron.settings.getStatus as jest.Mock).mock.calls.length,
+      ).toBeGreaterThan(afterFirstPollCallCount);
+    });
+
+    // updateFinishedイベントを発火してポーリングを停止
+    await act(async () => {
+      if (updateFinishedCallback) {
+        updateFinishedCallback({ payload: { success: true } });
+      }
+      await Promise.resolve();
+    });
+
+    const afterEventCallCount = (window.electron.settings.getStatus as jest.Mock)
+      .mock.calls.length;
+
+    // さらに10秒進めてもそれ以上呼ばれないことを確認
+    await act(async () => {
+      jest.advanceTimersByTime(10000);
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      // イベント発火後の最後のfetchAgentStatus呼び出し分（+1）を考慮
+      expect(
+        (window.electron.settings.getStatus as jest.Mock).mock.calls.length,
+      ).toBeLessThanOrEqual(afterEventCallCount + 1);
+    });
+
+    jest.useRealTimers();
+  }, 60000);
+
+  // テスト16: settings-update-finishedイベント（成功）発行後、最後にエージェント状態取得を実行し、ポーリングを停止すること
+  test('settings-update-finishedイベント（成功）発行後、最後にエージェント状態取得を実行し、ポーリングを停止すること', async () => {
+    // タイマーをモック化
+    jest.useFakeTimers();
+
+    // pushApi.subscribeをモック化
+    let updateFinishedCallback: ((event: any) => void) | null = null;
+    (window.electron.pushApi.subscribe as jest.Mock).mockImplementation(
+      (channel, callback) => {
+        if (channel === 'settings-update-finished') {
+          updateFinishedCallback = callback;
+        }
+        return Promise.resolve(jest.fn()); // unsubscribe関数を返す
+      },
+    );
+
+    const user = userEvent.setup({ delay: null, advanceTimers: jest.advanceTimersByTime });
+
+    render(
+      <SettingsModal
+        open={defaultProps.open}
+        onClose={defaultProps.onClose}
+        onSettingsUpdated={defaultProps.onSettingsUpdated}
+        onValidChange={defaultProps.onValidChange}
+      />,
+    );
+
+    // 初回データ読み込みを待機
+    await waitFor(() => {
+      expect(window.electron.settings.getSettings).toHaveBeenCalled();
+    });
+
+    // APIキーを更新
+    const apiKeyInput = screen.getByLabelText('APIキー');
+    await waitFor(() => {
+      expect(apiKeyInput).toBeEnabled();
+    });
+
+    await user.type(apiKeyInput, 'new-api-key');
+
+    // 保存ボタンをクリック
+    await user.click(screen.getByText('保存'));
+
+    // 購読が開始されるまで待機
+    await waitFor(() => {
+      expect(window.electron.pushApi.subscribe).toHaveBeenCalledWith(
+        'settings-update-finished',
+        expect.any(Function),
+      );
+    });
+
+    // イベント発火前の呼び出し回数を記録
+    const beforeEventCallCount = (
+      window.electron.settings.getStatus as jest.Mock
+    ).mock.calls.length;
+
+    // updateFinishedイベントを発火（成功）
+    await act(async () => {
+      if (updateFinishedCallback) {
+        updateFinishedCallback({ payload: { success: true } });
+      }
+      await Promise.resolve();
+    });
+
+    // イベント発火後にfetchAgentStatusが呼ばれることを確認
+    await waitFor(() => {
+      expect(
+        (window.electron.settings.getStatus as jest.Mock).mock.calls.length,
+      ).toBeGreaterThan(beforeEventCallCount);
+    });
+
+    jest.useRealTimers();
+  }, 60000);
+
+  // テスト17: settings-update-finishedイベント（失敗）発行後の挙動確認
+  test('settings-update-finishedイベント（失敗）発行後の挙動確認', async () => {
+    // タイマーをモック化
+    jest.useFakeTimers();
+
+    // alertStore のスパイ
+    const { alertStore } = require('@/renderer/stores/alertStore');
+    const addAlertSpy = jest.spyOn(alertStore.getState(), 'addAlert');
+
+    // pushApi.subscribeをモック化
+    let updateFinishedCallback: ((event: any) => void) | null = null;
+    (window.electron.pushApi.subscribe as jest.Mock).mockImplementation(
+      (channel, callback) => {
+        if (channel === 'settings-update-finished') {
+          updateFinishedCallback = callback;
+        }
+        return Promise.resolve(jest.fn()); // unsubscribe関数を返す
+      },
+    );
+
+    const user = userEvent.setup({ delay: null, advanceTimers: jest.advanceTimersByTime });
+
+    render(
+      <SettingsModal
+        open={defaultProps.open}
+        onClose={defaultProps.onClose}
+        onSettingsUpdated={defaultProps.onSettingsUpdated}
+        onValidChange={defaultProps.onValidChange}
+      />,
+    );
+
+    // 初回データ読み込みを待機
+    await waitFor(() => {
+      expect(window.electron.settings.getSettings).toHaveBeenCalled();
+    });
+
+    // APIキーを更新
+    const apiKeyInput = screen.getByLabelText('APIキー');
+    await waitFor(() => {
+      expect(apiKeyInput).toBeEnabled();
+    });
+
+    await user.type(apiKeyInput, 'new-api-key');
+
+    // 保存ボタンをクリック
+    await user.click(screen.getByText('保存'));
+
+    // 購読が開始されるまで待機
+    await waitFor(() => {
+      expect(window.electron.pushApi.subscribe).toHaveBeenCalledWith(
+        'settings-update-finished',
+        expect.any(Function),
+      );
+    });
+
+    addAlertSpy.mockClear();
+
+    // updateFinishedイベントを発火（失敗）
+    await act(async () => {
+      if (updateFinishedCallback) {
+        updateFinishedCallback({
+          payload: {
+            success: false,
+            error: 'Initialization failed due to network error',
+          },
+        });
+      }
+      await Promise.resolve();
+    });
+
+    // エラーアラートが表示されることを確認
+    await waitFor(() => {
+      expect(addAlertSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          severity: 'error',
+          message: expect.stringContaining('AIツールの初期化に失敗しました'),
+        }),
+      );
+    });
+
+    addAlertSpy.mockRestore();
+    jest.useRealTimers();
+  }, 60000);
+
+  // テスト18: ポーリング中のエージェント状態取得でエラーが発生した場合、ポーリングは継続されること
+  test('ポーリング中のエージェント状態取得でエラーが発生した場合、ポーリングは継続されること', async () => {
+    // タイマーをモック化
+    jest.useFakeTimers();
+
+    // pushApi.subscribeをモック化
+    let updateFinishedCallback: ((event: any) => void) | null = null;
+    (window.electron.pushApi.subscribe as jest.Mock).mockImplementation(
+      (channel, callback) => {
+        if (channel === 'settings-update-finished') {
+          updateFinishedCallback = callback;
+        }
+        return Promise.resolve(jest.fn()); // unsubscribe関数を返す
+      },
+    );
+
+    // 最初は成功、その後一度エラー、その後また成功するモック
+    const getStatusMock = jest.fn();
+    let callCount = 0;
+    getStatusMock.mockImplementation(() => {
+      callCount++;
+      if (callCount === 2) {
+        // 2回目の呼び出しでエラー（ポーリング開始後の1回目）
+        return Promise.reject(new Error('Network error'));
+      }
+      return Promise.resolve({
+        success: true,
+        data: {
+          state: 'done' as const,
+          messages: [],
+          tools: {
+            document: false,
+            redmine: false,
+            gitlab: false,
+            mcp: false,
+          },
+        },
+      });
+    });
+    window.electron.settings.getStatus = getStatusMock;
+
+    // コンソールエラーをスパイ
+    const consoleSpy = jest
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
+
+    const user = userEvent.setup({ delay: null, advanceTimers: jest.advanceTimersByTime });
+
+    render(
+      <SettingsModal
+        open={defaultProps.open}
+        onClose={defaultProps.onClose}
+        onSettingsUpdated={defaultProps.onSettingsUpdated}
+        onValidChange={defaultProps.onValidChange}
+      />,
+    );
+
+    // 初回データ読み込みを待機
+    await waitFor(() => {
+      expect(window.electron.settings.getSettings).toHaveBeenCalled();
+    });
+
+    // APIキーを更新
+    const apiKeyInput = screen.getByLabelText('APIキー');
+    await waitFor(() => {
+      expect(apiKeyInput).toBeEnabled();
+    });
+
+    await user.type(apiKeyInput, 'new-api-key');
+
+    // 保存ボタンをクリック
+    await user.click(screen.getByText('保存'));
+
+    // 購読が開始されるまで待機
+    await waitFor(() => {
+      expect(window.electron.pushApi.subscribe).toHaveBeenCalledWith(
+        'settings-update-finished',
+        expect.any(Function),
+      );
+    });
+
+    // 5秒進める（ポーリング1回目：エラー）
+    await act(async () => {
+      await Promise.resolve();
+      jest.advanceTimersByTime(5000);
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(getStatusMock).toHaveBeenCalledTimes(2);
+    });
+
+    // エラーログが出力されることを確認
+    await waitFor(() => {
+      expect(consoleSpy).toHaveBeenCalledWith(
+        'エージェント状態のポーリング中にエラーが発生しました:',
+        expect.any(Error),
+      );
+    });
+
+    // さらに5秒進める（ポーリング2回目：成功）
+    await act(async () => {
+      jest.advanceTimersByTime(5000);
+      await Promise.resolve();
+    });
+
+    // ポーリングが継続していることを確認
+    await waitFor(() => {
+      expect(getStatusMock).toHaveBeenCalledTimes(3);
+    });
+
+    consoleSpy.mockRestore();
+    jest.useRealTimers();
+  }, 60000);
+
+  // テスト19: モーダルを閉じてもポーリングは継続すること
+  test('モーダルを閉じてもポーリングは継続すること', async () => {
+    // タイマーをモック化
+    jest.useFakeTimers();
+
+    // 常にエラーを返すモック（ポーリングが継続するようにする）
+    window.electron.settings.getSettings = jest
+      .fn()
+      .mockRejectedValue(new Error('Failed to get settings'));
+
+    // コンソールエラーをスパイ
+    const consoleSpy = jest
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
+
+    // コンポーネントをレンダリング
+    const { rerender } = render(
+      <SettingsModal
+        open={true}
+        onClose={defaultProps.onClose}
+        onSettingsUpdated={defaultProps.onSettingsUpdated}
+        onValidChange={defaultProps.onValidChange}
+      />,
+    );
+
+    // 初回呼び出しを待機
+    await waitFor(() => {
+      expect(window.electron.settings.getSettings).toHaveBeenCalledTimes(1);
+    });
+
+    // 5秒進める（ポーリング1回目）
+    await act(async () => {
+      await Promise.resolve();
+      jest.advanceTimersByTime(5000);
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(window.electron.settings.getSettings).toHaveBeenCalledTimes(2);
+    });
+
+    // モーダルを閉じる（open=falseに変更）
+    rerender(
+      <SettingsModal
+        open={false}
+        onClose={defaultProps.onClose}
+        onSettingsUpdated={defaultProps.onSettingsUpdated}
+        onValidChange={defaultProps.onValidChange}
+      />,
+    );
+
+    // モーダルを閉じた後も5秒進める
+    await act(async () => {
+      jest.advanceTimersByTime(5000);
+      await Promise.resolve();
+    });
+
+    // モーダルを閉じた後もポーリングが継続することを確認
+    await waitFor(() => {
+      expect(window.electron.settings.getSettings).toHaveBeenCalledTimes(3);
+    });
+
+    consoleSpy.mockRestore();
+    jest.useRealTimers();
+  });
+
+  // テスト20: コンポーネントがアンマウントされた際、全てのポーリングが停止すること
+  test('コンポーネントがアンマウントされた際、全てのポーリングが停止すること', async () => {
+    // タイマーをモック化
+    jest.useFakeTimers();
+
+    // 常にエラーを返すモック（ポーリングが継続するようにする）
+    window.electron.settings.getSettings = jest
+      .fn()
+      .mockRejectedValue(new Error('Failed to get settings'));
+
+    window.electron.settings.getStatus = jest
+      .fn()
+      .mockRejectedValue(new Error('Failed to get agent status'));
+
+    // コンソールエラーをスパイ
+    const consoleSpy = jest
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
+
+    // コンポーネントをレンダリング
+    const { unmount } = render(
+      <SettingsModal
+        open={true}
+        onClose={defaultProps.onClose}
+        onSettingsUpdated={defaultProps.onSettingsUpdated}
+        onValidChange={defaultProps.onValidChange}
+      />,
+    );
+
+    // 初回呼び出しを待機
+    await waitFor(() => {
+      expect(window.electron.settings.getSettings).toHaveBeenCalled();
+      expect(window.electron.settings.getStatus).toHaveBeenCalled();
+    });
+
+    // 5秒進める（ポーリング1回目）
+    await act(async () => {
+      await Promise.resolve();
+      jest.advanceTimersByTime(5000);
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(window.electron.settings.getSettings).toHaveBeenCalled();
+      expect(window.electron.settings.getStatus).toHaveBeenCalled();
+    });
+
+    const getSettingsCallCount = (
+      window.electron.settings.getSettings as jest.Mock
+    ).mock.calls.length;
+    const getStatusCallCount = (
+      window.electron.settings.getStatus as jest.Mock
+    ).mock.calls.length;
+
+    // コンポーネントをアンマウント
+    unmount();
+
+    // さらに10秒進める
+    await act(async () => {
+      jest.advanceTimersByTime(10000);
+      await Promise.resolve();
+    });
+
+    // ポーリングが停止していることを確認（呼び出し回数が増えない）
+    await waitFor(() => {
+      expect(
+        (window.electron.settings.getSettings as jest.Mock).mock.calls.length,
+      ).toBe(getSettingsCallCount);
+      expect(
+        (window.electron.settings.getStatus as jest.Mock).mock.calls.length,
+      ).toBe(getStatusCallCount);
+    });
+
+    consoleSpy.mockRestore();
+    jest.useRealTimers();
   });
 });

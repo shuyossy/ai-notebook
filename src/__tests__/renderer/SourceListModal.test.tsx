@@ -812,4 +812,531 @@ describe('SourceListModal Component', () => {
       expect(props.onReloadSources).toHaveBeenCalled();
     });
   });
+
+  // テスト15: 初回データ取得がエラーの場合、ポーリングで初回データ取得を継続すること
+  test('初回データ取得がエラーの場合、ポーリングで初回データ取得を継続すること', async () => {
+    // 常にエラーを返すモック
+    window.electron.source.getSources = jest
+      .fn()
+      .mockRejectedValue(new Error('Failed to fetch sources'));
+
+    // コンソールエラーをスパイ
+    const consoleSpy = jest
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
+
+    // コンポーネントをレンダリング
+    render(
+      <SourceListModal
+        open={defaultProps.open}
+        processing={defaultProps.processing}
+        onClose={defaultProps.onClose}
+        onReloadSources={defaultProps.onReloadSources}
+        onStatusUpdate={defaultProps.onStatusUpdate}
+      />,
+    );
+
+    // 初回呼び出しを待機
+    await waitFor(() => {
+      expect(window.electron.source.getSources).toHaveBeenCalledTimes(1);
+    });
+
+    // エラーログが出力されることを確認（SourceApiでのエラーログ）
+    expect(consoleSpy).toHaveBeenCalledWith(
+      'API通信に失敗しました:',
+      expect.any(Error),
+    );
+
+    // 5秒進める前に、マイクロタスクを処理してポーリングが設定されるのを待つ
+    await act(async () => {
+      // マイクロタスクを処理
+      await Promise.resolve();
+      // タイマーを進める
+      jest.advanceTimersByTime(5000);
+      // 再度マイクロタスクを処理
+      await Promise.resolve();
+    });
+
+    // 2回目の呼び出しを待機
+    await waitFor(() => {
+      expect(window.electron.source.getSources).toHaveBeenCalledTimes(2);
+    });
+
+    // さらに5秒進める
+    await act(async () => {
+      jest.advanceTimersByTime(5000);
+      await Promise.resolve();
+    });
+
+    // 3回目の呼び出しを待機
+    await waitFor(() => {
+      expect(window.electron.source.getSources).toHaveBeenCalledTimes(3);
+    });
+
+    consoleSpy.mockRestore();
+  });
+
+  // テスト16: 初回データ取得が成功した場合は、ポーリングを解除すること
+  test('初回データ取得が成功した場合は、ポーリングを解除すること', async () => {
+    // 1回目はエラー、2回目以降は成功するモック
+    window.electron.source.getSources = jest
+      .fn()
+      .mockRejectedValueOnce(new Error('Failed to fetch sources'))
+      .mockResolvedValue({
+        success: true,
+        data: mockSources,
+      });
+
+    // コンソールエラーをスパイ
+    const consoleSpy = jest
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
+
+    // コンポーネントをレンダリング
+    render(
+      <SourceListModal
+        open={defaultProps.open}
+        processing={defaultProps.processing}
+        onClose={defaultProps.onClose}
+        onReloadSources={defaultProps.onReloadSources}
+        onStatusUpdate={defaultProps.onStatusUpdate}
+      />,
+    );
+
+    // 初回呼び出し（エラー）を待機
+    await waitFor(() => {
+      expect(window.electron.source.getSources).toHaveBeenCalledTimes(1);
+    });
+
+    // 5秒進める前にマイクロタスクを処理してポーリングを設定
+    await act(async () => {
+      await Promise.resolve();
+      jest.advanceTimersByTime(5000);
+      await Promise.resolve();
+    });
+
+    // 2回目の呼び出し（成功）を待機
+    await waitFor(() => {
+      expect(window.electron.source.getSources).toHaveBeenCalledTimes(2);
+    });
+
+    // さらに10秒進めてもそれ以上呼ばれないことを確認
+    await act(async () => {
+      jest.advanceTimersByTime(10000);
+      await Promise.resolve();
+    });
+
+    // 少し待ってから確認
+    await waitFor(() => {
+      expect(window.electron.source.getSources).toHaveBeenCalledTimes(2);
+    });
+
+    consoleSpy.mockRestore();
+  });
+
+  // テスト17: ファイル同期ボタンクリック時、処理終了イベントまでポーリングでデータを取得し続けること
+  test('ファイル同期ボタンクリック時、処理終了イベントまでポーリングでデータを取得し続けること', async () => {
+    // pushApi.subscribeをモック化して、購読関数を保存
+    let reloadFinishedCallback: ((event: any) => void) | null = null;
+    (window.electron.pushApi.subscribe as jest.Mock).mockImplementation(
+      (channel, callback) => {
+        if (channel === 'source-reload-finished') {
+          reloadFinishedCallback = callback;
+        }
+        return Promise.resolve(jest.fn()); // unsubscribe関数を返す
+      },
+    );
+
+    // コンポーネントをレンダリング
+    render(
+      <SourceListModal
+        open={defaultProps.open}
+        processing={defaultProps.processing}
+        onClose={defaultProps.onClose}
+        onReloadSources={defaultProps.onReloadSources}
+        onStatusUpdate={defaultProps.onStatusUpdate}
+      />,
+    );
+
+    // 初回データ読み込みを待機
+    await act(async () => {
+      jest.advanceTimersByTime(5000);
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(window.electron.source.getSources).toHaveBeenCalled();
+    });
+
+    // 初回読み込み時の呼び出し回数を記録
+    const initialCallCount = (window.electron.source.getSources as jest.Mock)
+      .mock.calls.length;
+
+    // リロードボタンをクリック
+    const reloadButton = screen.getByText('ファイル同期');
+    await act(async () => {
+      fireEvent.click(reloadButton);
+      await Promise.resolve();
+    });
+
+    // pushApi.subscribeが呼ばれることを確認
+    await waitFor(() => {
+      expect(window.electron.pushApi.subscribe).toHaveBeenCalledWith(
+        'source-reload-finished',
+        expect.any(Function),
+      );
+    });
+
+    // onReloadSourcesが呼ばれることを確認
+    expect(defaultProps.onReloadSources).toHaveBeenCalled();
+
+    // 5秒進める（ポーリング1回目）
+    await act(async () => {
+      await Promise.resolve();
+      jest.advanceTimersByTime(5000);
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(
+        (window.electron.source.getSources as jest.Mock).mock.calls.length,
+      ).toBeGreaterThan(initialCallCount);
+    });
+
+    const afterFirstPollCallCount = (
+      window.electron.source.getSources as jest.Mock
+    ).mock.calls.length;
+
+    // さらに5秒進める（ポーリング2回目）
+    await act(async () => {
+      await Promise.resolve();
+      jest.advanceTimersByTime(5000);
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(
+        (window.electron.source.getSources as jest.Mock).mock.calls.length,
+      ).toBeGreaterThan(afterFirstPollCallCount);
+    });
+
+    // reloadFinishedイベントを発火してポーリングを停止
+    await act(async () => {
+      if (reloadFinishedCallback) {
+        reloadFinishedCallback({ payload: { success: true } });
+      }
+      await Promise.resolve();
+    });
+
+    const afterEventCallCount = (window.electron.source.getSources as jest.Mock)
+      .mock.calls.length;
+
+    // さらに10秒進めてもそれ以上呼ばれないことを確認
+    await act(async () => {
+      jest.advanceTimersByTime(10000);
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      // イベント発火後の最後のfetchSources呼び出し分（+1）を考慮
+      expect(
+        (window.electron.source.getSources as jest.Mock).mock.calls.length,
+      ).toBeLessThanOrEqual(afterEventCallCount + 1);
+    });
+  });
+
+  // テスト18: 処理終了イベント発行後、最後にデータ取得処理を実行すること
+  test('処理終了イベント発行後、最後にデータ取得処理を実行すること', async () => {
+    // pushApi.subscribeをモック化
+    let reloadFinishedCallback: ((event: any) => void) | null = null;
+    (window.electron.pushApi.subscribe as jest.Mock).mockImplementation(
+      (channel, callback) => {
+        if (channel === 'source-reload-finished') {
+          reloadFinishedCallback = callback;
+        }
+        return Promise.resolve(jest.fn()); // unsubscribe関数を返す
+      },
+    );
+
+    // コンポーネントをレンダリング
+    render(
+      <SourceListModal
+        open={defaultProps.open}
+        processing={defaultProps.processing}
+        onClose={defaultProps.onClose}
+        onReloadSources={defaultProps.onReloadSources}
+        onStatusUpdate={defaultProps.onStatusUpdate}
+      />,
+    );
+
+    // 初回データ読み込みを待機
+    await act(async () => {
+      jest.advanceTimersByTime(5000);
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(window.electron.source.getSources).toHaveBeenCalled();
+    });
+
+    // リロードボタンをクリック
+    const reloadButton = screen.getByText('ファイル同期');
+    await act(async () => {
+      fireEvent.click(reloadButton);
+      await Promise.resolve();
+    });
+
+    // イベント発火前の呼び出し回数を記録
+    const beforeEventCallCount = (
+      window.electron.source.getSources as jest.Mock
+    ).mock.calls.length;
+
+    // reloadFinishedイベントを発火（成功）
+    await act(async () => {
+      if (reloadFinishedCallback) {
+        reloadFinishedCallback({ payload: { success: true } });
+      }
+      await Promise.resolve();
+    });
+
+    // イベント発火後にfetchSourcesが呼ばれることを確認
+    await waitFor(() => {
+      expect(
+        (window.electron.source.getSources as jest.Mock).mock.calls.length,
+      ).toBeGreaterThan(beforeEventCallCount);
+    });
+
+    // 成功アラートが表示されることを確認
+    await waitFor(() => {
+      expect(addAlertSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          severity: 'success',
+          message: 'ドキュメントの同期が完了しました',
+        }),
+      );
+    });
+  });
+
+  // テスト19: 処理終了イベント（失敗）発行後の挙動確認
+  test('処理終了イベント（失敗）発行後の挙動確認', async () => {
+    // pushApi.subscribeをモック化
+    let reloadFinishedCallback: ((event: any) => void) | null = null;
+    (window.electron.pushApi.subscribe as jest.Mock).mockImplementation(
+      (channel, callback) => {
+        if (channel === 'source-reload-finished') {
+          reloadFinishedCallback = callback;
+        }
+        return Promise.resolve(jest.fn()); // unsubscribe関数を返す
+      },
+    );
+
+    // コンポーネントをレンダリング
+    render(
+      <SourceListModal
+        open={defaultProps.open}
+        processing={defaultProps.processing}
+        onClose={defaultProps.onClose}
+        onReloadSources={defaultProps.onReloadSources}
+        onStatusUpdate={defaultProps.onStatusUpdate}
+      />,
+    );
+
+    // 初回データ読み込みを待機
+    await act(async () => {
+      jest.advanceTimersByTime(5000);
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(window.electron.source.getSources).toHaveBeenCalled();
+    });
+
+    // リロードボタンをクリック
+    const reloadButton = screen.getByText('ファイル同期');
+    await act(async () => {
+      fireEvent.click(reloadButton);
+      await Promise.resolve();
+    });
+
+    // reloadFinishedイベントを発火（失敗）
+    await act(async () => {
+      if (reloadFinishedCallback) {
+        reloadFinishedCallback({
+          payload: {
+            success: false,
+            error: 'Sync failed due to network error',
+          },
+        });
+      }
+      await Promise.resolve();
+    });
+
+    // エラーアラートが表示されることを確認
+    await waitFor(() => {
+      expect(addAlertSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          severity: 'error',
+          message: 'ドキュメントの同期に失敗しました: Sync failed due to network error',
+        }),
+      );
+    });
+  });
+
+  // テスト20: ポーリング中のデータ取得でエラーが発生した場合、ポーリングは継続されること
+  test('ポーリング中のデータ取得でエラーが発生した場合、ポーリングは継続されること', async () => {
+    // pushApi.subscribeをモック化
+    let reloadFinishedCallback: ((event: any) => void) | null = null;
+    (window.electron.pushApi.subscribe as jest.Mock).mockImplementation(
+      (channel, callback) => {
+        if (channel === 'source-reload-finished') {
+          reloadFinishedCallback = callback;
+        }
+        return Promise.resolve(jest.fn()); // unsubscribe関数を返す
+      },
+    );
+
+    // 最初は成功、その後一度エラー、その後また成功するモック
+    window.electron.source.getSources = jest
+      .fn()
+      .mockResolvedValueOnce({
+        success: true,
+        data: mockSources,
+      })
+      .mockRejectedValueOnce(new Error('Network error'))
+      .mockResolvedValue({
+        success: true,
+        data: mockSources,
+      });
+
+    // コンソールエラーをスパイ
+    const consoleSpy = jest
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
+
+    // コンポーネントをレンダリング
+    render(
+      <SourceListModal
+        open={defaultProps.open}
+        processing={defaultProps.processing}
+        onClose={defaultProps.onClose}
+        onReloadSources={defaultProps.onReloadSources}
+        onStatusUpdate={defaultProps.onStatusUpdate}
+      />,
+    );
+
+    // 初回データ読み込みを待機
+    act(() => {
+      jest.advanceTimersByTime(5000);
+    });
+
+    await waitFor(() => {
+      expect(window.electron.source.getSources).toHaveBeenCalledTimes(1);
+    });
+
+    // リロードボタンをクリック
+    const reloadButton = screen.getByText('ファイル同期');
+    await act(async () => {
+      fireEvent.click(reloadButton);
+      await Promise.resolve();
+    });
+
+    // 5秒進める（ポーリング1回目：エラー）
+    act(() => {
+      jest.advanceTimersByTime(5000);
+    });
+
+    await waitFor(() => {
+      expect(window.electron.source.getSources).toHaveBeenCalledTimes(2);
+    });
+
+    // エラーログが出力されることを確認
+    await waitFor(() => {
+      expect(consoleSpy).toHaveBeenCalledWith(
+        'ソース一覧のポーリング中にエラーが発生しました:',
+        expect.any(Error),
+      );
+    });
+
+    // さらに5秒進める（ポーリング2回目：成功）
+    act(() => {
+      jest.advanceTimersByTime(5000);
+    });
+
+    // ポーリングが継続していることを確認
+    await waitFor(() => {
+      expect(window.electron.source.getSources).toHaveBeenCalledTimes(3);
+    });
+
+    consoleSpy.mockRestore();
+  });
+
+  // テスト21: モーダルを閉じた際、ポーリングが停止すること
+  test('モーダルを閉じた際、ポーリングが停止すること', async () => {
+    // 常にエラーを返すモック（ポーリングが継続するようにする）
+    window.electron.source.getSources = jest
+      .fn()
+      .mockRejectedValue(new Error('Failed to fetch sources'));
+
+    // コンソールエラーをスパイ
+    const consoleSpy = jest
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
+
+    // コンポーネントをレンダリング
+    const { rerender } = render(
+      <SourceListModal
+        open={true}
+        processing={defaultProps.processing}
+        onClose={defaultProps.onClose}
+        onReloadSources={defaultProps.onReloadSources}
+        onStatusUpdate={defaultProps.onStatusUpdate}
+      />,
+    );
+
+    // 初回呼び出しを待機
+    await waitFor(() => {
+      expect(window.electron.source.getSources).toHaveBeenCalledTimes(1);
+    });
+
+    // 5秒進める（ポーリング1回目）
+    await act(async () => {
+      await Promise.resolve();
+      jest.advanceTimersByTime(5000);
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(window.electron.source.getSources).toHaveBeenCalledTimes(2);
+    });
+
+    // モーダルを閉じる
+    rerender(
+      <SourceListModal
+        open={false}
+        processing={defaultProps.processing}
+        onClose={defaultProps.onClose}
+        onReloadSources={defaultProps.onReloadSources}
+        onStatusUpdate={defaultProps.onStatusUpdate}
+      />,
+    );
+
+    const callCountBeforeClose = (
+      window.electron.source.getSources as jest.Mock
+    ).mock.calls.length;
+
+    // さらに10秒進める
+    await act(async () => {
+      jest.advanceTimersByTime(10000);
+      await Promise.resolve();
+    });
+
+    // ポーリングが停止していることを確認（呼び出し回数が増えない）
+    await waitFor(() => {
+      expect(
+        (window.electron.source.getSources as jest.Mock).mock.calls.length,
+      ).toBe(callCountBeforeClose);
+    });
+
+    consoleSpy.mockRestore();
+  });
 });
