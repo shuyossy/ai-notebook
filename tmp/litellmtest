@@ -1,0 +1,5 @@
+curl https://litellm.example.com/v1/chat/completions `
+  -H "Content-Type: application/json" `
+  -H "Authorization: Bearer sk-1234" `
+  -Method POST `
+  -Body '{"model": "gpt-3.5-turbo", "messages": [{"role": "user", "content": "Hello!"}]}'
