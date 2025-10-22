@@ -40,6 +40,32 @@ const mockChatRooms: ChatRoom[] = [
   },
 ];
 
+// レビュー履歴のモックデータ
+const mockReviewHistories = [
+  {
+    id: '1',
+    title: 'Review History 1',
+    targetDocumentName: 'document1.pdf',
+    additionalInstructions: null,
+    commentFormat: null,
+    evaluationSettings: null,
+    processingStatus: 'idle' as const,
+    createdAt: '2025-05-01T12:00:00.000Z',
+    updatedAt: '2025-05-01T12:00:00.000Z',
+  },
+  {
+    id: '2',
+    title: 'Review History 2',
+    targetDocumentName: 'document2.pdf',
+    additionalInstructions: null,
+    commentFormat: null,
+    evaluationSettings: null,
+    processingStatus: 'completed' as const,
+    createdAt: '2025-05-02T12:00:00.000Z',
+    updatedAt: '2025-05-02T12:00:00.000Z',
+  },
+];
+
 // ソースのモックデータ
 const mockSources: Source[] = [
   {
@@ -774,5 +800,554 @@ describe('Sidebar Component', () => {
 
     consoleSpy.mockRestore();
     jest.useRealTimers();
+  });
+});
+
+// ==============================
+// レビューサイドバーのテスト
+// ==============================
+describe('Review Sidebar Component', () => {
+  // テスト前のセットアップ
+  beforeEach(() => {
+    // Electronグローバルオブジェクトをモック化
+    window.electron = createMockElectronWithOptions({
+      reviewHistories: mockReviewHistories,
+    });
+
+    // uuidv4のモックをリセット
+    (uuidv4 as jest.Mock).mockReset();
+    (uuidv4 as jest.Mock).mockReturnValue('new-review-id');
+  });
+
+  // テスト後のクリーンアップ
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
+  // 共通のプロップス
+  const defaultProps = {
+    onReviewHistorySelect: jest.fn(),
+    onReloadSources: jest.fn(),
+  };
+
+  const renderAtReviewPath = (selectedReviewHistoryId: string | null = null) => {
+    render(
+      <MemoryRouter initialEntries={[ROUTES.REVIEW]}>
+        <Sidebar onReloadSources={defaultProps.onReloadSources}>
+          <Routes>
+            <Route
+              path={ROUTES.REVIEW}
+              element={
+                <ReviewHistoryList
+                  selectedReviewHistoryId={selectedReviewHistoryId}
+                  onReviewHistorySelect={defaultProps.onReviewHistorySelect}
+                />
+              }
+            />
+          </Routes>
+        </Sidebar>
+      </MemoryRouter>,
+    );
+  };
+
+  // ビジネス的観点（正常系）
+
+  // テスト1: レビュー履歴一覧が正しく表示されること
+  test('レビュー履歴一覧が正しく表示されること', async () => {
+    renderAtReviewPath();
+
+    // 新規レビューボタンが表示されることを確認
+    expect(screen.getByText('新規レビュー')).toBeInTheDocument();
+
+    // レビュー履歴一覧が表示されるまで待機
+    await waitFor(() => {
+      expect(screen.getByText('Review History 1')).toBeInTheDocument();
+      expect(screen.getByText('Review History 2')).toBeInTheDocument();
+    });
+  });
+
+  // テスト2: ローディング状態が正しく表示されること
+  test('ローディング状態が正しく表示されること', async () => {
+    // レビュー履歴取得を遅延させる
+    window.electron.review.getHistories = jest.fn().mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          setTimeout(
+            () => resolve({ success: true, data: mockReviewHistories }),
+            100,
+          );
+        }),
+    );
+
+    renderAtReviewPath();
+
+    // ローディング表示を確認
+    expect(
+      screen.getByText('ドキュメントレビュー履歴取得中'),
+    ).toBeInTheDocument();
+
+    // レビュー履歴一覧が表示されるまで待機
+    await waitFor(() => {
+      expect(screen.getByText('Review History 1')).toBeInTheDocument();
+      expect(screen.getByText('Review History 2')).toBeInTheDocument();
+    });
+
+    // ローディング表示が消えていることを確認
+    expect(
+      screen.queryByText('ドキュメントレビュー履歴取得中'),
+    ).not.toBeInTheDocument();
+  });
+
+  // テスト3: レビュー履歴が空の場合の表示が正しいこと
+  test('レビュー履歴が空の場合の表示が正しいこと', async () => {
+    // 空の配列を返すようにモックを設定
+    window.electron.review.getHistories = jest
+      .fn()
+      .mockResolvedValue({ success: true, data: [] });
+
+    renderAtReviewPath();
+
+    // 空の状態のメッセージが表示されることを確認
+    await waitFor(() => {
+      expect(
+        screen.getByText('ドキュメントレビュー履歴がありません'),
+      ).toBeInTheDocument();
+    });
+  });
+
+  // テスト4: 新規レビューの作成
+  test('新規レビューの作成', async () => {
+    const user = userEvent.setup();
+    renderAtReviewPath();
+
+    // レビュー履歴一覧が表示されるまで待機
+    await waitFor(() => {
+      expect(screen.getByText('Review History 1')).toBeInTheDocument();
+      expect(screen.getByText('Review History 2')).toBeInTheDocument();
+    });
+
+    // 新規レビューボタンをクリック
+    await user.click(screen.getByText('新規レビュー'));
+
+    // uuidv4が呼ばれることを確認
+    expect(uuidv4).toHaveBeenCalled();
+
+    // onReviewHistorySelectが新しいIDで呼ばれることを確認
+    expect(defaultProps.onReviewHistorySelect).toHaveBeenCalledWith(
+      'new-review-id',
+    );
+  });
+
+  // テスト5: レビュー履歴の選択
+  test('レビュー履歴の選択', async () => {
+    const user = userEvent.setup();
+    renderAtReviewPath();
+
+    // レビュー履歴一覧が表示されるまで待機
+    await waitFor(() => {
+      expect(screen.getByText('Review History 1')).toBeInTheDocument();
+    });
+
+    // レビュー履歴をクリック
+    await user.click(screen.getByText('Review History 1'));
+
+    // onReviewHistorySelectが正しいIDで呼ばれることを確認
+    expect(defaultProps.onReviewHistorySelect).toHaveBeenCalledWith('1');
+  });
+
+  // テスト6: レビュー履歴の削除
+  test('レビュー履歴の削除の際に正しく指定したレビュー履歴が削除されること（レビュー履歴のソート確認も含む）', async () => {
+    const user = userEvent.setup();
+    renderAtReviewPath();
+
+    // レビュー履歴一覧が表示されるまで待機
+    await waitFor(() => {
+      expect(screen.getByText('Review History 1')).toBeInTheDocument();
+    });
+
+    // メニューボタンをクリック
+    const menuButtons = screen.getAllByLabelText('more');
+    await user.click(menuButtons[0]);
+
+    // 削除メニューが表示されることを確認
+    expect(screen.getByText('削除')).toBeInTheDocument();
+
+    // 削除メニューをクリック
+    await user.click(screen.getByText('削除'));
+
+    // deleteHistoryが呼ばれることを確認(id:2のレビュー履歴がソートされて一番上にくるはず)
+    expect(window.electron.review.deleteHistory).toHaveBeenCalledWith('2');
+
+    // 一覧が再取得されることを確認
+    await waitFor(() => {
+      expect(window.electron.review.getHistories).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  // テスト7: サーバプッシュによるリアルタイム更新
+  test('サーバプッシュによるリアルタイム更新が機能すること', async () => {
+    // pushApi.subscribeのモックを設定して、コールバックをキャプチャできるようにする
+    let subscribedCallback: ((channel: string) => void) | null = null;
+    window.electron.pushApi.subscribe = jest
+      .fn()
+      .mockImplementation(async (channel: string, callback: (channel: string) => void) => {
+        subscribedCallback = callback;
+        return () => {}; // unsubscribe function
+      });
+
+    renderAtReviewPath();
+
+    // 初回データ取得を待機
+    await waitFor(() => {
+      expect(screen.getByText('Review History 1')).toBeInTheDocument();
+    });
+
+    // 初回呼び出しのカウントを保存
+    const initialCallCount = (
+      window.electron.review.getHistories as jest.Mock
+    ).mock.calls.length;
+
+    // サーバプッシュイベントをトリガー
+    if (subscribedCallback) {
+      act(() => {
+        subscribedCallback!('review-history-updated');
+      });
+    }
+
+    // レビュー履歴が再取得されることを確認
+    await waitFor(() => {
+      expect(
+        (window.electron.review.getHistories as jest.Mock).mock.calls.length,
+      ).toBe(initialCallCount + 1);
+    });
+  });
+
+  // ビジネス的観点（異常系）
+
+  // テスト8: レビュー履歴取得時のエラーハンドリング
+  test('レビュー履歴取得時のエラーハンドリング', async () => {
+    // コンソールエラーをスパイ
+    const consoleSpy = jest
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
+
+    // 取得に失敗するようにモックを設定
+    window.electron.review.getHistories = jest
+      .fn()
+      .mockRejectedValue(new Error('Failed to fetch review histories'));
+
+    renderAtReviewPath();
+
+    // 初回表示でローディング中であることを確認
+    expect(
+      screen.getByText('ドキュメントレビュー履歴取得中'),
+    ).toBeInTheDocument();
+
+    // エラーログが出力されることを確認
+    await waitFor(() => {
+      expect(consoleSpy).toHaveBeenCalledWith(
+        'レビュー履歴の読み込みに失敗しました:',
+        expect.any(Error),
+      );
+    });
+
+    // エラー時もローディング状態が維持されることを確認（再試行のため）
+    expect(
+      screen.getByText('ドキュメントレビュー履歴取得中'),
+    ).toBeInTheDocument();
+
+    consoleSpy.mockRestore();
+  });
+
+  // テスト9: レビュー履歴削除時のエラーハンドリング
+  test('レビュー履歴削除時のエラーハンドリング', async () => {
+    // コンソールエラーをスパイ
+    const consoleSpy = jest
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
+
+    // 削除に失敗するようにモックを設定
+    window.electron.review.deleteHistory = jest.fn().mockResolvedValue({
+      success: false,
+      error: { message: 'Failed to delete review history', code: 'DELETE_ERROR' },
+    });
+
+    const user = userEvent.setup();
+    renderAtReviewPath();
+
+    // レビュー履歴一覧が表示されるまで待機
+    await waitFor(() => {
+      expect(screen.getByText('Review History 1')).toBeInTheDocument();
+    });
+
+    // メニューボタンをクリック
+    const menuButtons = screen.getAllByLabelText('more');
+    await user.click(menuButtons[0]);
+
+    // 削除メニューをクリック
+    await user.click(screen.getByText('削除'));
+
+    // エラーログが出力されることを確認
+    await waitFor(() => {
+      expect(consoleSpy).toHaveBeenCalled();
+    });
+
+    consoleSpy.mockRestore();
+  });
+
+  // テスト10: 選択中のレビュー履歴を削除した場合の選択解除
+  test('選択中のレビュー履歴を削除した場合、選択が解除されること', async () => {
+    const user = userEvent.setup();
+
+    // id:2を選択した状態でレンダリング
+    renderAtReviewPath('2');
+
+    // レビュー履歴一覧が表示されるまで待機
+    await waitFor(() => {
+      expect(screen.getByText('Review History 2')).toBeInTheDocument();
+    });
+
+    // 選択中のレビュー履歴（id:2、ソート後の一番上）のメニューボタンをクリック
+    const menuButtons = screen.getAllByLabelText('more');
+    await user.click(menuButtons[0]);
+
+    // 削除メニューをクリック
+    await user.click(screen.getByText('削除'));
+
+    // onReviewHistorySelectがnullで呼ばれることを確認（選択解除）
+    await waitFor(() => {
+      expect(defaultProps.onReviewHistorySelect).toHaveBeenCalledWith(null);
+    });
+  });
+
+  // 技術的観点（正常系）
+
+  // テスト11: updatedAtでの降順ソート
+  test('レビュー履歴がupdatedAtで降順ソートされること', async () => {
+    renderAtReviewPath();
+
+    // レビュー履歴一覧が表示されるまで待機
+    await waitFor(() => {
+      expect(screen.getByText('Review History 1')).toBeInTheDocument();
+      expect(screen.getByText('Review History 2')).toBeInTheDocument();
+    });
+
+    // レビュー履歴の順序を確認（updatedAtで降順ソート）
+    const listItems = screen.getAllByRole('button').filter(
+      (button) =>
+        button.textContent === 'Review History 1' ||
+        button.textContent === 'Review History 2',
+    );
+
+    // Review History 2 (2025-05-02) が Review History 1 (2025-05-01) より先に表示される
+    expect(listItems[0]).toHaveTextContent('Review History 2');
+    expect(listItems[1]).toHaveTextContent('Review History 1');
+  });
+
+  // テスト12: 初回データ取得成功後のポーリング停止
+  test('レビュー履歴一覧の初回データ取得が成功した場合は、ポーリングを解除すること', async () => {
+    // タイマーをモック化
+    jest.useFakeTimers();
+
+    // 1回目はエラー、2回目以降は成功するモック
+    window.electron.review.getHistories = jest
+      .fn()
+      .mockRejectedValueOnce(new Error('Failed to fetch review histories'))
+      .mockResolvedValue({ success: true, data: mockReviewHistories });
+
+    // コンソールエラーをスパイ
+    const consoleSpy = jest
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
+
+    renderAtReviewPath();
+
+    // 初回呼び出し（エラー）を待機
+    await waitFor(() => {
+      expect(window.electron.review.getHistories).toHaveBeenCalledTimes(1);
+    });
+
+    // 5秒進める前にマイクロタスクを処理してポーリングを設定
+    await act(async () => {
+      await Promise.resolve();
+      jest.advanceTimersByTime(5000);
+      await Promise.resolve();
+    });
+
+    // 2回目の呼び出し（成功）を待機
+    await waitFor(() => {
+      expect(window.electron.review.getHistories).toHaveBeenCalledTimes(2);
+    });
+
+    // さらに10秒進めてもそれ以上呼ばれないことを確認
+    await act(async () => {
+      jest.advanceTimersByTime(10000);
+      await Promise.resolve();
+    });
+
+    // 少し待ってから確認
+    await waitFor(() => {
+      expect(window.electron.review.getHistories).toHaveBeenCalledTimes(2);
+    });
+
+    consoleSpy.mockRestore();
+    jest.useRealTimers();
+  });
+
+  // テスト13: コンポーネントアンマウント時のポーリング停止
+  test('レビュー履歴一覧コンポーネントがアンマウントされた際、ポーリングが停止すること', async () => {
+    // タイマーをモック化
+    jest.useFakeTimers();
+
+    // 常にエラーを返すモック（ポーリングが継続するようにする）
+    window.electron.review.getHistories = jest
+      .fn()
+      .mockRejectedValue(new Error('Failed to fetch review histories'));
+
+    // コンソールエラーをスパイ
+    const consoleSpy = jest
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
+
+    // コンポーネントをレンダリング
+    const { unmount } = render(
+      <MemoryRouter initialEntries={[ROUTES.REVIEW]}>
+        <Sidebar onReloadSources={defaultProps.onReloadSources}>
+          <Routes>
+            <Route
+              path={ROUTES.REVIEW}
+              element={
+                <ReviewHistoryList
+                  selectedReviewHistoryId={null}
+                  onReviewHistorySelect={defaultProps.onReviewHistorySelect}
+                />
+              }
+            />
+          </Routes>
+        </Sidebar>
+      </MemoryRouter>,
+    );
+
+    // 初回呼び出しを待機
+    await waitFor(() => {
+      expect(window.electron.review.getHistories).toHaveBeenCalled();
+    });
+
+    // 5秒進める（ポーリング1回目）
+    await act(async () => {
+      await Promise.resolve();
+      jest.advanceTimersByTime(5000);
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(window.electron.review.getHistories).toHaveBeenCalled();
+    });
+
+    const callCountBeforeUnmount = (
+      window.electron.review.getHistories as jest.Mock
+    ).mock.calls.length;
+
+    // コンポーネントをアンマウント
+    unmount();
+
+    // さらに10秒進める
+    await act(async () => {
+      jest.advanceTimersByTime(10000);
+      await Promise.resolve();
+    });
+
+    // ポーリングが停止していることを確認（呼び出し回数が増えない）
+    await waitFor(() => {
+      expect(
+        (window.electron.review.getHistories as jest.Mock).mock.calls.length,
+      ).toBe(callCountBeforeUnmount);
+    });
+
+    consoleSpy.mockRestore();
+    jest.useRealTimers();
+  });
+
+  // 技術的観点（異常系）
+
+  // テスト14: 初回データ取得エラー時のポーリング継続
+  test('レビュー履歴一覧の初回読み込みエラー時の再試行', async () => {
+    // 最初はエラーを返し、2回目は成功するようにモックを設定
+    let callCount = 0;
+    window.electron.review.getHistories = jest.fn().mockImplementation(() => {
+      callCount++;
+      if (callCount === 1) {
+        return Promise.reject(new Error('Failed to fetch review histories'));
+      }
+      return Promise.resolve({ success: true, data: mockReviewHistories });
+    });
+
+    renderAtReviewPath();
+
+    // 初回の取得を確認(失敗)
+    await waitFor(() => {
+      expect(window.electron.review.getHistories).toHaveBeenCalledTimes(1);
+    });
+
+    // 再試行が呼ばれることを確認（ポーリング間隔が5000msなので、5.5秒以内に2回目が呼ばれる）
+    await waitFor(
+      () => {
+        expect(window.electron.review.getHistories).toHaveBeenCalledTimes(2);
+      },
+      { timeout: 8000 },
+    );
+
+    // レビュー履歴一覧が表示されることを確認
+    await waitFor(() => {
+      expect(screen.getByText('Review History 1')).toBeInTheDocument();
+      expect(screen.getByText('Review History 2')).toBeInTheDocument();
+    });
+  }, 10000); // タイムアウトを10秒に設定
+
+  // テスト15: ポーリング中の再試行でデータ取得に成功
+  test('ポーリング中のレビュー履歴更新でエラーが発生した場合の処理', async () => {
+    // pushApi.subscribeのモックを設定
+    let subscribedCallback: ((channel: string) => void) | null = null;
+    window.electron.pushApi.subscribe = jest
+      .fn()
+      .mockImplementation(async (channel: string, callback: (channel: string) => void) => {
+        subscribedCallback = callback;
+        return () => {};
+      });
+
+    // コンソールエラーをスパイ
+    const consoleSpy = jest
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
+
+    renderAtReviewPath();
+
+    // 初回データ取得を待機
+    await waitFor(() => {
+      expect(screen.getByText('Review History 1')).toBeInTheDocument();
+    });
+
+    // レビュー履歴取得をエラーにする
+    window.electron.review.getHistories = jest
+      .fn()
+      .mockRejectedValue(new Error('Failed to fetch review histories'));
+
+    // サーバプッシュイベントをトリガー
+    if (subscribedCallback) {
+      await act(async () => {
+        subscribedCallback!('review-history-updated');
+        await Promise.resolve();
+      });
+    }
+
+    // エラーログが出力されることを確認
+    await waitFor(() => {
+      expect(consoleSpy).toHaveBeenCalledWith(
+        'レビュー履歴の更新に失敗しました:',
+        expect.any(Error),
+      );
+    });
+
+    consoleSpy.mockRestore();
   });
 });

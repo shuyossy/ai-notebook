@@ -1,5 +1,5 @@
 import type { ElectronHandler } from '@/main/preload';
-import type { Source, ChatRoom, SettingsSavingStatus, Settings, ChatMessage } from '@/types';
+import type { Source, ChatRoom, SettingsSavingStatus, Settings, ChatMessage, RevieHistory, ReviewChecklistResult } from '@/types';
 import type { IpcChannels, IpcResponsePayloadMap } from '@/types/ipc';
 
 /**
@@ -64,6 +64,10 @@ export interface MockOptions {
   sourceEnabled?: boolean;
   fsAccess?: boolean;
   settingsStatus?: SettingsSavingStatus;
+  reviewHistories?: RevieHistory[];
+  reviewHistory?: RevieHistory | null;
+  reviewChecklistResults?: ReviewChecklistResult[];
+  reviewTargetDocumentName?: string | null;
 }
 
 /**
@@ -182,16 +186,30 @@ export const createMockElectronWithOptions = (
     review: {
       getHistories: jest
         .fn<Promise<IpcResponsePayloadMap[typeof IpcChannels.REVIEW_GET_HISTORIES]>, []>()
-        .mockResolvedValue({ success: true, data: [] }),
+        .mockResolvedValue({ success: true, data: options.reviewHistories ?? [] }),
       getHistoryById: jest
         .fn<Promise<IpcResponsePayloadMap[typeof IpcChannels.REVIEW_GET_HISTORY_BY_ID]>, [string]>()
-        .mockResolvedValue({ success: true, data: null }),
+        .mockResolvedValue({ success: true, data: options.reviewHistory ?? null }),
       getHistoryDetail: jest
         .fn<Promise<IpcResponsePayloadMap[typeof IpcChannels.REVIEW_GET_HISTORY_DETAIL]>, [string]>()
-        .mockResolvedValue({ success: true, data: {} }),
+        .mockResolvedValue({ success: true, data: {
+          checklistResults: options.reviewChecklistResults ?? [],
+          targetDocumentName: options.reviewTargetDocumentName ?? null,
+        } }),
       getHistoryInstruction: jest
         .fn<Promise<IpcResponsePayloadMap[typeof IpcChannels.REVIEW_GET_HISTORY_INSTRUCTION]>, [string]>()
-        .mockResolvedValue({ success: true, data: {} }),
+        .mockResolvedValue({ success: true, data: {
+          additionalInstructions: '',
+          commentFormat: '【評価理由・根拠】\n（具体的な理由と根拠を記載）\n\n【改善提案】\n（改善のための具体的な提案を記載）',
+          evaluationSettings: {
+            items: [
+              { label: 'A', description: '基準を完全に満たしている' },
+              { label: 'B', description: '基準をある程度満たしている' },
+              { label: 'C', description: '基準を満たしていない' },
+              { label: '–', description: '評価の対象外、または評価できない' },
+            ],
+          },
+        } }),
       deleteHistory: jest
         .fn<Promise<IpcResponsePayloadMap[typeof IpcChannels.REVIEW_DELETE_HISTORY]>, [string]>()
         .mockResolvedValue({ success: true }),

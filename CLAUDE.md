@@ -173,6 +173,7 @@ ElectronのIPCを使用してフロントエンド・バックエンド間の通
 - テストに関連するプロダクトコードのカバレッジ(分岐カバレッジ)を100%にすること
 - テストは古典派的なスタイルで記述すること
   - つまり、単体テストはクラス単位ではなく、一つの振る舞い単位で記述すること
+  - また、最終的にMainプロセスの処理を（IPC通信にて）呼び出す場合は、モック化したIPC通信の処理を正しく呼び出せているかアサーションすること
 - テストの説明は日本語で記述すること
   - テストの説明は、何をテストしているのか、どのような条件でテストが行われるのかを明確に記述すること
 - テストの書き方で不明点があれば次のディレクトリ配下のテストコードを参考にすること
@@ -213,19 +214,27 @@ ElectronのIPCを使用してフロントエンド・バックエンド間の通
 
 ## 依頼中タスク
 - テストの強化
-  - 既存テストの修復: 実施中
+  - 既存テストの修復: 完了
     - しばらく前に大規模リファクタリングをしたことをきっかけにテストが壊れているので、修復する
     - 既存テストは以下
-      - `src/__tests__/renderer/chatComponent.test.tsx`: 完了
-      - `src/__tests__/renderer/SettingsModal.test.tsx`: 完了
-      - `src/__tests__/renderer/Sidebar.test.tsx`: 完了
-      - `src/__tests__/renderer/SourceListModal.test.tsx`: 実施中
-  - 既存テストの強化: 今後実行予定
-    - ブラックボックス、ホワイトボックス的な観点が足りているか検証
-    - 分岐カバレッジも100%になっているか検証
-  - 新規テスト追加: 今後実行予定
+      - `src/__tests__/renderer/chatComponent.test.tsx`
+      - `src/__tests__/renderer/SettingsModal.test.tsx`
+      - `src/__tests__/renderer/Sidebar.test.tsx`
+      - `src/__tests__/renderer/SourceListModal.test.tsx`
+  - 新規テスト追加: 実行中
     - renderer側
       - レビュー機能関連コンポーネントのテスト追加
+        - レビュー本画面のテスト: `src/__tests__/renderer/reviewComponent.test.tsx`
+          - チェックリスト抽出: 完了
+            - モーダル（チェックリスト抽出特有）
+            - チェックリスト抽出結果
+          - レビュー実行
+            - モーダル（レビュー実行特有）
+            - レビュー実行結果
+          - レビュー質問
+            - 質問パネル
+              - チャット入力欄
+        - レビューサイドバーのテスト: `src/__tests__/renderer/Sidebar.test.tsx`
     - main側
       - レビュー機能関連のserviceロジック
         - チェックリスト抽出
