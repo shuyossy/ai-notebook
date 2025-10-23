@@ -51,6 +51,10 @@
     ]
   },
   "jest": {
+    "testEnvironment": "jsdom",
+    "testEnvironmentOptions": {
+      "url": "http://localhost/"
+    },
     "moduleDirectories": [
       "node_modules",
       "release/app/node_modules",
@@ -66,25 +70,36 @@
     "moduleNameMapper": {
       "^@/(.*)$": "<rootDir>/src/$1",
       "\\.(jpg|jpeg|png|gif|eot|otf|webp|svg|ttf|woff|woff2|mp4|webm|wav|mp3|m4a|aac|oga)$": "<rootDir>/.erb/mocks/fileMock.js",
-      "\\.(css|less|sass|scss)$": "identity-obj-proxy"
+      "\\.(css|less|sass|scss)$": "identity-obj-proxy",
+      "^(\\.{1,2}/.*)\\.js$": "$1"
     },
     "setupFiles": [
-      "./.erb/scripts/check-build-exists.ts"
+      "<rootDir>/.erb/scripts/check-build-exists.ts"
     ],
-    "testEnvironment": "jsdom",
-    "testEnvironmentOptions": {
-      "url": "http://localhost/"
-    },
     "testPathIgnorePatterns": [
       "release/app/dist",
       ".erb/dll",
       "src/__tests__/test-utils"
     ],
     "transform": {
-      "\\.(ts|tsx|js|jsx)$": "ts-jest"
+      "^.+\\.(js|jsx)$": [
+        "babel-jest",
+        {
+          "presets": [
+            [
+              "@babel/preset-env",
+              {
+                "targets": {
+                  "node": "current"
+                }
+              }
+            ]
+          ]
+        }
+      ],
+      "^.+\\.(ts|tsx)$": "ts-jest"
     },
     "transformIgnorePatterns": [
-      "/node_modules/(?!(react-syntax-highlighter)/)"
     ]
   },
   "dependencies": {
@@ -138,6 +153,8 @@
     "zustand": "^5.0.4"
   },
   "devDependencies": {
+    "@babel/core": "^7.28.4",
+    "@babel/preset-env": "^7.28.3",
     "@electron/rebuild": "^3.6.1",
     "@pmmmwh/react-refresh-webpack-plugin": "^0.5.15",
     "@svgr/webpack": "^8.1.0",
@@ -155,6 +172,7 @@
     "@types/webpack-bundle-analyzer": "^4.7.0",
     "@typescript-eslint/eslint-plugin": "^8.40.0",
     "@typescript-eslint/parser": "^8.40.0",
+    "babel-jest": "^30.2.0",
     "browserslist-config-erb": "^0.0.3",
     "chalk": "^4.1.2",
     "concurrently": "^9.1.2",

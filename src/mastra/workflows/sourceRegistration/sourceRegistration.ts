@@ -22,8 +22,6 @@ const analyzeSourceOutputSchema = baseStepOutputSchema.extend({
   summary: z.string(),
 });
 
-const sourceRepository = getSourceRepository();
-
 // ソース分析と登録のステップ
 const analyzeSourceStep = createStep({
   id: 'analyzeSourceStep',
@@ -31,6 +29,7 @@ const analyzeSourceStep = createStep({
   inputSchema: triggerSchema,
   outputSchema: analyzeSourceOutputSchema,
   execute: async ({ inputData, mastra }) => {
+    const sourceRepository = getSourceRepository();
     // トリガーから変数を取得
     const { filePath } = inputData;
 
@@ -126,6 +125,7 @@ const extractTopicAndSummaryStep = createStep({
   inputSchema: analyzeSourceOutputSchema,
   outputSchema: baseStepOutputSchema,
   execute: async ({ inputData, getInitData, mastra }) => {
+    const sourceRepository = getSourceRepository();
     const { filePath } = getInitData() as z.infer<typeof triggerSchema>;
     const { sourceId } = inputData;
 

@@ -221,31 +221,42 @@ ElectronのIPCを使用してフロントエンド・バックエンド間の通
       - `src/__tests__/renderer/SettingsModal.test.tsx`
       - `src/__tests__/renderer/Sidebar.test.tsx`
       - `src/__tests__/renderer/SourceListModal.test.tsx`
-  - 新規テスト追加: 実行中
+  - 新規テスト追加: 完了
     - renderer側
       - レビュー機能関連コンポーネントのテスト追加
-        - レビュー本画面のテスト: `src/__tests__/renderer/reviewComponent.test.tsx`
-          - チェックリスト抽出: 完了
-            - モーダル（チェックリスト抽出特有）
-            - チェックリスト抽出結果
+        - レビュー本画面のテスト
+          - チェックリスト抽出
           - レビュー実行
-            - モーダル（レビュー実行特有）
-            - レビュー実行結果
           - レビュー質問
-            - 質問パネル
-              - チャット入力欄
-        - レビューサイドバーのテスト: `src/__tests__/renderer/Sidebar.test.tsx`
-    - main側
-      - レビュー機能関連のserviceロジック
-        - チェックリスト抽出
-          - ファイルインポート
-          - AI抽出
-            - チェックリストドキュメント
-            - 一般ドキュメント
-        - ドキュメントレビュー実行
-          - 少量ドキュメントレビュー
-          - 大量ドキュメントレビュー
-      - ドキュメント登録機能関連のserviceロジック
+        - レビューサイドバーのテスト
+          - `src/__tests__/renderer/Sidebar.test.tsx`に追加
+    - main側: 実施中
+      - mastra workflowの処理: 実施中
+        - テスト作成時の注意
+          - workflow(ネストしている場合は最上位workflow)の振る舞いについてテストをすること
+            - 各step毎に処理を実行するのが限りなく困難なため
+            - workflow実行方法は既存の呼び出し方法を参考にすること
+            - 各stepや、step間のmap処理など網羅的に検証できるようにすること
+            - 関連コードを十分に確認してから、網羅的なテストケースを作成し、実装すること
+            - 外部通信(DB, AI API, イベントpush、ファイルキャッシュ処理)はモック化すること
+            - テキスト抽出処理(`src/main/lib/fileExtractor.ts`)はモック化すること
+            - workflowの実行結果の確認については`src/mastra/lib/workflowUtils.ts`の`checkWorkflowResult`を利用すること
+            - 例外がthrowされるパターンを検証する場合は以下のようにアプリ専用エラー(AppError)を利用すること
+            ```
+            internalError({
+              expose: true,
+              messageCode: 'PLAIN_MESSAGE',
+              messageParams: { message: 'テストエラー' },
+            }),
+            ```
+            - コンテキスト長エラーによりドキュメントを分割する処理が発生する場合があるが、その場合のモックの作成方法等についてはドキュメントレビュー実行workflowのテストケースを参考にすること
+            - 各モックの使い方や例外をthrowするテストの作成方法については既存のworkflowテストを参考にすること
+        - チェックリスト抽出(`src/mastra/workflows/sourceReview/checklistExtraction.ts`): 完了
+          - チェックリストドキュメント
+          - 一般ドキュメント
+        - ドキュメントレビュー実行(`src/mastra/workflows/sourceReview/executeReview/index.ts`): 完了
+        - チャット質問(`src/mastra/workflows/reviewChat/researchDocument/index.ts`): 完了
+        - ソース登録(`src/mastra/workflows/sourceRegistration/sourceRegistration.ts`)
 
 ## 依頼中タスクの注意点
 - テストを修正した後は必ず、テストを実行して成功するかどうか確かめてください
