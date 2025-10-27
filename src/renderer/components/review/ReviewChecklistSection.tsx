@@ -23,12 +23,16 @@ import SaveIcon from '@mui/icons-material/Save';
 import CancelIcon from '@mui/icons-material/Cancel';
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import { ReviewEvaluation } from '@/types';
-import { ReviewChecklistSectionProps } from './types';
+import { ReviewApi } from '@/renderer/service/reviewApi';
+import { SettingsApi } from '@/renderer/service/settingsApi';
+import { useAlertStore } from '@/renderer/stores/alertStore';
+import { getSafeErrorMessage } from '../../lib/error';
 import {
   convertReviewResultsToCSV,
   downloadCSV,
   generateCSVFilename,
 } from '../../lib/csvUtils';
+import { ReviewChecklistSectionProps } from './types';
 
 // 評価ごとの色マッピング（デフォルト）
 const defaultEvaluationColors = {
@@ -59,6 +63,7 @@ const ReviewChecklistSection: React.FC<ReviewChecklistSectionProps> = ({
   isLoading,
   onSave,
   targetDocumentName,
+  selectedReviewHistoryId,
 }) => {
   // --- ステート ---
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -67,6 +72,8 @@ const ReviewChecklistSection: React.FC<ReviewChecklistSectionProps> = ({
   const [newContent, setNewContent] = useState('');
   const [sortBy, setSortBy] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+
+  const addAlert = useAlertStore((state) => state.addAlert);
 
   // --- ハンドラ ---
   const handleStartEdit = (id: number, content: string) => {
@@ -105,10 +112,51 @@ const ReviewChecklistSection: React.FC<ReviewChecklistSectionProps> = ({
   };
 
   // CSV出力ハンドラ
-  const handleExportCSV = () => {
-    const csvContent = convertReviewResultsToCSV(checklistResults);
-    const filename = generateCSVFilename();
-    downloadCSV(csvContent, filename);
+  const handleExportCSV = async () => {
+    try {
+      // レビュー履歴情報を取得
+      let reviewHistory = null;
+      if (selectedReviewHistoryId) {
+        const reviewApi = ReviewApi.getInstance();
+        reviewHistory = await reviewApi.getHistoryById(
+          selectedReviewHistoryId,
+          {
+            showAlert: false,
+            throwError: false,
+          },
+        );
+      }
+
+      // API設定を取得
+      const settingsApi = SettingsApi.getInstance();
+      const settings = await settingsApi.getSettings();
+      const apiSettings = settings?.api
+        ? {
+            url: settings.api.url,
+            key: settings.api.key,
+            model: settings.api.model,
+          }
+        : undefined;
+
+      // CSV生成
+      const csvContent = convertReviewResultsToCSV(
+        checklistResults,
+        reviewHistory,
+        apiSettings,
+      );
+      const filename = generateCSVFilename();
+      downloadCSV(csvContent, filename);
+    } catch (error) {
+      addAlert({
+        message: getSafeErrorMessage(error),
+        severity: 'error',
+      });
+      console.error('CSV出力エラー:', error);
+      // エラーが発生しても最低限のCSVは出力
+      const csvContent = convertReviewResultsToCSV(checklistResults);
+      const filename = generateCSVFilename();
+      downloadCSV(csvContent, filename);
+    }
   };
 
   // --- ソート ---

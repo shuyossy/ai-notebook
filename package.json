@@ -78,8 +78,8 @@
     ],
     "testPathIgnorePatterns": [
       "release/app/dist",
-      ".erb/dll",
-      "src/__tests__/test-utils"
+      "\\.erb/dll",
+      "src/__tests__/.*/test-utils"
     ],
     "transform": {
       "^.+\\.(js|jsx)$": [
@@ -99,8 +99,18 @@
       ],
       "^.+\\.(ts|tsx)$": "ts-jest"
     },
-    "transformIgnorePatterns": [
-    ]
+    "transformIgnorePatterns": [],
+    "collectCoverageFrom": [
+      "src/**/*.{ts,tsx,js,jsx}",
+      "!src/__tests__/**",
+      "!src/**/__mocks__/**"
+    ],
+    "coverageReporters": [
+      "text-summary",
+      "lcov",
+      "html"
+    ],
+    "maxWorkers": 2
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "0.2.16",

@@ -98,6 +98,21 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
     }
   }, [selectedReviewHistoryId]);
 
+  // レビュー設定（追加指示・コメントフォーマット・評定設定）の再取得
+  const fetchReviewSettings = useCallback(async () => {
+    if (!selectedReviewHistoryId) return;
+    const reviewApi = ReviewApi.getInstance();
+    const result = await reviewApi.getReviewInstruction(
+      selectedReviewHistoryId,
+      { throwError: true, showAlert: false },
+    );
+    setAdditionalInstructions(result?.additionalInstructions || '');
+    setCommentFormat(result?.commentFormat || defaultCommentFormat);
+    setEvaluationSettings(
+      result?.evaluationSettings || defaultEvaluationSettings,
+    );
+  }, [selectedReviewHistoryId]);
+
   // チェックリスト抽出完了の共通処理ハンドラー
   const handleChecklistExtractionFinished = useCallback(
     (payload: {
@@ -122,6 +137,11 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
       });
 
       if (payload.status === 'success') {
+        // CSVインポート等で設定が更新された可能性があるため、レビュー設定も再取得
+        fetchReviewSettings().catch((error) => {
+          console.error('レビュー設定の再取得に失敗しました:', error);
+        });
+
         addAlert({
           message: 'チェックリストの抽出が完了しました',
           severity: 'success',
@@ -140,7 +160,12 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
 
       setIsExtracting(false);
     },
-    [selectedReviewHistoryId, fetchChecklistResults, addAlert],
+    [
+      selectedReviewHistoryId,
+      fetchChecklistResults,
+      fetchReviewSettings,
+      addAlert,
+    ],
   );
 
   // レビュー実行完了の共通処理ハンドラー
@@ -722,6 +747,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
                 isLoading={isExtracting || isReviewing}
                 onSave={handleSaveChecklist}
                 targetDocumentName={targetDocumentName}
+                selectedReviewHistoryId={selectedReviewHistoryId || undefined}
               />
             </Paper>
 

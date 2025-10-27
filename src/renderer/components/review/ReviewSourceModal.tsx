@@ -34,6 +34,7 @@ import {
   ViewStream as PagesIcon,
   Add as AddIcon,
   ExpandMore as ExpandMoreIcon,
+  Download as DownloadIcon,
 } from '@mui/icons-material';
 import Backdrop from '@mui/material/Backdrop';
 import {
@@ -105,13 +106,50 @@ const getAlertMessage = ({
       <>
         ファイルを選択してチェックリスト抽出を実行できます
         <br />
-        {documentType === 'checklist-csv'
-          ? '選択したExcelまたはCSVファイルの一列目の値を全てチェックリスト項目として抽出します'
-          : documentType === 'checklist-ai'
-            ? '選択されたチェックリストドキュメントから、AIが既存のチェック項目を抽出できます'
-            : '選択された一般ドキュメントから、AIがレビュー用のチェックリストを新規作成できます'}
-        <br />
-        複数ファイルを選択した場合、選択した順番で結合され一つのドキュメントとして扱われます
+        {documentType === 'checklist-csv' ? (
+          <>
+            選択したExcelまたはCSVファイルから以下の情報をインポートすることができます：
+            <br />
+            ・チェックリスト項目
+            <br />
+            ・評定設定（評定ラベルと説明）
+            <br />
+            ・追加指示・コメントフォーマット
+            <br />
+            ・AI API設定（エンドポイント、APIキー、BPR ID）
+            <br />
+            <br />
+            <strong>ファイル形式:</strong>
+            <br />
+            1行目:
+            ヘッダ行（チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI
+            APIエンドポイント,AI APIキー,BPR ID）：必須
+            <br />
+            2行目以降: データ行：任意
+            <br />
+            ※
+            <br />
+            ・チェックリスト列に値がある場合→チェックリスト項目として認識
+            <br />
+            ・評定ラベル列＋評定説明列の両方に値がある場合→評定設定値として認識
+            <br />
+            ・追加指示・コメントフォーマット・AI
+            API・BPR ID列に値がある場合→各種設定値として認識
+            <br />
+            ・空セルは無視
+            <br />
+          </>
+        ) : documentType === 'checklist-ai' ? (
+          '選択されたチェックリストドキュメントから、AIが既存のチェック項目を抽出できます'
+        ) : (
+          '選択された一般ドキュメントから、AIがレビュー用のチェックリストを新規作成できます'
+        )}
+        {documentType !== 'checklist-csv' && (
+          <>
+            <br />
+            複数ファイルを選択した場合、選択した順番で結合され一つのドキュメントとして扱われます
+          </>
+        )}
         <br />
         ※
         <br />
@@ -184,6 +222,38 @@ function ReviewSourceModal({
     useState<BulkProcessMode>('text');
 
   const addAlert = useAlertStore((state) => state.addAlert);
+
+  // テンプレートCSVダウンロード
+  const handleDownloadTemplate = () => {
+    // テンプレートCSVの内容を生成
+    const templateLines = [
+      // ヘッダ行
+      'チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,BPR ID',
+      // データ行
+      'チェックリストサンプル1,A,基準を完全に満たしている,レビューは厳格に実施してください。,"【評価理由・根拠】\n（具体的な理由と根拠を記載）\n\n【改善提案】\n（改善のための具体的な提案を記載）",http://localhost:11434/v1,your-api-key,llama3',
+      'チェックリストサンプル2,B,基準をある程度満たしている,,,,',
+      'チェックリストサンプル3,C,基準を満たしていない,,,,',
+      ',-,評価の対象外、または評価できない,,,,,',
+    ];
+
+    const csvContent = templateLines.join('\n');
+
+    // BOM付きでダウンロード
+    const BOM = '\uFEFF';
+    const csvWithBOM = BOM + csvContent;
+    const blob = new Blob([csvWithBOM], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'チェックリストインポートテンプレート.csv';
+    document.body.appendChild(link);
+    link.click();
+
+    // クリーンアップ
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
 
   // modalMode, selectedReviewHistoryIdが変わったときに初期化し、保存された値を取得
   useEffect(() => {
@@ -628,11 +698,25 @@ function ReviewSourceModal({
                     value="checklist-csv"
                     control={<Radio />}
                     label={
-                      <Tooltip title="選択したファイル(Excel,CSV)の一列目の値を全てチェックリスト項目として抽出します">
+                      <Box
+                        sx={{ display: 'flex', alignItems: 'center', gap: 1 }}
+                      >
                         <span>
                           チェックリストドキュメント（ファイルインポート）
                         </span>
-                      </Tooltip>
+                        <Tooltip title="インポート用テンプレートファイルをダウンロード">
+                          <IconButton
+                            size="small"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDownloadTemplate();
+                            }}
+                            disabled={processing}
+                          >
+                            <DownloadIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      </Box>
                     }
                     disabled={processing}
                   />

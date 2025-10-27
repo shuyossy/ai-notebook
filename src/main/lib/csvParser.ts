@@ -1,3 +1,6 @@
+import type { CsvImportData, CustomEvaluationSettings } from '@/types';
+import { internalError } from './error';
+
 /**
  * CSV解析のためのユーティリティクラス
  * RFC 4180準拠の基本的なCSVパース機能を提供
@@ -74,26 +77,6 @@ export class CsvParser {
     return rows;
   }
 
-  /**
-   * CSVの1列目の値のみを抽出する
-   * @param csvText CSVテキスト
-   * @returns 1列目の値の配列（空でない値のみ）
-   */
-  public static extractFirstColumn(csvText: string): string[] {
-    const rows = this.parse(csvText);
-    const firstColumnValues: string[] = [];
-
-    for (const row of rows) {
-      if (row.length > 0) {
-        const firstCell = row[0];
-        if (firstCell && firstCell.trim() !== '') {
-          firstColumnValues.push(firstCell.trim());
-        }
-      }
-    }
-
-    return firstColumnValues;
-  }
 
   /**
    * 行が空かどうかを判定する
@@ -141,5 +124,147 @@ export class CsvParser {
     } catch (error) {
       return { isValid: false, error: `CSV解析エラー: ${error}` };
     }
+  }
+
+  /**
+   * 新フォーマットのCSV/Excelデータをパースする
+   * ヘッダ行: チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,BPR ID
+   * @param csvText CSVテキスト
+   * @returns パース結果
+   * @throws AppError パースに失敗した場合
+   */
+  public static parseImportFormat(csvText: string): CsvImportData {
+    const rows = this.parse(csvText);
+
+    if (rows.length === 0) {
+      throw internalError({
+        expose: true,
+        messageCode: 'REVIEW_CHECKLIST_EXTRACTION_FILE_IMPORT_ERROR',
+        messageParams: { detail: 'CSVファイルが空です' },
+      });
+    }
+
+    // ヘッダ行の検証
+    const headerRow = rows[0];
+    const expectedHeaders = [
+      'チェックリスト',
+      '評定ラベル',
+      '評定説明',
+      '追加指示',
+      'コメントフォーマット',
+      'AI APIエンドポイント',
+      'AI APIキー',
+      'BPR ID',
+    ];
+
+    // ヘッダ行の列数検証
+    if (headerRow.length !== expectedHeaders.length) {
+      throw internalError({
+        expose: true,
+        messageCode: 'REVIEW_CHECKLIST_EXTRACTION_FILE_IMPORT_ERROR',
+        messageParams: {
+          detail: `CSVフォーマットが不正です。ヘッダ行は${expectedHeaders.length}列である必要がありますが、${headerRow.length}列でした`,
+        },
+      });
+    }
+
+    // 各ヘッダ列の内容検証
+    for (let i = 0; i < expectedHeaders.length; i++) {
+      const actualHeader = headerRow[i].trim();
+      const expectedHeader = expectedHeaders[i];
+
+      if (actualHeader !== expectedHeader) {
+        throw internalError({
+          expose: true,
+          messageCode: 'REVIEW_CHECKLIST_EXTRACTION_FILE_IMPORT_ERROR',
+          messageParams: {
+            detail: `CSVフォーマットが不正です。${i + 1}列目のヘッダは「${expectedHeader}」である必要がありますが、「${actualHeader}」でした`,
+          },
+        });
+      }
+    }
+
+    // データ行の解析
+    const dataRows = rows.slice(1); // ヘッダ行を除く
+    const checklists: string[] = [];
+    const evaluationItems: Array<{ label: string; description: string }> = [];
+    let additionalInstructions: string | undefined;
+    let commentFormat: string | undefined;
+    let apiUrl: string | undefined;
+    let apiKey: string | undefined;
+    let apiModel: string | undefined;
+
+    for (const row of dataRows) {
+      // 各列のデータを取得（空の場合はundefined）
+      const checklistContent = row[0]?.trim() || undefined;
+      const evalLabel = row[1]?.trim() || undefined;
+      const evalDescription = row[2]?.trim() || undefined;
+      const additionalInst = row[3]?.trim() || undefined;
+      const commentFmt = row[4]?.trim() || undefined;
+      const apiEndpoint = row[5]?.trim() || undefined;
+      const apiKeyValue = row[6]?.trim() || undefined;
+      const apiModelName = row[7]?.trim() || undefined;
+
+      // チェックリスト項目の収集
+      if (checklistContent) {
+        checklists.push(checklistContent);
+      }
+
+      // 評定項目の収集（ラベルと説明の両方が必要）
+      if (evalLabel && evalDescription) {
+        evaluationItems.push({
+          label: evalLabel,
+          description: evalDescription,
+        });
+      }
+
+      // 設定項目の収集（最初に見つかった値を使用）
+      if (additionalInst && !additionalInstructions) {
+        additionalInstructions = additionalInst;
+      }
+      if (commentFmt && !commentFormat) {
+        commentFormat = commentFmt;
+      }
+      if (apiEndpoint && !apiUrl) {
+        apiUrl = apiEndpoint;
+      }
+      if (apiKeyValue && !apiKey) {
+        apiKey = apiKeyValue;
+      }
+      if (apiModelName && !apiModel) {
+        apiModel = apiModelName;
+      }
+    }
+
+    // インポートデータの構築
+    const importData: CsvImportData = {
+      checklists,
+    };
+
+    // 評定設定
+    if (evaluationItems.length > 0) {
+      importData.evaluationSettings = {
+        items: evaluationItems,
+      };
+    }
+
+    // その他の設定
+    if (additionalInstructions) {
+      importData.additionalInstructions = additionalInstructions;
+    }
+    if (commentFormat) {
+      importData.commentFormat = commentFormat;
+    }
+
+    // API設定
+    if (apiUrl || apiKey || apiModel) {
+      importData.apiSettings = {
+        url: apiUrl,
+        key: apiKey,
+        model: apiModel,
+      };
+    }
+
+    return importData;
   }
 }

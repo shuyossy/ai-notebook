@@ -114,7 +114,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
             />
             <TextField
               fullWidth
-              label="モデル名"
+              label="BPR ID"
               value={settings.api.model}
               disabled={loading || saving}
               onChange={(e) => handleChange('api', 'model', e.target.value)}

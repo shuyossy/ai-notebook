@@ -1,4 +1,8 @@
-import { ReviewChecklistResult } from '@/types';
+import {
+  ReviewChecklistResult,
+  CustomEvaluationSettings,
+  RevieHistory,
+} from '@/types';
 
 /**
  * CSV用文字列のエスケープ処理
@@ -27,33 +31,59 @@ const escapeCSVField = (field: string): string => {
 };
 
 /**
- * レビュー結果データをCSV形式に変換
+ * レビュー結果データを新フォーマットのCSV形式に変換
+ * チェックリスト、評定結果、レビュー結果、評定設定、追加指示、コメントフォーマット、AI API設定を含める
  */
 export const convertReviewResultsToCSV = (
   checklistResults: ReviewChecklistResult[],
+  reviewHistory?: RevieHistory | null,
+  apiSettings?: { url?: string; key?: string; model?: string },
 ): string => {
-  if (!checklistResults || checklistResults.length === 0) {
-    return 'チェックリスト\n';
-  }
-
   // ヘッダー行を構築
-  const headers = ['チェックリスト', '評価', 'コメント'];
+  const headers = [
+    'チェックリスト',
+    '評定結果',
+    'レビュー結果',
+    '評定ラベル',
+    '評定説明',
+    '追加指示',
+    'コメントフォーマット',
+    'AI APIエンドポイント',
+    'AI APIキー',
+    'BPR ID',
+  ];
 
   const csvRows: string[] = [];
 
   // ヘッダー行を追加
   csvRows.push(headers.map(escapeCSVField).join(','));
 
-  // データ行を追加
-  checklistResults.forEach((checklist) => {
+  // 評定設定を取得
+  const evaluationItems = reviewHistory?.evaluationSettings?.items || [];
+
+  // チェックリスト数と評定設定数の最大値を取得
+  const maxRows = Math.max(checklistResults.length, evaluationItems.length);
+
+  // データ行を構築
+  for (let i = 0; i < maxRows; i++) {
+    const checklist = i < checklistResults.length ? checklistResults[i] : null;
+    const evaluationItem = i < evaluationItems.length ? evaluationItems[i] : null;
+
     const row: string[] = [
-      checklist.content,
-      checklist.sourceEvaluation?.evaluation || '',
-      checklist.sourceEvaluation?.comment || '',
+      checklist?.content || '', // チェックリスト
+      checklist?.sourceEvaluation?.evaluation || '', // 評定結果（新規追加）
+      checklist?.sourceEvaluation?.comment || '', // レビュー結果（新規追加）
+      evaluationItem?.label || '', // 評定ラベル
+      evaluationItem?.description || '', // 評定説明
+      i === 0 ? (reviewHistory?.additionalInstructions || '') : '', // 追加指示（1行目のみ）
+      i === 0 ? (reviewHistory?.commentFormat || '') : '', // コメントフォーマット（1行目のみ）
+      i === 0 ? (apiSettings?.url || '') : '', // AI APIエンドポイント（1行目のみ）
+      i === 0 ? (apiSettings?.key || '') : '', // AI APIキー（1行目のみ）
+      i === 0 ? (apiSettings?.model || '') : '', // BPR ID（1行目のみ）
     ];
 
     csvRows.push(row.map(escapeCSVField).join(','));
-  });
+  }
 
   return csvRows.join('\n');
 };

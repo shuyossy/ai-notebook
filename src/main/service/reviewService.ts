@@ -2,7 +2,7 @@ import { createDataStream } from 'ai';
 // @ts-ignore
 import { RuntimeContext } from '@mastra/core/runtime-context';
 import { v4 as uuid } from 'uuid';
-import { getReviewRepository } from '@/adapter/db';
+import { getReviewRepository, getSettingsRepository } from '@/adapter/db';
 import {
   ReviewChecklistEdit,
   ReviewChecklistResult,
@@ -14,6 +14,7 @@ import {
   ReviewExecutionResultStatus,
   DocumentMode,
   ProcessingStatus,
+  CsvImportData,
 } from '@/types';
 import { generateReviewTitle } from '@/mastra/workflows/sourceReview/lib';
 import { RevieHistory } from '@/types';
@@ -84,6 +85,7 @@ export class ReviewService implements IReviewService {
   }
 
   private reviewRepository = getReviewRepository();
+  private settingsRepository = getSettingsRepository();
 
   // 実行中のワークフロー管理
   private runningWorkflows = new Map<string, { cancel: () => void }>();
@@ -220,7 +222,7 @@ export class ReviewService implements IReviewService {
 
   /**
    * CSVファイルからチェックリストを抽出してDBに保存
-   */
+      */
   public async extractChecklistFromCsv(
     reviewHistoryId: string,
     files: UploadFile[],
@@ -244,6 +246,7 @@ export class ReviewService implements IReviewService {
       );
 
       const allChecklistItems: string[] = [];
+      let importedData: CsvImportData | null = null;
 
       // 各CSVファイルを処理
       for (const file of files) {
@@ -251,14 +254,15 @@ export class ReviewService implements IReviewService {
         const extractionResult = await FileExtractor.extractText(file.path);
         const csvText = extractionResult.content;
 
-        // CSVパーサーを使用してセル内改行を保持しつつ1列目を抽出
-        const firstColumnItems = CsvParser.extractFirstColumn(csvText);
+        // 指定フォーマットでパースを試みる（エラーの場合は例外がスローされる）
+        const data = CsvParser.parseImportFormat(csvText);
 
-        // 各項目をチェックリスト項目として追加
-        for (const item of firstColumnItems) {
-          if (item && item.trim() !== '') {
-            allChecklistItems.push(item.trim());
-          }
+        // チェックリスト項目を追加
+        allChecklistItems.push(...data.checklists);
+
+        // 最初のファイルのインポートデータを使用（設定は最初のファイルのものを優先）
+        if (!importedData) {
+          importedData = data;
         }
       }
 
@@ -273,6 +277,58 @@ export class ReviewService implements IReviewService {
           'system',
         );
       }
+
+      // インポートデータがある場合は設定を反映
+      if (importedData) {
+        // 評定設定の更新
+        if (importedData.evaluationSettings) {
+          await this.reviewRepository.updateReviewHistoryEvaluationSettings(
+            reviewHistoryId,
+            importedData.evaluationSettings,
+          );
+        }
+
+        // 追加指示・コメントフォーマットの更新
+        if (
+          importedData.additionalInstructions ||
+          importedData.commentFormat
+        ) {
+          await this.reviewRepository.updateReviewHistoryAdditionalInstructionsAndCommentFormat(
+            reviewHistoryId,
+            importedData.additionalInstructions,
+            importedData.commentFormat,
+          );
+        }
+
+        // AI API設定の更新（settingsRepositoryに保存）
+        if (importedData.apiSettings) {
+          const currentSettings = await this.settingsRepository.getSettings();
+          const updates: { url?: string; key?: string; model?: string } = {};
+
+          if (importedData.apiSettings.url) {
+            updates.url = importedData.apiSettings.url;
+          }
+          if (importedData.apiSettings.key) {
+            updates.key = importedData.apiSettings.key;
+          }
+          if (importedData.apiSettings.model) {
+            updates.model = importedData.apiSettings.model;
+          }
+
+          if (Object.keys(updates).length > 0) {
+            await this.settingsRepository.saveSettings({
+              ...currentSettings,
+              api: {
+                ...currentSettings.api,
+                ...updates,
+              },
+            });
+            // 設定更新イベントを発火
+            publishEvent(IpcChannels.SETTINGS_UPDATED, undefined);
+          }
+        }
+      }
+
       // AI処理と同様のイベント通知を発火
       publishEvent(IpcChannels.REVIEW_EXTRACT_CHECKLIST_FINISHED, {
         reviewHistoryId,

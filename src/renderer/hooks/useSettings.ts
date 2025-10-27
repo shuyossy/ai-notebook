@@ -5,11 +5,13 @@ import {
   type Settings,
   type ValidationState,
   type ValidationError,
+  IpcChannels,
 } from '@/types';
 import { SettingsApi } from '../service/settingsApi';
 import { useAgentStatusStore } from '../stores/agentStatusStore';
 import { useAlertStore } from '../stores/alertStore';
 import { getSafeErrorMessage, internalError } from '../lib/error';
+import { usePushChannel } from './usePushChannel';
 
 type AppSettings = Omit<Settings, 'mcp'> & {
   mcp: { serverConfig: string | undefined };
@@ -130,34 +132,41 @@ const useSettingsStore = () => {
     [],
   );
 
-  // 設定値の読み込み
+  /**
+   * 設定値を読み込む関数
+   */
+  const loadSettings = useCallback(async () => {
+    const loadedSettings = await settingsApi.getSettings({
+      showAlert: false,
+      throwError: true,
+    });
+
+    if (loadedSettings) {
+      const loadedAppSettings = {
+        ...loadedSettings,
+        mcp: {
+          serverConfig: loadedSettings.mcp.serverConfig
+            ? JSON.stringify(loadedSettings.mcp.serverConfig, null, 2)
+            : undefined,
+        },
+      };
+      setSettings(loadedAppSettings);
+
+      // 各セクションのバリデーションを実行
+      Object.entries(loadedAppSettings).forEach(([section, value]) => {
+        validateSection(section as keyof AppSettings, value);
+      });
+    }
+  }, [settingsApi, validateSection]);
+
+  // 設定値の初回読み込み
   useEffect(() => {
     setLoading(true);
     let intervalId: ReturnType<typeof setInterval> | null = null;
 
-    const loadSettings = async () => {
+    const loadSettingsWithRetry = async () => {
       try {
-        const loadedSettings = await settingsApi.getSettings({
-          showAlert: false,
-          throwError: true,
-        });
-
-        if (loadedSettings) {
-          const loadedAppSettings = {
-            ...loadedSettings,
-            mcp: {
-              serverConfig: loadedSettings.mcp.serverConfig
-                ? JSON.stringify(loadedSettings.mcp.serverConfig, null, 2)
-                : undefined,
-            },
-          };
-          setSettings(loadedAppSettings);
-
-          // 各セクションのバリデーションを実行
-          Object.entries(loadedAppSettings).forEach(([section, value]) => {
-            validateSection(section as keyof AppSettings, value);
-          });
-        }
+        await loadSettings();
 
         setLoading(false);
 
@@ -170,13 +179,13 @@ const useSettingsStore = () => {
         console.error('設定の読み込みに処理失敗しました:', err);
         // 失敗時はポーリングを継続（既に設定済みの場合は何もしない）
         if (!intervalId) {
-          intervalId = setInterval(loadSettings, 5000);
+          intervalId = setInterval(loadSettingsWithRetry, 5000);
         }
       }
     };
 
     // 初回読み込み
-    loadSettings();
+    loadSettingsWithRetry();
 
     // クリーンアップでポーリング停止
     return () => {
@@ -184,7 +193,14 @@ const useSettingsStore = () => {
         clearInterval(intervalId);
       }
     };
-  }, [validateSection]);
+  }, [loadSettings]);
+
+  // SETTINGS_UPDATEDイベント購読
+  usePushChannel(IpcChannels.SETTINGS_UPDATED, () => {
+    loadSettings().catch((error) => {
+      console.error('設定の再読み込みに失敗しました:', error);
+    });
+  });
 
   // エージェント状態の初回ポーリング処理（エラーが発生しなくなるまでポーリング継続）
   useEffect(() => {

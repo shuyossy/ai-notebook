@@ -44,13 +44,17 @@ describe('SettingsModal Component', () => {
       expect(window.electron.settings.getSettings).toHaveBeenCalledTimes(1);
     });
 
-    // データベース設定
+    // 全てのフィールドが読み込まれて有効になるまで待機
     await waitFor(() => {
-      const dbPath = screen.getByRole('textbox', {
-        name: 'データベース保存フォルダ',
-      });
-      expect(dbPath).toHaveValue('/test/db');
+      const apiKeyInput = screen.getByLabelText('APIキー');
+      expect(apiKeyInput).toBeEnabled();
     });
+
+    // データベース設定
+    const dbPath = screen.getByRole('textbox', {
+      name: 'データベース保存フォルダ',
+    });
+    expect(dbPath).toHaveValue('/test/db');
 
     // ソース設定
     expect(screen.getByLabelText('ドキュメント格納フォルダ')).toHaveValue(
@@ -63,7 +67,7 @@ describe('SettingsModal Component', () => {
     expect(screen.getByLabelText('APIエンドポイントURL')).toHaveValue(
       'https://api.test.com',
     );
-    expect(screen.getByLabelText('モデル名')).toHaveValue('test-model');
+    expect(screen.getByLabelText('BPR ID')).toHaveValue('test-model');
 
     // Redmine設定
     const redmineEndpoint = screen.getByLabelText('Redmineエンドポイント');
@@ -115,7 +119,7 @@ describe('SettingsModal Component', () => {
     // API設定の更新
     const apiKeyInput = screen.getByLabelText('APIキー');
     const apiEndpointInput = screen.getByLabelText('APIエンドポイントURL');
-    const apiModelInput = screen.getByLabelText('モデル名');
+    const apiModelInput = screen.getByLabelText('BPR ID');
 
     await user.clear(apiKeyInput);
     await user.type(apiKeyInput, 'new-test-api-key');
@@ -248,14 +252,15 @@ describe('SettingsModal Component', () => {
     });
 
     // 必須フィールドを空にする
-    const apiKeyInput = screen.getByLabelText('APIキー');
-    const apiEndpointInput = screen.getByLabelText('APIエンドポイントURL');
-    const apiModelInput = screen.getByLabelText('モデル名');
-    const dbDirInput = screen.getByLabelText('データベース保存フォルダ');
-
     await waitFor(() => {
+      const apiKeyInput = screen.getByLabelText('APIキー');
       expect(apiKeyInput).toBeEnabled();
     });
+
+    const apiKeyInput = screen.getByLabelText('APIキー');
+    const apiEndpointInput = screen.getByLabelText('APIエンドポイントURL');
+    const apiModelInput = screen.getByLabelText('BPR ID');
+    const dbDirInput = screen.getByLabelText('データベース保存フォルダ');
 
     // 必須フィールドをクリア
     await user.clear(apiKeyInput);
@@ -728,9 +733,9 @@ describe('SettingsModal Component', () => {
       expect(window.electron.settings.getSettings).toHaveBeenCalledTimes(1);
     });
 
-    // エラーログが出力されることを確認
+    // エラーログが出力されることを確認（invokeApiがエラーをキャッチして最初にログ出力）
     expect(consoleSpy).toHaveBeenCalledWith(
-      '設定の読み込みに処理失敗しました:',
+      'API通信に失敗しました:',
       expect.any(Error),
     );
 

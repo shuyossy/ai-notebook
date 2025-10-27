@@ -122,3 +122,17 @@ export interface ReviewLargedocumentResultCache {
   chunkIndex: number; // 何番目のチャンクか（0から始まる）
   individualFileName: string; // 分割後の個別ドキュメント名（"xxx (part 1)" など）
 }
+
+// CSV/Excelインポートデータの型定義
+export interface CsvImportData {
+  checklists: string[]; // チェックリスト項目の配列
+  evaluationSettings?: CustomEvaluationSettings; // 評定設定
+  additionalInstructions?: string; // 追加指示
+  commentFormat?: string; // コメントフォーマット
+  apiSettings?: {
+    // AI API設定
+    url?: string;
+    key?: string;
+    model?: string;
+  };
+}
