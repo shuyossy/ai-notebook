@@ -40,7 +40,11 @@ export class CsvParser {
           }
           currentRow.push(currentCell.trim());
           if (currentRow.length > 0 && !this.isEmptyRow(currentRow)) {
-            rows.push(currentRow);
+            // Excelファイル抽出時のシート名行（#sheet:で始まる行）をスキップ
+            const isSheetNameRow = currentRow.length === 1 && currentRow[0].startsWith('#sheet:');
+            if (!isSheetNameRow) {
+              rows.push(currentRow);
+            }
           }
           currentRow = [];
           currentCell = '';
@@ -71,7 +75,11 @@ export class CsvParser {
     // 最後のセルと行を追加
     currentRow.push(currentCell.trim());
     if (currentRow.length > 0 && !this.isEmptyRow(currentRow)) {
-      rows.push(currentRow);
+      // Excelファイル抽出時のシート名行（#sheet:で始まる行）をスキップ
+      const isSheetNameRow = currentRow.length === 1 && currentRow[0].startsWith('#sheet:');
+      if (!isSheetNameRow) {
+        rows.push(currentRow);
+      }
     }
 
     return rows;

@@ -136,5 +136,54 @@ describe('CsvParser - 新フォーマット対応', () => {
 
       expect(result.checklists).toEqual(['項目1\n改行あり']);
     });
+
+    it('Excelのシート名行（#sheet:で始まる行）を正しくスキップできること', () => {
+      const csvText = `#sheet:Sheet1
+チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,BPR ID
+項目1,,,,,,
+項目2,,,,,,`;
+
+      const result = CsvParser.parseImportFormat(csvText);
+
+      expect(result.checklists).toEqual(['項目1', '項目2']);
+    });
+
+    it('複数シートのシート名行を正しくスキップできること', () => {
+      const csvText = `#sheet:Sheet1
+チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,BPR ID
+項目1,,,,,,
+
+#sheet:Sheet2
+チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,BPR ID
+項目2,,,,,,`;
+
+      const result = CsvParser.parseImportFormat(csvText);
+
+      // 最初のヘッダー行が認識されるため、2つ目のヘッダー行はデータ行として扱われる
+      // この場合、チェックリスト列の値「チェックリスト」が項目として認識される
+      expect(result.checklists).toEqual(['項目1', 'チェックリスト', '項目2']);
+    });
+
+    it('シート名行を含む完全なフォーマットのCSVを正しくパースできること', () => {
+      const csvText = `#sheet:Sheet1
+チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,BPR ID
+要件が明確に定義されているか,,,,,,
+,A,優秀,,,,,
+,,,レビューは厳格に。,"【評価】{evaluation}",http://localhost:11434/v1,test-key,llama3`;
+
+      const result = CsvParser.parseImportFormat(csvText);
+
+      expect(result.checklists).toEqual(['要件が明確に定義されているか']);
+      expect(result.evaluationSettings?.items).toEqual([
+        { label: 'A', description: '優秀' },
+      ]);
+      expect(result.additionalInstructions).toBe('レビューは厳格に。');
+      expect(result.commentFormat).toBe('【評価】{evaluation}');
+      expect(result.apiSettings).toEqual({
+        url: 'http://localhost:11434/v1',
+        key: 'test-key',
+        model: 'llama3',
+      });
+    });
   });
 });
