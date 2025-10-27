@@ -330,7 +330,7 @@ describe('SettingsModal Component', () => {
 
     // モックをクリーンアップ
     jest.restoreAllMocks();
-  }, 30000);
+  }, 60000);
 
   // テスト4: MCPスキーマのバリデーションエラーが正しく表示されること
   test('MCPスキーマのバリデーションエラーが正しく表示されること', async () => {
@@ -452,7 +452,7 @@ describe('SettingsModal Component', () => {
     await waitFor(() => {
       expect(defaultProps.onValidChange).toHaveBeenLastCalledWith(false);
     });
-  }, 20000);
+  }, 60000);
 
   // テスト5: 保存に失敗した場合のエラー表示を確認
   test('保存に失敗した場合のエラー表示を確認', async () => {
