@@ -988,12 +988,14 @@ describe('Review Sidebar Component', () => {
   test('サーバプッシュによるリアルタイム更新が機能すること', async () => {
     // pushApi.subscribeのモックを設定して、コールバックをキャプチャできるようにする
     let subscribedCallback: ((channel: string) => void) | null = null;
-    window.electron.pushApi.subscribe = jest
-      .fn()
-      .mockImplementation(async (channel: string, callback: (channel: string) => void) => {
-        subscribedCallback = callback;
-        return () => {}; // unsubscribe function
-      });
+    (window.electron.pushApi.subscribe as jest.Mock).mockImplementation(
+      (channel, callback) => {
+        if (channel === 'review-history-updated') {
+          subscribedCallback = callback;
+        }
+        return Promise.resolve(jest.fn()); // unsubscribe関数を返す
+      },
+    );
 
     renderAtReviewPath();
 
@@ -1308,12 +1310,14 @@ describe('Review Sidebar Component', () => {
   test('ポーリング中のレビュー履歴更新でエラーが発生した場合の処理', async () => {
     // pushApi.subscribeのモックを設定
     let subscribedCallback: ((channel: string) => void) | null = null;
-    window.electron.pushApi.subscribe = jest
-      .fn()
-      .mockImplementation(async (channel: string, callback: (channel: string) => void) => {
-        subscribedCallback = callback;
-        return () => {};
-      });
+    (window.electron.pushApi.subscribe as jest.Mock).mockImplementation(
+      (channel, callback) => {
+        if (channel === 'review-history-updated') {
+          subscribedCallback = callback;
+        }
+        return Promise.resolve(jest.fn()); // unsubscribe関数を返す
+      },
+    );
 
     // コンソールエラーをスパイ
     const consoleSpy = jest
