@@ -107,6 +107,13 @@ export const planResearchStep = createStep({
         reasoning: task.reasoning,
       }));
 
+      if (researchTasks.length === 0) {
+        throw internalError({
+          expose: true,
+          messageCode: 'AI_INVALID_RESPONSE'
+        });
+      }
+
       return {
         status: 'success' as stepStatus,
         researchTasks,

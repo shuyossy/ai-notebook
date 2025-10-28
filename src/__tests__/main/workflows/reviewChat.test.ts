@@ -1813,6 +1813,44 @@ describe('reviewChatWorkflow', () => {
         expect(mockReviewChatAnswerAgent.generateLegacy).not.toHaveBeenCalled();
       });
 
+      it('調査計画作成時にAIが空の調査タスクを返した場合にworkflowがfailedになること', async () => {
+        // Arrange
+        const reviewHistoryId = 'review-1';
+        const checklistIds = [1];
+        const question = '質問';
+
+        // AIエージェントが空のtasks配列を返すようモック設定
+        mockReviewChatPlanningAgent.generateLegacy.mockResolvedValue({
+          object: {
+            tasks: [], // 空配列
+          },
+          finishReason: 'stop',
+        });
+
+        // Act
+        const runtimeContext = new RuntimeContext();
+        runtimeContext.set('dataStreamWriter', mockDataStreamWriter);
+        runtimeContext.set('toolCallId', 'test-tool-call-id');
+
+        const run = await reviewChatWorkflow.createRunAsync();
+        const result = await run.start({
+          inputData: {
+            reviewHistoryId,
+            checklistIds,
+            question,
+          },
+          runtimeContext,
+        });
+
+        // Assert
+        const checkResult = checkWorkflowResult(result);
+        expect(checkResult.status).toBe('failed');
+        expect(checkResult.errorMessage).toContain('AIから予期せぬ応答が返されました');
+        // 後続のステップが呼ばれていないことを確認
+        expect(mockReviewChatResearchAgent.generateLegacy).not.toHaveBeenCalled();
+        expect(mockReviewChatAnswerAgent.generateLegacy).not.toHaveBeenCalled();
+      });
+
       it('ドキュメント調査失敗時にworkflowがfailedになること', async () => {
         // Arrange
         const reviewHistoryId = 'review-1';
@@ -2341,47 +2379,6 @@ describe('reviewChatWorkflow', () => {
         const checkResult = checkWorkflowResult(result);
         expect(checkResult.status).toBe('failed');
         expect(checkResult.errorMessage).toContain('最大出力コンテキストを超え');
-      });
-
-      it('調査タスクが空の場合でもworkflowが完了すること', async () => {
-        // Arrange
-        const reviewHistoryId = 'review-1';
-        const checklistIds = [1];
-        const question = '調査不要な質問';
-
-        mockReviewChatPlanningAgent.generateLegacy.mockResolvedValue({
-          object: {
-            tasks: [],
-          },
-          finishReason: 'stop',
-        });
-
-        mockReviewChatAnswerAgent.generateLegacy.mockResolvedValue({
-          text: '調査は不要です。',
-          finishReason: 'stop',
-          usage: { promptTokens: 100, completionTokens: 50 },
-        });
-
-        // Act
-        const runtimeContext = new RuntimeContext();
-        runtimeContext.set('dataStreamWriter', mockDataStreamWriter);
-        runtimeContext.set('toolCallId', 'test-tool-call-id');
-
-        const run = await reviewChatWorkflow.createRunAsync();
-        const result = await run.start({
-          inputData: {
-            reviewHistoryId,
-            checklistIds,
-            question,
-          },
-          runtimeContext,
-        });
-
-        // Assert
-        const checkResult = checkWorkflowResult(result);
-        expect(checkResult.status).toBe('success');
-        expect((result as any).result?.answer).toBe('調査は不要です。');
-        expect(mockReviewChatResearchAgent.generateLegacy).not.toHaveBeenCalled();
       });
     });
 
