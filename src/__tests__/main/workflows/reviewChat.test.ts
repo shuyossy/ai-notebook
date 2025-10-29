@@ -1955,6 +1955,95 @@ describe('reviewChatWorkflow', () => {
     });
 
     describe('チャンク分割関連', () => {
+      it('コンテキスト長エラーがなく、失敗が一つでもある場合は失敗として返されること', async () => {
+        // Arrange
+        const reviewHistoryId = 'review-1';
+        const checklistIds = [1];
+        const question = '長いドキュメントの質問';
+
+        mockRepository.getReviewDocumentCacheById.mockResolvedValue({
+          id: 1,
+          reviewHistoryId: 'review-1',
+          fileName: 'long-document.txt',
+          processMode: 'text',
+          textContent: 'A'.repeat(20000),
+          imageData: undefined,
+          createdAt: '2024-01-01',
+          updatedAt: '2024-01-01',
+        });
+
+        mockReviewChatPlanningAgent.generateLegacy.mockResolvedValue({
+          object: {
+            tasks: [
+              {
+                reasoning: '長いドキュメントを調査',
+                documentId: '1',
+                researchContent: '長いドキュメントの内容を調査',
+              },
+            ],
+          },
+          finishReason: 'stop',
+        });
+
+        // 1回目: コンテキスト長エラー（チャンク分割トリガー）
+        // 2回目以降（2チャンクに分割）: 1つ目は成功、2つ目は一般エラー
+        let callCount = 0;
+        mockReviewChatResearchAgent.generateLegacy.mockImplementation(
+          async () => {
+            callCount++;
+            if (callCount === 1) {
+              // 初回はコンテキスト長エラー
+              throw new APICallError({
+                message: 'Context length exceeded',
+                url: 'http://test-api',
+                requestBodyValues: {},
+                statusCode: 400,
+                responseBody: JSON.stringify({
+                  error: 'maximum context length exceeded',
+                }),
+                cause: new Error('maximum context length exceeded'),
+                isRetryable: false,
+              });
+            } else if (callCount === 2) {
+              // 2チャンク目の1つ目は成功
+              return {
+                text: 'チャンク1の調査結果',
+                finishReason: 'stop',
+              };
+            } else {
+              // 2チャンク目の2つ目は一般エラー
+              throw internalError({
+                expose: true,
+                messageCode: 'PLAIN_MESSAGE',
+                messageParams: { message: 'チャンク調査中にエラーが発生' },
+              });
+            }
+          },
+        );
+
+        // Act
+        const runtimeContext = new RuntimeContext();
+        runtimeContext.set('dataStreamWriter', mockDataStreamWriter);
+        runtimeContext.set('toolCallId', 'test-tool-call-id');
+
+        const run = await reviewChatWorkflow.createRunAsync();
+        const result = await run.start({
+          inputData: {
+            reviewHistoryId,
+            checklistIds,
+            question,
+          },
+          runtimeContext,
+        });
+
+        // Assert
+        const checkResult = checkWorkflowResult(result);
+        expect(checkResult.status).toBe('failed');
+        expect(checkResult.errorMessage).toContain('チャンク調査中にエラーが発生');
+        // 回答生成は呼ばれない
+        expect(mockReviewChatAnswerAgent.generateLegacy).not.toHaveBeenCalled();
+      });
+
       it('チャンク分割最大リトライ超過時にエラーになること', async () => {
         // Arrange
         const reviewHistoryId = 'review-1';
@@ -2022,6 +2111,83 @@ describe('reviewChatWorkflow', () => {
         expect(checkResult.status).toBe('failed');
         // 最大リトライ超過時は汎用エラーメッセージになる
         expect(checkResult.errorMessage).toBeTruthy();
+      });
+
+      it('リトライ回数が5回を超えた場合、エラーとして処理が終了すること', async () => {
+        // Arrange
+        const reviewHistoryId = 'review-1';
+        const checklistIds = [1];
+        const question = '非常に長いドキュメントの質問';
+
+        mockRepository.getReviewDocumentCacheById.mockResolvedValue({
+          id: 1,
+          reviewHistoryId: 'review-1',
+          fileName: 'extremely-long-document.txt',
+          processMode: 'text',
+          textContent: 'A'.repeat(100000),
+          imageData: undefined,
+          createdAt: '2024-01-01',
+          updatedAt: '2024-01-01',
+        });
+
+        mockReviewChatPlanningAgent.generateLegacy.mockResolvedValue({
+          object: {
+            tasks: [
+              {
+                reasoning: '非常に長いドキュメントを調査',
+                documentId: '1',
+                researchContent: '非常に長いドキュメントの内容を調査',
+              },
+            ],
+          },
+          finishReason: 'stop',
+        });
+
+        // 常にコンテキスト長エラーをthrow（リトライを5回発生させる）
+        let callCount = 0;
+        mockReviewChatResearchAgent.generateLegacy.mockImplementation(
+          async () => {
+            callCount++;
+            throw new APICallError({
+              message: 'Context length exceeded',
+              url: 'http://test-api',
+              requestBodyValues: {},
+              statusCode: 400,
+              responseBody: JSON.stringify({
+                error: 'maximum context length exceeded',
+              }),
+              cause: new Error('maximum context length exceeded'),
+              isRetryable: false,
+            });
+          },
+        );
+
+        // Act
+        const runtimeContext = new RuntimeContext();
+        runtimeContext.set('dataStreamWriter', mockDataStreamWriter);
+        runtimeContext.set('toolCallId', 'test-tool-call-id');
+
+        const run = await reviewChatWorkflow.createRunAsync();
+        const result = await run.start({
+          inputData: {
+            reviewHistoryId,
+            checklistIds,
+            question,
+          },
+          runtimeContext,
+        });
+
+        // Assert
+        const checkResult = checkWorkflowResult(result);
+        expect(checkResult.status).toBe('failed');
+        // リトライが5回を超えた場合は処理が失敗する
+        // 特定のエラーメッセージが返されることを確認
+        expect(checkResult.errorMessage).toBe(
+          'ドキュメントが長すぎて処理できませんでした。',
+        );
+        // リトライ回数を検証 (初回+リトライ5回で合計6イテレーション)
+        // ※ チャンク数が増えていくため、総呼び出し回数は1+2+4+8+16+32=63回程度になる
+        expect(callCount).toBeGreaterThanOrEqual(21);
       });
     });
 

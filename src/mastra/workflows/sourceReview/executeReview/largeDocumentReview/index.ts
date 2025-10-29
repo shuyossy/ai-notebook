@@ -213,7 +213,7 @@ const individualDocumentReviewWorkflow = createWorkflow({
       })
       .commit(),
     async ({ inputData }) => {
-      if (inputData.retryCount >= 4) {
+      if (inputData.retryCount >= 6) {
         return true;
       }
       if (inputData.finishReason !== 'content_length') {

@@ -2013,10 +2013,14 @@ describe('executeReviewWorkflow', () => {
         // Assert
         const checkResult = checkWorkflowResult(result);
         expect(checkResult.status).toBe('failed');
-        // リトライ最大回数に達した場合、いずれかのエラーメッセージが返される
-        // 「コンテキスト長エラーが解消されませんでした」または個別レビューステップのエラー
-        expect(checkResult.errorMessage).toBeTruthy();
-        expect(mockIndividualDocumentReviewAgent.generateLegacy).toHaveBeenCalled();
+        // リトライ最大回数（5回）を超えた場合、特定のエラーメッセージが返される
+        expect(checkResult.errorMessage).toBe(
+          'ドキュメント分割を複数回実行しましたが、コンテキスト長エラーが解消されませんでした'
+        );
+        // リトライのたびにドキュメントが分割され、foreachで個別レビューが実行される
+        // retryCount 0: 1個 (1回), 1: 2個 (2回), 2: 3個 (3回), 3: 4個 (4回), 4: 5個 (5回), 5: 6個 (6回)
+        // 合計: 1+2+3+4+5+6 = 21回
+        expect(mockIndividualDocumentReviewAgent.generateLegacy).toHaveBeenCalledTimes(21);
       });
 
       it('個別レビュー未完了チェックリスト最大試行回数超過時にエラーになること', async () => {

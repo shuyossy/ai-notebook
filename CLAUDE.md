@@ -215,5 +215,7 @@ ElectronのIPCを使用してフロントエンド・バックエンド間の通
   - 前述の通り、古典派的な方針でテストを実装するので、機能が作成完了した段階で新規テストを作成すること
 
 ## 依頼タスク
-- `src/mastra/workflows/reviewChat/planResearchStep.ts`のに関するテストの追加
-  - 構造化出力から調査タスクを取得した結果の`researchTasks`が空配列だった場合は、エラーになりworkflowが終了する。これに関するテストを追加する。
+- 大量ドキュメントレビューのworkflowテストの改良
+  - 関連コード
+    - `src/mastra/workflows/sourceReview/executeReview/largeDocumentReview/index.ts`  
+  - 「分割リトライ最大回数超過時にエラーになること」のテストにて、リトライ回数が5回を超えた場合、エラーメッセージが「ドキュメント分割を複数回実行しましたが、コンテキスト長エラーが解消されませんでした」となることを確認する

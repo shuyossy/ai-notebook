@@ -233,7 +233,7 @@ export const researchDocumentWithRetryWorkflow = createWorkflow({
       .commit(),
     async ({ inputData }) => {
       // 再試行上限または成功したら終了
-      if (inputData.retryCount >= 5) {
+      if (inputData.retryCount >= 6) {
         return true;
       }
       if (inputData.finishReason !== 'content_length') {
