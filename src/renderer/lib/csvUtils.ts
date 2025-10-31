@@ -71,15 +71,23 @@ export const convertReviewResultsToCSV = (
 
     const row: string[] = [
       checklist?.content || '', // チェックリスト
-      checklist?.sourceEvaluation?.evaluation || '', // 評定結果（新規追加）
-      checklist?.sourceEvaluation?.comment || '', // レビュー結果（新規追加）
-      evaluationItem?.label || '', // 評定ラベル
-      evaluationItem?.description || '', // 評定説明
-      i === 0 ? (reviewHistory?.additionalInstructions || '') : '', // 追加指示（1行目のみ）
-      i === 0 ? (reviewHistory?.commentFormat || '') : '', // コメントフォーマット（1行目のみ）
-      i === 0 ? (apiSettings?.url || '') : '', // AI APIエンドポイント（1行目のみ）
-      i === 0 ? (apiSettings?.key || '') : '', // AI APIキー（1行目のみ）
-      i === 0 ? (apiSettings?.model || '') : '', // BPR ID（1行目のみ）
+      checklist?.sourceEvaluation?.evaluation || '', // 評定結果
+      checklist?.sourceEvaluation?.comment || '', // レビュー結果
+      // 直ぐに戻せるようにコメントアウト
+      // evaluationItem?.label || '', // 評定ラベル
+      // evaluationItem?.description || '', // 評定説明
+      // i === 0 ? (reviewHistory?.additionalInstructions || '') : '', // 追加指示（1行目のみ）
+      // i === 0 ? (reviewHistory?.commentFormat || '') : '', // コメントフォーマット（1行目のみ）
+      // i === 0 ? (apiSettings?.url || '') : '', // AI APIエンドポイント（1行目のみ）
+      // i === 0 ? (apiSettings?.key || '') : '', // AI APIキー（1行目のみ）
+      // i === 0 ? (apiSettings?.model || '') : '', // BPR ID（1行目のみ）
+      '', // 評定ラベル
+      '', // 評定説明
+      '', // 追加指示（1行目のみ）
+      '', // コメントフォーマット（1行目のみ）
+      '', // AI APIエンドポイント（1行目のみ）
+      '', // AI APIキー（1行目のみ）
+      '', // BPR ID（1行目のみ）
     ];
 
     csvRows.push(row.map(escapeCSVField).join(','));
