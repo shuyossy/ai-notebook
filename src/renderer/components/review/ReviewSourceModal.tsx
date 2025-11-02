@@ -310,10 +310,8 @@ function ReviewSourceModal({
               name: fileName,
               path: filePath,
               type: mimeType,
-              // 画像化対応ドキュメントの場合はprocessModeを設定
-              processMode: supportsImageProcessing(mimeType)
-                ? 'text'
-                : undefined,
+              // 常にtextをデフォルトに; ユーザーは対応ファイルなら画像に変更可能
+              processMode: 'text',
               imageMode: 'pages', // デフォルトはページ単位
             };
           },
