@@ -244,7 +244,7 @@ export const executeReviewWorkflow = createWorkflow({
         return bail(reviewExecutionResult);
       })
       .commit(),
-    { concurrency: 5 },
+    { concurrency: 2 },
   )
   .map(async ({ inputData, bail }) => {
     // failedになった結果を集約
