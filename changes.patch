@@ -1,133 +1,30 @@
-diff --git a/src/__tests__/renderer/csvUtils.test.ts b/src/__tests__/renderer/csvUtils.test.ts
-index fabcb72ba..8967731e4 100644
---- a/src/__tests__/renderer/csvUtils.test.ts
-+++ b/src/__tests__/renderer/csvUtils.test.ts
-@@ -97,13 +97,16 @@ describe('convertReviewResultsToCSV', () => {
-       expect(lines).toHaveLength(4); // ヘッダー + 3データ行（評定設定が3つあるため）
- 
-       // 1行目: チェック項目1 + 評定設定A
--      expect(lines[1]).toBe('チェック項目1,A,良好です,A,基準を満たす,,,,,');
-+      // expect(lines[1]).toBe('チェック項目1,A,良好です,A,基準を満たす,,,,,');
-+      expect(lines[1]).toBe('チェック項目1,A,良好です,,,,,,,');
- 
-       // 2行目: チェック項目2 + 評定設定B
--      expect(lines[2]).toBe('チェック項目2,,,B,一部改善が必要,,,,,');
-+      // expect(lines[2]).toBe('チェック項目2,,,B,一部改善が必要,,,,,');
-+      expect(lines[2]).toBe('チェック項目2,,,,,,,,,');
- 
-       // 3行目: 評定設定Cのみ
--      expect(lines[3]).toBe(',,,C,基準未達,,,,,');
-+      // expect(lines[3]).toBe(',,,C,基準未達,,,,,');
-+      expect(lines[3]).toBe(',,,,,,,,,');
-     });
- 
-     test('追加指示、コメントフォーマット、API設定が1行目に配置されること', () => {
-@@ -149,11 +152,11 @@ describe('convertReviewResultsToCSV', () => {
-       );
- 
-       // CSV全体を文字列として確認（改行を含む場合があるため）
--      expect(result).toContain('厳格にレビューすること');
--      expect(result).toContain('評価理由を記載');
--      expect(result).toContain('http://localhost:11434/v1');
--      expect(result).toContain('test-api-key');
--      expect(result).toContain('llama3');
-+      // expect(result).toContain('厳格にレビューすること');
-+      // expect(result).toContain('評価理由を記載');
-+      // expect(result).toContain('http://localhost:11434/v1');
-+      // expect(result).toContain('test-api-key');
-+      // expect(result).toContain('llama3');
- 
-       // 2行目以降は設定が空であることを確認
-       const lines = result.split('\n');
-@@ -226,13 +229,16 @@ describe('convertReviewResultsToCSV', () => {
- 
-       // 1行目: チェック項目1 + 評定A
-       expect(lines[1]).toContain('チェック項目1');
--      expect(lines[1]).toContain('A');
-+      // expect(lines[1]).toContain('A');
- 
-       // 2行目: 評定Bのみ
--      expect(lines[2]).toBe(',,,B,良好,,,,,');
-+      // expect(lines[2]).toBe(',,,B,良好,,,,,');
-+      expect(lines[2]).toBe(',,,,,,,,,');
- 
-       // 3行目: 評定Cのみ
--      expect(lines[3]).toBe(',,,C,要改善,,,,,');
-+      // expect(lines[3]).toBe(',,,C,要改善,,,,,');
-+      expect(lines[3]).toBe(',,,,,,,,,');
-+
-     });
-   });
- 
-@@ -381,24 +387,24 @@ describe('convertReviewResultsToCSV', () => {
-       expect(lines[1]).toContain('セキュリティチェック');
-       expect(lines[1]).toContain('A');
-       expect(lines[1]).toContain('問題なし');
--      expect(lines[1]).toContain('優秀');
--      expect(lines[1]).toContain('厳格に実施すること');
--      expect(lines[1]).toContain('http://localhost:11434/v1');
--      expect(lines[1]).toContain('test-key-123');
--      expect(lines[1]).toContain('llama3');
-+      // expect(lines[1]).toContain('優秀');
-+      // expect(lines[1]).toContain('厳格に実施すること');
-+      // expect(lines[1]).toContain('http://localhost:11434/v1');
-+      // expect(lines[1]).toContain('test-key-123');
-+      // expect(lines[1]).toContain('llama3');
- 
-       // 2行目: 設定情報なし
-       expect(lines[2]).toContain('パフォーマンステスト');
--      expect(lines[2]).toContain('B');
--      expect(lines[2]).not.toContain('厳格に実施すること');
-+      // expect(lines[2]).toContain('B');
-+      // expect(lines[2]).not.toContain('厳格に実施すること');
- 
-       // 3行目: 評価なし
-       expect(lines[3]).toContain('ドキュメント整備');
--      expect(lines[3]).toContain('C');
-+      // expect(lines[3]).toContain('C');
- 
-       // 4行目: チェックリストなし、評定のみ
--      expect(lines[4]).toContain('-');
--      expect(lines[4]).toContain('対象外');
-+      // expect(lines[4]).toContain('-');
-+      // expect(lines[4]).toContain('対象外');
-     });
-   });
- });
-diff --git a/src/renderer/lib/csvUtils.ts b/src/renderer/lib/csvUtils.ts
-index a0fb86f4d..bf0b8c305 100644
---- a/src/renderer/lib/csvUtils.ts
-+++ b/src/renderer/lib/csvUtils.ts
-@@ -71,15 +71,23 @@ export const convertReviewResultsToCSV = (
- 
-     const row: string[] = [
-       checklist?.content || '', // チェックリスト
--      checklist?.sourceEvaluation?.evaluation || '', // 評定結果（新規追加）
--      checklist?.sourceEvaluation?.comment || '', // レビュー結果（新規追加）
--      evaluationItem?.label || '', // 評定ラベル
--      evaluationItem?.description || '', // 評定説明
--      i === 0 ? (reviewHistory?.additionalInstructions || '') : '', // 追加指示（1行目のみ）
--      i === 0 ? (reviewHistory?.commentFormat || '') : '', // コメントフォーマット（1行目のみ）
--      i === 0 ? (apiSettings?.url || '') : '', // AI APIエンドポイント（1行目のみ）
--      i === 0 ? (apiSettings?.key || '') : '', // AI APIキー（1行目のみ）
--      i === 0 ? (apiSettings?.model || '') : '', // BPR ID（1行目のみ）
-+      checklist?.sourceEvaluation?.evaluation || '', // 評定結果
-+      checklist?.sourceEvaluation?.comment || '', // レビュー結果
-+      // 直ぐに戻せるようにコメントアウト
-+      // evaluationItem?.label || '', // 評定ラベル
-+      // evaluationItem?.description || '', // 評定説明
-+      // i === 0 ? (reviewHistory?.additionalInstructions || '') : '', // 追加指示（1行目のみ）
-+      // i === 0 ? (reviewHistory?.commentFormat || '') : '', // コメントフォーマット（1行目のみ）
-+      // i === 0 ? (apiSettings?.url || '') : '', // AI APIエンドポイント（1行目のみ）
-+      // i === 0 ? (apiSettings?.key || '') : '', // AI APIキー（1行目のみ）
-+      // i === 0 ? (apiSettings?.model || '') : '', // BPR ID（1行目のみ）
-+      '', // 評定ラベル
-+      '', // 評定説明
-+      '', // 追加指示（1行目のみ）
-+      '', // コメントフォーマット（1行目のみ）
-+      '', // AI APIエンドポイント（1行目のみ）
-+      '', // AI APIキー（1行目のみ）
-+      '', // BPR ID（1行目のみ）
-     ];
- 
-     csvRows.push(row.map(escapeCSVField).join(','));
+diff --git a/src/mastra/workflows/sourceReview/executeReview/index.ts b/src/mastra/workflows/sourceReview/executeReview/index.ts
+index f96b79902..e612c6621 100644
+--- a/src/mastra/workflows/sourceReview/executeReview/index.ts
++++ b/src/mastra/workflows/sourceReview/executeReview/index.ts
+@@ -244,7 +244,7 @@ export const executeReviewWorkflow = createWorkflow({
+         return bail(reviewExecutionResult);
+       })
+       .commit(),
+-    { concurrency: 5 },
++    { concurrency: 2 },
+   )
+   .map(async ({ inputData, bail }) => {
+     // failedになった結果を集約
+diff --git a/src/renderer/components/review/ReviewSourceModal.tsx b/src/renderer/components/review/ReviewSourceModal.tsx
+index 9fd87f3b2..a1b897e9e 100644
+--- a/src/renderer/components/review/ReviewSourceModal.tsx
++++ b/src/renderer/components/review/ReviewSourceModal.tsx
+@@ -310,10 +310,8 @@ function ReviewSourceModal({
+               name: fileName,
+               path: filePath,
+               type: mimeType,
+-              // 画像化対応ドキュメントの場合はprocessModeを設定
+-              processMode: supportsImageProcessing(mimeType)
+-                ? 'text'
+-                : undefined,
++              // 常にtextをデフォルトに; ユーザーは対応ファイルなら画像に変更可能
++              processMode: 'text',
+               imageMode: 'pages', // デフォルトはページ単位
+             };
+           },
