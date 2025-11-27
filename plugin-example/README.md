@@ -19,12 +19,6 @@ npm install
 
 # プラグインのビルド
 npm run build
-
-# 開発モード（ウォッチモード）
-npm run dev
-
-# リントチェック
-npm run lint
 ```
 
 ## ビルド
@@ -230,53 +224,19 @@ chunkStrategy: async (context) => {
 }
 ```
 
-## ビルドプロセスの検証
-
-プラグインのビルド時（`npm run build`および`npm run dev`）には、以下の検証が自動的に実行されます：
-
-### 1. ESLintによるコード検証
-
-ビルド前にESLintが自動実行され、以下を検出します：
-- 動的`require()`の使用
-- 動的`import()`の使用
-- TypeScript型エラー
-
-違反が検出された場合、ビルドは失敗します。
-
-**エラー例:**
-```
-error  Dynamic import() is not allowed in plugins for security reasons
-```
-
-### 2. ネイティブモジュール検出
-
-ビルドプロセス中、以下のネイティブモジュール使用を自動検出し、ビルドを失敗させます：
-
-**検出方法:**
-- `.node`ファイル（ネイティブバイナリモジュール）の直接import
-- `package.json`に`gypfile`または`binary`フィールドを持つパッケージ
-- `binding.gyp`ファイルを含むパッケージ
-- `build/Release/*.node`パターンを持つパッケージ
-
-**エラー例:**
-```
-error: Native module detected: sqlite3
-  This package contains native bindings and cannot be used in plugins for security and portability reasons.
-```
-
 ## 制限事項
 
 プラグインには以下の制限があります：
 
 1. **動的require/importの禁止**: セキュリティ上の理由から、動的な`require()`や`import()`は使用できません
 2. **ネイティブモジュールの禁止**: Node.jsのネイティブモジュール（C++アドオンなど）は使用できません
-3. **実行タイムアウト**: フックの実行には5秒のタイムアウトが設定されています
+3. **実行タイムアウト**: フックの実行には60秒のタイムアウトが設定されています
 
 これらの制限に違反すると、ビルドが失敗します。
 
 ## デバッグ
 
-プラグイン内で`console.log`、`console.error`などを使用すると、AIKATAアプリケーションのログに出力されます。
+プラグイン内で`console.log`、`console.error`などを使用すると、AIKATAのログファイルに出力されます。
 デバッグ時に活用してください。
 
 ```typescript
@@ -297,7 +257,3 @@ chunkStrategy: async (context) => {
   // ...
 }
 ```
-
-## ライセンス
-
-MIT
