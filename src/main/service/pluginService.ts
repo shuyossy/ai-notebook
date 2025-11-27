@@ -21,7 +21,7 @@ const PLUGIN_FILE_NAME = 'review-plugin.js';
 const PLUGIN_DIR_NAME = 'plugins';
 
 // フック実行のタイムアウト（ミリ秒）
-const HOOK_EXECUTION_TIMEOUT = 5000;
+const HOOK_EXECUTION_TIMEOUT = 60000;
 
 /**
  * プラグインサービスのインターフェース
