@@ -8,7 +8,14 @@
 import path from 'path';
 
 // テスト用のデータディレクトリ
-const TEST_USER_DATA_PATH = path.join(__dirname, '..', '..', '..', '..', 'test_data');
+const TEST_USER_DATA_PATH = path.join(
+  __dirname,
+  '..',
+  '..',
+  '..',
+  '..',
+  'test_data',
+);
 
 /**
  * Electron の app モジュールのモック

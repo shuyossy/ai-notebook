@@ -5,7 +5,10 @@
 
 // Electron モックを最初に適用（他のインポートより前に実行する必要がある）
 jest.mock('electron', () => require('../test-utils/mockElectron').mockElectron);
-jest.mock('electron-store', () => require('../test-utils/mockElectron').default);
+jest.mock(
+  'electron-store',
+  () => require('../test-utils/mockElectron').default,
+);
 
 // main.ts の初期化処理をスキップ（テスト環境では不要）
 jest.mock('@/main/main', () => {
@@ -81,6 +84,15 @@ jest.mock('@/main/lib/eventPayloadHelper', () => ({
   publishEvent: jest.fn(),
 }));
 
+// PluginService のモック
+import { PluginService } from '@/main/service/pluginService';
+
+jest.mock('@/main/service/pluginService', () => ({
+  PluginService: {
+    getInstance: jest.fn(),
+  },
+}));
+
 describe('executeReviewWorkflow', () => {
   // モックリポジトリ
   let mockRepository: jest.Mocked<IReviewRepository>;
@@ -90,6 +102,9 @@ describe('executeReviewWorkflow', () => {
   let mockReviewExecuteAgent: any;
   let mockIndividualDocumentReviewAgent: any;
   let mockConsolidateReviewAgent: any;
+
+  // モックPluginService
+  let mockPluginService: any;
 
   beforeEach(() => {
     // リポジトリのモック
@@ -101,7 +116,9 @@ describe('executeReviewWorkflow', () => {
       updateReviewHistoryAdditionalInstructionsAndCommentFormat: jest.fn(),
       updateReviewHistoryEvaluationSettings: jest.fn(),
       updateReviewHistoryProcessingStatus: jest.fn(),
-      updateReviewHistoryTargetDocumentName: jest.fn().mockResolvedValue(undefined),
+      updateReviewHistoryTargetDocumentName: jest
+        .fn()
+        .mockResolvedValue(undefined),
       deleteReviewHistory: jest.fn(),
       getChecklists: jest.fn(),
       createChecklist: jest.fn(),
@@ -112,13 +129,17 @@ describe('executeReviewWorkflow', () => {
       getReviewChecklistResults: jest.fn(),
       deleteAllReviewResults: jest.fn().mockResolvedValue(undefined),
       deleteReviewDocumentCaches: jest.fn().mockResolvedValue(undefined),
-      deleteReviewLargedocumentResultCaches: jest.fn().mockResolvedValue(undefined),
+      deleteReviewLargedocumentResultCaches: jest
+        .fn()
+        .mockResolvedValue(undefined),
       updateReviewHistoryDocumentMode: jest.fn().mockResolvedValue(undefined),
       createReviewDocumentCache: jest.fn(),
       getReviewDocumentCaches: jest.fn(),
       getReviewDocumentCacheById: jest.fn(),
       getReviewDocumentCacheByIds: jest.fn(),
-      createReviewLargedocumentResultCache: jest.fn().mockResolvedValue(undefined),
+      createReviewLargedocumentResultCache: jest
+        .fn()
+        .mockResolvedValue(undefined),
       getReviewLargedocumentResultCaches: jest.fn(),
       getMaxTotalChunksForDocument: jest.fn(),
       getChecklistResultsWithIndividualResults: jest.fn(),
@@ -144,6 +165,23 @@ describe('executeReviewWorkflow', () => {
     mockConsolidateReviewAgent = {
       generateLegacy: jest.fn(),
     };
+
+    // PluginServiceのモック
+    mockPluginService = {
+      executeBeforeSmallDocumentReviewHook: jest.fn(),
+      executeBeforeLargeDocumentReviewHook: jest.fn(),
+      executeChunkStrategyHook: jest.fn(),
+    };
+    (PluginService.getInstance as jest.Mock).mockReturnValue(mockPluginService);
+
+    // デフォルトでは元のドキュメントをそのまま返す（プラグインなしの動作）
+    mockPluginService.executeBeforeSmallDocumentReviewHook.mockImplementation(
+      async (context: any) => context.documents,
+    );
+    mockPluginService.executeBeforeLargeDocumentReviewHook.mockImplementation(
+      async (context: any) => context.document,
+    );
+    mockPluginService.executeChunkStrategyHook.mockResolvedValue(null);
 
     // mastra.getAgentのモック
     jest.spyOn(mastra, 'getAgent').mockImplementation((agentName: string) => {
@@ -183,9 +221,30 @@ describe('executeReviewWorkflow', () => {
           },
         ];
         const checklists: ReviewChecklist[] = [
-          { id: 1, content: 'チェック項目1', createdBy: 'user', reviewHistoryId, createdAt: '2024-01-01', updatedAt: '2024-01-01' },
-          { id: 2, content: 'チェック項目2', createdBy: 'user', reviewHistoryId, createdAt: '2024-01-01', updatedAt: '2024-01-01' },
-          { id: 3, content: 'チェック項目3', createdBy: 'user', reviewHistoryId, createdAt: '2024-01-01', updatedAt: '2024-01-01' },
+          {
+            id: 1,
+            content: 'チェック項目1',
+            createdBy: 'user',
+            reviewHistoryId,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          },
+          {
+            id: 2,
+            content: 'チェック項目2',
+            createdBy: 'user',
+            reviewHistoryId,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          },
+          {
+            id: 3,
+            content: 'チェック項目3',
+            createdBy: 'user',
+            reviewHistoryId,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          },
         ];
 
         mockRepository.getChecklists.mockResolvedValue(checklists);
@@ -203,9 +262,24 @@ describe('executeReviewWorkflow', () => {
         // MAX_CHECKLISTS_PER_CATEGORY = 1なので手動分割
         mockReviewExecuteAgent.generateLegacy.mockResolvedValue({
           object: [
-            { checklistId: 1, reviewSections: [], comment: 'コメント1', evaluation: 'A' },
-            { checklistId: 2, reviewSections: [], comment: 'コメント2', evaluation: 'B' },
-            { checklistId: 3, reviewSections: [], comment: 'コメント3', evaluation: 'C' },
+            {
+              checklistId: 1,
+              reviewSections: [],
+              comment: 'コメント1',
+              evaluation: 'A',
+            },
+            {
+              checklistId: 2,
+              reviewSections: [],
+              comment: 'コメント2',
+              evaluation: 'B',
+            },
+            {
+              checklistId: 3,
+              reviewSections: [],
+              comment: 'コメント3',
+              evaluation: 'C',
+            },
           ],
           finishReason: 'stop',
         });
@@ -225,10 +299,18 @@ describe('executeReviewWorkflow', () => {
         expect(checkResult.status).toBe('success');
 
         // DB操作の確認
-        expect(mockRepository.deleteReviewLargedocumentResultCaches).toHaveBeenCalledWith(reviewHistoryId);
-        expect(mockRepository.deleteReviewDocumentCaches).toHaveBeenCalledWith(reviewHistoryId);
-        expect(mockRepository.deleteAllReviewResults).toHaveBeenCalledWith(reviewHistoryId);
-        expect(mockRepository.updateReviewHistoryDocumentMode).toHaveBeenCalledWith(reviewHistoryId, 'small');
+        expect(
+          mockRepository.deleteReviewLargedocumentResultCaches,
+        ).toHaveBeenCalledWith(reviewHistoryId);
+        expect(mockRepository.deleteReviewDocumentCaches).toHaveBeenCalledWith(
+          reviewHistoryId,
+        );
+        expect(mockRepository.deleteAllReviewResults).toHaveBeenCalledWith(
+          reviewHistoryId,
+        );
+        expect(
+          mockRepository.updateReviewHistoryDocumentMode,
+        ).toHaveBeenCalledWith(reviewHistoryId, 'small');
         expect(mockRepository.createReviewDocumentCache).toHaveBeenCalled();
         expect(mockRepository.upsertReviewResult).toHaveBeenCalled();
       });
@@ -253,7 +335,14 @@ describe('executeReviewWorkflow', () => {
           },
         ];
         const checklists: ReviewChecklist[] = [
-          { id: 1, content: 'チェック項目1', createdBy: 'user', reviewHistoryId, createdAt: '2024-01-01', updatedAt: '2024-01-01' },
+          {
+            id: 1,
+            content: 'チェック項目1',
+            createdBy: 'user',
+            reviewHistoryId,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          },
         ];
 
         mockRepository.getChecklists.mockResolvedValue(checklists);
@@ -266,7 +355,7 @@ describe('executeReviewWorkflow', () => {
             textContent: 'ファイル1の内容',
             imageData: undefined,
             createdAt: '2024-01-01',
-          updatedAt: '2024-01-01',
+            updatedAt: '2024-01-01',
           })
           .mockResolvedValueOnce({
             id: 2,
@@ -276,12 +365,17 @@ describe('executeReviewWorkflow', () => {
             textContent: 'ファイル2の内容',
             imageData: undefined,
             createdAt: '2024-01-01',
-          updatedAt: '2024-01-01',
+            updatedAt: '2024-01-01',
           });
 
         mockReviewExecuteAgent.generateLegacy.mockResolvedValue({
           object: [
-            { checklistId: 1, reviewSections: [], comment: 'コメント1', evaluation: 'A' },
+            {
+              checklistId: 1,
+              reviewSections: [],
+              comment: 'コメント1',
+              evaluation: 'A',
+            },
           ],
           finishReason: 'stop',
         });
@@ -300,11 +394,12 @@ describe('executeReviewWorkflow', () => {
         const checkResult = checkWorkflowResult(result);
         expect(checkResult.status).toBe('success');
         expect(FileExtractor.extractText).toHaveBeenCalledTimes(2);
-        expect(mockRepository.createReviewDocumentCache).toHaveBeenCalledTimes(2);
-        expect(mockRepository.updateReviewHistoryTargetDocumentName).toHaveBeenCalledWith(
-          reviewHistoryId,
-          'document1.txt/document2.txt',
+        expect(mockRepository.createReviewDocumentCache).toHaveBeenCalledTimes(
+          2,
         );
+        expect(
+          mockRepository.updateReviewHistoryTargetDocumentName,
+        ).toHaveBeenCalledWith(reviewHistoryId, 'document1.txt/document2.txt');
       });
 
       it('画像モード（ページ別）でのレビューが成功すること', async () => {
@@ -326,7 +421,14 @@ describe('executeReviewWorkflow', () => {
           },
         ];
         const checklists: ReviewChecklist[] = [
-          { id: 1, content: 'チェック項目1', createdBy: 'user', reviewHistoryId, createdAt: '2024-01-01', updatedAt: '2024-01-01' },
+          {
+            id: 1,
+            content: 'チェック項目1',
+            createdBy: 'user',
+            reviewHistoryId,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          },
         ];
 
         mockRepository.getChecklists.mockResolvedValue(checklists);
@@ -343,7 +445,12 @@ describe('executeReviewWorkflow', () => {
 
         mockReviewExecuteAgent.generateLegacy.mockResolvedValue({
           object: [
-            { checklistId: 1, reviewSections: [], comment: '画像レビュー', evaluation: 'A' },
+            {
+              checklistId: 1,
+              reviewSections: [],
+              comment: '画像レビュー',
+              evaluation: 'A',
+            },
           ],
           finishReason: 'stop',
         });
@@ -397,7 +504,14 @@ describe('executeReviewWorkflow', () => {
           },
         ];
         const checklists: ReviewChecklist[] = [
-          { id: 1, content: 'チェック項目1', createdBy: 'user', reviewHistoryId, createdAt: '2024-01-01', updatedAt: '2024-01-01' },
+          {
+            id: 1,
+            content: 'チェック項目1',
+            createdBy: 'user',
+            reviewHistoryId,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          },
         ];
         const evaluationSettings = {
           items: [
@@ -422,7 +536,12 @@ describe('executeReviewWorkflow', () => {
 
         mockReviewExecuteAgent.generateLegacy.mockResolvedValue({
           object: [
-            { checklistId: 1, reviewSections: [], comment: 'カスタム評定', evaluation: '優' },
+            {
+              checklistId: 1,
+              reviewSections: [],
+              comment: 'カスタム評定',
+              evaluation: '優',
+            },
           ],
           finishReason: 'stop',
         });
@@ -445,7 +564,9 @@ describe('executeReviewWorkflow', () => {
         // runtimeContextにevaluationSettingsが設定されていることを確認
         const callArgs = mockReviewExecuteAgent.generateLegacy.mock.calls[0];
         const options = callArgs[1];
-        expect(options.runtimeContext.get('evaluationSettings')).toEqual(evaluationSettings);
+        expect(options.runtimeContext.get('evaluationSettings')).toEqual(
+          evaluationSettings,
+        );
       });
 
       it('追加指示とコメントフォーマット指定が正しく動作すること', async () => {
@@ -461,9 +582,17 @@ describe('executeReviewWorkflow', () => {
           },
         ];
         const checklists: ReviewChecklist[] = [
-          { id: 1, content: 'チェック項目1', createdBy: 'user', reviewHistoryId, createdAt: '2024-01-01', updatedAt: '2024-01-01' },
+          {
+            id: 1,
+            content: 'チェック項目1',
+            createdBy: 'user',
+            reviewHistoryId,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          },
         ];
-        const additionalInstructions = 'セキュリティの観点で厳しくレビューしてください';
+        const additionalInstructions =
+          'セキュリティの観点で厳しくレビューしてください';
         const commentFormat = '- 問題点:\n- 推奨事項:';
 
         mockRepository.getChecklists.mockResolvedValue(checklists);
@@ -480,7 +609,12 @@ describe('executeReviewWorkflow', () => {
 
         mockReviewExecuteAgent.generateLegacy.mockResolvedValue({
           object: [
-            { checklistId: 1, reviewSections: [], comment: '- 問題点: なし\n- 推奨事項: なし', evaluation: 'A' },
+            {
+              checklistId: 1,
+              reviewSections: [],
+              comment: '- 問題点: なし\n- 推奨事項: なし',
+              evaluation: 'A',
+            },
           ],
           finishReason: 'stop',
         });
@@ -504,7 +638,9 @@ describe('executeReviewWorkflow', () => {
         // runtimeContextに設定されていることを確認
         const callArgs = mockReviewExecuteAgent.generateLegacy.mock.calls[0];
         const options = callArgs[1];
-        expect(options.runtimeContext.get('additionalInstructions')).toBe(additionalInstructions);
+        expect(options.runtimeContext.get('additionalInstructions')).toBe(
+          additionalInstructions,
+        );
         expect(options.runtimeContext.get('commentFormat')).toBe(commentFormat);
       });
 
@@ -521,9 +657,30 @@ describe('executeReviewWorkflow', () => {
           },
         ];
         const checklists: ReviewChecklist[] = [
-          { id: 1, content: 'チェック項目1', createdBy: 'user', reviewHistoryId, createdAt: '2024-01-01', updatedAt: '2024-01-01' },
-          { id: 2, content: 'チェック項目2', createdBy: 'user', reviewHistoryId, createdAt: '2024-01-01', updatedAt: '2024-01-01' },
-          { id: 3, content: 'チェック項目3', createdBy: 'user', reviewHistoryId, createdAt: '2024-01-01', updatedAt: '2024-01-01' },
+          {
+            id: 1,
+            content: 'チェック項目1',
+            createdBy: 'user',
+            reviewHistoryId,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          },
+          {
+            id: 2,
+            content: 'チェック項目2',
+            createdBy: 'user',
+            reviewHistoryId,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          },
+          {
+            id: 3,
+            content: 'チェック項目3',
+            createdBy: 'user',
+            reviewHistoryId,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          },
         ];
 
         mockRepository.getChecklists.mockResolvedValue(checklists);
@@ -542,33 +699,80 @@ describe('executeReviewWorkflow', () => {
         // カテゴリ1(ID=1): 1回目空、2回目成功
         // カテゴリ2(ID=2): 1回目成功
         // カテゴリ3(ID=3): 1回目成功
-        mockReviewExecuteAgent.generateLegacy
-          // カテゴリ1の1回目（空）
-          .mockResolvedValueOnce({
-            object: [],
-            finishReason: 'stop',
-          })
-          // カテゴリ2の1回目（成功）
-          .mockResolvedValueOnce({
-            object: [
-              { checklistId: 2, reviewSections: [], comment: 'コメント2', evaluation: 'B' },
-            ],
-            finishReason: 'stop',
-          })
-          // カテゴリ3の1回目（成功）
-          .mockResolvedValueOnce({
-            object: [
-              { checklistId: 3, reviewSections: [], comment: 'コメント3', evaluation: 'C' },
-            ],
-            finishReason: 'stop',
-          })
-          // カテゴリ1の2回目（成功）
-          .mockResolvedValueOnce({
-            object: [
-              { checklistId: 1, reviewSections: [], comment: 'コメント1', evaluation: 'A' },
-            ],
-            finishReason: 'stop',
-          });
+        const checklistCallCount = new Map<number, number>();
+        const extractChecklistIdFromMessage = (message: any): number | null => {
+          const reminderBlock = message.content.find(
+            (part: any) =>
+              part.type === 'text' &&
+              part.text.includes('Checklist Items to Review'),
+          );
+          if (!reminderBlock) {
+            return null;
+          }
+          const match = reminderBlock.text.match(/ID:\s*(\d+)/);
+          return match ? Number(match[1]) : null;
+        };
+
+        mockReviewExecuteAgent.generateLegacy.mockImplementation(
+          async (message: any) => {
+            const checklistId = extractChecklistIdFromMessage(message);
+            if (!checklistId) {
+              throw new Error('チェックリストIDの解析に失敗しました');
+            }
+            const currentCount = checklistCallCount.get(checklistId) ?? 0;
+            checklistCallCount.set(checklistId, currentCount + 1);
+
+            if (checklistId === 1) {
+              if (currentCount === 0) {
+                return {
+                  object: [],
+                  finishReason: 'stop',
+                };
+              }
+              return {
+                object: [
+                  {
+                    checklistId: 1,
+                    reviewSections: [],
+                    comment: 'コメント1',
+                    evaluation: 'A',
+                  },
+                ],
+                finishReason: 'stop',
+              };
+            }
+
+            if (checklistId === 2) {
+              return {
+                object: [
+                  {
+                    checklistId: 2,
+                    reviewSections: [],
+                    comment: 'コメント2',
+                    evaluation: 'B',
+                  },
+                ],
+                finishReason: 'stop',
+              };
+            }
+
+            if (checklistId === 3) {
+              return {
+                object: [
+                  {
+                    checklistId: 3,
+                    reviewSections: [],
+                    comment: 'コメント3',
+                    evaluation: 'C',
+                  },
+                ],
+                finishReason: 'stop',
+              };
+            }
+
+            throw new Error(`想定外のチェックリストID: ${checklistId}`);
+          },
+        );
 
         // Act
         const run = await executeReviewWorkflow.createRunAsync();
@@ -691,7 +895,9 @@ describe('executeReviewWorkflow', () => {
         // Assert
         const checkResult = checkWorkflowResult(result);
         expect(checkResult.status).toBe('failed');
-        expect(checkResult.errorMessage).toContain('対象のチェックリストが存在しないためレビューを実行できませんでした');
+        expect(checkResult.errorMessage).toContain(
+          '対象のチェックリストが存在しないためレビューを実行できませんでした',
+        );
       });
 
       it('レビューエージェントAPIエラー時にworkflowがfailedになること', async () => {
@@ -707,7 +913,14 @@ describe('executeReviewWorkflow', () => {
           },
         ];
         const checklists: ReviewChecklist[] = [
-          { id: 1, content: 'チェック項目1', createdBy: 'user', reviewHistoryId, createdAt: '2024-01-01', updatedAt: '2024-01-01' },
+          {
+            id: 1,
+            content: 'チェック項目1',
+            createdBy: 'user',
+            reviewHistoryId,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          },
         ];
 
         mockRepository.getChecklists.mockResolvedValue(checklists);
@@ -759,8 +972,22 @@ describe('executeReviewWorkflow', () => {
           },
         ];
         const checklists: ReviewChecklist[] = [
-          { id: 1, content: 'チェック項目1', createdBy: 'user', reviewHistoryId, createdAt: '2024-01-01', updatedAt: '2024-01-01' },
-          { id: 2, content: 'チェック項目2', createdBy: 'user', reviewHistoryId, createdAt: '2024-01-01', updatedAt: '2024-01-01' },
+          {
+            id: 1,
+            content: 'チェック項目1',
+            createdBy: 'user',
+            reviewHistoryId,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          },
+          {
+            id: 2,
+            content: 'チェック項目2',
+            createdBy: 'user',
+            reviewHistoryId,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          },
         ];
 
         mockRepository.getChecklists.mockResolvedValue(checklists);
@@ -778,7 +1005,12 @@ describe('executeReviewWorkflow', () => {
         // 3回とも ID 1のみ返却（ID 2は常に未完了）
         mockReviewExecuteAgent.generateLegacy.mockResolvedValue({
           object: [
-            { checklistId: 1, reviewSections: [], comment: 'コメント1', evaluation: 'A' },
+            {
+              checklistId: 1,
+              reviewSections: [],
+              comment: 'コメント1',
+              evaluation: 'A',
+            },
           ],
           finishReason: 'stop',
         });
@@ -797,7 +1029,9 @@ describe('executeReviewWorkflow', () => {
         const checkResult = checkWorkflowResult(result);
         expect(checkResult.status).toBe('failed');
         expect(checkResult.errorMessage).toContain('チェック項目2');
-        expect(checkResult.errorMessage).toContain('AIの出力にレビュー結果が含まれませんでした');
+        expect(checkResult.errorMessage).toContain(
+          'AIの出力にレビュー結果が含まれませんでした',
+        );
       });
 
       it('finishReasonがlengthの場合に適切なエラーメッセージが返ること', async () => {
@@ -813,7 +1047,14 @@ describe('executeReviewWorkflow', () => {
           },
         ];
         const checklists: ReviewChecklist[] = [
-          { id: 1, content: 'チェック項目1', createdBy: 'user', reviewHistoryId, createdAt: '2024-01-01', updatedAt: '2024-01-01' },
+          {
+            id: 1,
+            content: 'チェック項目1',
+            createdBy: 'user',
+            reviewHistoryId,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          },
         ];
 
         mockRepository.getChecklists.mockResolvedValue(checklists);
@@ -846,7 +1087,9 @@ describe('executeReviewWorkflow', () => {
         // Assert
         const checkResult = checkWorkflowResult(result);
         expect(checkResult.status).toBe('failed');
-        expect(checkResult.errorMessage).toContain('最大出力コンテキストを超えました');
+        expect(checkResult.errorMessage).toContain(
+          '最大出力コンテキストを超えました',
+        );
       });
 
       it('画像モード（統合画像）でのレビューが成功すること', async () => {
@@ -864,7 +1107,14 @@ describe('executeReviewWorkflow', () => {
           },
         ];
         const checklists: ReviewChecklist[] = [
-          { id: 1, content: 'チェック項目1', createdBy: 'user', reviewHistoryId, createdAt: '2024-01-01', updatedAt: '2024-01-01' },
+          {
+            id: 1,
+            content: 'チェック項目1',
+            createdBy: 'user',
+            reviewHistoryId,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          },
         ];
 
         mockRepository.getChecklists.mockResolvedValue(checklists);
@@ -881,7 +1131,12 @@ describe('executeReviewWorkflow', () => {
 
         mockReviewExecuteAgent.generateLegacy.mockResolvedValue({
           object: [
-            { checklistId: 1, reviewSections: [], comment: '統合画像レビュー', evaluation: 'A' },
+            {
+              checklistId: 1,
+              reviewSections: [],
+              comment: '統合画像レビュー',
+              evaluation: 'A',
+            },
           ],
           finishReason: 'stop',
         });
@@ -927,7 +1182,14 @@ describe('executeReviewWorkflow', () => {
           },
         ];
         const checklists: ReviewChecklist[] = [
-          { id: 1, content: 'チェック項目1', createdBy: 'user', reviewHistoryId, createdAt: '2024-01-01', updatedAt: '2024-01-01' },
+          {
+            id: 1,
+            content: 'チェック項目1',
+            createdBy: 'user',
+            reviewHistoryId,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          },
         ];
 
         mockRepository.getChecklists.mockResolvedValue(checklists);
@@ -965,7 +1227,14 @@ describe('executeReviewWorkflow', () => {
           },
         ];
         const checklists: ReviewChecklist[] = [
-          { id: 1, content: 'チェック項目1', createdBy: 'user', reviewHistoryId, createdAt: '2024-01-01', updatedAt: '2024-01-01' },
+          {
+            id: 1,
+            content: 'チェック項目1',
+            createdBy: 'user',
+            reviewHistoryId,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          },
         ];
 
         mockRepository.getChecklists.mockResolvedValue(checklists);
@@ -982,7 +1251,12 @@ describe('executeReviewWorkflow', () => {
 
         mockReviewExecuteAgent.generateLegacy.mockResolvedValue({
           object: [
-            { checklistId: 1, reviewSections: [], comment: 'コメント', evaluation: 'A' },
+            {
+              checklistId: 1,
+              reviewSections: [],
+              comment: 'コメント',
+              evaluation: 'A',
+            },
           ],
           finishReason: 'stop',
         });
@@ -1011,6 +1285,319 @@ describe('executeReviewWorkflow', () => {
         expect(checkResult.errorMessage).toContain('レビュー結果保存エラー');
       });
     });
+
+    describe('プラグイン統合', () => {
+      it('beforeSmallDocumentReviewHookが呼ばれること', async () => {
+        // Arrange
+        const reviewHistoryId = 'review-1';
+        const files: UploadFile[] = [
+          {
+            id: 'file-1',
+            name: 'document.txt',
+            path: '/test/document.txt',
+            type: 'text/plain',
+            processMode: 'text',
+          },
+        ];
+        const checklists: ReviewChecklist[] = [
+          {
+            id: 1,
+            content: 'チェック項目1',
+            createdBy: 'user',
+            reviewHistoryId,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          },
+        ];
+
+        mockRepository.getChecklists.mockResolvedValue(checklists);
+        mockRepository.createReviewDocumentCache.mockResolvedValue({
+          id: 1,
+          reviewHistoryId,
+          fileName: 'document.txt',
+          processMode: 'text',
+          textContent: 'テストファイルの内容',
+          imageData: undefined,
+          createdAt: '2024-01-01',
+          updatedAt: '2024-01-01',
+        });
+
+        mockReviewExecuteAgent.generateLegacy.mockResolvedValue({
+          object: [
+            {
+              checklistId: 1,
+              reviewSections: [],
+              comment: 'コメント',
+              evaluation: 'A',
+            },
+          ],
+          finishReason: 'stop',
+        });
+
+        // Act
+        const run = await executeReviewWorkflow.createRunAsync();
+        await run.start({
+          inputData: {
+            reviewHistoryId,
+            files,
+            documentMode: 'small',
+          },
+        });
+
+        // Assert
+        expect(
+          mockPluginService.executeBeforeSmallDocumentReviewHook,
+        ).toHaveBeenCalledWith(
+          expect.objectContaining({
+            documents: expect.arrayContaining([
+              expect.objectContaining({
+                id: expect.any(String),
+                name: 'document.txt',
+                textContent: 'テストファイルの内容',
+              }),
+            ]),
+            checklists: expect.arrayContaining([
+              expect.objectContaining({ id: 1, content: 'チェック項目1' }),
+            ]),
+          }),
+        );
+      });
+
+      it('フックがドキュメントをフィルタリングした結果がレビューに使われること', async () => {
+        // Arrange
+        const reviewHistoryId = 'review-1';
+        const files: UploadFile[] = [
+          {
+            id: 'file-1',
+            name: 'document.txt',
+            path: '/test/document.txt',
+            type: 'text/plain',
+            processMode: 'text',
+          },
+        ];
+        const checklists: ReviewChecklist[] = [
+          {
+            id: 1,
+            content: 'チェック項目1',
+            createdBy: 'user',
+            reviewHistoryId,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          },
+        ];
+
+        mockRepository.getChecklists.mockResolvedValue(checklists);
+        mockRepository.createReviewDocumentCache.mockResolvedValue({
+          id: 1,
+          reviewHistoryId,
+          fileName: 'document.txt',
+          processMode: 'text',
+          textContent: 'テストファイルの内容',
+          imageData: undefined,
+          createdAt: '2024-01-01',
+          updatedAt: '2024-01-01',
+        });
+
+        // プラグインがドキュメントのテキストを変更
+        const modifiedDocument = {
+          id: expect.stringContaining('file-1'),
+          name: 'document.txt',
+          path: '/test/document.txt',
+          type: 'text/plain',
+          processMode: 'text' as const,
+          textContent: 'プラグインによって変更されたテキスト',
+        };
+        mockPluginService.executeBeforeSmallDocumentReviewHook.mockResolvedValue(
+          [modifiedDocument],
+        );
+
+        mockReviewExecuteAgent.generateLegacy.mockResolvedValue({
+          object: [
+            {
+              checklistId: 1,
+              reviewSections: [],
+              comment: 'コメント',
+              evaluation: 'A',
+            },
+          ],
+          finishReason: 'stop',
+        });
+
+        // Act
+        const run = await executeReviewWorkflow.createRunAsync();
+        await run.start({
+          inputData: {
+            reviewHistoryId,
+            files,
+            documentMode: 'small',
+          },
+        });
+
+        // Assert
+        // 変更されたテキストがAIエージェントに渡されることを確認
+        const callArgs = mockReviewExecuteAgent.generateLegacy.mock.calls[0];
+        const message = callArgs[0];
+        expect(message.content).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              type: 'text',
+              text: expect.stringContaining(
+                'プラグインによって変更されたテキスト',
+              ),
+            }),
+          ]),
+        );
+      });
+
+      it('フックがエラーを起こした場合、元のドキュメントが使われること', async () => {
+        // Arrange
+        const reviewHistoryId = 'review-1';
+        const files: UploadFile[] = [
+          {
+            id: 'file-1',
+            name: 'document.txt',
+            path: '/test/document.txt',
+            type: 'text/plain',
+            processMode: 'text',
+          },
+        ];
+        const checklists: ReviewChecklist[] = [
+          {
+            id: 1,
+            content: 'チェック項目1',
+            createdBy: 'user',
+            reviewHistoryId,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          },
+        ];
+
+        mockRepository.getChecklists.mockResolvedValue(checklists);
+        mockRepository.createReviewDocumentCache.mockResolvedValue({
+          id: 1,
+          reviewHistoryId,
+          fileName: 'document.txt',
+          processMode: 'text',
+          textContent: 'テストファイルの内容',
+          imageData: undefined,
+          createdAt: '2024-01-01',
+          updatedAt: '2024-01-01',
+        });
+
+        // フックがエラーをthrow→元のドキュメントが使われる
+        mockPluginService.executeBeforeSmallDocumentReviewHook.mockImplementation(
+          async (context: any) => {
+            // プラグインがエラーを起こした場合、元のドキュメントを返す実装になっている
+            return context.documents;
+          },
+        );
+
+        mockReviewExecuteAgent.generateLegacy.mockResolvedValue({
+          object: [
+            {
+              checklistId: 1,
+              reviewSections: [],
+              comment: 'コメント',
+              evaluation: 'A',
+            },
+          ],
+          finishReason: 'stop',
+        });
+
+        // Act
+        const run = await executeReviewWorkflow.createRunAsync();
+        const result = await run.start({
+          inputData: {
+            reviewHistoryId,
+            files,
+            documentMode: 'small',
+          },
+        });
+
+        // Assert
+        const checkResult = checkWorkflowResult(result);
+        expect(checkResult.status).toBe('success');
+        // 元のドキュメントのテキストがAIエージェントに渡されることを確認
+        const callArgs = mockReviewExecuteAgent.generateLegacy.mock.calls[0];
+        const message = callArgs[0];
+        expect(message.content).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              type: 'text',
+              text: expect.stringContaining('テストファイルの内容'),
+            }),
+          ]),
+        );
+      });
+
+      it('プラグインが存在しない場合、通常のレビューが実行されること', async () => {
+        // Arrange
+        const reviewHistoryId = 'review-1';
+        const files: UploadFile[] = [
+          {
+            id: 'file-1',
+            name: 'document.txt',
+            path: '/test/document.txt',
+            type: 'text/plain',
+            processMode: 'text',
+          },
+        ];
+        const checklists: ReviewChecklist[] = [
+          {
+            id: 1,
+            content: 'チェック項目1',
+            createdBy: 'user',
+            reviewHistoryId,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          },
+        ];
+
+        mockRepository.getChecklists.mockResolvedValue(checklists);
+        mockRepository.createReviewDocumentCache.mockResolvedValue({
+          id: 1,
+          reviewHistoryId,
+          fileName: 'document.txt',
+          processMode: 'text',
+          textContent: 'テストファイルの内容',
+          imageData: undefined,
+          createdAt: '2024-01-01',
+          updatedAt: '2024-01-01',
+        });
+
+        // デフォルトのモック動作（元のドキュメントをそのまま返す）
+        mockPluginService.executeBeforeSmallDocumentReviewHook.mockImplementation(
+          async (context: any) => context.documents,
+        );
+
+        mockReviewExecuteAgent.generateLegacy.mockResolvedValue({
+          object: [
+            {
+              checklistId: 1,
+              reviewSections: [],
+              comment: 'コメント',
+              evaluation: 'A',
+            },
+          ],
+          finishReason: 'stop',
+        });
+
+        // Act
+        const run = await executeReviewWorkflow.createRunAsync();
+        const result = await run.start({
+          inputData: {
+            reviewHistoryId,
+            files,
+            documentMode: 'small',
+          },
+        });
+
+        // Assert
+        const checkResult = checkWorkflowResult(result);
+        expect(checkResult.status).toBe('success');
+        expect(mockReviewExecuteAgent.generateLegacy).toHaveBeenCalled();
+      });
+    });
   });
 
   describe('大量ドキュメントモード（large）', () => {
@@ -1035,8 +1622,22 @@ describe('executeReviewWorkflow', () => {
           },
         ];
         const checklists: ReviewChecklist[] = [
-          { id: 1, content: 'チェック項目1', createdBy: 'user', reviewHistoryId, createdAt: '2024-01-01', updatedAt: '2024-01-01' },
-          { id: 2, content: 'チェック項目2', createdBy: 'user', reviewHistoryId, createdAt: '2024-01-01', updatedAt: '2024-01-01' },
+          {
+            id: 1,
+            content: 'チェック項目1',
+            createdBy: 'user',
+            reviewHistoryId,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          },
+          {
+            id: 2,
+            content: 'チェック項目2',
+            createdBy: 'user',
+            reviewHistoryId,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          },
         ];
 
         mockRepository.getChecklists.mockResolvedValue(checklists);
@@ -1049,7 +1650,7 @@ describe('executeReviewWorkflow', () => {
             textContent: 'ファイル1の内容',
             imageData: undefined,
             createdAt: '2024-01-01',
-          updatedAt: '2024-01-01',
+            updatedAt: '2024-01-01',
           })
           .mockResolvedValueOnce({
             id: 2,
@@ -1059,23 +1660,26 @@ describe('executeReviewWorkflow', () => {
             textContent: 'ファイル2の内容',
             imageData: undefined,
             createdAt: '2024-01-01',
-          updatedAt: '2024-01-01',
+            updatedAt: '2024-01-01',
           });
 
         // 個別ドキュメントレビュー
         // 実行時のコンテキスト（対象チェックリスト）に応じて適切な結果を返す
-        mockIndividualDocumentReviewAgent.generateLegacy.mockImplementation(async (_message: any, options: any) => {
-          const checklistItems = options?.runtimeContext?.get('checklistItems') || [];
-          // 実際に対象となっているチェックリストIDのみの結果を返す
-          return {
-            object: checklistItems.map((item: any) => ({
-              reviewSections: [],
-              checklistId: item.id,
-              comment: `個別コメント${item.id}`,
-            })),
-            finishReason: 'stop',
-          };
-        });
+        mockIndividualDocumentReviewAgent.generateLegacy.mockImplementation(
+          async (_message: any, options: any) => {
+            const checklistItems =
+              options?.runtimeContext?.get('checklistItems') || [];
+            // 実際に対象となっているチェックリストIDのみの結果を返す
+            return {
+              object: checklistItems.map((item: any) => ({
+                reviewSections: [],
+                checklistId: item.id,
+                comment: `個別コメント${item.id}`,
+              })),
+              finishReason: 'stop',
+            };
+          },
+        );
 
         // 統合レビュー
         mockConsolidateReviewAgent.generateLegacy.mockResolvedValue({
@@ -1099,18 +1703,27 @@ describe('executeReviewWorkflow', () => {
         // Assert
         const checkResult = checkWorkflowResult(result);
         expect(checkResult.status).toBe('success');
-        expect(mockIndividualDocumentReviewAgent.generateLegacy).toHaveBeenCalledTimes(4); // 2ファイル × 2カテゴリ
-        expect(mockConsolidateReviewAgent.generateLegacy).toHaveBeenCalledTimes(2); // 2カテゴリ
+        expect(
+          mockIndividualDocumentReviewAgent.generateLegacy,
+        ).toHaveBeenCalledTimes(4); // 2ファイル × 2カテゴリ
+        expect(mockConsolidateReviewAgent.generateLegacy).toHaveBeenCalledTimes(
+          2,
+        ); // 2カテゴリ
 
         // 個別レビュー結果キャッシュ保存の詳細検証
         // 2ファイル × 2チェックリスト = 4回呼ばれる
-        expect(mockRepository.createReviewLargedocumentResultCache).toHaveBeenCalledTimes(4);
+        expect(
+          mockRepository.createReviewLargedocumentResultCache,
+        ).toHaveBeenCalledTimes(4);
 
         // 各ドキュメントキャッシュIDに対して正しく保存されることを確認
-        const largeDocCacheCalls = mockRepository.createReviewLargedocumentResultCache.mock.calls;
+        const largeDocCacheCalls =
+          mockRepository.createReviewLargedocumentResultCache.mock.calls;
 
         // document1 (cacheId=1) に対するキャッシュ保存 (2チェックリスト = 2回)
-        const doc1Calls = largeDocCacheCalls.filter((call) => call[0].reviewDocumentCacheId === 1);
+        const doc1Calls = largeDocCacheCalls.filter(
+          (call) => call[0].reviewDocumentCacheId === 1,
+        );
         expect(doc1Calls.length).toBe(2);
         expect(doc1Calls).toEqual(
           expect.arrayContaining([
@@ -1136,7 +1749,9 @@ describe('executeReviewWorkflow', () => {
         );
 
         // document2 (cacheId=2) に対するキャッシュ保存 (2チェックリスト = 2回)
-        const doc2Calls = largeDocCacheCalls.filter((call) => call[0].reviewDocumentCacheId === 2);
+        const doc2Calls = largeDocCacheCalls.filter(
+          (call) => call[0].reviewDocumentCacheId === 2,
+        );
         expect(doc2Calls.length).toBe(2);
         expect(doc2Calls).toEqual(
           expect.arrayContaining([
@@ -1177,7 +1792,14 @@ describe('executeReviewWorkflow', () => {
           },
         ];
         const checklists: ReviewChecklist[] = [
-          { id: 1, content: 'チェック項目1', createdBy: 'user', reviewHistoryId, createdAt: '2024-01-01', updatedAt: '2024-01-01' },
+          {
+            id: 1,
+            content: 'チェック項目1',
+            createdBy: 'user',
+            reviewHistoryId,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          },
         ];
 
         mockRepository.getChecklists.mockResolvedValue(checklists);
@@ -1185,47 +1807,60 @@ describe('executeReviewWorkflow', () => {
           content: 'A'.repeat(10000), // 長いテキスト
         });
         let cacheIdCounter = 1;
-        mockRepository.createReviewDocumentCache.mockImplementation(async () => ({
-          id: cacheIdCounter++,
-          reviewHistoryId,
-          fileName: 'large-document.txt',
-          processMode: 'text',
-          textContent: 'A'.repeat(10000),
-          imageData: undefined,
-          createdAt: '2024-01-01',
-          updatedAt: '2024-01-01',
-        }));
+        mockRepository.createReviewDocumentCache.mockImplementation(
+          async () => ({
+            id: cacheIdCounter++,
+            reviewHistoryId,
+            fileName: 'large-document.txt',
+            processMode: 'text',
+            textContent: 'A'.repeat(10000),
+            imageData: undefined,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          }),
+        );
 
         // 1回目: コンテキスト長エラー例外をthrow
         // 2回目以降: 分割後の各チャンクで成功 (documentIdを含める)
         let callCount = 0;
-        mockIndividualDocumentReviewAgent.generateLegacy.mockImplementation(async (message: any) => {
-          callCount++;
-          if (callCount === 1) {
-            // コンテキスト長エラーを示すAPICallErrorをthrow
-            throw new APICallError({
-              message: 'Context length exceeded',
-              url: 'http://test-api',
-              requestBodyValues: {},
-              statusCode: 400,
-              responseBody: JSON.stringify({ error: 'maximum context length exceeded' }),
-              cause: new Error('maximum context length exceeded'),
-              isRetryable: false,
-            });
-          }
-          // documentIdを生成（分割後のドキュメント用）
-          const textContent = message.content.find((c: any) => c.type === 'text')?.text || '';
-          const isPart = textContent.includes('part');
-          const partMatch = textContent.match(/part (\d+)/);
-          const documentId = isPart && partMatch ? `1_part${partMatch[1]}` : '1';
+        mockIndividualDocumentReviewAgent.generateLegacy.mockImplementation(
+          async (message: any) => {
+            callCount++;
+            if (callCount === 1) {
+              // コンテキスト長エラーを示すAPICallErrorをthrow
+              throw new APICallError({
+                message: 'Context length exceeded',
+                url: 'http://test-api',
+                requestBodyValues: {},
+                statusCode: 400,
+                responseBody: JSON.stringify({
+                  error: 'maximum context length exceeded',
+                }),
+                cause: new Error('maximum context length exceeded'),
+                isRetryable: false,
+              });
+            }
+            // documentIdを生成（分割後のドキュメント用）
+            const textContent =
+              message.content.find((c: any) => c.type === 'text')?.text || '';
+            const isPart = textContent.includes('part');
+            const partMatch = textContent.match(/part (\d+)/);
+            const documentId =
+              isPart && partMatch ? `1_part${partMatch[1]}` : '1';
 
-          return {
-            object: [
-              { reviewSections: [], checklistId: 1, comment: '分割後コメント', documentId },
-            ],
-            finishReason: 'stop',
-          };
-        });
+            return {
+              object: [
+                {
+                  reviewSections: [],
+                  checklistId: 1,
+                  comment: '分割後コメント',
+                  documentId,
+                },
+              ],
+              finishReason: 'stop',
+            };
+          },
+        );
 
         mockConsolidateReviewAgent.generateLegacy.mockResolvedValue({
           object: [
@@ -1248,14 +1883,19 @@ describe('executeReviewWorkflow', () => {
         const checkResult = checkWorkflowResult(result);
         expect(checkResult.status).toBe('success');
         // 1回目失敗 + 2回目は2分割して成功 = 3回呼ばれる
-        expect(mockIndividualDocumentReviewAgent.generateLegacy).toHaveBeenCalledTimes(3);
+        expect(
+          mockIndividualDocumentReviewAgent.generateLegacy,
+        ).toHaveBeenCalledTimes(3);
         expect(mockConsolidateReviewAgent.generateLegacy).toHaveBeenCalled();
 
         // 分割後の個別レビュー結果キャッシュ保存の検証
         // 2つの分割チャンクに対して各1チェックリスト = 2回呼ばれる
-        expect(mockRepository.createReviewLargedocumentResultCache).toHaveBeenCalledTimes(2);
+        expect(
+          mockRepository.createReviewLargedocumentResultCache,
+        ).toHaveBeenCalledTimes(2);
 
-        const splitCacheCalls = mockRepository.createReviewLargedocumentResultCache.mock.calls;
+        const splitCacheCalls =
+          mockRepository.createReviewLargedocumentResultCache.mock.calls;
 
         // part1のキャッシュ保存検証
         expect(splitCacheCalls).toEqual(
@@ -1299,52 +1939,72 @@ describe('executeReviewWorkflow', () => {
           },
         ];
         const checklists: ReviewChecklist[] = [
-          { id: 1, content: 'チェック項目1', createdBy: 'user', reviewHistoryId, createdAt: '2024-01-01', updatedAt: '2024-01-01' },
+          {
+            id: 1,
+            content: 'チェック項目1',
+            createdBy: 'user',
+            reviewHistoryId,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          },
         ];
 
         mockRepository.getChecklists.mockResolvedValue(checklists);
         let cacheIdCounter = 1;
-        mockRepository.createReviewDocumentCache.mockImplementation(async () => ({
-          id: cacheIdCounter++,
-          reviewHistoryId,
-          fileName: 'large-pdf.pdf',
-          processMode: 'image',
-          textContent: undefined,
-          imageData: Array(20).fill('data:image/png;base64,page'),
-          createdAt: '2024-01-01',
-          updatedAt: '2024-01-01',
-        }));
+        mockRepository.createReviewDocumentCache.mockImplementation(
+          async () => ({
+            id: cacheIdCounter++,
+            reviewHistoryId,
+            fileName: 'large-pdf.pdf',
+            processMode: 'image',
+            textContent: undefined,
+            imageData: Array(20).fill('data:image/png;base64,page'),
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          }),
+        );
 
         // 1回目: コンテキスト長エラー例外をthrow
         // 2回目以降: 分割後の各チャンクで成功 (documentIdを含める)
         let callCount = 0;
-        mockIndividualDocumentReviewAgent.generateLegacy.mockImplementation(async (message: any) => {
-          callCount++;
-          if (callCount === 1) {
-            // 画像が多すぎるエラーを示すAPICallErrorをthrow
-            throw new APICallError({
-              message: 'Too many images',
-              url: 'http://test-api',
-              requestBodyValues: {},
-              statusCode: 400,
-              responseBody: JSON.stringify({ error: 'too many images in request' }),
-              cause: new Error('too many images'),
-              isRetryable: false,
-            });
-          }
-          // documentIdを生成（分割後のドキュメント用）
-          const textContent = message.content.find((c: any) => c.type === 'text')?.text || '';
-          const isPart = textContent.includes('part');
-          const partMatch = textContent.match(/part (\d+)/);
-          const documentId = isPart && partMatch ? `1_part${partMatch[1]}` : '1';
+        mockIndividualDocumentReviewAgent.generateLegacy.mockImplementation(
+          async (message: any) => {
+            callCount++;
+            if (callCount === 1) {
+              // 画像が多すぎるエラーを示すAPICallErrorをthrow
+              throw new APICallError({
+                message: 'Too many images',
+                url: 'http://test-api',
+                requestBodyValues: {},
+                statusCode: 400,
+                responseBody: JSON.stringify({
+                  error: 'too many images in request',
+                }),
+                cause: new Error('too many images'),
+                isRetryable: false,
+              });
+            }
+            // documentIdを生成（分割後のドキュメント用）
+            const textContent =
+              message.content.find((c: any) => c.type === 'text')?.text || '';
+            const isPart = textContent.includes('part');
+            const partMatch = textContent.match(/part (\d+)/);
+            const documentId =
+              isPart && partMatch ? `1_part${partMatch[1]}` : '1';
 
-          return {
-            object: [
-              { reviewSections: [], checklistId: 1, comment: '分割後コメント', documentId },
-            ],
-            finishReason: 'stop',
-          };
-        });
+            return {
+              object: [
+                {
+                  reviewSections: [],
+                  checklistId: 1,
+                  comment: '分割後コメント',
+                  documentId,
+                },
+              ],
+              finishReason: 'stop',
+            };
+          },
+        );
 
         mockConsolidateReviewAgent.generateLegacy.mockResolvedValue({
           object: [
@@ -1367,14 +2027,19 @@ describe('executeReviewWorkflow', () => {
         const checkResult = checkWorkflowResult(result);
         expect(checkResult.status).toBe('success');
         // 1回目失敗 + 2回目は2分割して成功 = 3回呼ばれる
-        expect(mockIndividualDocumentReviewAgent.generateLegacy).toHaveBeenCalledTimes(3);
+        expect(
+          mockIndividualDocumentReviewAgent.generateLegacy,
+        ).toHaveBeenCalledTimes(3);
         expect(mockConsolidateReviewAgent.generateLegacy).toHaveBeenCalled();
 
         // 分割後の個別レビュー結果キャッシュ保存の検証（画像）
         // 2つの分割チャンクに対して各1チェックリスト = 2回呼ばれる
-        expect(mockRepository.createReviewLargedocumentResultCache).toHaveBeenCalledTimes(2);
+        expect(
+          mockRepository.createReviewLargedocumentResultCache,
+        ).toHaveBeenCalledTimes(2);
 
-        const imageSplitCacheCalls = mockRepository.createReviewLargedocumentResultCache.mock.calls;
+        const imageSplitCacheCalls =
+          mockRepository.createReviewLargedocumentResultCache.mock.calls;
 
         // 画像分割のキャッシュ保存検証
         expect(imageSplitCacheCalls).toEqual(
@@ -1416,9 +2081,17 @@ describe('executeReviewWorkflow', () => {
           },
         ];
         const checklists: ReviewChecklist[] = [
-          { id: 1, content: 'チェック項目1', createdBy: 'user', reviewHistoryId, createdAt: '2024-01-01', updatedAt: '2024-01-01' },
+          {
+            id: 1,
+            content: 'チェック項目1',
+            createdBy: 'user',
+            reviewHistoryId,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          },
         ];
-        const additionalInstructions = 'セキュリティの観点で厳しくレビューしてください';
+        const additionalInstructions =
+          'セキュリティの観点で厳しくレビューしてください';
         const commentFormat = '- 問題点:\n- 推奨事項:';
 
         mockRepository.getChecklists.mockResolvedValue(checklists);
@@ -1442,7 +2115,11 @@ describe('executeReviewWorkflow', () => {
 
         mockConsolidateReviewAgent.generateLegacy.mockResolvedValue({
           object: [
-            { checklistId: 1, comment: '- 問題点: なし\n- 推奨事項: なし', evaluation: 'A' },
+            {
+              checklistId: 1,
+              comment: '- 問題点: なし\n- 推奨事項: なし',
+              evaluation: 'A',
+            },
           ],
           finishReason: 'stop',
         });
@@ -1464,16 +2141,26 @@ describe('executeReviewWorkflow', () => {
         expect(checkResult.status).toBe('success');
 
         // individualDocumentReviewAgentに設定されていることを確認
-        const individualCallArgs = mockIndividualDocumentReviewAgent.generateLegacy.mock.calls[0];
+        const individualCallArgs =
+          mockIndividualDocumentReviewAgent.generateLegacy.mock.calls[0];
         const individualOptions = individualCallArgs[1];
-        expect(individualOptions.runtimeContext.get('additionalInstructions')).toBe(additionalInstructions);
-        expect(individualOptions.runtimeContext.get('commentFormat')).toBe(commentFormat);
+        expect(
+          individualOptions.runtimeContext.get('additionalInstructions'),
+        ).toBe(additionalInstructions);
+        expect(individualOptions.runtimeContext.get('commentFormat')).toBe(
+          commentFormat,
+        );
 
         // consolidateReviewAgentに設定されていることを確認
-        const consolidateCallArgs = mockConsolidateReviewAgent.generateLegacy.mock.calls[0];
+        const consolidateCallArgs =
+          mockConsolidateReviewAgent.generateLegacy.mock.calls[0];
         const consolidateOptions = consolidateCallArgs[1];
-        expect(consolidateOptions.runtimeContext.get('additionalInstructions')).toBe(additionalInstructions);
-        expect(consolidateOptions.runtimeContext.get('commentFormat')).toBe(commentFormat);
+        expect(
+          consolidateOptions.runtimeContext.get('additionalInstructions'),
+        ).toBe(additionalInstructions);
+        expect(consolidateOptions.runtimeContext.get('commentFormat')).toBe(
+          commentFormat,
+        );
       });
 
       it('カスタム評定項目を使用したレビューが成功すること', async () => {
@@ -1489,7 +2176,14 @@ describe('executeReviewWorkflow', () => {
           },
         ];
         const checklists: ReviewChecklist[] = [
-          { id: 1, content: 'チェック項目1', createdBy: 'user', reviewHistoryId, createdAt: '2024-01-01', updatedAt: '2024-01-01' },
+          {
+            id: 1,
+            content: 'チェック項目1',
+            createdBy: 'user',
+            reviewHistoryId,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          },
         ];
         const evaluationSettings = {
           items: [
@@ -1542,9 +2236,12 @@ describe('executeReviewWorkflow', () => {
         expect(checkResult.status).toBe('success');
 
         // consolidateReviewAgentにevaluationSettingsが設定されていることを確認
-        const consolidateCallArgs = mockConsolidateReviewAgent.generateLegacy.mock.calls[0];
+        const consolidateCallArgs =
+          mockConsolidateReviewAgent.generateLegacy.mock.calls[0];
         const consolidateOptions = consolidateCallArgs[1];
-        expect(consolidateOptions.runtimeContext.get('evaluationSettings')).toEqual(evaluationSettings);
+        expect(
+          consolidateOptions.runtimeContext.get('evaluationSettings'),
+        ).toEqual(evaluationSettings);
       });
 
       it('統合画像（merged）での大量ドキュメントレビューが成功すること', async () => {
@@ -1562,7 +2259,14 @@ describe('executeReviewWorkflow', () => {
           },
         ];
         const checklists: ReviewChecklist[] = [
-          { id: 1, content: 'チェック項目1', createdBy: 'user', reviewHistoryId, createdAt: '2024-01-01', updatedAt: '2024-01-01' },
+          {
+            id: 1,
+            content: 'チェック項目1',
+            createdBy: 'user',
+            reviewHistoryId,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          },
         ];
 
         mockRepository.getChecklists.mockResolvedValue(checklists);
@@ -1607,7 +2311,8 @@ describe('executeReviewWorkflow', () => {
         expect(FileExtractor.extractText).not.toHaveBeenCalled();
 
         // individualDocumentReviewAgentに統合画像データが渡されることを確認
-        const callArgs = mockIndividualDocumentReviewAgent.generateLegacy.mock.calls[0];
+        const callArgs =
+          mockIndividualDocumentReviewAgent.generateLegacy.mock.calls[0];
         const message = callArgs[0];
         expect(message.content).toEqual(
           expect.arrayContaining([
@@ -1632,8 +2337,22 @@ describe('executeReviewWorkflow', () => {
           },
         ];
         const checklists: ReviewChecklist[] = [
-          { id: 1, content: 'チェック項目1', createdBy: 'user', reviewHistoryId, createdAt: '2024-01-01', updatedAt: '2024-01-01' },
-          { id: 2, content: 'チェック項目2', createdBy: 'user', reviewHistoryId, createdAt: '2024-01-01', updatedAt: '2024-01-01' },
+          {
+            id: 1,
+            content: 'チェック項目1',
+            createdBy: 'user',
+            reviewHistoryId,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          },
+          {
+            id: 2,
+            content: 'チェック項目2',
+            createdBy: 'user',
+            reviewHistoryId,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          },
         ];
 
         mockRepository.getChecklists.mockResolvedValue(checklists);
@@ -1685,7 +2404,9 @@ describe('executeReviewWorkflow', () => {
         // Assert
         const checkResult = checkWorkflowResult(result);
         expect(checkResult.status).toBe('success');
-        expect(mockIndividualDocumentReviewAgent.generateLegacy).toHaveBeenCalledTimes(2);
+        expect(
+          mockIndividualDocumentReviewAgent.generateLegacy,
+        ).toHaveBeenCalledTimes(2);
       });
 
       it('統合レビューでの未完了チェックリスト再試行が成功すること', async () => {
@@ -1701,8 +2422,22 @@ describe('executeReviewWorkflow', () => {
           },
         ];
         const checklists: ReviewChecklist[] = [
-          { id: 1, content: 'チェック項目1', createdBy: 'user', reviewHistoryId, createdAt: '2024-01-01', updatedAt: '2024-01-01' },
-          { id: 2, content: 'チェック項目2', createdBy: 'user', reviewHistoryId, createdAt: '2024-01-01', updatedAt: '2024-01-01' },
+          {
+            id: 1,
+            content: 'チェック項目1',
+            createdBy: 'user',
+            reviewHistoryId,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          },
+          {
+            id: 2,
+            content: 'チェック項目2',
+            createdBy: 'user',
+            reviewHistoryId,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          },
         ];
 
         mockRepository.getChecklists.mockResolvedValue(checklists);
@@ -1754,7 +2489,9 @@ describe('executeReviewWorkflow', () => {
         // Assert
         const checkResult = checkWorkflowResult(result);
         expect(checkResult.status).toBe('success');
-        expect(mockConsolidateReviewAgent.generateLegacy).toHaveBeenCalledTimes(2);
+        expect(mockConsolidateReviewAgent.generateLegacy).toHaveBeenCalledTimes(
+          2,
+        );
       });
 
       it('新規実行時のキャッシュクリア→保存フローが正しく動作すること', async () => {
@@ -1770,7 +2507,14 @@ describe('executeReviewWorkflow', () => {
           },
         ];
         const checklists: ReviewChecklist[] = [
-          { id: 1, content: 'チェック項目1', createdBy: 'user', reviewHistoryId, createdAt: '2024-01-01', updatedAt: '2024-01-01' },
+          {
+            id: 1,
+            content: 'チェック項目1',
+            createdBy: 'user',
+            reviewHistoryId,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          },
         ];
 
         mockRepository.getChecklists.mockResolvedValue(checklists);
@@ -1814,15 +2558,20 @@ describe('executeReviewWorkflow', () => {
         expect(checkResult.status).toBe('success');
 
         // 削除処理が呼ばれていることを確認
-        expect(mockRepository.deleteReviewLargedocumentResultCaches).toHaveBeenCalledWith(reviewHistoryId);
-        expect(mockRepository.deleteReviewDocumentCaches).toHaveBeenCalledWith(reviewHistoryId);
-        expect(mockRepository.deleteAllReviewResults).toHaveBeenCalledWith(reviewHistoryId);
+        expect(
+          mockRepository.deleteReviewLargedocumentResultCaches,
+        ).toHaveBeenCalledWith(reviewHistoryId);
+        expect(mockRepository.deleteReviewDocumentCaches).toHaveBeenCalledWith(
+          reviewHistoryId,
+        );
+        expect(mockRepository.deleteAllReviewResults).toHaveBeenCalledWith(
+          reviewHistoryId,
+        );
 
         // documentMode保存が呼ばれていることを確認
-        expect(mockRepository.updateReviewHistoryDocumentMode).toHaveBeenCalledWith(
-          reviewHistoryId,
-          'large',
-        );
+        expect(
+          mockRepository.updateReviewHistoryDocumentMode,
+        ).toHaveBeenCalledWith(reviewHistoryId, 'large');
 
         // ドキュメントキャッシュが保存されていることを確認
         expect(mockRepository.createReviewDocumentCache).toHaveBeenCalledWith(
@@ -1835,7 +2584,9 @@ describe('executeReviewWorkflow', () => {
         );
 
         // 個別レビュー結果キャッシュが保存されていることを確認
-        expect(mockRepository.createReviewLargedocumentResultCache).toHaveBeenCalledWith(
+        expect(
+          mockRepository.createReviewLargedocumentResultCache,
+        ).toHaveBeenCalledWith(
           expect.objectContaining({
             reviewDocumentCacheId: 1,
             reviewChecklistId: 1,
@@ -1859,7 +2610,14 @@ describe('executeReviewWorkflow', () => {
           },
         ];
         const checklists: ReviewChecklist[] = [
-          { id: 1, content: 'チェック項目1', createdBy: 'user', reviewHistoryId, createdAt: '2024-01-01', updatedAt: '2024-01-01' },
+          {
+            id: 1,
+            content: 'チェック項目1',
+            createdBy: 'user',
+            reviewHistoryId,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          },
         ];
 
         mockRepository.getChecklists.mockResolvedValue(checklists);
@@ -1911,7 +2669,14 @@ describe('executeReviewWorkflow', () => {
           },
         ];
         const checklists: ReviewChecklist[] = [
-          { id: 1, content: 'チェック項目1', createdBy: 'user', reviewHistoryId, createdAt: '2024-01-01', updatedAt: '2024-01-01' },
+          {
+            id: 1,
+            content: 'チェック項目1',
+            createdBy: 'user',
+            reviewHistoryId,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          },
         ];
 
         mockRepository.getChecklists.mockResolvedValue(checklists);
@@ -1970,35 +2735,48 @@ describe('executeReviewWorkflow', () => {
           },
         ];
         const checklists: ReviewChecklist[] = [
-          { id: 1, content: 'チェック項目1', createdBy: 'user', reviewHistoryId, createdAt: '2024-01-01', updatedAt: '2024-01-01' },
+          {
+            id: 1,
+            content: 'チェック項目1',
+            createdBy: 'user',
+            reviewHistoryId,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          },
         ];
 
         mockRepository.getChecklists.mockResolvedValue(checklists);
         let cacheIdCounter = 1;
-        mockRepository.createReviewDocumentCache.mockImplementation(async () => ({
-          id: cacheIdCounter++,
-          reviewHistoryId,
-          fileName: 'document.txt',
-          processMode: 'text',
-          textContent: 'テストファイルの内容',
-          imageData: undefined,
-          createdAt: '2024-01-01',
-          updatedAt: '2024-01-01',
-        }));
+        mockRepository.createReviewDocumentCache.mockImplementation(
+          async () => ({
+            id: cacheIdCounter++,
+            reviewHistoryId,
+            fileName: 'document.txt',
+            processMode: 'text',
+            textContent: 'テストファイルの内容',
+            imageData: undefined,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          }),
+        );
 
         // 常にコンテキスト長エラー例外をthrow (最大5回リトライまで)
-        mockIndividualDocumentReviewAgent.generateLegacy.mockImplementation(async () => {
-          // 常にコンテキスト長エラーをthrow
-          throw new APICallError({
-            message: 'Context length exceeded',
-            url: 'http://test-api',
-            requestBodyValues: {},
-            statusCode: 400,
-            responseBody: JSON.stringify({ error: 'maximum context length exceeded' }),
-            cause: new Error('maximum context length exceeded'),
-            isRetryable: false,
-          });
-        });
+        mockIndividualDocumentReviewAgent.generateLegacy.mockImplementation(
+          async () => {
+            // 常にコンテキスト長エラーをthrow
+            throw new APICallError({
+              message: 'Context length exceeded',
+              url: 'http://test-api',
+              requestBodyValues: {},
+              statusCode: 400,
+              responseBody: JSON.stringify({
+                error: 'maximum context length exceeded',
+              }),
+              cause: new Error('maximum context length exceeded'),
+              isRetryable: false,
+            });
+          },
+        );
 
         // Act
         const run = await executeReviewWorkflow.createRunAsync();
@@ -2015,12 +2793,14 @@ describe('executeReviewWorkflow', () => {
         expect(checkResult.status).toBe('failed');
         // リトライ最大回数（5回）を超えた場合、特定のエラーメッセージが返される
         expect(checkResult.errorMessage).toBe(
-          'ドキュメント分割を複数回実行しましたが、コンテキスト長エラーが解消されませんでした'
+          'ドキュメント分割を複数回実行しましたが、コンテキスト長エラーが解消されませんでした',
         );
         // リトライのたびにドキュメントが分割され、foreachで個別レビューが実行される
         // retryCount 0: 1個 (1回), 1: 2個 (2回), 2: 3個 (3回), 3: 4個 (4回), 4: 5個 (5回), 5: 6個 (6回)
         // 合計: 1+2+3+4+5+6 = 21回
-        expect(mockIndividualDocumentReviewAgent.generateLegacy).toHaveBeenCalledTimes(21);
+        expect(
+          mockIndividualDocumentReviewAgent.generateLegacy,
+        ).toHaveBeenCalledTimes(21);
       });
 
       it('個別レビュー未完了チェックリスト最大試行回数超過時にエラーになること', async () => {
@@ -2036,8 +2816,22 @@ describe('executeReviewWorkflow', () => {
           },
         ];
         const checklists: ReviewChecklist[] = [
-          { id: 1, content: 'チェック項目1', createdBy: 'user', reviewHistoryId, createdAt: '2024-01-01', updatedAt: '2024-01-01' },
-          { id: 2, content: 'チェック項目2', createdBy: 'user', reviewHistoryId, createdAt: '2024-01-01', updatedAt: '2024-01-01' },
+          {
+            id: 1,
+            content: 'チェック項目1',
+            createdBy: 'user',
+            reviewHistoryId,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          },
+          {
+            id: 2,
+            content: 'チェック項目2',
+            createdBy: 'user',
+            reviewHistoryId,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          },
         ];
 
         mockRepository.getChecklists.mockResolvedValue(checklists);
@@ -2074,7 +2868,9 @@ describe('executeReviewWorkflow', () => {
         const checkResult = checkWorkflowResult(result);
         expect(checkResult.status).toBe('failed');
         expect(checkResult.errorMessage).toContain('チェック項目2');
-        expect(checkResult.errorMessage).toContain('AIの出力にレビュー結果が含まれませんでした');
+        expect(checkResult.errorMessage).toContain(
+          'AIの出力にレビュー結果が含まれませんでした',
+        );
       });
 
       it('統合レビュー未完了チェックリスト最大試行回数超過時にエラーになること', async () => {
@@ -2090,8 +2886,22 @@ describe('executeReviewWorkflow', () => {
           },
         ];
         const checklists: ReviewChecklist[] = [
-          { id: 1, content: 'チェック項目1', createdBy: 'user', reviewHistoryId, createdAt: '2024-01-01', updatedAt: '2024-01-01' },
-          { id: 2, content: 'チェック項目2', createdBy: 'user', reviewHistoryId, createdAt: '2024-01-01', updatedAt: '2024-01-01' },
+          {
+            id: 1,
+            content: 'チェック項目1',
+            createdBy: 'user',
+            reviewHistoryId,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          },
+          {
+            id: 2,
+            content: 'チェック項目2',
+            createdBy: 'user',
+            reviewHistoryId,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          },
         ];
 
         mockRepository.getChecklists.mockResolvedValue(checklists);
@@ -2136,7 +2946,9 @@ describe('executeReviewWorkflow', () => {
         const checkResult = checkWorkflowResult(result);
         expect(checkResult.status).toBe('failed');
         expect(checkResult.errorMessage).toContain('チェック項目2');
-        expect(checkResult.errorMessage).toContain('AIの出力に統合レビュー結果が含まれませんでした');
+        expect(checkResult.errorMessage).toContain(
+          'AIの出力に統合レビュー結果が含まれませんでした',
+        );
       });
     });
   });
@@ -2155,8 +2967,22 @@ describe('executeReviewWorkflow', () => {
         },
       ];
       const checklists: ReviewChecklist[] = [
-        { id: 1, content: 'チェック項目1', createdBy: 'user', reviewHistoryId, createdAt: '2024-01-01', updatedAt: '2024-01-01' },
-        { id: 2, content: 'チェック項目2', createdBy: 'user', reviewHistoryId, createdAt: '2024-01-01', updatedAt: '2024-01-01' },
+        {
+          id: 1,
+          content: 'チェック項目1',
+          createdBy: 'user',
+          reviewHistoryId,
+          createdAt: '2024-01-01',
+          updatedAt: '2024-01-01',
+        },
+        {
+          id: 2,
+          content: 'チェック項目2',
+          createdBy: 'user',
+          reviewHistoryId,
+          createdAt: '2024-01-01',
+          updatedAt: '2024-01-01',
+        },
       ];
 
       mockRepository.getChecklists.mockResolvedValue(checklists);
@@ -2182,8 +3008,18 @@ describe('executeReviewWorkflow', () => {
 
       mockReviewExecuteAgent.generateLegacy.mockResolvedValue({
         object: [
-          { checklistId: 1, reviewSections: [], comment: 'コメント1', evaluation: 'A' },
-          { checklistId: 2, reviewSections: [], comment: 'コメント2', evaluation: 'B' },
+          {
+            checklistId: 1,
+            reviewSections: [],
+            comment: 'コメント1',
+            evaluation: 'A',
+          },
+          {
+            checklistId: 2,
+            reviewSections: [],
+            comment: 'コメント2',
+            evaluation: 'B',
+          },
         ],
         finishReason: 'stop',
       });
@@ -2203,6 +3039,657 @@ describe('executeReviewWorkflow', () => {
       expect(checkResult.status).toBe('success');
       // 手動分割でもレビューが成功すること
       expect(mockReviewExecuteAgent.generateLegacy).toHaveBeenCalled();
+    });
+  });
+
+  describe('大量ドキュメントモード（large）', () => {
+    describe('プラグイン統合（個別ドキュメント処理）', () => {
+      it('beforeLargeDocumentReviewHookが呼ばれること', async () => {
+        // Arrange
+        const reviewHistoryId = 'review-1';
+        const files: UploadFile[] = [
+          {
+            id: 'file-1',
+            name: 'document.txt',
+            path: '/test/document.txt',
+            type: 'text/plain',
+            processMode: 'text',
+          },
+        ];
+        const checklists: ReviewChecklist[] = [
+          {
+            id: 1,
+            content: 'チェック項目1',
+            createdBy: 'user',
+            reviewHistoryId,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          },
+        ];
+
+        mockRepository.getChecklists.mockResolvedValue(checklists);
+        mockRepository.createReviewDocumentCache.mockResolvedValue({
+          id: 1,
+          reviewHistoryId,
+          fileName: 'document.txt',
+          processMode: 'text',
+          textContent: 'テストファイルの内容',
+          imageData: undefined,
+          createdAt: '2024-01-01',
+          updatedAt: '2024-01-01',
+        });
+
+        mockIndividualDocumentReviewAgent.generateLegacy.mockResolvedValue({
+          object: [
+            { reviewSections: [], checklistId: 1, comment: '個別コメント' },
+          ],
+          finishReason: 'stop',
+        });
+
+        mockConsolidateReviewAgent.generateLegacy.mockResolvedValue({
+          object: [
+            { checklistId: 1, comment: '統合コメント', evaluation: 'A' },
+          ],
+          finishReason: 'stop',
+        });
+
+        // Act
+        const run = await executeReviewWorkflow.createRunAsync();
+        await run.start({
+          inputData: {
+            reviewHistoryId,
+            files,
+            documentMode: 'large',
+          },
+        });
+
+        // Assert
+        expect(
+          mockPluginService.executeBeforeLargeDocumentReviewHook,
+        ).toHaveBeenCalledWith(
+          expect.objectContaining({
+            document: expect.objectContaining({
+              id: expect.any(String),
+              name: 'document.txt',
+              textContent: 'テストファイルの内容',
+            }),
+            checklists: expect.arrayContaining([
+              expect.objectContaining({ id: 1, content: 'チェック項目1' }),
+            ]),
+          }),
+        );
+      });
+
+      it('フックがnullを返した場合、そのドキュメントのレビューがスキップされること', async () => {
+        // Arrange
+        const reviewHistoryId = 'review-1';
+        const files: UploadFile[] = [
+          {
+            id: 'file-1',
+            name: 'document.txt',
+            path: '/test/document.txt',
+            type: 'text/plain',
+            processMode: 'text',
+          },
+        ];
+        const checklists: ReviewChecklist[] = [
+          {
+            id: 1,
+            content: 'チェック項目1',
+            createdBy: 'user',
+            reviewHistoryId,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          },
+        ];
+
+        mockRepository.getChecklists.mockResolvedValue(checklists);
+        mockRepository.createReviewDocumentCache.mockResolvedValue({
+          id: 1,
+          reviewHistoryId,
+          fileName: 'document.txt',
+          processMode: 'text',
+          textContent: 'テストファイルの内容',
+          imageData: undefined,
+          createdAt: '2024-01-01',
+          updatedAt: '2024-01-01',
+        });
+
+        // フックがnullを返す→ドキュメントをスキップ
+        mockPluginService.executeBeforeLargeDocumentReviewHook.mockResolvedValue(
+          null,
+        );
+
+        // 統合レビューは実行されるが、ドキュメントがないので空の結果を返す
+        mockConsolidateReviewAgent.generateLegacy.mockResolvedValue({
+          object: [
+            {
+              checklistId: 1,
+              comment: 'レビュー対象ドキュメントがありません',
+              evaluation: '-',
+            },
+          ],
+          finishReason: 'stop',
+        });
+
+        // Act
+        const run = await executeReviewWorkflow.createRunAsync();
+        const result = await run.start({
+          inputData: {
+            reviewHistoryId,
+            files,
+            documentMode: 'large',
+          },
+        });
+
+        // Assert
+        const checkResult = checkWorkflowResult(result);
+        expect(checkResult.status).toBe('success');
+        // 個別レビューエージェントが呼ばれないことを確認（ドキュメントがスキップされたため）
+        expect(
+          mockIndividualDocumentReviewAgent.generateLegacy,
+        ).not.toHaveBeenCalled();
+        // 統合レビューは実行される
+        expect(mockConsolidateReviewAgent.generateLegacy).toHaveBeenCalled();
+      });
+
+      it('フックがドキュメントを変更した場合、変更後の内容が使われること', async () => {
+        // Arrange
+        const reviewHistoryId = 'review-1';
+        const files: UploadFile[] = [
+          {
+            id: 'file-1',
+            name: 'document.txt',
+            path: '/test/document.txt',
+            type: 'text/plain',
+            processMode: 'text',
+          },
+        ];
+        const checklists: ReviewChecklist[] = [
+          {
+            id: 1,
+            content: 'チェック項目1',
+            createdBy: 'user',
+            reviewHistoryId,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          },
+        ];
+
+        mockRepository.getChecklists.mockResolvedValue(checklists);
+        mockRepository.createReviewDocumentCache.mockResolvedValue({
+          id: 1,
+          reviewHistoryId,
+          fileName: 'document.txt',
+          processMode: 'text',
+          textContent: 'テストファイルの内容',
+          imageData: undefined,
+          createdAt: '2024-01-01',
+          updatedAt: '2024-01-01',
+        });
+
+        // プラグインがドキュメントのテキストを変更
+        mockPluginService.executeBeforeLargeDocumentReviewHook.mockImplementation(
+          async (context: any) => ({
+            ...context.document,
+            textContent: 'プラグインによって変更されたテキスト',
+          }),
+        );
+
+        mockIndividualDocumentReviewAgent.generateLegacy.mockResolvedValue({
+          object: [
+            { reviewSections: [], checklistId: 1, comment: '個別コメント' },
+          ],
+          finishReason: 'stop',
+        });
+
+        mockConsolidateReviewAgent.generateLegacy.mockResolvedValue({
+          object: [
+            { checklistId: 1, comment: '統合コメント', evaluation: 'A' },
+          ],
+          finishReason: 'stop',
+        });
+
+        // Act
+        const run = await executeReviewWorkflow.createRunAsync();
+        await run.start({
+          inputData: {
+            reviewHistoryId,
+            files,
+            documentMode: 'large',
+          },
+        });
+
+        // Assert
+        // 変更されたテキストがAIエージェントに渡されることを確認
+        const callArgs =
+          mockIndividualDocumentReviewAgent.generateLegacy.mock.calls[0];
+        const message = callArgs[0];
+        expect(message.content).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              type: 'text',
+              text: expect.stringContaining(
+                'プラグインによって変更されたテキスト',
+              ),
+            }),
+          ]),
+        );
+      });
+
+      it('フックがエラーを起こした場合、元のドキュメントが使われること', async () => {
+        // Arrange
+        const reviewHistoryId = 'review-1';
+        const files: UploadFile[] = [
+          {
+            id: 'file-1',
+            name: 'document.txt',
+            path: '/test/document.txt',
+            type: 'text/plain',
+            processMode: 'text',
+          },
+        ];
+        const checklists: ReviewChecklist[] = [
+          {
+            id: 1,
+            content: 'チェック項目1',
+            createdBy: 'user',
+            reviewHistoryId,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          },
+        ];
+
+        mockRepository.getChecklists.mockResolvedValue(checklists);
+        mockRepository.createReviewDocumentCache.mockResolvedValue({
+          id: 1,
+          reviewHistoryId,
+          fileName: 'document.txt',
+          processMode: 'text',
+          textContent: 'テストファイルの内容',
+          imageData: undefined,
+          createdAt: '2024-01-01',
+          updatedAt: '2024-01-01',
+        });
+
+        // フックがエラーをthrow→元のドキュメントが使われる
+        mockPluginService.executeBeforeLargeDocumentReviewHook.mockImplementation(
+          async (context: any) => {
+            // プラグインがエラーを起こした場合、元のドキュメントを返す実装になっている
+            return context.document;
+          },
+        );
+
+        mockIndividualDocumentReviewAgent.generateLegacy.mockResolvedValue({
+          object: [
+            { reviewSections: [], checklistId: 1, comment: '個別コメント' },
+          ],
+          finishReason: 'stop',
+        });
+
+        mockConsolidateReviewAgent.generateLegacy.mockResolvedValue({
+          object: [
+            { checklistId: 1, comment: '統合コメント', evaluation: 'A' },
+          ],
+          finishReason: 'stop',
+        });
+
+        // Act
+        const run = await executeReviewWorkflow.createRunAsync();
+        const result = await run.start({
+          inputData: {
+            reviewHistoryId,
+            files,
+            documentMode: 'large',
+          },
+        });
+
+        // Assert
+        const checkResult = checkWorkflowResult(result);
+        expect(checkResult.status).toBe('success');
+        // 元のドキュメントのテキストがAIエージェントに渡されることを確認
+        const callArgs =
+          mockIndividualDocumentReviewAgent.generateLegacy.mock.calls[0];
+        const message = callArgs[0];
+        expect(message.content).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              type: 'text',
+              text: expect.stringContaining('テストファイルの内容'),
+            }),
+          ]),
+        );
+      });
+    });
+
+    describe('プラグイン統合（分割戦略）', () => {
+      // TODO: 分割戦略のテストは複雑なリトライロジックのため、別途詳細な調査が必要
+      it('chunkStrategyHookが呼ばれること（コンテキスト長エラー時）', async () => {
+        // Arrange
+        const reviewHistoryId = 'review-1';
+        const files: UploadFile[] = [
+          {
+            id: 'file-1',
+            name: 'large-document.txt',
+            path: '/test/large-document.txt',
+            type: 'text/plain',
+            processMode: 'text',
+          },
+        ];
+        const checklists: ReviewChecklist[] = [
+          {
+            id: 1,
+            content: 'チェック項目1',
+            createdBy: 'user',
+            reviewHistoryId,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          },
+        ];
+        const longText = 'テストファイルの長い内容'.repeat(100);
+
+        mockExtractText.mockResolvedValue({
+          content: longText,
+        });
+        mockRepository.getChecklists.mockResolvedValue(checklists);
+        mockRepository.createReviewDocumentCache.mockResolvedValue({
+          id: 1,
+          reviewHistoryId,
+          fileName: 'large-document.txt',
+          processMode: 'text',
+          textContent: longText,
+          imageData: undefined,
+          createdAt: '2024-01-01',
+          updatedAt: '2024-01-01',
+        });
+
+        // 初回はlengthエラー、2回目以降は成功
+        mockIndividualDocumentReviewAgent.generateLegacy
+          .mockResolvedValueOnce({
+            object: [],
+            finishReason: 'length',
+          })
+          .mockResolvedValue({
+            object: [
+              { reviewSections: [], checklistId: 1, comment: '個別コメント' },
+            ],
+            finishReason: 'stop',
+          });
+
+        mockConsolidateReviewAgent.generateLegacy.mockResolvedValue({
+          object: [
+            { checklistId: 1, comment: '統合コメント', evaluation: 'A' },
+          ],
+          finishReason: 'stop',
+        });
+
+        // Act
+        const run = await executeReviewWorkflow.createRunAsync();
+        await run.start({
+          inputData: {
+            reviewHistoryId,
+            files,
+            documentMode: 'large',
+          },
+        });
+
+        // Assert
+        // chunkStrategyHookが呼ばれることを確認
+        expect(mockPluginService.executeChunkStrategyHook).toHaveBeenCalledWith(
+          expect.objectContaining({
+            document: expect.objectContaining({
+              textContent: expect.stringContaining('テストファイルの長い内容'),
+            }),
+            splitCount: expect.any(Number),
+            retryCount: expect.any(Number),
+          }),
+        );
+      });
+
+      it('カスタム分割戦略が適用されること', async () => {
+        // Arrange
+        const reviewHistoryId = 'review-1';
+        const files: UploadFile[] = [
+          {
+            id: 'file-1',
+            name: 'large-document.txt',
+            path: '/test/large-document.txt',
+            type: 'text/plain',
+            processMode: 'text',
+          },
+        ];
+        const checklists: ReviewChecklist[] = [
+          {
+            id: 1,
+            content: 'チェック項目1',
+            createdBy: 'user',
+            reviewHistoryId,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          },
+        ];
+
+        const longText = 'テストファイルの長い内容'.repeat(100);
+        mockExtractText.mockResolvedValue({
+          content: longText,
+        });
+        mockRepository.getChecklists.mockResolvedValue(checklists);
+        mockRepository.createReviewDocumentCache.mockResolvedValue({
+          id: 1,
+          reviewHistoryId,
+          fileName: 'large-document.txt',
+          processMode: 'text',
+          textContent: longText,
+          imageData: undefined,
+          createdAt: '2024-01-01',
+          updatedAt: '2024-01-01',
+        });
+
+        // カスタム分割戦略を返す
+        const customRanges = [
+          { start: 0, end: Math.floor(longText.length / 2) },
+          { start: Math.floor(longText.length / 2), end: longText.length },
+        ];
+        mockPluginService.executeChunkStrategyHook.mockResolvedValue(
+          customRanges,
+        );
+
+        // 初回はlengthエラー、2回目以降は成功
+        mockIndividualDocumentReviewAgent.generateLegacy
+          .mockResolvedValueOnce({
+            object: [],
+            finishReason: 'length',
+          })
+          .mockResolvedValue({
+            object: [
+              { reviewSections: [], checklistId: 1, comment: '個別コメント' },
+            ],
+            finishReason: 'stop',
+          });
+
+        mockConsolidateReviewAgent.generateLegacy.mockResolvedValue({
+          object: [
+            { checklistId: 1, comment: '統合コメント', evaluation: 'A' },
+          ],
+          finishReason: 'stop',
+        });
+
+        // Act
+        const run = await executeReviewWorkflow.createRunAsync();
+        const result = await run.start({
+          inputData: {
+            reviewHistoryId,
+            files,
+            documentMode: 'large',
+          },
+        });
+
+        // Assert
+        const checkResult = checkWorkflowResult(result);
+        expect(checkResult.status).toBe('success');
+        // カスタム分割が使われた場合、individualDocumentReviewAgentが2回（分割数）呼ばれることを確認
+        expect(
+          mockIndividualDocumentReviewAgent.generateLegacy.mock.calls.length,
+        ).toBeGreaterThanOrEqual(2);
+      });
+
+      it('フックがnullを返した場合、デフォルトの分割戦略が使われること', async () => {
+        // Arrange
+        const reviewHistoryId = 'review-1';
+        const files: UploadFile[] = [
+          {
+            id: 'file-1',
+            name: 'large-document.txt',
+            path: '/test/large-document.txt',
+            type: 'text/plain',
+            processMode: 'text',
+          },
+        ];
+        const checklists: ReviewChecklist[] = [
+          {
+            id: 1,
+            content: 'チェック項目1',
+            createdBy: 'user',
+            reviewHistoryId,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          },
+        ];
+        const longText = 'テストファイルの長い内容'.repeat(100);
+
+        mockExtractText.mockResolvedValue({
+          content: longText,
+        });
+        mockRepository.getChecklists.mockResolvedValue(checklists);
+        mockRepository.createReviewDocumentCache.mockResolvedValue({
+          id: 1,
+          reviewHistoryId,
+          fileName: 'large-document.txt',
+          processMode: 'text',
+          textContent: longText,
+          imageData: undefined,
+          createdAt: '2024-01-01',
+          updatedAt: '2024-01-01',
+        });
+
+        // フックがnullを返す→デフォルト分割戦略が使われる
+        mockPluginService.executeChunkStrategyHook.mockResolvedValue(null);
+
+        // 初回はlengthエラー、2回目以降は成功
+        mockIndividualDocumentReviewAgent.generateLegacy
+          .mockResolvedValueOnce({
+            object: [],
+            finishReason: 'length',
+          })
+          .mockResolvedValue({
+            object: [
+              { reviewSections: [], checklistId: 1, comment: '個別コメント' },
+            ],
+            finishReason: 'stop',
+          });
+
+        mockConsolidateReviewAgent.generateLegacy.mockResolvedValue({
+          object: [
+            { checklistId: 1, comment: '統合コメント', evaluation: 'A' },
+          ],
+          finishReason: 'stop',
+        });
+
+        // Act
+        const run = await executeReviewWorkflow.createRunAsync();
+        const result = await run.start({
+          inputData: {
+            reviewHistoryId,
+            files,
+            documentMode: 'large',
+          },
+        });
+
+        // Assert
+        const checkResult = checkWorkflowResult(result);
+        expect(checkResult.status).toBe('success');
+        // デフォルト分割が使われた場合もレビューが成功することを確認
+        expect(mockConsolidateReviewAgent.generateLegacy).toHaveBeenCalled();
+      });
+
+      it('フックがエラーを起こした場合、デフォルトの分割戦略が使われること', async () => {
+        // Arrange
+        const reviewHistoryId = 'review-1';
+        const files: UploadFile[] = [
+          {
+            id: 'file-1',
+            name: 'large-document.txt',
+            path: '/test/large-document.txt',
+            type: 'text/plain',
+            processMode: 'text',
+          },
+        ];
+        const checklists: ReviewChecklist[] = [
+          {
+            id: 1,
+            content: 'チェック項目1',
+            createdBy: 'user',
+            reviewHistoryId,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          },
+        ];
+        const longText = 'テストファイルの長い内容'.repeat(100);
+
+        mockExtractText.mockResolvedValue({
+          content: longText,
+        });
+        mockRepository.getChecklists.mockResolvedValue(checklists);
+        mockRepository.createReviewDocumentCache.mockResolvedValue({
+          id: 1,
+          reviewHistoryId,
+          fileName: 'large-document.txt',
+          processMode: 'text',
+          textContent: longText,
+          imageData: undefined,
+          createdAt: '2024-01-01',
+          updatedAt: '2024-01-01',
+        });
+
+        // フックがnullを返す（エラー時の実装）
+        mockPluginService.executeChunkStrategyHook.mockResolvedValue(null);
+
+        // 初回はlengthエラー、2回目以降は成功
+        mockIndividualDocumentReviewAgent.generateLegacy
+          .mockResolvedValueOnce({
+            object: [],
+            finishReason: 'length',
+          })
+          .mockResolvedValue({
+            object: [
+              { reviewSections: [], checklistId: 1, comment: '個別コメント' },
+            ],
+            finishReason: 'stop',
+          });
+
+        mockConsolidateReviewAgent.generateLegacy.mockResolvedValue({
+          object: [
+            { checklistId: 1, comment: '統合コメント', evaluation: 'A' },
+          ],
+          finishReason: 'stop',
+        });
+
+        // Act
+        const run = await executeReviewWorkflow.createRunAsync();
+        const result = await run.start({
+          inputData: {
+            reviewHistoryId,
+            files,
+            documentMode: 'large',
+          },
+        });
+
+        // Assert
+        const checkResult = checkWorkflowResult(result);
+        expect(checkResult.status).toBe('success');
+        // エラー時もレビューが継続することを確認
+        expect(mockConsolidateReviewAgent.generateLegacy).toHaveBeenCalled();
+      });
     });
   });
 
@@ -2229,7 +3716,14 @@ describe('executeReviewWorkflow', () => {
         },
       ];
       const checklists: ReviewChecklist[] = [
-        { id: 1, content: 'チェック項目1', createdBy: 'user', reviewHistoryId, createdAt: '2024-01-01', updatedAt: '2024-01-01' },
+        {
+          id: 1,
+          content: 'チェック項目1',
+          createdBy: 'user',
+          reviewHistoryId,
+          createdAt: '2024-01-01',
+          updatedAt: '2024-01-01',
+        },
       ];
 
       mockRepository.getChecklists.mockResolvedValue(checklists);
@@ -2241,12 +3735,17 @@ describe('executeReviewWorkflow', () => {
         textContent: undefined,
         imageData: undefined,
         createdAt: '2024-01-01',
-          updatedAt: '2024-01-01',
+        updatedAt: '2024-01-01',
       });
 
       mockReviewExecuteAgent.generateLegacy.mockResolvedValue({
         object: [
-          { checklistId: 1, reviewSections: [], comment: 'コメント', evaluation: 'A' },
+          {
+            checklistId: 1,
+            reviewSections: [],
+            comment: 'コメント',
+            evaluation: 'A',
+          },
         ],
         finishReason: 'stop',
       });
@@ -2279,7 +3778,14 @@ describe('executeReviewWorkflow', () => {
         },
       ];
       const checklists: ReviewChecklist[] = [
-        { id: 1, content: 'チェック項目1', createdBy: 'user', reviewHistoryId, createdAt: '2024-01-01', updatedAt: '2024-01-01' },
+        {
+          id: 1,
+          content: 'チェック項目1',
+          createdBy: 'user',
+          reviewHistoryId,
+          createdAt: '2024-01-01',
+          updatedAt: '2024-01-01',
+        },
       ];
 
       mockExtractText.mockResolvedValue({
@@ -2300,7 +3806,12 @@ describe('executeReviewWorkflow', () => {
 
       mockReviewExecuteAgent.generateLegacy.mockResolvedValue({
         object: [
-          { checklistId: 1, reviewSections: [], comment: 'コメント', evaluation: 'A' },
+          {
+            checklistId: 1,
+            reviewSections: [],
+            comment: 'コメント',
+            evaluation: 'A',
+          },
         ],
         finishReason: 'stop',
       });

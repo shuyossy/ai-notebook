@@ -187,7 +187,8 @@ describe('SettingsModal Component', () => {
 
     // 設定の一括保存が正しく呼ばれることを確認
     await waitFor(() => {
-      const call = (window.electron.settings.setSettings as jest.Mock).mock.calls[0][0];
+      const call = (window.electron.settings.setSettings as jest.Mock).mock
+        .calls[0][0];
 
       // 保存された設定を検証（MCPは文字列からパースされたオブジェクト）
       expect(call.api).toEqual({
@@ -224,13 +225,13 @@ describe('SettingsModal Component', () => {
   test('バリデーションエラーが正しく表示されること', async () => {
     // checkPathExists関数をモック化して、fsAccessの結果を使うようにする
     const settingModule = require('@/types/setting');
-    jest.spyOn(settingModule, 'checkPathExists').mockImplementation(
-      async (...args: unknown[]): Promise<boolean> => {
+    jest
+      .spyOn(settingModule, 'checkPathExists')
+      .mockImplementation(async (...args: unknown[]): Promise<boolean> => {
         const path = args[0] as string;
         const result = await window.electron.fs.access(path);
         return result.success === true && result.data === true;
-      },
-    );
+      });
 
     window.electron = createMockElectronWithOptions({
       fsAccess: false,
@@ -310,9 +311,9 @@ describe('SettingsModal Component', () => {
         ).toEqual(2);
 
         // 無効なURL形式のエラー
-        expect(screen.getAllByText('有効なURLを入力してください').length).toEqual(
-          3,
-        );
+        expect(
+          screen.getAllByText('有効なURLを入力してください').length,
+        ).toEqual(3);
 
         // MCPサーバー設定のエラー
         expect(screen.getByText('JSONの形式が不正です')).toBeInTheDocument();
@@ -566,7 +567,9 @@ describe('SettingsModal Component', () => {
                 apiKey: 'test-gitlab-key',
               },
               mcp: {
-                serverConfig: { testMcp: { url: new URL('https://mcp.test.com') } },
+                serverConfig: {
+                  testMcp: { url: new URL('https://mcp.test.com') },
+                },
               },
               systemPrompt: { content: 'test system prompt' },
             },
@@ -1126,7 +1129,10 @@ describe('SettingsModal Component', () => {
       },
     );
 
-    const user = userEvent.setup({ delay: null, advanceTimers: jest.advanceTimersByTime });
+    const user = userEvent.setup({
+      delay: null,
+      advanceTimers: jest.advanceTimersByTime,
+    });
 
     render(
       <SettingsModal
@@ -1156,8 +1162,9 @@ describe('SettingsModal Component', () => {
     });
 
     // 保存前のgetStatus呼び出し回数を記録
-    const beforeSaveCallCount = (window.electron.settings.getStatus as jest.Mock)
-      .mock.calls.length;
+    const beforeSaveCallCount = (
+      window.electron.settings.getStatus as jest.Mock
+    ).mock.calls.length;
 
     // 保存ボタンをクリック
     await user.click(screen.getByText('保存'));
@@ -1208,8 +1215,9 @@ describe('SettingsModal Component', () => {
       await Promise.resolve();
     });
 
-    const afterEventCallCount = (window.electron.settings.getStatus as jest.Mock)
-      .mock.calls.length;
+    const afterEventCallCount = (
+      window.electron.settings.getStatus as jest.Mock
+    ).mock.calls.length;
 
     // さらに10秒進めてもそれ以上呼ばれないことを確認
     await act(async () => {
@@ -1243,7 +1251,10 @@ describe('SettingsModal Component', () => {
       },
     );
 
-    const user = userEvent.setup({ delay: null, advanceTimers: jest.advanceTimersByTime });
+    const user = userEvent.setup({
+      delay: null,
+      advanceTimers: jest.advanceTimersByTime,
+    });
 
     render(
       <SettingsModal
@@ -1321,7 +1332,10 @@ describe('SettingsModal Component', () => {
       },
     );
 
-    const user = userEvent.setup({ delay: null, advanceTimers: jest.advanceTimersByTime });
+    const user = userEvent.setup({
+      delay: null,
+      advanceTimers: jest.advanceTimersByTime,
+    });
 
     render(
       <SettingsModal
@@ -1431,7 +1445,10 @@ describe('SettingsModal Component', () => {
       .spyOn(console, 'error')
       .mockImplementation(() => {});
 
-    const user = userEvent.setup({ delay: null, advanceTimers: jest.advanceTimersByTime });
+    const user = userEvent.setup({
+      delay: null,
+      advanceTimers: jest.advanceTimersByTime,
+    });
 
     render(
       <SettingsModal
@@ -1616,9 +1633,8 @@ describe('SettingsModal Component', () => {
     const getSettingsCallCount = (
       window.electron.settings.getSettings as jest.Mock
     ).mock.calls.length;
-    const getStatusCallCount = (
-      window.electron.settings.getStatus as jest.Mock
-    ).mock.calls.length;
+    const getStatusCallCount = (window.electron.settings.getStatus as jest.Mock)
+      .mock.calls.length;
 
     // コンポーネントをアンマウント
     unmount();

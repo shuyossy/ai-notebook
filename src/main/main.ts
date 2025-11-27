@@ -92,6 +92,7 @@ import { resolveHtmlPath } from './lib/util';
 import { ReviewService } from './service/reviewService';
 import { SettingsService } from './service/settingsService';
 import { ChatService } from './service/chatService';
+import { PluginService } from './service/pluginService';
 import { getMainLogger } from './lib/logger';
 import { internalError, normalizeUnknownError, toPayload } from './lib/error';
 import { formatMessage } from './lib/messages';
@@ -203,6 +204,8 @@ const chatService = ChatService.getInstance();
 const reviewService = ReviewService.getInstance();
 
 const sourceService = SourceService.getInstance();
+
+const pluginService = PluginService.getInstance();
 
 const logger = getMainLogger();
 
@@ -582,6 +585,33 @@ const setupReviewHandlers = () => {
   });
 };
 
+// プラグイン関連のIPCハンドラー
+const setupPluginHandlers = () => {
+  // プラグインファイルアップロードハンドラ
+  handleIpc(IpcChannels.PLUGIN_UPLOAD, async (sourceFilePath) => {
+    await pluginService.uploadPlugin(sourceFilePath);
+    return undefined as never;
+  });
+
+  // プラグイン情報取得ハンドラ
+  handleIpc(IpcChannels.PLUGIN_GET_INFO, async () => {
+    const info = await pluginService.getPluginInfo();
+    return info;
+  });
+
+  // プラグイン削除ハンドラ
+  handleIpc(IpcChannels.PLUGIN_DELETE, async () => {
+    await pluginService.deletePlugin();
+    return undefined as never;
+  });
+
+  // プラグインリロードハンドラ
+  handleIpc(IpcChannels.PLUGIN_RELOAD, async () => {
+    pluginService.reloadPlugin();
+    return undefined as never;
+  });
+};
+
 // ソース登録処理の実行
 const initializeSourceRegistration = async () => {
   logger.debug('ドキュメントの初期登録を開始します');
@@ -716,6 +746,7 @@ const initialize = async () => {
   setupFsHandlers();
   setupSourceHandlers();
   setupReviewHandlers();
+  setupPluginHandlers();
   initializeSourceRegistration();
 };
 

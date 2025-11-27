@@ -119,9 +119,8 @@ describe('ReviewArea - レビュー実行', () => {
       render(<ReviewArea selectedReviewHistoryId="review-1" />);
 
       // チェックリスト読み込みとボタン有効化を待機
-      const reviewButton = await waitForChecklistAndEnableButton(
-        /^レビュー実行$/,
-      );
+      const reviewButton =
+        await waitForChecklistAndEnableButton(/^レビュー実行$/);
 
       // ボタンをクリック
       await act(async () => {
@@ -154,7 +153,8 @@ describe('ReviewArea - レビュー実行', () => {
       render(<ReviewArea selectedReviewHistoryId="review-1" />);
 
       // チェックリスト読み込みとボタン有効化を待機
-      const reviewButton = await waitForChecklistAndEnableButton(/レビュー実行/);
+      const reviewButton =
+        await waitForChecklistAndEnableButton(/レビュー実行/);
 
       // ボタンをクリック
       fireEvent.click(reviewButton);
@@ -199,7 +199,8 @@ describe('ReviewArea - レビュー実行', () => {
       render(<ReviewArea selectedReviewHistoryId="review-1" />);
 
       // チェックリスト読み込みとボタン有効化を待機
-      const reviewButton = await waitForChecklistAndEnableButton(/レビュー実行/);
+      const reviewButton =
+        await waitForChecklistAndEnableButton(/レビュー実行/);
 
       // ボタンをクリック
       await act(async () => {
@@ -223,7 +224,9 @@ describe('ReviewArea - レビュー実行', () => {
       // アコーディオンが展開されて内容が表示されるまで待機
       await waitFor(
         () => {
-          expect(screen.getByText('基準を完全に満たしている')).toBeInTheDocument();
+          expect(
+            screen.getByText('基準を完全に満たしている'),
+          ).toBeInTheDocument();
         },
         { timeout: 3000 },
       );
@@ -261,7 +264,8 @@ describe('ReviewArea - レビュー実行', () => {
       render(<ReviewArea selectedReviewHistoryId="review-1" />);
 
       // チェックリスト読み込みとボタン有効化を待機
-      const reviewButton = await waitForChecklistAndEnableButton(/レビュー実行/);
+      const reviewButton =
+        await waitForChecklistAndEnableButton(/レビュー実行/);
 
       // ボタンをクリック
       fireEvent.click(reviewButton);
@@ -287,7 +291,8 @@ describe('ReviewArea - レビュー実行', () => {
       render(<ReviewArea selectedReviewHistoryId="review-1" />);
 
       // チェックリスト読み込みとボタン有効化を待機
-      const reviewButton = await waitForChecklistAndEnableButton(/レビュー実行/);
+      const reviewButton =
+        await waitForChecklistAndEnableButton(/レビュー実行/);
 
       // ボタンをクリック
       fireEvent.click(reviewButton);
@@ -352,7 +357,8 @@ describe('ReviewArea - レビュー実行', () => {
       render(<ReviewArea selectedReviewHistoryId="review-1" />);
 
       // チェックリスト読み込みとボタン有効化を待機
-      const reviewButton = await waitForChecklistAndEnableButton(/レビュー実行/i);
+      const reviewButton =
+        await waitForChecklistAndEnableButton(/レビュー実行/i);
 
       // ボタンをクリック
       await userEvent.click(reviewButton);
@@ -430,7 +436,8 @@ describe('ReviewArea - レビュー実行', () => {
       render(<ReviewArea selectedReviewHistoryId="review-1" />);
 
       // チェックリスト読み込みとボタン有効化を待機
-      const reviewButton = await waitForChecklistAndEnableButton(/レビュー実行/i);
+      const reviewButton =
+        await waitForChecklistAndEnableButton(/レビュー実行/i);
 
       // ボタンをクリック
       await userEvent.click(reviewButton);
@@ -508,7 +515,8 @@ describe('ReviewArea - レビュー実行', () => {
       render(<ReviewArea selectedReviewHistoryId="review-1" />);
 
       // チェックリスト読み込みとボタン有効化を待機
-      const reviewButton = await waitForChecklistAndEnableButton(/レビュー実行/i);
+      const reviewButton =
+        await waitForChecklistAndEnableButton(/レビュー実行/i);
 
       // ボタンをクリック
       await userEvent.click(reviewButton);
@@ -529,16 +537,20 @@ describe('ReviewArea - レビュー実行', () => {
       // アコーディオンが展開されて内容が表示されるまで待機
       await waitFor(
         () => {
-          expect(screen.getByText('基準を完全に満たしている')).toBeInTheDocument();
+          expect(
+            screen.getByText('基準を完全に満たしている'),
+          ).toBeInTheDocument();
         },
         { timeout: 3000 },
       );
 
       // 既存の評価項目「A」の編集ボタンをクリック
       // 評価項目は順番に表示されているので、最初の編集ボタンが「A」の編集ボタン
-      const editButtons = screen.getAllByRole('button', { name: '' }).filter(
-        (button) => button.querySelector('svg[data-testid="EditIcon"]'),
-      );
+      const editButtons = screen
+        .getAllByRole('button', { name: '' })
+        .filter((button) =>
+          button.querySelector('svg[data-testid="EditIcon"]'),
+        );
 
       await act(async () => {
         fireEvent.click(editButtons[0]);
@@ -568,7 +580,9 @@ describe('ReviewArea - レビュー実行', () => {
 
       // 編集された評価項目が表示されることを確認
       await waitFor(() => {
-        expect(screen.getByText('基準を大きく上回っている')).toBeInTheDocument();
+        expect(
+          screen.getByText('基準を大きく上回っている'),
+        ).toBeInTheDocument();
       });
 
       // ファイル選択
@@ -596,7 +610,10 @@ describe('ReviewArea - レビュー実行', () => {
             reviewHistoryId: 'review-1',
             evaluationSettings: expect.objectContaining({
               items: expect.arrayContaining([
-                expect.objectContaining({ label: 'A+', description: '基準を大きく上回っている' }),
+                expect.objectContaining({
+                  label: 'A+',
+                  description: '基準を大きく上回っている',
+                }),
                 expect.objectContaining({ label: 'B' }),
                 expect.objectContaining({ label: 'C' }),
                 expect.objectContaining({ label: '–' }),
@@ -636,7 +653,8 @@ describe('ReviewArea - レビュー実行', () => {
       render(<ReviewArea selectedReviewHistoryId="review-1" />);
 
       // チェックリスト読み込みとボタン有効化を待機
-      const reviewButton = await waitForChecklistAndEnableButton(/レビュー実行/i);
+      const reviewButton =
+        await waitForChecklistAndEnableButton(/レビュー実行/i);
 
       // ボタンをクリック
       await userEvent.click(reviewButton);
@@ -657,16 +675,20 @@ describe('ReviewArea - レビュー実行', () => {
       // アコーディオンが展開されて内容が表示されるまで待機
       await waitFor(
         () => {
-          expect(screen.getByText('基準を完全に満たしている')).toBeInTheDocument();
+          expect(
+            screen.getByText('基準を完全に満たしている'),
+          ).toBeInTheDocument();
         },
         { timeout: 3000 },
       );
 
       // 既存の評価項目「C」の削除ボタンをクリック
       // 評価項目は順番に表示されているので、3番目の削除ボタンが「C」の削除ボタン
-      const deleteButtons = screen.getAllByRole('button', { name: '' }).filter(
-        (button) => button.querySelector('svg[data-testid="DeleteIcon"]'),
-      );
+      const deleteButtons = screen
+        .getAllByRole('button', { name: '' })
+        .filter((button) =>
+          button.querySelector('svg[data-testid="DeleteIcon"]'),
+        );
 
       await act(async () => {
         fireEvent.click(deleteButtons[2]); // 「C」の削除ボタン
@@ -674,7 +696,9 @@ describe('ReviewArea - レビュー実行', () => {
 
       // 「C」の項目が削除されたことを確認（「基準を満たしていない」が表示されなくなる）
       await waitFor(() => {
-        expect(screen.queryByText('基準を満たしていない')).not.toBeInTheDocument();
+        expect(
+          screen.queryByText('基準を満たしていない'),
+        ).not.toBeInTheDocument();
       });
 
       // ファイル選択
@@ -714,7 +738,7 @@ describe('ReviewArea - レビュー実行', () => {
         // 「C」が含まれていないことを確認
         const call = mockExecuteReview.mock.calls[0][0];
         const hasC = call.evaluationSettings.items.some(
-          (item: any) => item.label === 'C'
+          (item: any) => item.label === 'C',
         );
         expect(hasC).toBe(false);
       });
@@ -767,7 +791,8 @@ describe('ReviewArea - レビュー実行', () => {
       render(<ReviewArea selectedReviewHistoryId="review-1" />);
 
       // チェックリスト読み込みとボタン有効化を待機
-      const reviewButton = await waitForChecklistAndEnableButton(/レビュー実行/i);
+      const reviewButton =
+        await waitForChecklistAndEnableButton(/レビュー実行/i);
 
       // ボタンをクリック
       await userEvent.click(reviewButton);
@@ -788,7 +813,9 @@ describe('ReviewArea - レビュー実行', () => {
       // アコーディオンが展開されて内容が表示されるまで待機
       await waitFor(
         () => {
-          expect(screen.getByText('基準を完全に満たしている')).toBeInTheDocument();
+          expect(
+            screen.getByText('基準を完全に満たしている'),
+          ).toBeInTheDocument();
         },
         { timeout: 3000 },
       );
@@ -854,7 +881,10 @@ describe('ReviewArea - レビュー実行', () => {
             reviewHistoryId: 'review-1',
             evaluationSettings: expect.objectContaining({
               items: expect.arrayContaining([
-                expect.objectContaining({ label: 'S', description: '非常に優れている' }),
+                expect.objectContaining({
+                  label: 'S',
+                  description: '非常に優れている',
+                }),
                 expect.objectContaining({ label: 'A' }),
                 expect.objectContaining({ label: 'B' }),
                 expect.objectContaining({ label: 'C' }),
@@ -911,7 +941,8 @@ describe('ReviewArea - レビュー実行', () => {
       render(<ReviewArea selectedReviewHistoryId="review-1" />);
 
       // チェックリスト読み込みとボタン有効化を待機
-      const reviewButton = await waitForChecklistAndEnableButton(/レビュー実行/i);
+      const reviewButton =
+        await waitForChecklistAndEnableButton(/レビュー実行/i);
 
       // ボタンをクリック
       await userEvent.click(reviewButton);
@@ -925,8 +956,8 @@ describe('ReviewArea - レビュー実行', () => {
 
       // ドキュメント量のラジオボタンを値で検索して「大」を選択
       const radioButtons = await screen.findAllByRole('radio');
-      const largeRadio = radioButtons.find((radio) =>
-        (radio as HTMLInputElement).value === 'large'
+      const largeRadio = radioButtons.find(
+        (radio) => (radio as HTMLInputElement).value === 'large',
       );
 
       expect(largeRadio).toBeDefined();
@@ -1009,7 +1040,8 @@ describe('ReviewArea - レビュー実行', () => {
       render(<ReviewArea selectedReviewHistoryId="review-1" />);
 
       // チェックリスト読み込みとボタン有効化を待機
-      const reviewButton = await waitForChecklistAndEnableButton(/レビュー実行/i);
+      const reviewButton =
+        await waitForChecklistAndEnableButton(/レビュー実行/i);
 
       // ボタンをクリック
       await userEvent.click(reviewButton);
@@ -1045,7 +1077,9 @@ describe('ReviewArea - レビュー実行', () => {
 
       await waitFor(
         () => {
-          expect(screen.getByText('基準を完全に満たしている')).toBeInTheDocument();
+          expect(
+            screen.getByText('基準を完全に満たしている'),
+          ).toBeInTheDocument();
         },
         { timeout: 3000 },
       );
@@ -1083,8 +1117,8 @@ describe('ReviewArea - レビュー実行', () => {
 
       // 4. ドキュメント量を「大」に設定
       const radioButtons = await screen.findAllByRole('radio');
-      const largeRadio = radioButtons.find((radio) =>
-        (radio as HTMLInputElement).value === 'large'
+      const largeRadio = radioButtons.find(
+        (radio) => (radio as HTMLInputElement).value === 'large',
       );
 
       expect(largeRadio).toBeDefined();
@@ -1117,7 +1151,10 @@ describe('ReviewArea - レビュー実行', () => {
             commentFormat: '【指摘】\n{内容}\n【根拠】\n{理由}',
             evaluationSettings: expect.objectContaining({
               items: expect.arrayContaining([
-                expect.objectContaining({ label: 'S', description: '卓越している' }),
+                expect.objectContaining({
+                  label: 'S',
+                  description: '卓越している',
+                }),
                 expect.objectContaining({ label: 'A' }),
                 expect.objectContaining({ label: 'B' }),
                 expect.objectContaining({ label: 'C' }),
@@ -1310,7 +1347,8 @@ describe('ReviewArea - レビュー実行', () => {
       render(<ReviewArea selectedReviewHistoryId="review-1" />);
 
       // チェックリスト読み込みとボタン有効化を待機
-      const reviewButton = await waitForChecklistAndEnableButton(/レビュー実行/i);
+      const reviewButton =
+        await waitForChecklistAndEnableButton(/レビュー実行/i);
 
       // ボタンをクリック
       await userEvent.click(reviewButton);
@@ -1994,5 +2032,587 @@ describe('ReviewArea - レビュー実行', () => {
 
       jest.useRealTimers();
     }, 15000);
+  });
+
+  describe('プラグイン機能', () => {
+    it('レビュー実行モーダルを開いた時にプラグイン情報が取得されること', async () => {
+      const mockGetPluginInfo = jest.fn().mockResolvedValue({
+        success: true as const,
+        data: {
+          name: 'test-plugin',
+          version: '1.0.0',
+          filePath: '/path/to/plugin.js',
+          availableHooks: ['beforeSmallDocumentReview', 'chunkStrategy'],
+        },
+      });
+
+      window.electron = createMockElectronWithOptions({
+        reviewHistory: mockReviewHistory,
+        reviewChecklistResults: mockChecklistResults,
+      }) as any;
+      window.electron.plugin = {
+        upload: jest.fn(),
+        getInfo: mockGetPluginInfo,
+        delete: jest.fn(),
+        reload: jest.fn(),
+      };
+
+      render(<ReviewArea selectedReviewHistoryId="review-1" />);
+
+      // チェックリスト読み込みとボタン有効化を待機
+      const reviewButton =
+        await waitForChecklistAndEnableButton(/レビュー実行/i);
+
+      // ボタンをクリック
+      await userEvent.click(reviewButton);
+
+      // モーダルが開くことを確認
+      await waitFor(() => {
+        expect(
+          screen.getByText('レビュー対象ファイルのアップロード'),
+        ).toBeInTheDocument();
+      });
+
+      // プラグイン情報取得APIが呼ばれることを確認
+      await waitFor(() => {
+        expect(mockGetPluginInfo).toHaveBeenCalled();
+      });
+
+      // プラグイン名が表示されることを確認
+      await waitFor(() => {
+        expect(
+          screen.getByText(/test-plugin\s*\(v1\.0\.0\)/),
+        ).toBeInTheDocument();
+      });
+    });
+
+    it('プラグイン未登録時は「プラグインがアップロードされていません」と表示されること', async () => {
+      const mockGetPluginInfo = jest.fn().mockResolvedValue({
+        success: true as const,
+        data: null,
+      });
+
+      window.electron = createMockElectronWithOptions({
+        reviewHistory: mockReviewHistory,
+        reviewChecklistResults: mockChecklistResults,
+      }) as any;
+      window.electron.plugin = {
+        upload: jest.fn(),
+        getInfo: mockGetPluginInfo,
+        delete: jest.fn(),
+        reload: jest.fn(),
+      };
+
+      render(<ReviewArea selectedReviewHistoryId="review-1" />);
+
+      const reviewButton =
+        await waitForChecklistAndEnableButton(/レビュー実行/i);
+      await userEvent.click(reviewButton);
+
+      await waitFor(() => {
+        expect(
+          screen.getByText('レビュー対象ファイルのアップロード'),
+        ).toBeInTheDocument();
+      });
+
+      // プラグイン設定アコーディオンを展開
+      const pluginAccordion = await waitFor(() =>
+        screen.getByText('プラグイン設定'),
+      );
+      fireEvent.click(pluginAccordion);
+
+      // 未登録メッセージが表示されることを確認
+      await waitFor(() => {
+        expect(
+          screen.getByText('プラグインがアップロードされていません'),
+        ).toBeInTheDocument();
+      });
+    });
+
+    it('プラグインアップロードボタンをクリックするとファイル選択ダイアログが開くこと', async () => {
+      const mockShowOpenDialog = jest.fn().mockResolvedValue({
+        success: true as const,
+        data: {
+          canceled: false,
+          filePaths: ['/path/to/plugin.js'],
+        },
+      });
+
+      const mockUploadPlugin = jest.fn().mockResolvedValue({
+        success: true,
+      });
+
+      const mockGetPluginInfo = jest.fn().mockResolvedValue({
+        success: true as const,
+        data: null,
+      });
+
+      window.electron = createMockElectronWithOptions({
+        reviewHistory: mockReviewHistory,
+        reviewChecklistResults: mockChecklistResults,
+      }) as any;
+      window.electron.fs.showOpenDialog = mockShowOpenDialog;
+      window.electron.plugin = {
+        upload: mockUploadPlugin,
+        getInfo: mockGetPluginInfo,
+        delete: jest.fn(),
+        reload: jest.fn(),
+      };
+
+      render(<ReviewArea selectedReviewHistoryId="review-1" />);
+
+      const reviewButton =
+        await waitForChecklistAndEnableButton(/レビュー実行/i);
+      await userEvent.click(reviewButton);
+
+      await waitFor(() => {
+        expect(
+          screen.getByText('レビュー対象ファイルのアップロード'),
+        ).toBeInTheDocument();
+      });
+
+      // プラグイン設定アコーディオンを展開
+      const pluginAccordion = await waitFor(() =>
+        screen.getByText('プラグイン設定'),
+      );
+      fireEvent.click(pluginAccordion);
+
+      // アップロードボタンをクリック
+      const uploadButton = await waitFor(() =>
+        screen.getByRole('button', { name: /プラグインをアップロード/ }),
+      );
+      await act(async () => {
+        fireEvent.click(uploadButton);
+      });
+
+      // ファイル選択ダイアログが開かれることを確認
+      await waitFor(() => {
+        expect(mockShowOpenDialog).toHaveBeenCalledWith({
+          title: 'プラグインファイルを選択',
+          filters: [
+            {
+              name: 'JavaScriptファイル',
+              extensions: ['js'],
+            },
+          ],
+          properties: ['openFile'],
+        });
+      });
+    });
+
+    it('プラグインアップロードが成功した場合、プラグイン情報が更新されること', async () => {
+      const mockShowOpenDialog = jest.fn().mockResolvedValue({
+        success: true as const,
+        data: {
+          canceled: false,
+          filePaths: ['/path/to/plugin.js'],
+        },
+      });
+
+      const mockUploadPlugin = jest.fn().mockResolvedValue({
+        success: true,
+      });
+
+      let getInfoCallCount = 0;
+      const mockGetPluginInfo = jest.fn(() => {
+        getInfoCallCount++;
+        if (getInfoCallCount === 1) {
+          return Promise.resolve({
+            success: true as const,
+            data: null,
+          });
+        }
+        return Promise.resolve({
+          success: true as const,
+          data: {
+            name: 'uploaded-plugin',
+            version: '2.0.0',
+            filePath: '/path/to/plugin.js',
+            availableHooks: ['beforeSmallDocumentReview'],
+          },
+        });
+      });
+
+      window.electron = createMockElectronWithOptions({
+        reviewHistory: mockReviewHistory,
+        reviewChecklistResults: mockChecklistResults,
+      }) as any;
+      window.electron.fs.showOpenDialog = mockShowOpenDialog;
+      window.electron.plugin = {
+        upload: mockUploadPlugin,
+        getInfo: mockGetPluginInfo,
+        delete: jest.fn(),
+        reload: jest.fn(),
+      };
+
+      render(<ReviewArea selectedReviewHistoryId="review-1" />);
+
+      const reviewButton =
+        await waitForChecklistAndEnableButton(/レビュー実行/i);
+      await userEvent.click(reviewButton);
+
+      await waitFor(() => {
+        expect(
+          screen.getByText('レビュー対象ファイルのアップロード'),
+        ).toBeInTheDocument();
+      });
+
+      // プラグイン設定アコーディオンを展開
+      const pluginAccordion = await waitFor(() =>
+        screen.getByText('プラグイン設定'),
+      );
+      fireEvent.click(pluginAccordion);
+
+      // アップロードボタンをクリック
+      const uploadButton = await waitFor(() =>
+        screen.getByRole('button', { name: /プラグインをアップロード/ }),
+      );
+      await act(async () => {
+        fireEvent.click(uploadButton);
+      });
+
+      // アップロードAPIが呼ばれることを確認
+      await waitFor(() => {
+        expect(mockUploadPlugin).toHaveBeenCalledWith('/path/to/plugin.js');
+      });
+
+      // プラグイン情報が更新されることを確認
+      await waitFor(() => {
+        expect(
+          screen.getByText(/uploaded-plugin\s*\(v2\.0\.0\)/),
+        ).toBeInTheDocument();
+      });
+    });
+
+    it('プラグイン削除ボタンをクリックするとプラグインが削除されること', async () => {
+      const mockDeletePlugin = jest.fn().mockResolvedValue({
+        success: true,
+      });
+
+      let getInfoCallCount = 0;
+      const mockGetPluginInfo = jest.fn(() => {
+        getInfoCallCount++;
+        if (getInfoCallCount === 1) {
+          return Promise.resolve({
+            success: true as const,
+            data: {
+              name: 'test-plugin',
+              version: '1.0.0',
+              filePath: '/path/to/plugin.js',
+              availableHooks: ['beforeSmallDocumentReview'],
+            },
+          });
+        }
+        return Promise.resolve({
+          success: true as const,
+          data: null,
+        });
+      });
+
+      window.electron = createMockElectronWithOptions({
+        reviewHistory: mockReviewHistory,
+        reviewChecklistResults: mockChecklistResults,
+      }) as any;
+      window.electron.plugin = {
+        upload: jest.fn(),
+        getInfo: mockGetPluginInfo,
+        delete: mockDeletePlugin,
+        reload: jest.fn(),
+      };
+
+      render(<ReviewArea selectedReviewHistoryId="review-1" />);
+
+      const reviewButton =
+        await waitForChecklistAndEnableButton(/レビュー実行/i);
+      await userEvent.click(reviewButton);
+
+      await waitFor(() => {
+        expect(
+          screen.getByText('レビュー対象ファイルのアップロード'),
+        ).toBeInTheDocument();
+      });
+
+      // プラグイン設定アコーディオンを展開
+      const pluginAccordion = await waitFor(() =>
+        screen.getByText('プラグイン設定'),
+      );
+      fireEvent.click(pluginAccordion);
+
+      // プラグイン名が表示されることを確認
+      await waitFor(() => {
+        expect(
+          screen.getByText(/test-plugin\s*\(v1\.0\.0\)/),
+        ).toBeInTheDocument();
+      });
+
+      // 削除ボタンをクリック
+      const deleteButton = screen.getByRole('button', {
+        name: 'プラグインを削除',
+      });
+
+      await act(async () => {
+        fireEvent.click(deleteButton);
+      });
+
+      // 削除APIが呼ばれることを確認
+      await waitFor(() => {
+        expect(mockDeletePlugin).toHaveBeenCalled();
+      });
+
+      // プラグイン情報が更新されて未登録状態になることを確認
+      await waitFor(() => {
+        expect(
+          screen.getByText('プラグインがアップロードされていません'),
+        ).toBeInTheDocument();
+      });
+    });
+
+    it('プラグインリロードボタンをクリックするとプラグインがリロードされること', async () => {
+      const mockReloadPlugin = jest.fn().mockResolvedValue({
+        success: true,
+      });
+
+      const mockGetPluginInfo = jest.fn().mockResolvedValue({
+        success: true as const,
+        data: {
+          name: 'test-plugin',
+          version: '1.0.0',
+          filePath: '/path/to/plugin.js',
+          availableHooks: ['beforeSmallDocumentReview'],
+        },
+      });
+
+      window.electron = createMockElectronWithOptions({
+        reviewHistory: mockReviewHistory,
+        reviewChecklistResults: mockChecklistResults,
+      }) as any;
+      window.electron.plugin = {
+        upload: jest.fn(),
+        getInfo: mockGetPluginInfo,
+        delete: jest.fn(),
+        reload: mockReloadPlugin,
+      };
+
+      render(<ReviewArea selectedReviewHistoryId="review-1" />);
+
+      const reviewButton =
+        await waitForChecklistAndEnableButton(/レビュー実行/i);
+      await userEvent.click(reviewButton);
+
+      await waitFor(() => {
+        expect(
+          screen.getByText('レビュー対象ファイルのアップロード'),
+        ).toBeInTheDocument();
+      });
+
+      // プラグイン設定アコーディオンを展開
+      const pluginAccordion = await waitFor(() =>
+        screen.getByText('プラグイン設定'),
+      );
+      fireEvent.click(pluginAccordion);
+
+      // リロードボタンをクリック
+      const reloadButton = screen.getByRole('button', {
+        name: 'プラグインをリロード',
+      });
+
+      await act(async () => {
+        fireEvent.click(reloadButton);
+      });
+
+      // リロードAPIが呼ばれることを確認
+      await waitFor(() => {
+        expect(mockReloadPlugin).toHaveBeenCalled();
+      });
+
+      // プラグイン情報が再取得されることを確認
+      await waitFor(() => {
+        expect(mockGetPluginInfo).toHaveBeenCalledTimes(2);
+      });
+    });
+
+    it('プラグイン情報取得中はローディング表示されること', async () => {
+      let resolveGetPluginInfo: (value: any) => void;
+      const pluginInfoPromise = new Promise((resolve) => {
+        resolveGetPluginInfo = resolve;
+      });
+
+      const mockGetPluginInfo = jest.fn().mockReturnValue(pluginInfoPromise);
+
+      window.electron = createMockElectronWithOptions({
+        reviewHistory: mockReviewHistory,
+        reviewChecklistResults: mockChecklistResults,
+      }) as any;
+      window.electron.plugin = {
+        upload: jest.fn(),
+        getInfo: mockGetPluginInfo,
+        delete: jest.fn(),
+        reload: jest.fn(),
+      };
+
+      render(<ReviewArea selectedReviewHistoryId="review-1" />);
+
+      const reviewButton =
+        await waitForChecklistAndEnableButton(/レビュー実行/i);
+      await userEvent.click(reviewButton);
+
+      await waitFor(() => {
+        expect(
+          screen.getByText('レビュー対象ファイルのアップロード'),
+        ).toBeInTheDocument();
+      });
+
+      // プラグイン設定アコーディオンを展開
+      const pluginAccordion = await waitFor(() =>
+        screen.getByText('プラグイン設定'),
+      );
+      fireEvent.click(pluginAccordion);
+
+      // ローディング表示を確認
+      await waitFor(() => {
+        const loadingElement = screen.getByRole('progressbar');
+        expect(loadingElement).toBeInTheDocument();
+      });
+
+      // プロミスを解決
+      await act(async () => {
+        resolveGetPluginInfo!({
+          success: true as const,
+          data: {
+            name: 'test-plugin',
+            version: '1.0.0',
+            filePath: '/path/to/plugin.js',
+            availableHooks: ['beforeSmallDocumentReview'],
+          },
+        });
+        await Promise.resolve();
+      });
+
+      // ローディングが消えてプラグイン情報が表示されることを確認
+      await waitFor(() => {
+        expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
+        expect(
+          screen.getByText(/test-plugin\s*\(v1\.0\.0\)/),
+        ).toBeInTheDocument();
+      });
+    });
+
+    it('プラグインアップロードでキャンセルした場合は何も起こらないこと', async () => {
+      const mockShowOpenDialog = jest.fn().mockResolvedValue({
+        success: true as const,
+        data: {
+          canceled: true,
+          filePaths: [],
+        },
+      });
+
+      const mockUploadPlugin = jest.fn();
+
+      const mockGetPluginInfo = jest.fn().mockResolvedValue({
+        success: true as const,
+        data: null,
+      });
+
+      window.electron = createMockElectronWithOptions({
+        reviewHistory: mockReviewHistory,
+        reviewChecklistResults: mockChecklistResults,
+      }) as any;
+      window.electron.fs.showOpenDialog = mockShowOpenDialog;
+      window.electron.plugin = {
+        upload: mockUploadPlugin,
+        getInfo: mockGetPluginInfo,
+        delete: jest.fn(),
+        reload: jest.fn(),
+      };
+
+      render(<ReviewArea selectedReviewHistoryId="review-1" />);
+
+      const reviewButton =
+        await waitForChecklistAndEnableButton(/レビュー実行/i);
+      await userEvent.click(reviewButton);
+
+      await waitFor(() => {
+        expect(
+          screen.getByText('レビュー対象ファイルのアップロード'),
+        ).toBeInTheDocument();
+      });
+
+      // プラグイン設定アコーディオンを展開
+      const pluginAccordion = await waitFor(() =>
+        screen.getByText('プラグイン設定'),
+      );
+      fireEvent.click(pluginAccordion);
+
+      // アップロードボタンをクリック
+      const uploadButton = await waitFor(() =>
+        screen.getByRole('button', { name: /プラグインをアップロード/ }),
+      );
+      await act(async () => {
+        fireEvent.click(uploadButton);
+      });
+
+      // ファイル選択ダイアログは開かれたが、アップロードAPIは呼ばれないことを確認
+      await waitFor(() => {
+        expect(mockShowOpenDialog).toHaveBeenCalled();
+      });
+
+      expect(mockUploadPlugin).not.toHaveBeenCalled();
+    });
+
+    it('プラグインの利用可能なフックが表示されること', async () => {
+      const mockGetPluginInfo = jest.fn().mockResolvedValue({
+        success: true as const,
+        data: {
+          name: 'test-plugin',
+          version: '1.0.0',
+          filePath: '/path/to/plugin.js',
+          availableHooks: [
+            'beforeSmallDocumentReview',
+            'beforeLargeDocumentReview',
+            'chunkStrategy',
+          ],
+        },
+      });
+
+      window.electron = createMockElectronWithOptions({
+        reviewHistory: mockReviewHistory,
+        reviewChecklistResults: mockChecklistResults,
+      }) as any;
+      window.electron.plugin = {
+        upload: jest.fn(),
+        getInfo: mockGetPluginInfo,
+        delete: jest.fn(),
+        reload: jest.fn(),
+      };
+
+      render(<ReviewArea selectedReviewHistoryId="review-1" />);
+
+      const reviewButton =
+        await waitForChecklistAndEnableButton(/レビュー実行/i);
+      await userEvent.click(reviewButton);
+
+      await waitFor(() => {
+        expect(
+          screen.getByText('レビュー対象ファイルのアップロード'),
+        ).toBeInTheDocument();
+      });
+
+      // プラグイン設定アコーディオンを展開
+      const pluginAccordion = await waitFor(() =>
+        screen.getByText('プラグイン設定'),
+      );
+      fireEvent.click(pluginAccordion);
+
+      // 利用可能なフックが表示されることを確認
+      await waitFor(() => {
+        expect(
+          screen.getByText(/beforeSmallDocumentReview/),
+        ).toBeInTheDocument();
+        expect(
+          screen.getByText(/beforeLargeDocumentReview/),
+        ).toBeInTheDocument();
+        expect(screen.getByText(/chunkStrategy/)).toBeInTheDocument();
+      });
+    });
   });
 });

@@ -13,6 +13,7 @@ import type {
 } from './review';
 import type { SettingsSavingStatus, Settings } from './setting';
 import type { Source, RevieHistory } from '@/types';
+import type { PluginInfo } from './plugin';
 
 type IpcSuccess<T> = {
   success: true;
@@ -88,6 +89,12 @@ export const IpcChannels = {
   REVIEW_CHAT_COMPLETE: 'review-chat-complete', // レビューチャット完了
   REVIEW_CHAT_ERROR: 'review-chat-error', // レビューチャットエラー
   REVIEW_CHAT_ABORT: 'review-chat-abort', // レビューチャット中断
+
+  // プラグイン関連
+  PLUGIN_UPLOAD: 'plugin-upload', // プラグインファイルをアップロード
+  PLUGIN_GET_INFO: 'plugin-get-info', // 現在のプラグイン情報を取得
+  PLUGIN_DELETE: 'plugin-delete', // プラグインを削除
+  PLUGIN_RELOAD: 'plugin-reload', // プラグインをリロード
 } as const;
 
 export type IpcChannel = (typeof IpcChannels)[keyof typeof IpcChannels];
@@ -164,6 +171,12 @@ export type IpcRequestPayloadMap = {
     question: string;
   };
   [IpcChannels.REVIEW_CHAT_ABORT]: string; // review history id
+
+  // プラグイン関連
+  [IpcChannels.PLUGIN_UPLOAD]: string; // source file path
+  [IpcChannels.PLUGIN_GET_INFO]: undefined;
+  [IpcChannels.PLUGIN_DELETE]: undefined;
+  [IpcChannels.PLUGIN_RELOAD]: undefined;
 };
 
 export type IpcResponsePayloadMap = {
@@ -219,6 +232,12 @@ export type IpcResponsePayloadMap = {
   [IpcChannels.REVIEW_EXECUTE_ABORT]: IpcResult;
   [IpcChannels.REVIEW_CHAT_SEND_MESSAGE]: IpcResult;
   [IpcChannels.REVIEW_CHAT_ABORT]: IpcResult;
+
+  // プラグイン関連
+  [IpcChannels.PLUGIN_UPLOAD]: IpcResult;
+  [IpcChannels.PLUGIN_GET_INFO]: IpcResult<PluginInfo | null>;
+  [IpcChannels.PLUGIN_DELETE]: IpcResult;
+  [IpcChannels.PLUGIN_RELOAD]: IpcResult;
 };
 
 export type IpcEventPayloadMap = {
@@ -314,4 +333,10 @@ export const IpcNameMap = {
   [IpcChannels.REVIEW_CHAT_COMPLETE]: 'レビューチャット完了',
   [IpcChannels.REVIEW_CHAT_ERROR]: 'レビューチャットエラー',
   [IpcChannels.REVIEW_CHAT_ABORT]: 'レビューチャット中断',
+
+  // プラグイン関連
+  [IpcChannels.PLUGIN_UPLOAD]: 'プラグインファイルのアップロード',
+  [IpcChannels.PLUGIN_GET_INFO]: 'プラグイン情報の取得',
+  [IpcChannels.PLUGIN_DELETE]: 'プラグインの削除',
+  [IpcChannels.PLUGIN_RELOAD]: 'プラグインのリロード',
 };

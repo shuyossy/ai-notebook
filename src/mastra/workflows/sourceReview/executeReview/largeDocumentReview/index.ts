@@ -13,6 +13,7 @@ import { baseStepOutputSchema } from '@/mastra/workflows/schema';
 import { makeChunksByCount } from '@/mastra/lib/util';
 import { extractedDocumentSchema } from '../schema';
 import { getReviewRepository } from '@/adapter/db';
+import { PluginService } from '@/main/service/pluginService';
 
 const logger = getMainLogger();
 
@@ -138,13 +139,22 @@ const individualDocumentReviewWorkflow = createWorkflow({
         // 分割方針は、originalDocumentを単純に${nextRetryCount + 1}に分割し、テキストドキュメントであればオーバーラップを300文字、PDF画像ドキュメントであれば3画像分オーバーラップさせる
         const splitCount = nextRetryCount + 1;
 
+        // プラグインのchunkStrategyフックを実行（カスタム分割戦略）
+        const pluginService = PluginService.getInstance();
+        const customRanges = await pluginService.executeChunkStrategyHook({
+          document: initData.originalDocument,
+          splitCount,
+          retryCount: nextRetryCount,
+        });
+
         if (initData.originalDocument.textContent) {
           // --- テキストドキュメント ---
           // 絵文字分断を避けたい場合は、下記を Array.from(...) に替える
           const text = initData.originalDocument.textContent;
           const overlapChars = 300;
 
-          const ranges = makeChunksByCount(text, splitCount, overlapChars);
+          // プラグインが範囲を提供した場合はそれを使用、それ以外はデフォルトの分割戦略
+          const ranges = customRanges || makeChunksByCount(text, splitCount, overlapChars);
 
           const chunks = ranges.map(({ start, end }) => text.slice(start, end));
 
@@ -173,7 +183,8 @@ const individualDocumentReviewWorkflow = createWorkflow({
           const imageData = initData.originalDocument.imageData;
           const overlapPages = 3;
 
-          const ranges = makeChunksByCount(imageData, splitCount, overlapPages);
+          // プラグインが範囲を提供した場合はそれを使用、それ以外はデフォルトの分割戦略
+          const ranges = customRanges || makeChunksByCount(imageData, splitCount, overlapPages);
 
           const chunks = ranges.map(({ start, end }) =>
             imageData.slice(start, end),

@@ -265,9 +265,9 @@ describe('SourceListModal Component', () => {
   // テスト13: チェックボックス更新時にupdateSourceEnabledが例外をスローする場合
   test('チェックボックス更新時にupdateSourceEnabledが例外をスローする場合', async () => {
     // エラーをスローするように設定
-    window.electron.source.updateSourceEnabled = jest.fn().mockRejectedValue(
-      new Error('API error occurred')
-    );
+    window.electron.source.updateSourceEnabled = jest
+      .fn()
+      .mockRejectedValue(new Error('API error occurred'));
 
     // コンポーネントをレンダリング
     render(
@@ -317,9 +317,9 @@ describe('SourceListModal Component', () => {
   // テスト14: 全選択チェックボックス更新時にupdateSourceEnabledが例外をスローする場合
   test('全選択チェックボックス更新時にupdateSourceEnabledが例外をスローする場合', async () => {
     // エラーをスローするように設定
-    window.electron.source.updateSourceEnabled = jest.fn().mockRejectedValue(
-      new Error('API error occurred')
-    );
+    window.electron.source.updateSourceEnabled = jest
+      .fn()
+      .mockRejectedValue(new Error('API error occurred'));
 
     // コンポーネントをレンダリング
     render(
@@ -483,7 +483,7 @@ describe('SourceListModal Component', () => {
         expect.objectContaining({
           severity: 'error',
           message: 'Update failed',
-        })
+        }),
       );
     });
 
@@ -546,7 +546,7 @@ describe('SourceListModal Component', () => {
         expect.objectContaining({
           severity: 'error',
           message: 'Update failed',
-        })
+        }),
       );
     });
 
@@ -685,9 +685,9 @@ describe('SourceListModal Component', () => {
       .mockImplementation(() => {});
 
     // 最初は成功、その後エラーを返すモック
-    window.electron.source.getSources = jest.fn().mockRejectedValueOnce(
-      new Error('Failed to fetch sources')
-    );
+    window.electron.source.getSources = jest
+      .fn()
+      .mockRejectedValueOnce(new Error('Failed to fetch sources'));
 
     // コンポーネントをレンダリング
     render(
@@ -1176,7 +1176,8 @@ describe('SourceListModal Component', () => {
       expect(addAlertSpy).toHaveBeenCalledWith(
         expect.objectContaining({
           severity: 'error',
-          message: 'ドキュメントの同期に失敗しました: Sync failed due to network error',
+          message:
+            'ドキュメントの同期に失敗しました: Sync failed due to network error',
         }),
       );
     });

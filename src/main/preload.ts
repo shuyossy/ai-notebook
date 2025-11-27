@@ -158,6 +158,17 @@ const electronHandler = {
     abortChat: (reviewHistoryId: string) =>
       invokeIpc(IpcChannels.REVIEW_CHAT_ABORT, reviewHistoryId),
   },
+  plugin: {
+    /** プラグインファイルをアップロード */
+    upload: (sourceFilePath: string) =>
+      invokeIpc(IpcChannels.PLUGIN_UPLOAD, sourceFilePath),
+    /** 現在のプラグイン情報を取得 */
+    getInfo: () => invokeIpc(IpcChannels.PLUGIN_GET_INFO),
+    /** プラグインを削除 */
+    delete: () => invokeIpc(IpcChannels.PLUGIN_DELETE),
+    /** プラグインをリロード */
+    reload: () => invokeIpc(IpcChannels.PLUGIN_RELOAD),
+  },
   pushApi: {
     async subscribe<C extends EventChannel>(
       channel: C,

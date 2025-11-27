@@ -37,4 +37,7 @@ export const template = {
   AI_MESSAGE_TOO_LARGE: `AIへの入力データが大きすぎます。入力データを減らしてください。`,
   AI_INVALID_RESPONSE: `AIから予期せぬ応答が返されました`,
   REVIEW_DOCUMENT_CACHE_NOT_FOUND: `レビュー時にアップロードしたドキュメント情報が失われています。レビューを再実行してください`,
+  PLUGIN_UPLOAD_ERROR: `プラグインファイルのアップロードに失敗しました`,
+  PLUGIN_LOAD_ERROR: `プラグインの読み込みに失敗しました\n{detail}`,
+  PLUGIN_DELETE_ERROR: `プラグインファイルの削除に失敗しました`,
 } as const;

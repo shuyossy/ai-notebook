@@ -18,6 +18,7 @@ import {
   documentReviewExecutionOutputSchema,
 } from '.';
 import { getChecklistsErrorMessage } from './lib';
+import { PluginService } from '@/main/service/pluginService';
 
 const logger = getMainLogger();
 
@@ -43,9 +44,20 @@ export const smallDocumentReviewExecutionStep = createStep({
     try {
       const reviewAgent = mastra.getAgent('reviewExecuteAgent');
 
+      // プラグインのbeforeSmallDocumentReviewフックを実行（ドキュメントのフィルタリング・前処理）
+      const pluginService = PluginService.getInstance();
+      const filteredDocuments =
+        await pluginService.executeBeforeSmallDocumentReviewHook({
+          documents,
+          checklists: checklists.map((c) => ({ id: c.id, content: c.content })),
+          additionalInstructions,
+          commentFormat,
+          evaluationSettings,
+        });
+
       // 複数ファイルを統合してメッセージを作成（一度だけ）
       const message = await createCombinedMessageFromExtractedDocument(
-        documents,
+        filteredDocuments,
         'Please review this document against the provided checklist items',
       );
 

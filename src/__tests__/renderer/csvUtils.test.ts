@@ -238,7 +238,6 @@ describe('convertReviewResultsToCSV', () => {
       // 3行目: 評定Cのみ
       // expect(lines[3]).toBe(',,,C,要改善,,,,,');
       expect(lines[3]).toBe(',,,,,,,,,');
-
     });
   });
 

@@ -21,7 +21,10 @@ import { ReviewService } from '@/main/service/reviewService';
 import { getReviewRepository, getSettingsRepository } from '@/adapter/db';
 import FileExtractor from '@/main/lib/fileExtractor';
 import { IpcChannels } from '@/types';
-import type { IReviewRepository, ISettingsRepository } from '@/main/service/port/repository';
+import type {
+  IReviewRepository,
+  ISettingsRepository,
+} from '@/main/service/port/repository';
 import type { UploadFile, Settings } from '@/types';
 
 // モック設定
@@ -88,8 +91,12 @@ describe('ReviewService - extractChecklistFromCsv', () => {
       }),
       deleteSystemCreatedChecklists: jest.fn().mockResolvedValue(undefined),
       createChecklist: jest.fn().mockResolvedValue(undefined),
-      updateReviewHistoryEvaluationSettings: jest.fn().mockResolvedValue(undefined),
-      updateReviewHistoryAdditionalInstructionsAndCommentFormat: jest.fn().mockResolvedValue(undefined),
+      updateReviewHistoryEvaluationSettings: jest
+        .fn()
+        .mockResolvedValue(undefined),
+      updateReviewHistoryAdditionalInstructionsAndCommentFormat: jest
+        .fn()
+        .mockResolvedValue(undefined),
     } as any;
 
     // SettingsRepository のモック
@@ -109,12 +116,14 @@ describe('ReviewService - extractChecklistFromCsv', () => {
   describe('API設定を含むCSVインポート', () => {
     it('API設定を含むCSVインポート時にSETTINGS_UPDATEDイベントが発火すること', async () => {
       // CSVファイルのモック（API設定含む）
-      const mockFiles: UploadFile[] = [{
-        id: 'file-1',
-        name: 'import.csv',
-        path: '/test/import.csv',
-        type: 'text/csv',
-      }];
+      const mockFiles: UploadFile[] = [
+        {
+          id: 'file-1',
+          name: 'import.csv',
+          path: '/test/import.csv',
+          type: 'text/csv',
+        },
+      ];
 
       // FileExtractor.extractText をモック（API設定を含むCSV）
       mockExtractText.mockResolvedValue({
@@ -129,7 +138,7 @@ describe('ReviewService - extractChecklistFromCsv', () => {
       // SETTINGS_UPDATEDイベントが発火したことを検証
       expect(mockPublishEvent).toHaveBeenCalledWith(
         IpcChannels.SETTINGS_UPDATED,
-        undefined
+        undefined,
       );
 
       // settingsRepository.saveSettingsが呼ばれたことを検証
@@ -140,7 +149,7 @@ describe('ReviewService - extractChecklistFromCsv', () => {
             url: 'http://new-api.com',
             model: 'new-model',
           },
-        })
+        }),
       );
 
       // REVIEW_EXTRACT_CHECKLIST_FINISHEDイベントも発火すること
@@ -149,17 +158,19 @@ describe('ReviewService - extractChecklistFromCsv', () => {
         expect.objectContaining({
           reviewHistoryId: 'review-1',
           status: 'success',
-        })
+        }),
       );
     });
 
     it('API設定の一部のみ指定された場合、既存設定とマージされること', async () => {
-      const mockFiles: UploadFile[] = [{
-        id: 'file-1',
-        name: 'import.csv',
-        path: '/test/import.csv',
-        type: 'text/csv',
-      }];
+      const mockFiles: UploadFile[] = [
+        {
+          id: 'file-1',
+          name: 'import.csv',
+          path: '/test/import.csv',
+          type: 'text/csv',
+        },
+      ];
 
       // APIキーのみ更新するCSV
       mockExtractText.mockResolvedValue({
@@ -178,25 +189,27 @@ describe('ReviewService - extractChecklistFromCsv', () => {
             url: 'http://old.com', // 既存値を保持
             model: 'old-model', // 既存値を保持
           },
-        })
+        }),
       );
 
       // SETTINGS_UPDATEDイベントが発火すること
       expect(mockPublishEvent).toHaveBeenCalledWith(
         IpcChannels.SETTINGS_UPDATED,
-        undefined
+        undefined,
       );
     });
   });
 
   describe('API設定を含まないCSVインポート', () => {
     it('API設定を含まないCSVインポート時はSETTINGS_UPDATEDイベントが発火しないこと', async () => {
-      const mockFiles: UploadFile[] = [{
-        id: 'file-1',
-        name: 'import.csv',
-        path: '/test/import.csv',
-        type: 'text/csv',
-      }];
+      const mockFiles: UploadFile[] = [
+        {
+          id: 'file-1',
+          name: 'import.csv',
+          path: '/test/import.csv',
+          type: 'text/csv',
+        },
+      ];
 
       // API設定を含まないCSV
       mockExtractText.mockResolvedValue({
@@ -211,7 +224,7 @@ describe('ReviewService - extractChecklistFromCsv', () => {
       // SETTINGS_UPDATEDイベントが発火していないことを検証
       expect(mockPublishEvent).not.toHaveBeenCalledWith(
         IpcChannels.SETTINGS_UPDATED,
-        undefined
+        undefined,
       );
 
       // settingsRepository.saveSettingsが呼ばれていないことを検証
@@ -223,17 +236,19 @@ describe('ReviewService - extractChecklistFromCsv', () => {
         expect.objectContaining({
           reviewHistoryId: 'review-1',
           status: 'success',
-        })
+        }),
       );
     });
 
     it('チェックリスト項目のみのCSVでも正常に処理されること', async () => {
-      const mockFiles: UploadFile[] = [{
-        id: 'file-1',
-        name: 'import.csv',
-        path: '/test/import.csv',
-        type: 'text/csv',
-      }];
+      const mockFiles: UploadFile[] = [
+        {
+          id: 'file-1',
+          name: 'import.csv',
+          path: '/test/import.csv',
+          type: 'text/csv',
+        },
+      ];
 
       mockExtractText.mockResolvedValue({
         content: `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,BPR ID
@@ -250,29 +265,31 @@ describe('ReviewService - extractChecklistFromCsv', () => {
       expect(mockReviewRepository.createChecklist).toHaveBeenCalledWith(
         'review-1',
         '項目1',
-        'system'
+        'system',
       );
       expect(mockReviewRepository.createChecklist).toHaveBeenCalledWith(
         'review-1',
         '項目2',
-        'system'
+        'system',
       );
       expect(mockReviewRepository.createChecklist).toHaveBeenCalledWith(
         'review-1',
         '項目3',
-        'system'
+        'system',
       );
     });
   });
 
   describe('評定設定・追加指示・コメントフォーマットを含むCSVインポート', () => {
     it('評定設定が正しくDB更新されること', async () => {
-      const mockFiles: UploadFile[] = [{
-        id: 'file-1',
-        name: 'import.csv',
-        path: '/test/import.csv',
-        type: 'text/csv',
-      }];
+      const mockFiles: UploadFile[] = [
+        {
+          id: 'file-1',
+          name: 'import.csv',
+          path: '/test/import.csv',
+          type: 'text/csv',
+        },
+      ];
 
       mockExtractText.mockResolvedValue({
         content: `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,BPR ID
@@ -285,24 +302,28 @@ describe('ReviewService - extractChecklistFromCsv', () => {
       await reviewService.extractChecklistFromCsv('review-1', mockFiles);
 
       // 評定設定の更新が呼ばれること
-      expect(mockReviewRepository.updateReviewHistoryEvaluationSettings).toHaveBeenCalledWith(
+      expect(
+        mockReviewRepository.updateReviewHistoryEvaluationSettings,
+      ).toHaveBeenCalledWith(
         'review-1',
         expect.objectContaining({
           items: [
             { label: 'A', description: '優秀' },
             { label: 'B', description: '良好' },
           ],
-        })
+        }),
       );
     });
 
     it('追加指示とコメントフォーマットが正しくDB更新されること', async () => {
-      const mockFiles: UploadFile[] = [{
-        id: 'file-1',
-        name: 'import.csv',
-        path: '/test/import.csv',
-        type: 'text/csv',
-      }];
+      const mockFiles: UploadFile[] = [
+        {
+          id: 'file-1',
+          name: 'import.csv',
+          path: '/test/import.csv',
+          type: 'text/csv',
+        },
+      ];
 
       mockExtractText.mockResolvedValue({
         content: `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,BPR ID
@@ -313,22 +334,26 @@ describe('ReviewService - extractChecklistFromCsv', () => {
       await reviewService.extractChecklistFromCsv('review-1', mockFiles);
 
       // 追加指示とコメントフォーマットの更新が呼ばれること
-      expect(mockReviewRepository.updateReviewHistoryAdditionalInstructionsAndCommentFormat).toHaveBeenCalledWith(
+      expect(
+        mockReviewRepository.updateReviewHistoryAdditionalInstructionsAndCommentFormat,
+      ).toHaveBeenCalledWith(
         'review-1',
         '厳格にレビューしてください',
-        '【評価】{evaluation}'
+        '【評価】{evaluation}',
       );
     });
   });
 
   describe('エラーハンドリング', () => {
     it('CSVパースエラー時はREVIEW_EXTRACT_CHECKLIST_FINISHEDイベント（失敗）が発火すること', async () => {
-      const mockFiles: UploadFile[] = [{
-        id: 'file-1',
-        name: 'import.csv',
-        path: '/test/import.csv',
-        type: 'text/csv',
-      }];
+      const mockFiles: UploadFile[] = [
+        {
+          id: 'file-1',
+          name: 'import.csv',
+          path: '/test/import.csv',
+          type: 'text/csv',
+        },
+      ];
 
       // 不正なCSVフォーマット
       mockExtractText.mockResolvedValue({
@@ -346,13 +371,13 @@ describe('ReviewService - extractChecklistFromCsv', () => {
           reviewHistoryId: 'review-1',
           status: 'failed',
           error: expect.any(String),
-        })
+        }),
       );
 
       // SETTINGS_UPDATEDイベントは発火しないこと
       expect(mockPublishEvent).not.toHaveBeenCalledWith(
         IpcChannels.SETTINGS_UPDATED,
-        undefined
+        undefined,
       );
     });
   });
@@ -398,19 +423,19 @@ describe('ReviewService - extractChecklistFromCsv', () => {
             url: 'http://first.com',
             model: 'first-model',
           },
-        })
+        }),
       );
 
       // チェックリスト項目は両方とも登録されること
       expect(mockReviewRepository.createChecklist).toHaveBeenCalledWith(
         'review-1',
         '項目1',
-        'system'
+        'system',
       );
       expect(mockReviewRepository.createChecklist).toHaveBeenCalledWith(
         'review-1',
         '項目2',
-        'system'
+        'system',
       );
     });
   });

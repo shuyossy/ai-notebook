@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   Alert,
   Modal,
@@ -22,6 +22,7 @@ import {
   Accordion,
   AccordionSummary,
   AccordionDetails,
+  Chip,
 } from '@mui/material';
 import {
   CloudUpload as UploadIcon,
@@ -35,6 +36,11 @@ import {
   Add as AddIcon,
   ExpandMore as ExpandMoreIcon,
   Download as DownloadIcon,
+  UploadFile as UploadFileIcon,
+  DeleteOutline as DeleteOutlineIcon,
+  Refresh as RefreshIcon,
+  InfoOutlined as InfoOutlinedIcon,
+  Extension as ExtensionIcon,
 } from '@mui/icons-material';
 import Backdrop from '@mui/material/Backdrop';
 import {
@@ -50,6 +56,8 @@ import { getSafeErrorMessage } from '../../lib/error';
 import { ReviewSourceModalProps } from './types';
 import { FsApi } from '../../service/fsApi';
 import { ReviewApi } from '../../service/reviewApi';
+import { PluginApi } from '../../service/pluginApi';
+import type { PluginInfo } from '@/types/plugin';
 
 import { combineImages, convertPdfBytesToImages } from '../../lib/pdfUtils';
 
@@ -133,8 +141,8 @@ const getAlertMessage = ({
             <br />
             ・評定ラベル列＋評定説明列の両方に値がある場合→評定設定値として認識
             <br />
-            ・追加指示・コメントフォーマット・AI
-            API・BPR ID列に値がある場合→各種設定値として認識
+            ・追加指示・コメントフォーマット・AI API・BPR
+            ID列に値がある場合→各種設定値として認識
             <br />
             ・空セルは無視
             <br />
@@ -220,6 +228,8 @@ function ReviewSourceModal({
   });
   const [bulkProcessMode, setBulkProcessMode] =
     useState<BulkProcessMode>('text');
+  const [pluginInfo, setPluginInfo] = useState<PluginInfo | null>(null);
+  const [isLoadingPluginInfo, setIsLoadingPluginInfo] = useState(false);
 
   const addAlert = useAlertStore((state) => state.addAlert);
 
@@ -255,6 +265,24 @@ function ReviewSourceModal({
     URL.revokeObjectURL(url);
   };
 
+  // プラグイン情報を取得
+  const fetchPluginInfo = useCallback(async () => {
+    setIsLoadingPluginInfo(true);
+    try {
+      const pluginApi = PluginApi.getInstance();
+      const info = await pluginApi.getPluginInfo({
+        showAlert: true,
+        throwError: false,
+      });
+      setPluginInfo(info);
+    } catch (error) {
+      console.error('プラグイン情報の取得に失敗:', error);
+      setPluginInfo(null);
+    } finally {
+      setIsLoadingPluginInfo(false);
+    }
+  }, []);
+
   // modalMode, selectedReviewHistoryIdが変わったときに初期化し、保存された値を取得
   useEffect(() => {
     const loadSavedData = async () => {
@@ -262,10 +290,15 @@ function ReviewSourceModal({
       setDocumentType('checklist-ai');
       setChecklistRequirements('');
       setDocumentVolumeType('small');
+
+      // プラグイン情報を取得（レビューモードの場合のみ）
+      if (open && modalMode === 'review') {
+        await fetchPluginInfo();
+      }
     };
 
     loadSavedData();
-  }, [modalMode, selectedReviewHistoryId]);
+  }, [modalMode, selectedReviewHistoryId, open, fetchPluginInfo]);
 
   const handleFileUpload = async () => {
     try {
@@ -323,6 +356,102 @@ function ReviewSourceModal({
       console.error('ファイル選択エラー:', e);
       addAlert({
         message: getSafeErrorMessage(e, 'ファイル選択に失敗しました'),
+        severity: 'error',
+      });
+    }
+  };
+
+  // プラグインファイルアップロード
+  const handlePluginUpload = async () => {
+    try {
+      const fsApi = FsApi.getInstance();
+      const result = await fsApi.showOpenDialog(
+        {
+          title: 'プラグインファイルを選択',
+          filters: [
+            {
+              name: 'JavaScriptファイル',
+              extensions: ['js'],
+            },
+          ],
+          properties: ['openFile'],
+        },
+        {
+          showAlert: true,
+          throwError: true,
+        },
+      );
+
+      if (result && !result.canceled && result.filePaths.length > 0) {
+        const pluginApi = PluginApi.getInstance();
+        await pluginApi.uploadPlugin(result.filePaths[0], {
+          showAlert: true,
+          throwError: true,
+        });
+
+        addAlert({
+          message: 'プラグインファイルをアップロードしました',
+          severity: 'info',
+        });
+
+        // プラグイン情報を再取得
+        await fetchPluginInfo();
+      }
+    } catch (e) {
+      console.error('プラグインアップロードエラー:', e);
+      addAlert({
+        message: getSafeErrorMessage(
+          e,
+          'プラグインのアップロードに失敗しました',
+        ),
+        severity: 'error',
+      });
+    }
+  };
+
+  // プラグイン削除
+  const handlePluginDelete = async () => {
+    try {
+      const pluginApi = PluginApi.getInstance();
+      await pluginApi.deletePlugin({
+        showAlert: true,
+        throwError: true,
+      });
+
+      addAlert({
+        message: 'プラグインを削除しました',
+        severity: 'info',
+      });
+
+      setPluginInfo(null);
+    } catch (e) {
+      console.error('プラグイン削除エラー:', e);
+      addAlert({
+        message: getSafeErrorMessage(e, 'プラグインの削除に失敗しました'),
+        severity: 'error',
+      });
+    }
+  };
+
+  // プラグインリロード
+  const handlePluginReload = async () => {
+    try {
+      const pluginApi = PluginApi.getInstance();
+      await pluginApi.reloadPlugin({
+        showAlert: false,
+        throwError: true,
+      });
+
+      addAlert({
+        message: 'プラグインをリロードしました',
+        severity: 'info',
+      });
+
+      await fetchPluginInfo();
+    } catch (e) {
+      console.error('プラグインリロードエラー:', e);
+      addAlert({
+        message: getSafeErrorMessage(e, 'プラグインのリロードに失敗しました'),
         severity: 'error',
       });
     }
@@ -983,6 +1112,133 @@ function ReviewSourceModal({
                         評定項目を追加
                       </Button>
                     )}
+                  </Stack>
+                </AccordionDetails>
+              </Accordion>
+
+              {/* プラグイン設定 */}
+              <Accordion sx={{ mb: 2 }}>
+                <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                  <Typography variant="subtitle1">
+                    <ExtensionIcon sx={{ verticalAlign: 'middle', mr: 1 }} />
+                    プラグイン設定
+                  </Typography>
+                </AccordionSummary>
+                <AccordionDetails>
+                  <Stack spacing={2}>
+                    <Typography variant="body2" color="text.secondary">
+                      レビュー処理をカスタマイズするプラグイン(.jsファイル)をアップロードできます
+                    </Typography>
+
+                    {/* 現在のプラグイン情報表示 */}
+                    {isLoadingPluginInfo ? (
+                      <Box
+                        sx={{ display: 'flex', justifyContent: 'center', p: 2 }}
+                      >
+                        <CircularProgress size={24} />
+                      </Box>
+                    ) : pluginInfo ? (
+                      <Paper
+                        variant="outlined"
+                        sx={{ p: 2, bgcolor: 'action.hover' }}
+                      >
+                        <Stack spacing={1}>
+                          <Box
+                            sx={{
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                            }}
+                          >
+                            <Typography
+                              variant="subtitle2"
+                              sx={{ fontWeight: 'bold' }}
+                            >
+                              {pluginInfo.name} (v{pluginInfo.version})
+                            </Typography>
+                            <Stack direction="row" spacing={1}>
+                              <Tooltip title="プラグインをリロード">
+                                <IconButton
+                                  size="small"
+                                  onClick={handlePluginReload}
+                                  disabled={processing}
+                                >
+                                  <RefreshIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                              <Tooltip title="プラグインを削除">
+                                <IconButton
+                                  size="small"
+                                  onClick={handlePluginDelete}
+                                  disabled={processing}
+                                >
+                                  <DeleteOutlineIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            </Stack>
+                          </Box>
+
+                          {pluginInfo.availableHooks.length > 0 && (
+                            <Box>
+                              <Typography
+                                variant="caption"
+                                color="text.secondary"
+                              >
+                                利用可能なフック:
+                              </Typography>
+                              <Box
+                                sx={{
+                                  display: 'flex',
+                                  gap: 0.5,
+                                  flexWrap: 'wrap',
+                                  mt: 0.5,
+                                }}
+                              >
+                                {pluginInfo.availableHooks.map((hook) => (
+                                  <Chip
+                                    key={hook}
+                                    label={hook}
+                                    size="small"
+                                    variant="outlined"
+                                  />
+                                ))}
+                              </Box>
+                            </Box>
+                          )}
+
+                          <Typography
+                            variant="caption"
+                            color="text.secondary"
+                            sx={{ wordBreak: 'break-all' }}
+                          >
+                            <InfoOutlinedIcon
+                              sx={{
+                                fontSize: 14,
+                                verticalAlign: 'middle',
+                                mr: 0.5,
+                              }}
+                            />
+                            {pluginInfo.filePath}
+                          </Typography>
+                        </Stack>
+                      </Paper>
+                    ) : (
+                      <Alert severity="info">
+                        プラグインがアップロードされていません
+                      </Alert>
+                    )}
+
+                    {/* アップロードボタン */}
+                    <Button
+                      variant="contained"
+                      startIcon={<UploadFileIcon />}
+                      onClick={handlePluginUpload}
+                      disabled={processing}
+                    >
+                      {pluginInfo
+                        ? 'プラグインを更新'
+                        : 'プラグインをアップロード'}
+                    </Button>
                   </Stack>
                 </AccordionDetails>
               </Accordion>

@@ -16,6 +16,7 @@ import { createCombinedMessageFromExtractedDocument } from '../../lib';
 import { getChecklistsErrorMessage } from '../lib';
 import { extractedDocumentSchema } from '../schema';
 import { getReviewRepository } from '@/adapter/db';
+import { PluginService } from '@/main/service/pluginService';
 
 const logger = getMainLogger();
 
@@ -68,16 +69,35 @@ export const individualDocumentReviewStep = createStep({
   description: '個別ドキュメントに対するレビュー実行ステップ',
   inputSchema: individualDocumentReviewStepInputSchema,
   outputSchema: individualDocumentReviewStepOutputSchema,
-  execute: async ({ inputData, mastra, abortSignal, bail }) => {
+  execute: async ({ inputData, mastra, abortSignal }) => {
     const { document, checklists, additionalInstructions, commentFormat } =
       inputData;
 
     try {
       const reviewAgent = mastra.getAgent('individualDocumentReviewAgent');
 
+      // プラグインのbeforeLargeDocumentReviewフックを実行（ドキュメントのフィルタリング・前処理）
+      const pluginService = PluginService.getInstance();
+      const filteredDocument =
+        await pluginService.executeBeforeLargeDocumentReviewHook({
+          document,
+          checklists: checklists.map((c) => ({ id: c.id, content: c.content })),
+          additionalInstructions,
+          commentFormat,
+        });
+
+      // プラグインがドキュメントを除外した場合（nullを返した場合）
+      if (filteredDocument === null) {
+        return {
+          status: 'success' as stepStatus,
+          reviewResults: [],
+          finishReason: 'success' as const,
+        };
+      }
+
       // ドキュメント内容を構築
       const message = await createCombinedMessageFromExtractedDocument(
-        [document],
+        [filteredDocument],
         'Please review this document against the provided checklist items',
       );
 
@@ -136,14 +156,14 @@ Checklist Items to Review:\n${checklists.map((item) => `- ID: ${item.id} - ${ite
         });
 
         if (reviewResult.finishReason === 'length') {
-          return bail({
+          return {
             status: 'failed' as stepStatus,
             errorMessage: getChecklistsErrorMessage(
               targetChecklists,
               'ドキュメントの内容が長すぎてAIが処理できませんでした',
             ),
-            finishReason: 'content_length',
-          });
+            finishReason: 'content_length' as const,
+          };
         }
 
         const { success, reason } = judgeFinishReason(
@@ -190,6 +210,7 @@ Checklist Items to Review:\n${checklists.map((item) => `- ID: ${item.id} - ${ite
             targetChecklists,
             'AIの出力にレビュー結果が含まれませんでした',
           ),
+          finishReason: 'error' as const,
         };
       }
 
@@ -197,7 +218,7 @@ Checklist Items to Review:\n${checklists.map((item) => `- ID: ${item.id} - ${ite
       return {
         status: 'success' as stepStatus,
         reviewResults: allReviewResults,
-        finishReason: 'success',
+        finishReason: 'success' as const,
       };
     } catch (error) {
       const isContentLengthError = judgeErrorIsContentLengthError(error);
@@ -205,10 +226,14 @@ Checklist Items to Review:\n${checklists.map((item) => `- ID: ${item.id} - ${ite
       const normalizedError = normalizeUnknownError(error);
       const errorMessage = normalizedError.message;
       // エラーが発生した場合はエラー情報を返す
+      const finishReason: 'content_length' | 'error' = isContentLengthError
+        ? 'content_length'
+        : 'error';
+
       return {
         status: 'failed' as stepStatus,
         errorMessage: `${checklists?.map((c) => `・${c.content}:${errorMessage}`).join('\n')}`,
-        finishReason: isContentLengthError ? 'content_length' : 'error',
+        finishReason,
       };
     }
   },

@@ -5,7 +5,10 @@
 
 // Electron モックを最初に適用（他のインポートより前に実行する必要がある）
 jest.mock('electron', () => require('../test-utils/mockElectron').mockElectron);
-jest.mock('electron-store', () => require('../test-utils/mockElectron').default);
+jest.mock(
+  'electron-store',
+  () => require('../test-utils/mockElectron').default,
+);
 
 // main.ts の初期化処理をスキップ（テスト環境では不要）
 jest.mock('@/main/main', () => {
@@ -67,9 +70,10 @@ jest.mock('@/main/lib/eventPayloadHelper', () => ({
 }));
 
 // DataStreamWriterのモック
-const createMockDataStreamWriter = (): jest.Mocked<DataStreamWriter> => ({
-  write: jest.fn(),
-} as any);
+const createMockDataStreamWriter = (): jest.Mocked<DataStreamWriter> =>
+  ({
+    write: jest.fn(),
+  }) as any;
 
 describe('reviewChatWorkflow', () => {
   // モックリポジトリ
@@ -249,12 +253,12 @@ describe('reviewChatWorkflow', () => {
         );
 
         // AI呼び出しの確認
-        expect(mockReviewChatPlanningAgent.generateLegacy).toHaveBeenCalledTimes(
-          1,
-        );
-        expect(mockReviewChatResearchAgent.generateLegacy).toHaveBeenCalledTimes(
-          1,
-        );
+        expect(
+          mockReviewChatPlanningAgent.generateLegacy,
+        ).toHaveBeenCalledTimes(1);
+        expect(
+          mockReviewChatResearchAgent.generateLegacy,
+        ).toHaveBeenCalledTimes(1);
         expect(mockReviewChatAnswerAgent.generateLegacy).toHaveBeenCalledTimes(
           1,
         );
@@ -266,9 +270,9 @@ describe('reviewChatWorkflow', () => {
         expect(mockRepository.getReviewDocumentCaches).toHaveBeenCalledWith(
           reviewHistoryId,
         );
-        expect(mockRepository.getMaxTotalChunksForDocument).toHaveBeenCalledWith(
-          1,
-        );
+        expect(
+          mockRepository.getMaxTotalChunksForDocument,
+        ).toHaveBeenCalledWith(1);
 
         // DataStreamWriterの呼び出し確認
         expect(mockDataStreamWriter.write).toHaveBeenCalled();
@@ -397,9 +401,9 @@ describe('reviewChatWorkflow', () => {
         expect(checkResult.status).toBe('success');
 
         // 2つのドキュメントが並列で調査されることを確認
-        expect(mockReviewChatResearchAgent.generateLegacy).toHaveBeenCalledTimes(
-          2,
-        );
+        expect(
+          mockReviewChatResearchAgent.generateLegacy,
+        ).toHaveBeenCalledTimes(2);
       });
     });
 
@@ -702,9 +706,9 @@ describe('reviewChatWorkflow', () => {
         expect(checkResult.status).toBe('success');
 
         // 1回失敗 + 2チャンクで成功 = 3回呼ばれる
-        expect(mockReviewChatResearchAgent.generateLegacy).toHaveBeenCalledTimes(
-          3,
-        );
+        expect(
+          mockReviewChatResearchAgent.generateLegacy,
+        ).toHaveBeenCalledTimes(3);
       });
 
       it('複数回のチャンク分割リトライが成功すること', async () => {
@@ -1051,14 +1055,16 @@ describe('reviewChatWorkflow', () => {
         expect(checklistInfo).toContain('Individual Review Results:');
         expect(checklistInfo).toContain('Document ID: 1');
         expect(checklistInfo).toContain('Document Name: security-spec.pdf');
-        expect(checklistInfo).toContain('Comment: ドキュメント1では認証機能が不足');
+        expect(checklistInfo).toContain(
+          'Comment: ドキュメント1では認証機能が不足',
+        );
         expect(checklistInfo).toContain('Document ID: 2');
         expect(checklistInfo).toContain('Document Name: encryption-design.pdf');
-        expect(checklistInfo).toContain('Comment: ドキュメント2では暗号化が適切');
-        expect(checklistInfo).toContain('Document ID: 3');
         expect(checklistInfo).toContain(
-          'Document Name: access-control.pdf',
+          'Comment: ドキュメント2では暗号化が適切',
         );
+        expect(checklistInfo).toContain('Document ID: 3');
+        expect(checklistInfo).toContain('Document Name: access-control.pdf');
         expect(checklistInfo).toContain(
           'Comment: ドキュメント3ではアクセス制御に問題あり',
         );
@@ -1299,9 +1305,7 @@ describe('reviewChatWorkflow', () => {
         expect(checklistInfo).toContain('Checklist ID: 1');
         expect(checklistInfo).toContain('Content: API設計は適切か');
         expect(checklistInfo).toContain('Comment: RESTful設計が適切');
-        expect(checklistInfo).toContain(
-          'Comment: エラーハンドリングが明確',
-        );
+        expect(checklistInfo).toContain('Comment: エラーハンドリングが明確');
 
         // チェックリスト2の情報確認
         expect(checklistInfo).toContain('Checklist ID: 2');
@@ -1319,18 +1323,10 @@ describe('reviewChatWorkflow', () => {
 
         // 各ドキュメント名の確認
         expect(checklistInfo).toContain('Document Name: api-spec.pdf');
-        expect(checklistInfo).toContain(
-          'Document Name: error-handling.pdf',
-        );
-        expect(checklistInfo).toContain(
-          'Document Name: performance-spec.pdf',
-        );
-        expect(checklistInfo).toContain(
-          'Document Name: load-balancing.pdf',
-        );
-        expect(checklistInfo).toContain(
-          'Document Name: unit-test-plan.pdf',
-        );
+        expect(checklistInfo).toContain('Document Name: error-handling.pdf');
+        expect(checklistInfo).toContain('Document Name: performance-spec.pdf');
+        expect(checklistInfo).toContain('Document Name: load-balancing.pdf');
+        expect(checklistInfo).toContain('Document Name: unit-test-plan.pdf');
         expect(checklistInfo).toContain(
           'Document Name: integration-test-plan.pdf',
         );
@@ -1534,10 +1530,9 @@ describe('reviewChatWorkflow', () => {
 
         // Assert
         // 調査完了イベントの確認
-        const researchCompleteCall =
-          mockDataStreamWriter.write.mock.calls.find((call) =>
-            call[0].includes('researchDocumentComplete'),
-          );
+        const researchCompleteCall = mockDataStreamWriter.write.mock.calls.find(
+          (call) => call[0].includes('researchDocumentComplete'),
+        );
         expect(researchCompleteCall).toBeTruthy();
         const completeEventData = JSON.parse(
           researchCompleteCall![0].replace('a:', '').trim(),
@@ -1761,10 +1756,9 @@ describe('reviewChatWorkflow', () => {
         expect(startEventData.args[1].documentName).toBe('document2.txt');
 
         // 調査完了イベントの確認（2つのドキュメント）
-        const researchCompleteCall =
-          mockDataStreamWriter.write.mock.calls.find((call) =>
-            call[0].includes('researchDocumentComplete'),
-          );
+        const researchCompleteCall = mockDataStreamWriter.write.mock.calls.find(
+          (call) => call[0].includes('researchDocumentComplete'),
+        );
         expect(researchCompleteCall).toBeTruthy();
         const completeEventData = JSON.parse(
           researchCompleteCall![0].replace('a:', '').trim(),
@@ -1809,7 +1803,9 @@ describe('reviewChatWorkflow', () => {
         const checkResult = checkWorkflowResult(result);
         expect(checkResult.status).toBe('failed');
         expect(checkResult.errorMessage).toContain('調査計画作成エラー');
-        expect(mockReviewChatResearchAgent.generateLegacy).not.toHaveBeenCalled();
+        expect(
+          mockReviewChatResearchAgent.generateLegacy,
+        ).not.toHaveBeenCalled();
         expect(mockReviewChatAnswerAgent.generateLegacy).not.toHaveBeenCalled();
       });
 
@@ -1845,9 +1841,13 @@ describe('reviewChatWorkflow', () => {
         // Assert
         const checkResult = checkWorkflowResult(result);
         expect(checkResult.status).toBe('failed');
-        expect(checkResult.errorMessage).toContain('AIから予期せぬ応答が返されました');
+        expect(checkResult.errorMessage).toContain(
+          'AIから予期せぬ応答が返されました',
+        );
         // 後続のステップが呼ばれていないことを確認
-        expect(mockReviewChatResearchAgent.generateLegacy).not.toHaveBeenCalled();
+        expect(
+          mockReviewChatResearchAgent.generateLegacy,
+        ).not.toHaveBeenCalled();
         expect(mockReviewChatAnswerAgent.generateLegacy).not.toHaveBeenCalled();
       });
 
@@ -2039,7 +2039,9 @@ describe('reviewChatWorkflow', () => {
         // Assert
         const checkResult = checkWorkflowResult(result);
         expect(checkResult.status).toBe('failed');
-        expect(checkResult.errorMessage).toContain('チャンク調査中にエラーが発生');
+        expect(checkResult.errorMessage).toContain(
+          'チャンク調査中にエラーが発生',
+        );
         // 回答生成は呼ばれない
         expect(mockReviewChatAnswerAgent.generateLegacy).not.toHaveBeenCalled();
       });
@@ -2493,7 +2495,9 @@ describe('reviewChatWorkflow', () => {
         // Assert
         const checkResult = checkWorkflowResult(result);
         expect(checkResult.status).toBe('failed');
-        expect(checkResult.errorMessage).toContain('最大出力コンテキストを超え');
+        expect(checkResult.errorMessage).toContain(
+          '最大出力コンテキストを超え',
+        );
       });
 
       it('generateAnswerStepのfinishReasonがlengthの場合に適切なエラーメッセージが返ること', async () => {
@@ -2544,7 +2548,9 @@ describe('reviewChatWorkflow', () => {
         // Assert
         const checkResult = checkWorkflowResult(result);
         expect(checkResult.status).toBe('failed');
-        expect(checkResult.errorMessage).toContain('最大出力コンテキストを超え');
+        expect(checkResult.errorMessage).toContain(
+          '最大出力コンテキストを超え',
+        );
       });
     });
 
@@ -2909,9 +2915,9 @@ describe('reviewChatWorkflow', () => {
         expect(checkResult.status).toBe('success');
 
         // 10個全てのドキュメントが調査されたことを確認
-        expect(mockReviewChatResearchAgent.generateLegacy).toHaveBeenCalledTimes(
-          10,
-        );
+        expect(
+          mockReviewChatResearchAgent.generateLegacy,
+        ).toHaveBeenCalledTimes(10);
       });
 
       it('チェックリストIDsが1つの場合でも正しく処理されること', async () => {

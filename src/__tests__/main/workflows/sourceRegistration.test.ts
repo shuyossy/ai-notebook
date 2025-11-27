@@ -5,7 +5,10 @@
 
 // Electron モックを最初に適用（他のインポートより前に実行する必要がある）
 jest.mock('electron', () => require('../test-utils/mockElectron').mockElectron);
-jest.mock('electron-store', () => require('../test-utils/mockElectron').default);
+jest.mock(
+  'electron-store',
+  () => require('../test-utils/mockElectron').default,
+);
 
 // main.ts の初期化処理をスキップ（テスト環境では不要）
 jest.mock('@/main/main', () => {
@@ -176,7 +179,9 @@ describe('sourceRegistrationWorkflow', () => {
         expect(checkResult.status).toBe('success');
 
         // DB操作の確認
-        expect(mockSourceRepository.initializeProcessingSource).toHaveBeenCalledWith({
+        expect(
+          mockSourceRepository.initializeProcessingSource,
+        ).toHaveBeenCalledWith({
           path: filePath,
           title: '',
           summary: '',
@@ -255,12 +260,17 @@ describe('sourceRegistrationWorkflow', () => {
         ]);
 
         // ステータス更新の確認
-        expect(mockSourceRepository.updateProcessingStatus).toHaveBeenCalledWith({
+        expect(
+          mockSourceRepository.updateProcessingStatus,
+        ).toHaveBeenCalledWith({
           id: 1,
           status: 'completed',
           error: null,
         });
-        expect(mockSourceRepository.updateSourceEnabled).toHaveBeenCalledWith(1, true);
+        expect(mockSourceRepository.updateSourceEnabled).toHaveBeenCalledWith(
+          1,
+          true,
+        );
       });
 
       it('前ステップ失敗時は処理をスキップすること', async () => {
@@ -332,7 +342,9 @@ describe('sourceRegistrationWorkflow', () => {
         expect(checkResult.status).toBe('success');
 
         // 両エージェントが呼ばれていることを確認
-        expect(mockSummarizeSourceAgent.generateLegacy).toHaveBeenCalledTimes(1);
+        expect(mockSummarizeSourceAgent.generateLegacy).toHaveBeenCalledTimes(
+          1,
+        );
         expect(mockSummarizeTopicAgent.generateLegacy).toHaveBeenCalledTimes(1);
       });
 
@@ -368,7 +380,9 @@ describe('sourceRegistrationWorkflow', () => {
 
         // トピックが空でもregisterTopicが呼ばれることを確認
         expect(mockSourceRepository.registerTopic).toHaveBeenCalledWith([]);
-        expect(mockSourceRepository.updateProcessingStatus).toHaveBeenCalledWith({
+        expect(
+          mockSourceRepository.updateProcessingStatus,
+        ).toHaveBeenCalledWith({
           id: 1,
           status: 'completed',
           error: null,
@@ -404,7 +418,9 @@ describe('sourceRegistrationWorkflow', () => {
         expect(checkResult.errorMessage).toContain('ファイル読み込みエラー');
 
         // DBステータス更新の確認
-        expect(mockSourceRepository.updateProcessingStatus).toHaveBeenCalledWith({
+        expect(
+          mockSourceRepository.updateProcessingStatus,
+        ).toHaveBeenCalledWith({
           id: 1,
           status: 'failed',
           error: expect.stringContaining('ソース分析に失敗しました'),
@@ -440,7 +456,9 @@ describe('sourceRegistrationWorkflow', () => {
         expect(checkResult.errorMessage).toContain('AI APIエラー');
 
         // DBステータス更新の確認
-        expect(mockSourceRepository.updateProcessingStatus).toHaveBeenCalledWith({
+        expect(
+          mockSourceRepository.updateProcessingStatus,
+        ).toHaveBeenCalledWith({
           id: 1,
           status: 'failed',
           error: expect.stringContaining('AI APIエラー'),
@@ -475,10 +493,14 @@ describe('sourceRegistrationWorkflow', () => {
         );
 
         // DBステータス更新の確認
-        expect(mockSourceRepository.updateProcessingStatus).toHaveBeenCalledWith({
+        expect(
+          mockSourceRepository.updateProcessingStatus,
+        ).toHaveBeenCalledWith({
           id: 1,
           status: 'failed',
-          error: expect.stringContaining('AIモデルの最大出力コンテキストを超えました'),
+          error: expect.stringContaining(
+            'AIモデルの最大出力コンテキストを超えました',
+          ),
         });
       });
 
@@ -601,7 +623,9 @@ describe('sourceRegistrationWorkflow', () => {
         expect(checkResult.errorMessage).toContain('DB更新エラー');
 
         // DBステータス更新の確認（エラー処理内で呼ばれる）
-        expect(mockSourceRepository.updateProcessingStatus).toHaveBeenCalledWith({
+        expect(
+          mockSourceRepository.updateProcessingStatus,
+        ).toHaveBeenCalledWith({
           id: 1,
           status: 'failed',
           error: expect.stringContaining('DB更新エラー'),
@@ -648,11 +672,15 @@ describe('sourceRegistrationWorkflow', () => {
         // Assert
         const checkResult = checkWorkflowResult(result);
         expect(checkResult.status).toBe('failed');
-        expect(checkResult.errorMessage).toContain('ソース分析でエラーが発生しました');
+        expect(checkResult.errorMessage).toContain(
+          'ソース分析でエラーが発生しました',
+        );
         expect(checkResult.errorMessage).toContain('トピック登録エラー');
 
         // DBステータス更新の確認
-        expect(mockSourceRepository.updateProcessingStatus).toHaveBeenLastCalledWith({
+        expect(
+          mockSourceRepository.updateProcessingStatus,
+        ).toHaveBeenLastCalledWith({
           id: 1,
           status: 'failed',
           error: expect.stringContaining('トピック登録エラー'),
@@ -702,14 +730,18 @@ describe('sourceRegistrationWorkflow', () => {
         // Assert
         const checkResult = checkWorkflowResult(result);
         expect(checkResult.status).toBe('failed');
-        expect(checkResult.errorMessage).toContain('ソース分析でエラーが発生しました');
+        expect(checkResult.errorMessage).toContain(
+          'ソース分析でエラーが発生しました',
+        );
         expect(checkResult.errorMessage).toContain('ソース有効化エラー');
 
         // registerTopicは成功していることを確認
         expect(mockSourceRepository.registerTopic).toHaveBeenCalledTimes(1);
 
         // DBステータス更新の確認
-        expect(mockSourceRepository.updateProcessingStatus).toHaveBeenLastCalledWith({
+        expect(
+          mockSourceRepository.updateProcessingStatus,
+        ).toHaveBeenLastCalledWith({
           id: 1,
           status: 'failed',
           error: expect.stringContaining('ソース有効化エラー'),
@@ -748,11 +780,15 @@ describe('sourceRegistrationWorkflow', () => {
         // Assert
         const checkResult = checkWorkflowResult(result);
         expect(checkResult.status).toBe('failed');
-        expect(checkResult.errorMessage).toContain('ソース分析でエラーが発生しました');
+        expect(checkResult.errorMessage).toContain(
+          'ソース分析でエラーが発生しました',
+        );
         expect(checkResult.errorMessage).toContain('トピック抽出エラー');
 
         // DBステータス更新の確認（extractTopicAndSummaryStepでのエラー）
-        expect(mockSourceRepository.updateProcessingStatus).toHaveBeenLastCalledWith({
+        expect(
+          mockSourceRepository.updateProcessingStatus,
+        ).toHaveBeenLastCalledWith({
           id: 1,
           status: 'failed',
           error: expect.stringContaining('トピック抽出エラー'),
@@ -788,7 +824,9 @@ describe('sourceRegistrationWorkflow', () => {
         // Assert
         const checkResult = checkWorkflowResult(result);
         expect(checkResult.status).toBe('failed');
-        expect(checkResult.errorMessage).toContain('ソース分析でエラーが発生しました');
+        expect(checkResult.errorMessage).toContain(
+          'ソース分析でエラーが発生しました',
+        );
         expect(checkResult.errorMessage).toContain(
           'AIモデルの最大出力コンテキストを超えました',
         );
@@ -829,8 +867,12 @@ describe('sourceRegistrationWorkflow', () => {
         // Assert
         const checkResult = checkWorkflowResult(result);
         expect(checkResult.status).toBe('failed');
-        expect(checkResult.errorMessage).toContain('ソース分析でエラーが発生しました');
-        expect(checkResult.errorMessage).toContain('2回目のファイル読み込みエラー');
+        expect(checkResult.errorMessage).toContain(
+          'ソース分析でエラーが発生しました',
+        );
+        expect(checkResult.errorMessage).toContain(
+          '2回目のファイル読み込みエラー',
+        );
 
         // FileExtractorが2回呼ばれていることを確認
         expect(FileExtractor.extractText).toHaveBeenCalledTimes(2);
@@ -872,8 +914,14 @@ describe('sourceRegistrationWorkflow', () => {
       expect(checkResult.status).toBe('success');
 
       // 空のコンテンツでもAIエージェントが呼ばれることを確認
-      expect(mockSummarizeSourceAgent.generateLegacy).toHaveBeenCalledWith('', expect.any(Object));
-      expect(mockSummarizeTopicAgent.generateLegacy).toHaveBeenCalledWith('', expect.any(Object));
+      expect(mockSummarizeSourceAgent.generateLegacy).toHaveBeenCalledWith(
+        '',
+        expect.any(Object),
+      );
+      expect(mockSummarizeTopicAgent.generateLegacy).toHaveBeenCalledWith(
+        '',
+        expect.any(Object),
+      );
     });
 
     it('AIが空のタイトル/要約を返す場合でも正常に処理されること', async () => {
@@ -945,7 +993,9 @@ describe('sourceRegistrationWorkflow', () => {
 
       // 特殊文字を含むパスでもFileExtractorが正しく呼ばれることを確認
       expect(FileExtractor.extractText).toHaveBeenCalledWith(filePath);
-      expect(mockSourceRepository.initializeProcessingSource).toHaveBeenCalledWith({
+      expect(
+        mockSourceRepository.initializeProcessingSource,
+      ).toHaveBeenCalledWith({
         path: filePath,
         title: '',
         summary: '',
@@ -1024,10 +1074,14 @@ describe('sourceRegistrationWorkflow', () => {
 
       // Assert
       // 呼び出し順序の確認（各関数が呼ばれたことを確認）
-      expect(mockSourceRepository.initializeProcessingSource).toHaveBeenCalledTimes(1);
+      expect(
+        mockSourceRepository.initializeProcessingSource,
+      ).toHaveBeenCalledTimes(1);
       expect(mockSourceRepository.updateSource).toHaveBeenCalledTimes(1);
       expect(mockSourceRepository.registerTopic).toHaveBeenCalledTimes(1);
-      expect(mockSourceRepository.updateProcessingStatus).toHaveBeenCalledTimes(1);
+      expect(mockSourceRepository.updateProcessingStatus).toHaveBeenCalledTimes(
+        1,
+      );
       expect(mockSourceRepository.updateSourceEnabled).toHaveBeenCalledTimes(1);
 
       // 呼び出し順序の確認（すべてのモックが少なくとも1回呼ばれていることを確認）
