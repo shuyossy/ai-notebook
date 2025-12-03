@@ -15,6 +15,7 @@ import {
   DocumentMode,
   ProcessingStatus,
   CsvImportData,
+  RetryMode,
 } from '@/types';
 import { generateReviewTitle } from '@/mastra/workflows/sourceReview/lib';
 import { RevieHistory } from '@/types';
@@ -55,6 +56,10 @@ export interface IReviewService {
   updateReviewEvaluationSettings(
     reviewHistoryId: string,
     evaluationSettings: CustomEvaluationSettings,
+  ): Promise<void>;
+  updateReviewDocumentMode(
+    reviewHistoryId: string,
+    documentMode: DocumentMode,
   ): Promise<void>;
   extractChecklistFromCsv(
     reviewHistoryId: string,
@@ -217,6 +222,19 @@ export class ReviewService implements IReviewService {
     return this.reviewRepository.updateReviewHistoryEvaluationSettings(
       reviewHistoryId,
       evaluationSettings,
+    );
+  }
+
+  /**
+   * レビュー履歴のドキュメントモードを更新
+   */
+  public async updateReviewDocumentMode(
+    reviewHistoryId: string,
+    documentMode: DocumentMode,
+  ): Promise<void> {
+    return this.reviewRepository.updateReviewHistoryDocumentMode(
+      reviewHistoryId,
+      documentMode,
     );
   }
 
@@ -462,26 +480,51 @@ export class ReviewService implements IReviewService {
   /**
    * アップロードファイルからレビュー実行処理を実行
    * @param reviewHistoryId レビュー履歴ID
-   * @param files アップロードファイルの配列
+   * @param files アップロードファイルの配列（リトライ時はオプション）
+   * @param retryMode リトライモード
    * @returns 処理結果
    */
   public async executeReview(
     reviewHistoryId: string,
-    files: UploadFile[],
+    files: UploadFile[] | undefined,
     evaluationSettings: CustomEvaluationSettings,
     additionalInstructions?: string,
     commentFormat?: string,
     documentMode?: DocumentMode,
+    retryMode?: RetryMode,
   ): Promise<{ status: ReviewExecutionResultStatus; error?: string }> {
     try {
+      // バリデーション: 初回レビューの場合はfilesが必須
+      if (!retryMode && !files) {
+        throw internalError({
+          expose: true,
+          messageCode: 'REVIEW_FILES_REQUIRED',
+          messageParams: { reviewHistoryId },
+        });
+      }
+
+      // バリデーション: リトライの場合はドキュメントキャッシュが必須
+      if (retryMode) {
+        const cachedDocuments =
+          await this.reviewRepository.getReviewDocumentCaches(reviewHistoryId);
+        if (cachedDocuments.length === 0) {
+          throw internalError({
+            expose: true,
+            messageCode: 'REVIEW_DOCUMENT_CACHE_NOT_FOUND',
+            messageParams: { reviewHistoryId },
+          });
+        }
+      }
+
       // レビュー履歴の存在確認
       const reviewHistory =
         await this.reviewRepository.getReviewHistory(reviewHistoryId);
       if (!reviewHistory) {
-        return {
-          status: 'failed',
-          error: `チェックリストが一度も作成されていません`,
-        };
+        throw internalError({
+          expose: true,
+          messageCode: 'REVIEW_HISTORY_NOT_FOUND',
+          messageParams: { reviewHistoryId },
+        });
       }
 
       // Mastraワークフローを実行
@@ -494,16 +537,38 @@ export class ReviewService implements IReviewService {
         });
       }
 
-      // タイトルの変更
-      const fileNames = files.map((f) => f.name.replace(/\.[^/.]+$/, '')); // 拡張子を除いたファイル名
-      const reviewTitle = generateReviewTitle(fileNames);
-      // レビュー履歴のタイトルと追加データを更新
-      await this.reviewRepository.updateReviewHistoryTitle(
-        reviewHistory.id,
-        reviewTitle,
-      );
-      // タイトル更新時はレビュー履歴更新イベントを送信
-      publishEvent(IpcChannels.REVIEW_HISTORY_UPDATED, undefined);
+      // 初回レビュー時はレビュー指示・評定項目設定・ドキュメントモードを保存
+      if (!retryMode) {
+        await this.updateReviewInstruction(
+          reviewHistoryId,
+          additionalInstructions,
+          commentFormat,
+        );
+        await this.updateReviewEvaluationSettings(
+          reviewHistoryId,
+          evaluationSettings,
+        );
+        await this.updateReviewDocumentMode(reviewHistoryId, documentMode || 'small');
+      } else {
+        // リトライ時は最新のレビュー履歴情報を取得
+        evaluationSettings = reviewHistory.evaluationSettings!;
+        additionalInstructions = reviewHistory.additionalInstructions ?? undefined;
+        commentFormat = reviewHistory.commentFormat ?? undefined;
+        documentMode = reviewHistory.documentMode || 'small';
+      }
+
+      // タイトルの変更（初回レビューのみ）
+      if (!retryMode && files) {
+        const fileNames = files.map((f) => f.name.replace(/\.[^/.]+$/, '')); // 拡張子を除いたファイル名
+        const reviewTitle = generateReviewTitle(fileNames);
+        // レビュー履歴のタイトルと追加データを更新
+        await this.reviewRepository.updateReviewHistoryTitle(
+          reviewHistory.id,
+          reviewTitle,
+        );
+        // タイトル更新時はレビュー履歴更新イベントを送信
+        publishEvent(IpcChannels.REVIEW_HISTORY_UPDATED, undefined);
+      }
 
       const run = await workflow.createRunAsync();
 
@@ -525,7 +590,8 @@ export class ReviewService implements IReviewService {
           evaluationSettings,
           additionalInstructions,
           commentFormat,
-          documentMode: documentMode || 'small', // デフォルトは少量ドキュメント
+          documentMode: documentMode,
+          retryMode,
         },
       });
 
@@ -655,11 +721,12 @@ export class ReviewService implements IReviewService {
    */
   public executeReviewWithNotification(
     reviewHistoryId: string,
-    files: UploadFile[],
+    files: UploadFile[] | undefined,
     evaluationSettings: CustomEvaluationSettings,
     additionalInstructions?: string,
     commentFormat?: string,
     documentMode?: DocumentMode,
+    retryMode?: RetryMode,
   ): { success: boolean; error?: string } {
     try {
       this.executeReview(
@@ -669,6 +736,7 @@ export class ReviewService implements IReviewService {
         additionalInstructions,
         commentFormat,
         documentMode,
+        retryMode,
       )
         .then((res) => {
           // 完了イベントを送信
@@ -701,8 +769,8 @@ export class ReviewService implements IReviewService {
       const errorMessage = err.message;
       const errorResult = {
         success: false,
-        error: errorMessage,
-      };
+            error: errorMessage,
+          };
       const payloadResult = {
         reviewHistoryId,
         status: 'failed' as ReviewExecutionResultStatus,

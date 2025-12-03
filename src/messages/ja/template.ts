@@ -33,6 +33,7 @@ export const template = {
   REVIEW_CHECKLIST_EXTRACTION_FROM_CSV_ERROR: `CSVファイルからのチェックリスト抽出中に予期せぬエラーが発生しました`,
   REVIEW_CHECKLIST_EXTRACTION_FILE_IMPORT_ERROR: `チェックリストのインポートに失敗しました\n{detail}`,
   REVIEW_HISTORY_NOT_FOUND: `指定されたレビューの情報を取得できませんでした`,
+  REVIEW_FILES_REQUIRED: `初回レビュー実行時はドキュメントファイルの選択が必須です`,
   AI_API_ERROR: `AIのAPIと通信中にエラーが発生しました\n{detail}`,
   AI_MESSAGE_TOO_LARGE: `AIへの入力データが大きすぎます。入力データを減らしてください。`,
   AI_INVALID_RESPONSE: `AIから予期せぬ応答が返されました`,

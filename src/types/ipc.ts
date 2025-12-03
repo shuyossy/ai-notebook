@@ -10,6 +10,7 @@ import type {
   ReviewExecutionResultStatus,
   CustomEvaluationSettings,
   DocumentMode,
+  RetryMode,
 } from './review';
 import type { SettingsSavingStatus, Settings } from './setting';
 import type { Source, RevieHistory } from '@/types';
@@ -151,7 +152,8 @@ export type IpcRequestPayloadMap = {
   };
   [IpcChannels.REVIEW_EXECUTE_CALL]: {
     reviewHistoryId: string;
-    files: UploadFile[];
+    files?: UploadFile[]; // Optional for retry
+    retryMode?: RetryMode; // Undefined = initial review
     additionalInstructions?: string;
     commentFormat?: string;
     evaluationSettings: CustomEvaluationSettings;

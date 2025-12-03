@@ -5,6 +5,7 @@ export interface RevieHistory {
   additionalInstructions: string | null;
   commentFormat?: string | null;
   evaluationSettings?: CustomEvaluationSettings | null; // カスタム評定項目設定
+  documentMode?: DocumentMode | null; // ドキュメントモード
   processingStatus: ProcessingStatus; // 処理ステータス
   createdAt: string;
   updatedAt: string;
@@ -58,6 +59,9 @@ export type ReviewChecklistEdit = {
 export type ModalMode = 'extract' | 'review';
 
 export type DocumentType = 'checklist-ai' | 'checklist-csv' | 'general';
+
+// リトライモードの定義
+export type RetryMode = 'all' | 'uncompleted-only';
 
 // ドキュメント処理方式の定義（PDF, Word, Excel, PowerPoint対応）
 export type ProcessMode = 'text' | 'image';

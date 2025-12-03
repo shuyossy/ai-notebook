@@ -96,6 +96,7 @@ describe('reviewChatWorkflow', () => {
       updateReviewHistoryTargetDocumentName: jest.fn(),
       deleteReviewHistory: jest.fn(),
       getChecklists: jest.fn(),
+      getUncompletedChecklists: jest.fn(),
       createChecklist: jest.fn(),
       updateChecklist: jest.fn(),
       deleteChecklist: jest.fn(),
@@ -103,8 +104,10 @@ describe('reviewChatWorkflow', () => {
       upsertReviewResult: jest.fn(),
       getReviewChecklistResults: jest.fn(),
       deleteAllReviewResults: jest.fn(),
+      clearReviewResultsByChecklistIds: jest.fn(),
       deleteReviewDocumentCaches: jest.fn(),
       deleteReviewLargedocumentResultCaches: jest.fn(),
+      deleteReviewLargedocumentResultCachesByChecklistIds: jest.fn(),
       updateReviewHistoryDocumentMode: jest.fn(),
       createReviewDocumentCache: jest.fn(),
       getReviewDocumentCaches: jest.fn().mockResolvedValue([

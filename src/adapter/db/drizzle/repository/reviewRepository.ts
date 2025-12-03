@@ -1,4 +1,4 @@
-import { eq, and, inArray, max } from 'drizzle-orm';
+import { eq, and, inArray, max, isNull } from 'drizzle-orm';
 import {
   reviewHistories,
   reviewChecklists,
@@ -57,6 +57,7 @@ export class DrizzleReviewRepository implements IReviewRepository {
       additionalInstructions: reviewHistoryEntity.additionalInstructions,
       commentFormat: reviewHistoryEntity.commentFormat,
       evaluationSettings: null,
+      documentMode: reviewHistoryEntity.documentMode as DocumentMode | null,
       processingStatus: (reviewHistoryEntity.processingStatus ||
         'idle') as ProcessingStatus,
       createdAt: reviewHistoryEntity.createdAt,
@@ -265,6 +266,33 @@ export class DrizzleReviewRepository implements IReviewRepository {
     }
   }
 
+  /** 未完了のチェックリスト一覧を取得 (evaluation が NULL) */
+  async getUncompletedChecklists(
+    reviewHistoryId: string,
+  ): Promise<ReviewChecklist[]> {
+    try {
+      const db = await getDb();
+      const reviewChecklistEntities = await db
+        .select()
+        .from(reviewChecklists)
+        .where(
+          and(
+            eq(reviewChecklists.reviewHistoryId, reviewHistoryId),
+            isNull(reviewChecklists.evaluation),
+          ),
+        )
+        .orderBy(reviewChecklists.updatedAt);
+      return reviewChecklistEntities.map((entity) =>
+        this.convertReviewChecklistEntityToReviewChecklist(entity),
+      );
+    } catch (err) {
+      throw repositoryError(
+        '未完了チェックリスト一覧の取得に失敗しました',
+        err,
+      );
+    }
+  }
+
   /** チェックリストを更新 */
   async updateChecklist(id: number, content: string): Promise<void> {
     try {
@@ -377,6 +405,35 @@ export class DrizzleReviewRepository implements IReviewRepository {
     }
   }
 
+  /** 指定したチェックリストのレビュー結果をクリア */
+  async clearReviewResultsByChecklistIds(
+    reviewHistoryId: string,
+    checklistIds: number[],
+  ): Promise<void> {
+    try {
+      const db = await getDb();
+      if (checklistIds.length === 0) return;
+
+      await db
+        .update(reviewChecklists)
+        .set({
+          evaluation: null,
+          comment: null,
+        })
+        .where(
+          and(
+            eq(reviewChecklists.reviewHistoryId, reviewHistoryId),
+            inArray(reviewChecklists.id, checklistIds),
+          ),
+        );
+    } catch (err) {
+      throw repositoryError(
+        '指定したチェックリストのレビュー結果のクリアに失敗しました',
+        err,
+      );
+    }
+  }
+
   /** ドキュメントキャッシュを削除（DBとファイルシステム） */
   async deleteReviewDocumentCaches(reviewHistoryId: string): Promise<void> {
     try {
@@ -400,15 +457,15 @@ export class DrizzleReviewRepository implements IReviewRepository {
   ): Promise<void> {
     try {
       const db = await getDb();
-      
+
       // reviewDocumentCachesとjoinしてreviewHistoryIdで絞り込んで削除
       const caches = await db
         .select({ id: reviewDocumentCaches.id })
         .from(reviewDocumentCaches)
         .where(eq(reviewDocumentCaches.reviewHistoryId, reviewHistoryId));
-      
+
       const cacheIds = caches.map((c) => c.id);
-      
+
       if (cacheIds.length > 0) {
         await db
           .delete(reviewLargedocumentResultCaches)
@@ -422,6 +479,47 @@ export class DrizzleReviewRepository implements IReviewRepository {
     } catch (err) {
       throw repositoryError(
         '大量ドキュメント結果キャッシュの削除に失敗しました',
+        err,
+      );
+    }
+  }
+
+  /** 指定したチェックリストの大量ドキュメント結果キャッシュを削除 */
+  async deleteReviewLargedocumentResultCachesByChecklistIds(
+    reviewHistoryId: string,
+    checklistIds: number[],
+  ): Promise<void> {
+    try {
+      const db = await getDb();
+      if (checklistIds.length === 0) return;
+
+      // reviewDocumentCachesとjoinしてreviewHistoryIdで絞り込む
+      const caches = await db
+        .select({ id: reviewDocumentCaches.id })
+        .from(reviewDocumentCaches)
+        .where(eq(reviewDocumentCaches.reviewHistoryId, reviewHistoryId));
+
+      const cacheIds = caches.map((c) => c.id);
+
+      if (cacheIds.length > 0) {
+        await db
+          .delete(reviewLargedocumentResultCaches)
+          .where(
+            and(
+              inArray(
+                reviewLargedocumentResultCaches.reviewDocumentCacheId,
+                cacheIds,
+              ),
+              inArray(
+                reviewLargedocumentResultCaches.reviewChecklistId,
+                checklistIds,
+              ),
+            ),
+          );
+      }
+    } catch (err) {
+      throw repositoryError(
+        '指定したチェックリストの大量ドキュメント結果キャッシュの削除に失敗しました',
         err,
       );
     }

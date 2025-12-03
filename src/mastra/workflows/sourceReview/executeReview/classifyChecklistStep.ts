@@ -22,6 +22,10 @@ const logger = getMainLogger();
 
 export const classifyChecklistsByCategoryInputSchema = z.object({
   reviewHistoryId: z.string().describe('レビュー履歴ID'),
+  retryMode: z
+    .enum(['all', 'uncompleted-only'])
+    .optional()
+    .describe('リトライモード: all=全てのチェックリスト, uncompleted-only=未完了のみ'),
 });
 
 // カテゴリ分類ステップの出力スキーマ
@@ -49,14 +53,24 @@ export const classifyChecklistsByCategoryStep = createStep({
   outputSchema: classifyChecklistsByCategoryOutputSchema,
   execute: async ({ inputData, mastra, abortSignal, bail }) => {
     // トリガーから入力を取得
-    const { reviewHistoryId } = inputData;
+    const { reviewHistoryId, retryMode } = inputData;
 
     // レビューリポジトリを取得
     const repository = getReviewRepository();
 
     try {
-      // チェックリストを取得
-      const checklistsResult = await repository.getChecklists(reviewHistoryId);
+      // リトライモードに応じてチェックリストを取得
+      let checklistsResult;
+      if (retryMode === 'uncompleted-only') {
+        // 未完了のチェックリストのみ取得
+        checklistsResult = await repository.getUncompletedChecklists(
+          reviewHistoryId,
+        );
+      } else {
+        // 全てのチェックリストを取得（初回レビューまたは'all'リトライ）
+        checklistsResult = await repository.getChecklists(reviewHistoryId);
+      }
+
       if (!checklistsResult || checklistsResult.length === 0) {
         throw internalError({
           expose: true,

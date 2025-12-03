@@ -46,6 +46,7 @@ export interface IReviewRepository {
     createdBy: ReviewChecklistCreatedBy,
   ): Promise<void>;
   getChecklists(reviewHistoryId: string): Promise<ReviewChecklist[]>;
+  getUncompletedChecklists(reviewHistoryId: string): Promise<ReviewChecklist[]>;
   updateChecklist(id: number, content: string): Promise<void>;
   deleteChecklist(id: number): Promise<void>;
   deleteSystemCreatedChecklists(reviewHistoryId: string): Promise<void>;
@@ -62,11 +63,19 @@ export interface IReviewRepository {
     reviewHistoryId: string,
   ): Promise<ReviewChecklistResult[]>;
   deleteAllReviewResults(reviewHistoryId: string): Promise<void>;
+  clearReviewResultsByChecklistIds(
+    reviewHistoryId: string,
+    checklistIds: number[],
+  ): Promise<void>;
 
   // ドキュメントキャッシュ削除
   deleteReviewDocumentCaches(reviewHistoryId: string): Promise<void>;
   // 大量ドキュメント結果キャッシュ削除
   deleteReviewLargedocumentResultCaches(reviewHistoryId: string): Promise<void>;
+  deleteReviewLargedocumentResultCachesByChecklistIds(
+    reviewHistoryId: string,
+    checklistIds: number[],
+  ): Promise<void>;
 
   // documentModeの保存
   updateReviewHistoryDocumentMode(

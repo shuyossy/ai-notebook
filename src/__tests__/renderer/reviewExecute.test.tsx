@@ -86,6 +86,21 @@ const mockChecklistResults: ReviewChecklistResult[] = [
   },
 ];
 
+const mockReviewedChecklistResults: ReviewChecklistResult[] = [
+  {
+    id: 1,
+    content: 'チェック項目1',
+    sourceEvaluation: {
+      evaluation: 'A',
+      comment: '既存のレビュー結果',
+    },
+  },
+  {
+    id: 2,
+    content: 'チェック項目2',
+  },
+];
+
 describe('ReviewArea - レビュー実行', () => {
   beforeEach(() => {
     window.electron = createMockElectronWithOptions({
@@ -318,6 +333,95 @@ describe('ReviewArea - レビュー実行', () => {
           name: /レビュー実行/,
         });
         expect(reviewButton).toBeDisabled();
+      });
+    });
+  });
+
+  describe('リトライ機能', () => {
+    it('レビュー結果が存在する場合はリトライボタンが表示されること', async () => {
+      window.electron = createMockElectronWithOptions({
+        reviewHistory: mockReviewHistory,
+        reviewChecklistResults: mockReviewedChecklistResults,
+      });
+
+      render(<ReviewArea selectedReviewHistoryId="review-1" />);
+
+      const retryButton = await waitForChecklistAndEnableButton(/リトライ/);
+      expect(retryButton).toBeInTheDocument();
+
+      await userEvent.click(retryButton);
+
+      await waitFor(() => {
+        expect(screen.getByText('リトライモードの選択')).toBeInTheDocument();
+      });
+    });
+
+    it('リトライモードで未済チェックリストのみ再実行できること', async () => {
+      const mockExecuteReview = jest.fn().mockResolvedValue({ success: true });
+
+      window.electron = createMockElectronWithOptions({
+        reviewHistory: mockReviewHistory,
+        reviewChecklistResults: mockReviewedChecklistResults,
+      }) as any;
+      window.electron.review.execute = mockExecuteReview;
+
+      render(<ReviewArea selectedReviewHistoryId="review-1" />);
+
+      const retryButton = await waitForChecklistAndEnableButton(/リトライ/);
+      await userEvent.click(retryButton);
+
+      await waitFor(() => {
+        expect(screen.getByText('リトライモードの選択')).toBeInTheDocument();
+      });
+
+      const submitButton = screen.getByRole('button', { name: 'リトライ実行' });
+      await userEvent.click(submitButton);
+
+      await waitFor(() => {
+        expect(mockExecuteReview).toHaveBeenCalledWith(
+          expect.objectContaining({
+            reviewHistoryId: 'review-1',
+            files: undefined,
+            retryMode: 'uncompleted-only',
+          }),
+        );
+      });
+    });
+
+    it('リトライモードで全てのチェックリストを再実行できること', async () => {
+      const mockExecuteReview = jest.fn().mockResolvedValue({ success: true });
+
+      window.electron = createMockElectronWithOptions({
+        reviewHistory: mockReviewHistory,
+        reviewChecklistResults: mockReviewedChecklistResults,
+      }) as any;
+      window.electron.review.execute = mockExecuteReview;
+
+      render(<ReviewArea selectedReviewHistoryId="review-1" />);
+
+      const retryButton = await waitForChecklistAndEnableButton(/リトライ/);
+      await userEvent.click(retryButton);
+
+      await waitFor(() => {
+        expect(screen.getByText('リトライモードの選択')).toBeInTheDocument();
+      });
+
+      const allRadio = screen.getByRole('radio', {
+        name: /全てのチェックリスト/,
+      });
+      await userEvent.click(allRadio);
+
+      const submitButton = screen.getByRole('button', { name: 'リトライ実行' });
+      await userEvent.click(submitButton);
+
+      await waitFor(() => {
+        expect(mockExecuteReview).toHaveBeenCalledWith(
+          expect.objectContaining({
+            reviewHistoryId: 'review-1',
+            files: undefined,
+            retryMode: 'all',
+          }),
+        );
       });
     });
   });

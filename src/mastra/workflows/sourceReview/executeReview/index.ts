@@ -48,8 +48,13 @@ export const executeReviewWorkflowInputSchema = z.object({
     .describe(
       'ドキュメントモード: small=少量ドキュメント, large=大量ドキュメント',
     ),
-  // レビュー対象のドキュメント
-  files: z.array(uploadedFileSchema),
+  // リトライモード (undefinedの場合は初回レビュー)
+  retryMode: z
+    .enum(['all', 'uncompleted-only'])
+    .optional()
+    .describe('リトライモード: all=全てのチェックリスト, uncompleted-only=未完了のみ'),
+  // レビュー対象のドキュメント (リトライ時はオプション)
+  files: z.array(uploadedFileSchema).optional(),
 });
 
 export const executeReviewWorkflowOutputSchema = baseStepOutputSchema;
@@ -101,9 +106,10 @@ export const executeReviewWorkflow = createWorkflow({
       outputSchema: textExtractionStep.outputSchema,
     })
       .map(async ({ inputData }) => {
-        return { files: inputData.files } as z.infer<
-          typeof textExtractionStep.inputSchema
-        >;
+        return {
+          reviewHistoryId: inputData.reviewHistoryId,
+          files: inputData.files,
+        } as z.infer<typeof textExtractionStep.inputSchema>;
       })
       .then(textExtractionStep)
       .commit(),
@@ -113,9 +119,10 @@ export const executeReviewWorkflow = createWorkflow({
       outputSchema: classifyChecklistsByCategoryStep.outputSchema,
     })
       .map(async ({ inputData }) => {
-        return { reviewHistoryId: inputData.reviewHistoryId } as z.infer<
-          typeof classifyChecklistsByCategoryStep.inputSchema
-        >;
+        return {
+          reviewHistoryId: inputData.reviewHistoryId,
+          retryMode: inputData.retryMode,
+        } as z.infer<typeof classifyChecklistsByCategoryStep.inputSchema>;
       })
       .then(classifyChecklistsByCategoryStep)
       .commit(),
@@ -145,47 +152,102 @@ export const executeReviewWorkflow = createWorkflow({
       typeof executeReviewWorkflowInputSchema
     >;
 
-    // 既存のレビュー結果を全て削除
     const reviewRepository = getReviewRepository();
-    // 大量ドキュメント結果キャッシュを削除
-    await reviewRepository.deleteReviewLargedocumentResultCaches(
-      initData.reviewHistoryId,
-    );
-    // ドキュメントキャッシュを削除（ファイルシステムのキャッシュも削除）
-    await reviewRepository.deleteReviewDocumentCaches(initData.reviewHistoryId);
-    // レビュー結果を削除
-    await reviewRepository.deleteAllReviewResults(initData.reviewHistoryId);
 
-    // documentModeを保存
-    await reviewRepository.updateReviewHistoryDocumentMode(
-      initData.reviewHistoryId,
-      initData.documentMode,
-    );
-
-    // ドキュメントキャッシュを保存
-    for (const document of textExtractionResult.extractedDocuments || []) {
-      if (!document) continue;
-      const savedCache = await reviewRepository.createReviewDocumentCache({
-        reviewHistoryId: initData.reviewHistoryId,
-        fileName: document.name || '',
-        processMode: document.processMode || 'text',
-        textContent: document.textContent,
-        imageData: document.imageData,
-      });
-      // キャッシュIDを付与
-      document.cacheId = savedCache.id;
-    }
-
-    // レビュー対象の統合ドキュメント名を保存
-    const targetDocumentName = (textExtractionResult.extractedDocuments || [])
-      .map((doc) => doc?.name || '')
-      .filter((name) => name)
-      .join('/');
-    if (targetDocumentName) {
-      await reviewRepository.updateReviewHistoryTargetDocumentName(
+    // キャッシュ管理: リトライモードに応じた処理
+    if (!initData.retryMode) {
+      // シナリオ1: 初回レビュー (retryMode undefined)
+      // 全キャッシュと結果を削除
+      await reviewRepository.deleteReviewLargedocumentResultCaches(
         initData.reviewHistoryId,
-        targetDocumentName,
       );
+      await reviewRepository.deleteReviewDocumentCaches(initData.reviewHistoryId);
+      await reviewRepository.deleteAllReviewResults(initData.reviewHistoryId);
+
+      // documentModeを保存
+      await reviewRepository.updateReviewHistoryDocumentMode(
+        initData.reviewHistoryId,
+        initData.documentMode,
+      );
+
+      // ドキュメントキャッシュを作成
+      for (const document of textExtractionResult.extractedDocuments || []) {
+        if (!document) continue;
+        const savedCache = await reviewRepository.createReviewDocumentCache({
+          reviewHistoryId: initData.reviewHistoryId,
+          fileName: document.name || '',
+          processMode: document.processMode || 'text',
+          textContent: document.textContent,
+          imageData: document.imageData,
+        });
+        // キャッシュIDを付与
+        document.cacheId = savedCache.id;
+      }
+
+      // レビュー対象の統合ドキュメント名を保存
+      const targetDocumentName = (textExtractionResult.extractedDocuments || [])
+        .map((doc) => doc?.name || '')
+        .filter((name) => name)
+        .join('/');
+      if (targetDocumentName) {
+        await reviewRepository.updateReviewHistoryTargetDocumentName(
+          initData.reviewHistoryId,
+          targetDocumentName,
+        );
+      }
+    } else if (initData.retryMode === 'all') {
+      // シナリオ2: 全てのチェックリストをリトライ
+      // 大量ドキュメントキャッシュとレビュー結果を削除、ドキュメントキャッシュは保持
+      await reviewRepository.deleteReviewLargedocumentResultCaches(
+        initData.reviewHistoryId,
+      );
+      await reviewRepository.deleteAllReviewResults(initData.reviewHistoryId);
+
+      // キャッシュからロードされたドキュメントにcacheIdを付与
+      // (textExtractionStepでキャッシュからロードした場合、cacheIdは未設定)
+      const cachedDocuments = await reviewRepository.getReviewDocumentCaches(
+        initData.reviewHistoryId,
+      );
+      for (
+        let i = 0;
+        i < (textExtractionResult.extractedDocuments || []).length;
+        i++
+      ) {
+        const document = textExtractionResult.extractedDocuments![i];
+        if (!document) continue;
+        if (cachedDocuments[i]) {
+          document.cacheId = cachedDocuments[i].id;
+        }
+      }
+    } else if (initData.retryMode === 'uncompleted-only') {
+      // シナリオ3: 未完了チェックリストのみリトライ
+      // 未完了チェックリストの大量ドキュメントキャッシュのみ削除
+      const uncompletedChecklistIds = classifyChecklistsResult.categories!
+        .flatMap((cat) => cat.checklists)
+        .map((checklist) => checklist.id);
+
+      if (uncompletedChecklistIds.length > 0) {
+        await reviewRepository.deleteReviewLargedocumentResultCachesByChecklistIds(
+          initData.reviewHistoryId,
+          uncompletedChecklistIds,
+        );
+      }
+
+      // キャッシュからロードされたドキュメントにcacheIdを付与
+      const cachedDocuments = await reviewRepository.getReviewDocumentCaches(
+        initData.reviewHistoryId,
+      );
+      for (
+        let i = 0;
+        i < (textExtractionResult.extractedDocuments || []).length;
+        i++
+      ) {
+        const document = textExtractionResult.extractedDocuments![i];
+        if (!document) continue;
+        if (cachedDocuments[i]) {
+          document.cacheId = cachedDocuments[i].id;
+        }
+      }
     }
 
     return classifyChecklistsResult.categories!.map((category) => {

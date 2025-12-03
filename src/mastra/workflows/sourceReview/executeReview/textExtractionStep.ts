@@ -3,16 +3,21 @@ import { createStep } from '@mastra/core';
 import { z } from 'zod';
 import { stepStatus } from '../../types';
 import { baseStepOutputSchema } from '../../schema';
-import { normalizeUnknownError } from '@/main/lib/error';
+import { normalizeUnknownError, internalError } from '@/main/lib/error';
 import FileExtractor from '@/main/lib/fileExtractor';
 import { getMainLogger } from '@/main/lib/logger';
 import { extractedDocumentSchema, uploadedFileSchema } from './schema';
+import { getReviewRepository } from '@/adapter/db';
 
 const logger = getMainLogger();
 
 // 入力スキーマ
 export const textExtractionInputSchema = z.object({
-  files: z.array(uploadedFileSchema).describe('アップロードファイルのリスト'),
+  reviewHistoryId: z.string().describe('レビュー履歴ID'),
+  files: z
+    .array(uploadedFileSchema)
+    .optional()
+    .describe('アップロードファイルのリスト（リトライ時はオプション）'),
 });
 
 // テキスト抽出ステップの出力スキーマ
@@ -26,7 +31,7 @@ export const textExtractionStep = createStep({
   inputSchema: textExtractionInputSchema,
   outputSchema: textExtractionOutputSchema,
   execute: async ({ inputData, abortSignal, bail }) => {
-    const { files } = inputData;
+    const { reviewHistoryId, files } = inputData;
     const fileIdSequence = (function* () {
       let id = 1;
       while (true) {
@@ -37,6 +42,44 @@ export const textExtractionStep = createStep({
     try {
       const extractedDocuments: z.infer<typeof extractedDocumentSchema>[] = [];
 
+      // リトライの場合: キャッシュからロード
+      if (!files) {
+        const repository = getReviewRepository();
+        const cachedDocuments = await repository.getReviewDocumentCaches(
+          reviewHistoryId,
+        );
+
+        if (cachedDocuments.length === 0) {
+          throw internalError({
+            expose: true,
+            messageCode: 'REVIEW_DOCUMENT_CACHE_NOT_FOUND',
+            messageParams: { reviewHistoryId },
+          });
+        }
+
+        // キャッシュからextractedDocuments形式に変換
+        for (const cache of cachedDocuments) {
+          const id = fileIdSequence.next().value.toString();
+
+          extractedDocuments.push({
+            id,
+            name: cache.fileName,
+            path: '', // キャッシュからロードした場合はpathは不要
+            type: '', // キャッシュからロードした場合はtypeは不要
+            processMode: cache.processMode,
+            textContent: cache.textContent,
+            imageData: cache.imageData,
+            imageMode: undefined, // キャッシュにはimageModeが保存されていない
+          });
+        }
+
+        return {
+          status: 'success' as stepStatus,
+          extractedDocuments,
+        };
+      }
+
+      // 初回レビュー: ファイルからテキスト抽出
       // 各ファイルからテキストを抽出
       for (const file of files) {
         // ワークフロー内での一意IDを生成

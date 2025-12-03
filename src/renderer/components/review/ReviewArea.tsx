@@ -22,11 +22,13 @@ import {
   ReviewExecutionResultStatus,
   DocumentMode,
   ProcessingStatus,
+  RetryMode,
 } from '@/types';
 import { ReviewAreaProps } from './types';
 import ReviewChecklistSection from './ReviewChecklistSection';
 import ReviewSourceModal from './ReviewSourceModal';
 import ReviewChatPanel from './ReviewChatPanel';
+import RetryModeSelectionModal from './RetryModeSelectionModal';
 import { ReviewApi } from '../../service/reviewApi';
 import { useAlertStore } from '../../stores/alertStore';
 import { getSafeErrorMessage } from '../../lib/error';
@@ -60,6 +62,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
     useState<ProcessingStatus>('idle');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<ModalMode | null>(null);
+  const [isRetryModalOpen, setIsRetryModalOpen] = useState(false);
   const [additionalInstructions, setAdditionalInstructions] = useState('');
   const [commentFormat, setCommentFormat] = useState(defaultCommentFormat);
   const [evaluationSettings, setEvaluationSettings] =
@@ -414,7 +417,11 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
 
   // レビュー実行処理
   const handleExecuteReview = useCallback(
-    async (files: UploadFile[], documentMode?: DocumentMode) => {
+    async (
+      files: UploadFile[] | undefined,
+      documentMode?: DocumentMode,
+      retryMode?: RetryMode,
+    ) => {
       if (!selectedReviewHistoryId) return;
 
       const reviewApi = ReviewApi.getInstance();
@@ -422,6 +429,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
       try {
         setIsReviewing(true);
         setIsModalOpen(false);
+        setIsRetryModalOpen(false);
 
         // 既存のイベント購読を解除
         if (eventUnsubscribeRef.current) {
@@ -443,6 +451,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
           documentMode,
           additionalInstructions || additionalInstructions,
           commentFormat || commentFormat,
+          retryMode,
           { throwError: true, showAlert: false },
         );
       } catch (error) {
@@ -552,10 +561,23 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
           checklistRequirements,
         );
       } else if (modalMode === 'review') {
-        await handleExecuteReview(files, documentMode);
+        await handleExecuteReview(files, documentMode, undefined);
       }
     },
     [modalMode, handleExtractChecklist, handleExecuteReview],
+  );
+
+  // リトライモード選択後の処理
+  const handleRetrySubmit = useCallback(
+    async (retryMode: RetryMode) => {
+      await handleExecuteReview(undefined, undefined, retryMode);
+    },
+    [handleExecuteReview],
+  );
+
+  // レビュー結果が既に存在するかチェック
+  const hasExistingReviewResults = checklistResults.some(
+    (cl) => cl.sourceEvaluation !== null && cl.sourceEvaluation !== undefined,
   );
 
   // チェックリストの更新処理
@@ -685,8 +707,12 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
                   isReviewing
                     ? handleCancelExecuteReview
                     : () => {
-                        setModalMode('review');
-                        setIsModalOpen(true);
+                        if (hasExistingReviewResults) {
+                          setIsRetryModalOpen(true);
+                        } else {
+                          setModalMode('review');
+                          setIsModalOpen(true);
+                        }
                       }
                 }
                 disabled={
@@ -700,7 +726,9 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
                   ? processingStatus === 'canceling-review'
                     ? 'キャンセル処理中'
                     : 'キャンセル'
-                  : 'レビュー実行'}
+                  : hasExistingReviewResults
+                    ? 'リトライ'
+                    : 'レビュー実行'}
               </Button>
               <Button
                 variant="contained"
@@ -800,6 +828,14 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
             setCommentFormat={setCommentFormat}
             evaluationSettings={evaluationSettings || defaultEvaluationSettings}
             setEvaluationSettings={setEvaluationSettings}
+          />
+
+          {/* リトライモード選択モーダル */}
+          <RetryModeSelectionModal
+            open={isRetryModalOpen}
+            onClose={() => setIsRetryModalOpen(false)}
+            onSubmit={handleRetrySubmit}
+            disabled={isSaving || isExtracting || isReviewing}
           />
         </>
       )}

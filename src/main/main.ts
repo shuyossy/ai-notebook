@@ -479,17 +479,8 @@ const setupReviewHandlers = () => {
       commentFormat,
       evaluationSettings,
       documentMode,
+      retryMode,
     }) => {
-      reviewService.updateReviewInstruction(
-        reviewHistoryId,
-        additionalInstructions,
-        commentFormat,
-      );
-      reviewService.updateReviewEvaluationSettings(
-        reviewHistoryId,
-        evaluationSettings,
-      );
-
       // 非同期でレビュー実行処理を実行
       const result = reviewService.executeReviewWithNotification(
         reviewHistoryId,
@@ -498,6 +489,7 @@ const setupReviewHandlers = () => {
         additionalInstructions,
         commentFormat,
         documentMode,
+        retryMode,
       );
 
       if (!result.success) {

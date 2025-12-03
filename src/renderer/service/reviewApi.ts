@@ -7,6 +7,7 @@ import {
   ReviewExecutionResultStatus,
   CustomEvaluationSettings,
   DocumentMode,
+  RetryMode,
 } from '@/types';
 import { ApiServiceDefaultOptions } from '../types';
 import { invokeApi } from '../lib/apiUtils';
@@ -50,11 +51,12 @@ export interface IReviewApi {
   ): Promise<void>;
   executeReview(
     historyId: string,
-    files: UploadFile[],
+    files: UploadFile[] | undefined,
     evaluationSettings: CustomEvaluationSettings,
-    documentMode: DocumentMode,
+    documentMode?: DocumentMode,
     additionalInstructions?: string,
     commentFormat?: string,
+    retryMode?: RetryMode,
     options?: ApiServiceDefaultOptions,
   ): Promise<void>;
   subscribeChecklistExtractionFinished(
@@ -173,11 +175,12 @@ export class ReviewApi implements IReviewApi {
 
   public async executeReview(
     historyId: string,
-    files: UploadFile[],
+    files: UploadFile[] | undefined,
     evaluationSettings: CustomEvaluationSettings,
     documentMode?: DocumentMode,
     additionalInstructions?: string,
     commentFormat?: string,
+    retryMode?: RetryMode,
     options?: ApiServiceDefaultOptions,
   ): Promise<void> {
     await invokeApi(
@@ -189,6 +192,7 @@ export class ReviewApi implements IReviewApi {
           commentFormat,
           evaluationSettings,
           documentMode: documentMode ? documentMode : 'small',
+          retryMode,
         }),
       options,
     );
