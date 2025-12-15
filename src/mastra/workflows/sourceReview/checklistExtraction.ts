@@ -8,6 +8,7 @@ import { baseStepOutputSchema } from '../schema';
 import { stepStatus } from '../types';
 import {
   ChecklistExtractionAgentRuntimeContext,
+  ChecklistRefinementAgentRuntimeContext,
   TopicExtractionAgentRuntimeContext,
   TopicChecklistAgentRuntimeContext,
 } from '../../agents/workflowAgents';
@@ -69,6 +70,11 @@ const topicChecklistStepOutputSchema = baseStepOutputSchema.extend({
 
 // チェックリスト統合の出力スキーマ
 // const checklistIntegrationStepOutputSchema = baseStepOutputSchema;
+
+// チェックリストブラッシュアップの出力スキーマ
+const checklistRefinementStepOutputSchema = baseStepOutputSchema.extend({
+  refinedItems: z.array(z.string()).optional(),
+});
 
 // === チェックリストドキュメント用ステップ ===
 
@@ -385,20 +391,21 @@ const topicChecklistCreationStep = createStep({
         };
       }
 
-      // 抽出されたチェックリストをDBに保存
-      for (const c of result.object.checklistItems) {
+      // 抽出されたチェックリストをDBに保存（checklistRefinementStepで使用するため）
+      const checklistItems = result.object.checklistItems.map(
+        (item) => item.checklistItem,
+      );
+      for (const checklistItem of checklistItems) {
         await reviewRepository.createChecklist(
           reviewHistoryId,
-          c.checklistItem,
+          checklistItem,
           'system',
         );
       }
 
       return {
         status: 'success' as stepStatus,
-        checklistItems: result.object.checklistItems.map(
-          (item) => item.checklistItem,
-        ),
+        checklistItems,
       };
     } catch (error) {
       logger.error(error, `チェックリスト作成処理に失敗しました: ${title}`);
@@ -481,6 +488,175 @@ const topicChecklistCreationStep = createStep({
 //   },
 // });
 
+// Step3: チェックリストブラッシュアップステップ（重複削除・結合）
+const checklistRefinementStep = createStep({
+  id: 'checklistRefinementStep',
+  description:
+    '抽出されたチェックリスト項目を重複削除・結合してブラッシュアップするステップ',
+  inputSchema: z.object({
+    reviewHistoryId: z.string(),
+    checklistRequirements: z.string().optional(),
+  }),
+  outputSchema: checklistRefinementStepOutputSchema,
+  execute: async ({ inputData, mastra, bail, abortSignal }) => {
+    const { reviewHistoryId, checklistRequirements } = inputData;
+    const reviewRepository = getReviewRepository();
+
+    try {
+      // 現在のシステム作成チェックリストを取得
+      const existingChecklists =
+        await reviewRepository.getChecklists(reviewHistoryId);
+      const systemChecklists = existingChecklists
+        .filter((c) => c.createdBy === 'system')
+        .map((c) => c.content);
+
+      // チェックリストがない場合は成功で返す
+      if (systemChecklists.length === 0) {
+        return {
+          status: 'success' as stepStatus,
+          refinedItems: [],
+        };
+      }
+
+      // AIでブラッシュアップ実行
+      const checklistRefinementAgent = mastra.getAgent(
+        'checklistRefinementAgent',
+      );
+      const outputSchema = z.object({
+        refinedChecklists: z
+          .array(z.string().describe('Refined checklist item'))
+          .describe('Refined and consolidated checklist items'),
+      });
+
+      // これまでにブラッシュアップしたチェックリスト項目を蓄積する配列
+      const accumulated: string[] = [];
+
+      // 最大試行回数
+      const MAX_ATTEMPTS = 5;
+      let attempts = 0;
+
+      while (attempts < MAX_ATTEMPTS) {
+        let isCompleted = true;
+        const runtimeContext =
+          await createRuntimeContext<ChecklistRefinementAgentRuntimeContext>();
+        // ユーザのチェックリスト生成要件を設定（指定されている場合）
+        if (checklistRequirements) {
+          runtimeContext.set('checklistRequirements', checklistRequirements);
+        }
+
+        // userプロンプトに全チェックリスト情報を含める
+        const userPrompt = `ORIGINAL CHECKLIST ITEMS TO REFINE (${systemChecklists.length} items):
+${systemChecklists.map((item, i) => `${i + 1}. ${item}`).join('\n')}
+
+${
+  accumulated.length > 0
+    ? `ALREADY REFINED ITEMS (${accumulated.length} items):
+${accumulated.map((item, i) => `${i + 1}. ${item}`).join('\n')}
+
+Please continue refining the remaining items, avoiding duplicates with already refined items.`
+    : 'Please refine these checklist items according to the guidelines.'
+}`;
+
+        const refinementResult = await checklistRefinementAgent.generateLegacy(
+          userPrompt,
+          {
+            output: outputSchema,
+            runtimeContext,
+            abortSignal,
+            // AIの限界生成トークン数を超えた場合のエラーを回避するための設定
+            experimental_repairText: async (options) => {
+              isCompleted = false;
+              const { text } = options;
+              let repairedText = text;
+              let deleteLastItemFlag = false;
+              try {
+                const lastChar = text.charAt(text.length - 1);
+                if (lastChar === '"') {
+                  repairedText = text + ']}';
+                } else if (lastChar === ']') {
+                  repairedText = text + '}';
+                } else if (lastChar === ',') {
+                  // 最後のカンマを削除してから ']} を追加
+                  repairedText = text.slice(0, -1) + ']}';
+                } else {
+                  // その他のケースでは強制的に ']} を追加
+                  repairedText = text + '"]}';
+                  deleteLastItemFlag = true;
+                }
+                // JSONに変換してみて、エラーが出ないか確かめる
+                // deleteLastItemFlagがtrueの場合は最後の項目を削除する
+                const parsedJson = JSON.parse(repairedText) as z.infer<
+                  typeof outputSchema
+                >;
+                if (deleteLastItemFlag) {
+                  parsedJson.refinedChecklists.pop(); // 最後の項目を削除
+                }
+                repairedText = JSON.stringify(parsedJson);
+              } catch (error) {
+                console.error(
+                  `チェックリストブラッシュアップの修正に失敗しました: ${error}`,
+                );
+                throw internalError({
+                  expose: true,
+                  messageCode: 'REVIEW_CHECKLIST_REFINEMENT_OVER_MAX_TOKENS',
+                });
+              }
+              return repairedText;
+            },
+          },
+        );
+
+        // ブラッシュアップされたチェックリストから新規のものを蓄積
+        const newRefinedItems =
+          refinementResult.object.refinedChecklists?.filter(
+            (item: string) => !accumulated.includes(item),
+          ) || [];
+        accumulated.push(...newRefinedItems);
+
+        // ブラッシュアップが完了した場合はループを抜ける
+        if (isCompleted) {
+          break;
+        }
+        attempts++;
+        if (attempts >= MAX_ATTEMPTS) {
+          throw internalError({
+            expose: true,
+            messageCode: 'REVIEW_CHECKLIST_REFINEMENT_OVER_MAX_TOKENS',
+          });
+        }
+      }
+
+      // 既存のシステム作成チェックリストを削除
+      await reviewRepository.deleteSystemCreatedChecklists(reviewHistoryId);
+
+      // ブラッシュアップ後のチェックリストをDBに保存
+      for (const refinedItem of accumulated) {
+        await reviewRepository.createChecklist(
+          reviewHistoryId,
+          refinedItem,
+          'system',
+        );
+      }
+
+      logger.debug(
+        `チェックリストブラッシュアップ完了: ${systemChecklists.length}件 → ${accumulated.length}件`,
+      );
+
+      return {
+        status: 'success' as stepStatus,
+        refinedItems: accumulated,
+      };
+    } catch (error) {
+      logger.error(error, 'チェックリストブラッシュアップ処理に失敗しました');
+      const normalizedError = normalizeUnknownError(error);
+      return bail({
+        status: 'failed' as stepStatus,
+        errorMessage: normalizedError.message,
+      });
+    }
+  },
+});
+
 // === メインワークフロー ===
 
 export const checklistExtractionWorkflow = createWorkflow({
@@ -524,28 +700,16 @@ export const checklistExtractionWorkflow = createWorkflow({
         })
         // Step2: 各トピックに対してチェックリスト作成（foreachでループ）
         .foreach(topicChecklistCreationStep)
-        // Step2でDB保存を行うため、Step3はコメントアウト
-        // .map(async ({ getInitData, inputData }) => {
-        //   const initData = getInitData();
-        //   const allChecklistItems = inputData
-        //     .map((i) => {
-        //       if (i.status !== 'success' || !i.checklistItems) {
-        //         throw new Error(
-        //           i?.errorMessage ||
-        //             'トピック別チェックリスト作成に失敗しました',
-        //         );
-        //       }
-        //       return i.checklistItems;
-        //     })
-        //     .flat();
-
-        //   return {
-        //     reviewHistoryId: initData.reviewHistoryId,
-        //     allChecklistItems,
-        //   };
-        // })
-        // // Step3: チェックリスト統合(保存)
-        // .then(checklistIntegrationStep)
+        // Step3用入力データ変換
+        .map(async ({ getInitData }) => {
+          const initData = getInitData();
+          return {
+            reviewHistoryId: initData.reviewHistoryId,
+            checklistRequirements: initData.checklistRequirements,
+          };
+        })
+        // Step3: チェックリストブラッシュアップ（重複削除・結合）
+        .then(checklistRefinementStep)
         .commit(),
     ],
   ])

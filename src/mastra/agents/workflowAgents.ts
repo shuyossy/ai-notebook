@@ -10,6 +10,7 @@ import {
   getTopicExtractionPrompt,
   getTopicChecklistCreationPrompt,
   // getChecklistIntegrationPrompt,
+  getChecklistRefinementPrompt,
   getChecklistCategolizePrompt,
   getDocumentReviewExecutionPrompt,
   getIndividualDocumentReviewPrompt,
@@ -45,6 +46,10 @@ export type TopicExtractionAgentRuntimeContext = BaseRuntimeContext & {
 export type TopicChecklistAgentRuntimeContext = BaseRuntimeContext & {
   topic: { title: string };
   checklistRequirements?: string;
+};
+
+export type ChecklistRefinementAgentRuntimeContext = BaseRuntimeContext & {
+  checklistRequirements?: string; // ユーザのチェックリスト生成要件
 };
 
 export type IndividualDocumentReviewAgentRuntimeContext = BaseRuntimeContext & {
@@ -137,6 +142,13 @@ export const topicChecklistAgent = new Agent({
 //   instructions: getChecklistIntegrationPrompt,
 //   model: getOpenAICompatibleModel,
 // });
+
+// チェックリストブラッシュアップ用エージェント
+export const checklistRefinementAgent = new Agent({
+  name: 'checklistRefinementAgent',
+  instructions: getChecklistRefinementPrompt,
+  model: getOpenAICompatibleModel,
+});
 
 // 個別ドキュメントレビュー用エージェント（効率化版）
 export const individualDocumentReviewAgent = new Agent({

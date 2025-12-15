@@ -27,6 +27,7 @@ export const template = {
   REVIEW_CHECKLIST_EXTRACTION_ERROR: `チェックリスト抽出処理に失敗しました\n{detail}`,
   REVIEW_EXECUTION_ERROR: `レビュー実行処理に失敗しました\n{detail}`,
   REVIEW_CHECKLIST_EXTRACTION_OVER_MAX_TOKENS: `チェックリストの抽出結果がAIモデルの最大出力トークン数を超え、不正な出力となった為修正を試みましたが失敗しました。抽出結果が最大出力トークン内に収まるようにチェックリストのファイル分割を検討してください。`,
+  REVIEW_CHECKLIST_REFINEMENT_OVER_MAX_TOKENS: `チェックリストのブラッシュアップ処理でAIの最大出力トークン数を超えました。チェックリストの数を減らすか、ファイルを分割してください。`,
   REVIEW_CHECKLIST_EXTRACTION_NOT_CHECKLIST_DOCUMENT: `チェックリスト抽出に適さないドキュメントとして判定されたため処理を終了しました`,
   REVIEW_CHECKLIST_EXTRACTION_NO_CHECKLIST_ITEM: `チェックリストが抽出されませんでした`,
   REVIEW_EXECUTION_NO_TARGET_CHECKLIST: `対象のチェックリストが存在しないためレビューを実行できませんでした`,

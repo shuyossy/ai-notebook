@@ -89,6 +89,7 @@ describe('checklistExtractionWorkflow', () => {
   let mockChecklistExtractionAgent: any;
   let mockTopicExtractionAgent: any;
   let mockTopicChecklistAgent: any;
+  let mockChecklistRefinementAgent: any;
 
   beforeEach(() => {
     // リポジトリのモック
@@ -128,6 +129,9 @@ describe('checklistExtractionWorkflow', () => {
 
     (getReviewRepository as jest.Mock).mockReturnValue(mockRepository);
 
+    // getChecklistsのデフォルト値を設定（refinementステップでチェックリストがない場合は早期リターン）
+    mockRepository.getChecklists.mockResolvedValue([]);
+
     // FileExtractorのモック
     mockExtractText.mockResolvedValue({
       content: 'テストファイルの内容',
@@ -143,6 +147,9 @@ describe('checklistExtractionWorkflow', () => {
     mockTopicChecklistAgent = {
       generateLegacy: jest.fn(),
     };
+    mockChecklistRefinementAgent = {
+      generateLegacy: jest.fn(),
+    };
 
     // mastra.getAgentのモック
     jest.spyOn(mastra, 'getAgent').mockImplementation((agentName: string) => {
@@ -154,6 +161,9 @@ describe('checklistExtractionWorkflow', () => {
       }
       if (agentName === 'topicChecklistAgent') {
         return mockTopicChecklistAgent;
+      }
+      if (agentName === 'checklistRefinementAgent') {
+        return mockChecklistRefinementAgent;
       }
       throw new Error(`Unknown agent: ${agentName}`);
     });
@@ -1004,6 +1014,244 @@ describe('checklistExtractionWorkflow', () => {
       // Assert
       expect(getAgentSpy).toHaveBeenCalledWith('checklistExtractionAgent');
       expect(mockChecklistExtractionAgent.generateLegacy).toHaveBeenCalled();
+    });
+  });
+
+  describe('チェックリストブラッシュアップステップ', () => {
+    describe('正常系', () => {
+      it('一般ドキュメントワークフローでチェックリストがブラッシュアップされること', async () => {
+        // Arrange
+        const reviewHistoryId = 'review-1';
+        const files: UploadFile[] = [
+          {
+            id: 'file-1',
+            name: 'general.pdf',
+            path: '/test/general.pdf',
+            type: 'application/pdf',
+            processMode: 'text',
+          },
+        ];
+
+        mockTopicExtractionAgent.generateLegacy.mockResolvedValue({
+          object: {
+            topics: [{ topic: 'トピック1', reason: '理由1' }],
+          },
+        });
+
+        mockTopicChecklistAgent.generateLegacy.mockResolvedValue({
+          object: {
+            checklistItems: [
+              { checklistItem: '重複項目A', reason: '理由A' },
+              { checklistItem: '重複項目A', reason: '理由B' },
+              { checklistItem: '項目B', reason: '理由C' },
+            ],
+          },
+        });
+
+        // checklistRefinementStep で getChecklists が呼ばれた時の返り値を設定
+        mockRepository.getChecklists.mockResolvedValue([
+          { id: 1, reviewHistoryId: 'review-1', content: '重複項目A', createdBy: 'system', createdAt: '2024-01-01', updatedAt: '2024-01-01' },
+          { id: 2, reviewHistoryId: 'review-1', content: '重複項目A', createdBy: 'system', createdAt: '2024-01-01', updatedAt: '2024-01-01' },
+          { id: 3, reviewHistoryId: 'review-1', content: '項目B', createdBy: 'system', createdAt: '2024-01-01', updatedAt: '2024-01-01' },
+        ]);
+
+        // ブラッシュアップの結果（重複削除後）
+        mockChecklistRefinementAgent.generateLegacy.mockResolvedValue({
+          object: {
+            refinedChecklists: ['統合項目A', '項目B'],
+          },
+        });
+
+        // Act
+        const run = await checklistExtractionWorkflow.createRunAsync();
+        const result = await run.start({
+          inputData: {
+            reviewHistoryId,
+            files,
+            documentType: 'general',
+          },
+        });
+
+        // Assert
+        const checkResult = checkWorkflowResult(result);
+        expect(checkResult.status).toBe('success');
+
+        // checklistRefinementAgentが呼ばれることを確認
+        expect(mockChecklistRefinementAgent.generateLegacy).toHaveBeenCalledTimes(1);
+
+        // ブラッシュアップ前に既存チェックリストが削除されること
+        // （topicChecklistCreationStepで1回、checklistRefinementStepで1回）
+        expect(mockRepository.deleteSystemCreatedChecklists).toHaveBeenCalledWith(
+          reviewHistoryId,
+        );
+        expect(
+          mockRepository.deleteSystemCreatedChecklists,
+        ).toHaveBeenCalledTimes(2);
+      });
+
+      it('システム作成チェックリストがない場合はブラッシュアップをスキップすること', async () => {
+        // Arrange
+        const reviewHistoryId = 'review-1';
+        const files: UploadFile[] = [
+          {
+            id: 'file-1',
+            name: 'general.pdf',
+            path: '/test/general.pdf',
+            type: 'application/pdf',
+            processMode: 'text',
+          },
+        ];
+
+        mockTopicExtractionAgent.generateLegacy.mockResolvedValue({
+          object: {
+            topics: [{ topic: 'トピック1', reason: '理由1' }],
+          },
+        });
+
+        mockTopicChecklistAgent.generateLegacy.mockResolvedValue({
+          object: {
+            checklistItems: [{ checklistItem: '項目1', reason: '理由1' }],
+          },
+        });
+
+        // システム作成のチェックリストがない（ユーザー作成のみ）
+        mockRepository.getChecklists.mockResolvedValue([
+          { id: 1, reviewHistoryId: 'review-1', content: 'ユーザー作成項目', createdBy: 'user', createdAt: '2024-01-01', updatedAt: '2024-01-01' },
+        ]);
+
+        // Act
+        const run = await checklistExtractionWorkflow.createRunAsync();
+        const result = await run.start({
+          inputData: {
+            reviewHistoryId,
+            files,
+            documentType: 'general',
+          },
+        });
+
+        // Assert
+        const checkResult = checkWorkflowResult(result);
+        expect(checkResult.status).toBe('success');
+
+        // システムチェックリストがないのでブラッシュアップエージェントは呼ばれない
+        expect(mockChecklistRefinementAgent.generateLegacy).not.toHaveBeenCalled();
+      });
+
+      it('ブラッシュアップでruntimeContextにchecklistRequirementsが正しく設定されること', async () => {
+        // Arrange
+        const reviewHistoryId = 'review-1';
+        const files: UploadFile[] = [
+          {
+            id: 'file-1',
+            name: 'general.pdf',
+            path: '/test/general.pdf',
+            type: 'application/pdf',
+            processMode: 'text',
+          },
+        ];
+        const checklistRequirements = 'ブラッシュアップ時の要件';
+
+        mockTopicExtractionAgent.generateLegacy.mockResolvedValue({
+          object: {
+            topics: [{ topic: 'トピック1', reason: '理由1' }],
+          },
+        });
+
+        mockTopicChecklistAgent.generateLegacy.mockResolvedValue({
+          object: {
+            checklistItems: [{ checklistItem: '元項目1', reason: '理由1' }],
+          },
+        });
+
+        mockRepository.getChecklists.mockResolvedValue([
+          { id: 1, reviewHistoryId: 'review-1', content: '元項目1', createdBy: 'system', createdAt: '2024-01-01', updatedAt: '2024-01-01' },
+        ]);
+
+        mockChecklistRefinementAgent.generateLegacy.mockResolvedValue({
+          object: {
+            refinedChecklists: ['ブラッシュアップ後項目1'],
+          },
+        });
+
+        // Act
+        const run = await checklistExtractionWorkflow.createRunAsync();
+        await run.start({
+          inputData: {
+            reviewHistoryId,
+            files,
+            documentType: 'general',
+            checklistRequirements,
+          },
+        });
+
+        // Assert
+        const callArgs = mockChecklistRefinementAgent.generateLegacy.mock.calls[0];
+        const options = callArgs[1];
+        const runtimeContext = options.runtimeContext;
+
+        // checklistRequirementsが設定されていること
+        expect(runtimeContext.get('checklistRequirements')).toBe(checklistRequirements);
+
+        // userプロンプトにチェックリスト項目が含まれていること
+        const prompt = callArgs[0];
+        expect(prompt).toContain('元項目1');
+        expect(prompt).toContain('ORIGINAL CHECKLIST ITEMS TO REFINE');
+      });
+    });
+
+    describe('異常系', () => {
+      it('ブラッシュアップ中のAI APIエラー時にbailで終了すること', async () => {
+        // Arrange
+        const reviewHistoryId = 'review-1';
+        const files: UploadFile[] = [
+          {
+            id: 'file-1',
+            name: 'general.pdf',
+            path: '/test/general.pdf',
+            type: 'application/pdf',
+            processMode: 'text',
+          },
+        ];
+
+        mockTopicExtractionAgent.generateLegacy.mockResolvedValue({
+          object: {
+            topics: [{ topic: 'トピック1', reason: '理由1' }],
+          },
+        });
+
+        mockTopicChecklistAgent.generateLegacy.mockResolvedValue({
+          object: {
+            checklistItems: [{ checklistItem: '項目1', reason: '理由1' }],
+          },
+        });
+
+        mockRepository.getChecklists.mockResolvedValue([
+          { id: 1, reviewHistoryId: 'review-1', content: '項目1', createdBy: 'system', createdAt: '2024-01-01', updatedAt: '2024-01-01' },
+        ]);
+
+        mockChecklistRefinementAgent.generateLegacy.mockRejectedValue(
+          internalError({
+            expose: true,
+            messageCode: 'PLAIN_MESSAGE',
+            messageParams: { message: 'ブラッシュアップエラー' },
+          }),
+        );
+
+        // Act
+        const run = await checklistExtractionWorkflow.createRunAsync();
+        const result = await run.start({
+          inputData: {
+            reviewHistoryId,
+            files,
+            documentType: 'general',
+          },
+        });
+
+        // Assert
+        const checkResult = checkWorkflowResult(result);
+        expect(checkResult.status).toBe('failed');
+        expect(checkResult.errorMessage).toBe('ブラッシュアップエラー');
+      });
     });
   });
 });
