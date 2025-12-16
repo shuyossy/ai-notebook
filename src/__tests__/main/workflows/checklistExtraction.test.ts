@@ -592,6 +592,17 @@ describe('checklistExtractionWorkflow', () => {
             },
           });
 
+        // checklistRefinementStepのモック設定（ブラッシュアップ後のチェックリスト）
+        mockChecklistRefinementAgent.generateLegacy.mockResolvedValue({
+          object: {
+            refinedChecklists: [
+              'セキュリティ項目1',
+              'セキュリティ項目2',
+              'データ保護項目1',
+            ],
+          },
+        });
+
         // Act
         const run = await checklistExtractionWorkflow.createRunAsync();
         const result = await run.start({
@@ -663,6 +674,13 @@ describe('checklistExtractionWorkflow', () => {
           },
         });
 
+        // checklistRefinementStepのモック設定（ブラッシュアップ後のチェックリスト）
+        mockChecklistRefinementAgent.generateLegacy.mockResolvedValue({
+          object: {
+            refinedChecklists: ['チェック項目1', 'チェック項目2', 'チェック項目3'],
+          },
+        });
+
         // Act
         const run = await checklistExtractionWorkflow.createRunAsync();
         const result = await run.start({
@@ -678,6 +696,7 @@ describe('checklistExtractionWorkflow', () => {
         expect(checkResult.status).toBe('success');
         // 各トピックに対してチェックリスト作成が実行される
         expect(mockTopicChecklistAgent.generateLegacy).toHaveBeenCalledTimes(3);
+        // ブラッシュアップ後のチェックリストがDBに保存される
         expect(mockRepository.createChecklist).toHaveBeenCalledTimes(3);
       });
 
@@ -793,6 +812,14 @@ describe('checklistExtractionWorkflow', () => {
               ],
             },
           });
+
+        // checklistRefinementStepのモック設定（ブラッシュアップ後のチェックリスト）
+        // 2件のチェックリストが生成された（2つ目のトピックは空）
+        mockChecklistRefinementAgent.generateLegacy.mockResolvedValue({
+          object: {
+            refinedChecklists: ['チェック項目1', 'チェック項目3'],
+          },
+        });
 
         // Act
         const run = await checklistExtractionWorkflow.createRunAsync();
@@ -1048,14 +1075,8 @@ describe('checklistExtractionWorkflow', () => {
           },
         });
 
-        // checklistRefinementStep で getChecklists が呼ばれた時の返り値を設定
-        mockRepository.getChecklists.mockResolvedValue([
-          { id: 1, reviewHistoryId: 'review-1', content: '重複項目A', createdBy: 'system', createdAt: '2024-01-01', updatedAt: '2024-01-01' },
-          { id: 2, reviewHistoryId: 'review-1', content: '重複項目A', createdBy: 'system', createdAt: '2024-01-01', updatedAt: '2024-01-01' },
-          { id: 3, reviewHistoryId: 'review-1', content: '項目B', createdBy: 'system', createdAt: '2024-01-01', updatedAt: '2024-01-01' },
-        ]);
-
         // ブラッシュアップの結果（重複削除後）
+        // checklistRefinementStepは前ステップの結果（inputData.systemChecklists）からチェックリストを取得する
         mockChecklistRefinementAgent.generateLegacy.mockResolvedValue({
           object: {
             refinedChecklists: ['統合項目A', '項目B'],
@@ -1079,17 +1100,16 @@ describe('checklistExtractionWorkflow', () => {
         // checklistRefinementAgentが呼ばれることを確認
         expect(mockChecklistRefinementAgent.generateLegacy).toHaveBeenCalledTimes(1);
 
-        // ブラッシュアップ前に既存チェックリストが削除されること
-        // （topicChecklistCreationStepで1回、checklistRefinementStepで1回）
+        // トピック抽出ステップで既存チェックリストが削除されること
         expect(mockRepository.deleteSystemCreatedChecklists).toHaveBeenCalledWith(
           reviewHistoryId,
         );
         expect(
           mockRepository.deleteSystemCreatedChecklists,
-        ).toHaveBeenCalledTimes(2);
+        ).toHaveBeenCalledTimes(1);
       });
 
-      it('システム作成チェックリストがない場合はブラッシュアップをスキップすること', async () => {
+      it('トピックからチェックリストが生成されない場合はブラッシュアップをスキップすること', async () => {
         // Arrange
         const reviewHistoryId = 'review-1';
         const files: UploadFile[] = [
@@ -1108,16 +1128,12 @@ describe('checklistExtractionWorkflow', () => {
           },
         });
 
+        // トピックからチェックリストが生成されない（空のchecklistItems）
         mockTopicChecklistAgent.generateLegacy.mockResolvedValue({
           object: {
-            checklistItems: [{ checklistItem: '項目1', reason: '理由1' }],
+            checklistItems: [],
           },
         });
-
-        // システム作成のチェックリストがない（ユーザー作成のみ）
-        mockRepository.getChecklists.mockResolvedValue([
-          { id: 1, reviewHistoryId: 'review-1', content: 'ユーザー作成項目', createdBy: 'user', createdAt: '2024-01-01', updatedAt: '2024-01-01' },
-        ]);
 
         // Act
         const run = await checklistExtractionWorkflow.createRunAsync();
@@ -1133,8 +1149,10 @@ describe('checklistExtractionWorkflow', () => {
         const checkResult = checkWorkflowResult(result);
         expect(checkResult.status).toBe('success');
 
-        // システムチェックリストがないのでブラッシュアップエージェントは呼ばれない
+        // チェックリストがないのでブラッシュアップエージェントは呼ばれない
         expect(mockChecklistRefinementAgent.generateLegacy).not.toHaveBeenCalled();
+        // チェックリストがないのでDB保存も呼ばれない
+        expect(mockRepository.createChecklist).not.toHaveBeenCalled();
       });
 
       it('ブラッシュアップでruntimeContextにchecklistRequirementsが正しく設定されること', async () => {

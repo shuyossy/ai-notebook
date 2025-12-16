@@ -333,8 +333,7 @@ const topicChecklistCreationStep = createStep({
   }),
   outputSchema: topicChecklistStepOutputSchema,
   execute: async ({ inputData, mastra, bail, abortSignal }) => {
-    const { title, files, reviewHistoryId, checklistRequirements } = inputData;
-    const reviewRepository = getReviewRepository();
+    const { title, files, checklistRequirements } = inputData;
 
     try {
       // 複数ファイルを統合してメッセージを作成
@@ -391,17 +390,10 @@ const topicChecklistCreationStep = createStep({
         };
       }
 
-      // 抽出されたチェックリストをDBに保存（checklistRefinementStepで使用するため）
+      // チェックリストをoutputとして返す（DB保存はchecklistRefinementStep完了後に行う）
       const checklistItems = result.object.checklistItems.map(
         (item) => item.checklistItem,
       );
-      for (const checklistItem of checklistItems) {
-        await reviewRepository.createChecklist(
-          reviewHistoryId,
-          checklistItem,
-          'system',
-        );
-      }
 
       return {
         status: 'success' as stepStatus,
@@ -496,20 +488,15 @@ const checklistRefinementStep = createStep({
   inputSchema: z.object({
     reviewHistoryId: z.string(),
     checklistRequirements: z.string().optional(),
+    systemChecklists: z.array(z.string()),
   }),
   outputSchema: checklistRefinementStepOutputSchema,
   execute: async ({ inputData, mastra, bail, abortSignal }) => {
-    const { reviewHistoryId, checklistRequirements } = inputData;
+    const { reviewHistoryId, checklistRequirements, systemChecklists } =
+      inputData;
     const reviewRepository = getReviewRepository();
 
     try {
-      // 現在のシステム作成チェックリストを取得
-      const existingChecklists =
-        await reviewRepository.getChecklists(reviewHistoryId);
-      const systemChecklists = existingChecklists
-        .filter((c) => c.createdBy === 'system')
-        .map((c) => c.content);
-
       // チェックリストがない場合は成功で返す
       if (systemChecklists.length === 0) {
         return {
@@ -626,9 +613,6 @@ Please continue refining the remaining items, avoiding duplicates with already r
         }
       }
 
-      // 既存のシステム作成チェックリストを削除
-      await reviewRepository.deleteSystemCreatedChecklists(reviewHistoryId);
-
       // ブラッシュアップ後のチェックリストをDBに保存
       for (const refinedItem of accumulated) {
         await reviewRepository.createChecklist(
@@ -700,12 +684,18 @@ export const checklistExtractionWorkflow = createWorkflow({
         })
         // Step2: 各トピックに対してチェックリスト作成（foreachでループ）
         .foreach(topicChecklistCreationStep)
-        // Step3用入力データ変換
-        .map(async ({ getInitData }) => {
+        // Step3用入力データ変換（foreachの結果を統合してchecklistRefinementStepに渡す）
+        .map(async ({ inputData, getInitData }) => {
           const initData = getInitData();
+          // foreachの結果は配列で、各要素がtopicChecklistCreationStepのoutput
+          // checklistItemsを統合する
+          const allChecklistItems = (
+            inputData as { checklistItems?: string[] }[]
+          ).flatMap((topicResult) => topicResult.checklistItems || []);
           return {
             reviewHistoryId: initData.reviewHistoryId,
             checklistRequirements: initData.checklistRequirements,
+            systemChecklists: allChecklistItems,
           };
         })
         // Step3: チェックリストブラッシュアップ（重複削除・結合）
