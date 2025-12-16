@@ -1,0 +1,2831 @@
+diff --git a/CLAUDE.md b/CLAUDE.md
+index 47d346b42..22dc47610 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -205,6 +205,8 @@ ElectronのIPCを使用してフロントエンド・バックエンド間の通
+   - コンポーネントで常にSSEの通信を張ってデータを取得したい場合は`usePushChannel`を、一時的にSSEの通信を貼りたい場合は`ElectronPushClient`を利用
+ - フロントエンドでエラーメッセージを表示する(addAlertで出す想定)場合はcatchしたエラーを`src/renderer/lib/error.ts`で定義しているgetSafeErrorMessage関数に適用してエラーメッセージを取り出すこと
+ - このアプリでは基本的にエラーメッセージは独自例外(`src/renderer/lib/error.ts`,`src/main/lib/error.ts`)をthrowしないとユーザにエラーメッセージが表示されないため、注意すること
++- エラーメッセージについてはシステムの内部処理が漏れ出ないように注意する
++  - あくまでユーザの操作目線でのエラーメッセージが出るようにする
+ - DB用の型(`src/adapter/db/drizzle/schema.ts`)とシステム内部で利用する型（ドメイン型）(`src/types`)は将来の保守性や移植性を考慮して適切に分離し、これらの差分はrepositoryで吸収すること
+ - DBマイグレーションの実行は指示されない限り不要
+ - 適宜調査や実装の際に必要あればcodex mcpを活用すること
+@@ -215,33 +217,15 @@ ElectronのIPCを使用してフロントエンド・バックエンド間の通
+   - 前述の通り、古典派的な方針でテストを実装するので、機能が作成完了した段階で新規テストを作成すること
+ 
+ ## 依頼タスク
+-- 要件: レビュー機能において、リトライ機能を追加する
++- 要件: チェックリスト抽出workflowに、現状抽出したチェックリストを最終的にブラッシュアップする工程を追加する
+ - 背景
+-  - 現状、レビュー実行でエラーになったチェックリストを再実行したい場合は、エラーになったチェックリストのみを抜き出して、再実行するしかない
+-  - エラーになったチェックリストのみを簡単に再度レビュー実行できるようにしたい
+-- フロントエンド要件
+-  - `src/renderer/components/review/ReviewArea.tsx`を編集
+-    - 既にレビュー実行済み（一つ以上レビュー結果が存在する）の場合は「レビュー実行」ボタンを「リトライ」ボタンに変更する
+-      - 「リトライ」ボタンを押すと「レビュー未済のチェックリストのみ」or「全てのチェックリスト」を選択してレビューを再実行するモーダルが表示される
+-- バックエンド要件
+-  - UIの選択に合わせてレビューを実行することができる
+-    - リトライの場合は、初回レビュー実行時に保存済みのドキュメントキャッシュ(`review_document_caches`テーブルに保存)を利用して、レビューを実行する
+-      - レビューの設定（追加指示やドキュメント量等）については初回実行時と同じ値を利用する
+-    - レビューworkflow（`src/mastra/workflows/sourceReview`）の変更も必要
+-      - 初回レビュー実行もリトライも同じworkflowを使えるようにworkflowや各stepのinputSchema,outputSchemaを工夫すること
+-      - リトライ方法に合わせて`classifyChecklistStep.ts`では返すチェックリストを変更する
+-      - 各種キャッシュについてもレビュー実行対象への考慮も必要になる
+-        - 初回レビュー実行時
+-          - ドキュメントキャッシュ削除
+-          - 全ての大量ドキュメント結果キャッシュ削除
+-        - 「レビュー未済のチェックリストのみ」リトライの場合
+-          - レビュー未済のチェックリストに関する大量ドキュメント結果キャッシュのみを削除
+-        - 「全てのチェックリスト」リトライの場合
+-          - 全てのレビュー結果を削除
+-          - 全ての大量ドキュメント結果キャッシュ削除
+-- 実装時の注意点
+-  - リトライの定義は「一つ以上レビュー結果が存在する場合のレビュー実行」であるので注意すること
+-  - キャッシュについてはテーブル定義`src/adapter/db/drizzle/schema.ts`で各キャッシュの定義を把握すること
+-  - workflow処理については要件が複雑かつ、考慮できていない事項も多いはず
+-    - なので、しっかり処理の全体像を捉えて実装して欲しい
+-    - テストも十分に実施して欲しい
++  - 現状抽出されるチェックリストは重複している項目やまとめて一つにした方が良い項目が多く、数だけが多くなり、ユーザ目線では役にたつチェックリストになっていない
++- 機能要件
++  - チェックリスト抽出workflowの最終Stepとして以下を追加
++    - 現在、抽出済みのチェックリストをAIに与え、重複削除、複数項目の結合を実施させる
++      - 一度に大量のチェックリストのチェックリストを出力するので構造化出力が壊れやすいと想定される。そこでチェックリストのAI抽出処理(`checklistDocumentExtractionStep`)と同じようにrepaireTextで都度構造を修復しながら（最大試行回数:5回）チェックリストを完成させる
++  - 指摘事項
++    - workflowの設計について
++       - チェックリスト統合ステップの前ステップでわざわざDBに保存している
++         - フロントエンド側からは一定間隔でポーリングしてDBの値を取得しているので、処理過程のチェックリストが画面に表示されてしまう
++         - step間のデータ受け渡しで統合ステップにチェックリストを渡してほしい
+diff --git a/changes.patch b/changes.patch
+deleted file mode 100644
+index a7623df48..000000000
+--- a/changes.patch
++++ /dev/null
+@@ -1,1989 +0,0 @@
+-diff --git a/AGENTS.md b/AGENTS.md
+-index 34799f515..47d346b42 100644
+---- a/AGENTS.md
+-+++ b/AGENTS.md
+-@@ -54,6 +54,20 @@ npm test
+-         - チェックリストドキュメントからのチェックリスト項目抽出機能
+-         - 一般ドキュメントからのチェックリスト項目作成機能
+-       - （上記で抽出したチェックリスト項目に対して）ドキュメントレビュー実行機能
+-+        - 少量ドキュメントのレビュー機能
+-+          - 与えられたドキュメントを全てレビュー用AIのコンテキストに与える
+-+        - 大量ドキュメントレビュー機能
+-+          - 以下のようなworkflowでレビューを実行
+-+            - 個々のドキュメントに対して、レビュー対象チェックリストを基にレビューを実施させる
+-+              - ドキュメントがAIの入力コンテキストに収まらなかった場合は適宜ドキュメントを分割する
+-+            - 最終的に全てのドキュメントのレビュー結果を合わせて、それを統合してドキュメント全体としてのレビュー結果を出力させる
+-+      - （ドキュメントレビュー結果に対する）質問機能
+-+    - チェックリスト抽出・レビュー機能においてアップデート可能なファイルは以下
+-+      - word,excel,powerpoint,pdf,テキスト文書
+-+        - テキスト抽出するか画像としてAIに送信するか選択することができる
+-+          - 画像として送信する場合はpdfを画像化する(renderer側で画像化※main側ではcanvasが扱いづらかったため)
+-+            - office文書についてはmain側で一度pdf化してから画像化する
+-+      - また、複数ファイルを選択することができ、その場合は、複数ファイルが一つの統合ドキュメントとして認識される(よくある、本紙・別紙などのドキュメントに対応)
+-     - ユーザは対象ドキュメントをファイルアップロード形式で指定する
+-        - 基本的にはアップロードされたファイルはテキスト抽出処理が実行され、後続のworkflow処理で利用される
+-          - ただし、PDFファイルについてはテキスト抽出か画像として処理するか選択することができる
+-@@ -143,25 +157,26 @@ ElectronのIPCを使用してフロントエンド・バックエンド間の通
+- 
+- ## テスト作成時の注意
+- - 明確な指示がある場合以外はテストコードを作成しないこと
+-+- renderer側のコードのテストは`src/__tests__/renderer/`に配置
+-+- main側のコードのテストは`src/__tests__/main/`に配
+- - 外部ライブラリとの結合をテストする場合はできるだけ実際のライブラリを使用すること
+-   - 実際のライブラリの利用が難しい場合はモックを利用すること
+--  - Electron IPCはモックを利用すること
+--    - モックの実装はsrc/__tests__/test-utils/mockElectronHandler.tsに集約させること
+-+- renderer側テストの場合、Electron IPC通信はモックを利用すること
+-+  - この場合のモックの実装は`src/__tests__/renderer/test-utils/mockElectronHandler.ts`に集約させること
+- - 下記の観点からテストを作成すること
+--  - ビジネス的な観点
+-+  - ビジネス的な観点(ブラックボックステスト)
+-     - 正常系
+-     - 異常系
+--  - 技術的な観点
+-+  - 技術的な観点(ホワイトボックステスト)
+-     - 正常系
+-     - 異常系
+--- テストに関連するプロダクトコードのカバレッジを100%にすること
+--- テスト関連コードはsrc/__test__に配置すること
+-+- テストに関連するプロダクトコードのカバレッジ(分岐カバレッジ)を100%にすること
+- - テストは古典派的なスタイルで記述すること
+-   - つまり、単体テストはクラス単位ではなく、一つの振る舞い単位で記述すること
+-+  - また、最終的にMainプロセスの処理を（IPC通信にて）呼び出す場合は、モック化したIPC通信の処理を正しく呼び出せているかアサーションすること
+- - テストの説明は日本語で記述すること
+-   - テストの説明は、何をテストしているのか、どのような条件でテストが行われるのかを明確に記述すること
+--- テストの書き方で不明点があれば次のディレクトリ配下のテストコードを参考にすること
+--  - src/__tests__/integration
+-+- テストについては既存のテストコードを十分に参考にすること
+- 
+- ## 実装上の注意
+- - Mastraについては実装する際はまずMCPでドキュメントや実装例を参考にしてから正確な情報やベストプラクティスに基づいてコーディングすること
+-@@ -180,6 +195,7 @@ ElectronのIPCを使用してフロントエンド・バックエンド間の通
+-     - ライブラリを追加する際は安定稼働バージョンを採用すること
+- - eslintについては単純なフォーマットエラーの場合は対応する必要はない
+- - IDEからエラー内容を読み取り、必要があれば確り対応すること
+-+- Mainプロセスとrendererプロセス間のIPC通信（イベントpushも含む）については`src/types/ipc.ts`で型を一元管理しているので、IPC通信関連コードを実装する際はまずこのファイルを修正して型安全に進めること
+- - MainプロセスでのIPC処理について、`src/main.ts`のhandleIpcにてエラーを一元管理しているため、IPCハンドラ内のサービスロジックにおいては基本的にはエラーをtry-catchしてハンドリングする必要はない
+-   - ただし、ユーザにエラーメッセージを通知する必要がある場合は適切なエラーハンドリングの下、`src/mian/lib/error.ts`にて提供されているAppErrorをthrowすること
+- - フロントエンドから外部（IPC）通信する場合は`src/renderer/service/~Api.ts`を経由すること
+-@@ -189,46 +205,43 @@ ElectronのIPCを使用してフロントエンド・バックエンド間の通
+-   - コンポーネントで常にSSEの通信を張ってデータを取得したい場合は`usePushChannel`を、一時的にSSEの通信を貼りたい場合は`ElectronPushClient`を利用
+- - フロントエンドでエラーメッセージを表示する(addAlertで出す想定)場合はcatchしたエラーを`src/renderer/lib/error.ts`で定義しているgetSafeErrorMessage関数に適用してエラーメッセージを取り出すこと
+- - このアプリでは基本的にエラーメッセージは独自例外(`src/renderer/lib/error.ts`,`src/main/lib/error.ts`)をthrowしないとユーザにエラーメッセージが表示されないため、注意すること
+--- DB用の型(`src/adapter/db/drizzle/schema.ts`)とシステム内部で利用する型(`src/types`)は将来の保守性や移植性を考慮して適切に分離し、これらの差分はrepositoryで吸収すること
+--- テストについては指示されない限り、実行も修正もしなくてよい
+-+- DB用の型(`src/adapter/db/drizzle/schema.ts`)とシステム内部で利用する型（ドメイン型）(`src/types`)は将来の保守性や移植性を考慮して適切に分離し、これらの差分はrepositoryで吸収すること
+-+- DBマイグレーションの実行は指示されない限り不要
+-+- 適宜調査や実装の際に必要あればcodex mcpを活用すること
+-+- 新規追加した部分については型エラーが出ないようにすること
+-+- 修正箇所に関するテストを必ず実施して不具合がないか確かめること
+-+  - 全てのテストファイルを実行すると膨大な時間がかかるので、必要なテストファイルを絞って実行すること（テストの初回実行時はファイルは絞るが、その中のケースは絞らなくて良い）
+-+- 新規に追加した機能については明確な理由がない限り、新規テストを作成すること
+-+  - 前述の通り、古典派的な方針でテストを実装するので、機能が作成完了した段階で新規テストを作成すること
+- 
+- ## 依頼タスク
+--### 前提知識
+--- レビュー実行では、レビュー対象ドキュメントを同時に複数選択できる
+--  - この場合、個々の選択ドキュメントは選択順に結合され（以下、結合ドキュメントと呼ぶ）AIに渡される(`src/mastra/lib/util.ts`)
+--
+--### 要件
+-- - レビュー実行時に「少量ドキュメント」か「大量ドキュメント」か選択できるようにする 
+--   - 目的
+--     - レビュー実行の際に、結合ドキュメントがAIのコンテキスト長を超えてしまっていてもレビュー可能にする
+--   - 機能
+--     - 少量ドキュメント
+--       - 現状通り、結合ドキュメントをそのままレビュー用AIの入力コンテキストに与える
+--     - 大量ドキュメント
+--       - まず、個々のドキュメントに対してトピックとそのトピックの要約を生成する
+--       - これらトピックと要約を全てのドキュメント合わせて結合させたものをレビュー用AIの入力コンテキストに与える
+--       - レビュー用AIについては、個々のドキュメントのトピックと要約しか知ることができないのので、チェックリストに対する質問ができるように質問用のtoolを利用できるようにする
+--         - 質問用toolは対象のチェックリストとドキュメントID(workflow用に一時的に付与)と質問文を引数として与えると質問回答用のAIが対象ドキュメントを基に回答を生成してくれるというものである(似たような仕組みをチャット機能の`src/mastra/tools/sourcesTools.ts`で利用しているので参考にすること)     
+--
+--### 実装方針
+--以下のようなworkflowを構築する
+--1. レビュー対象のドキュメントのテキスト抽出を実行するstepを実行
+--  - imageDataはもともとbase64が入るのでそのまま
+--2. チェックリストをカテゴリ分割するstepを実行(現在の`classifyChecklistsByCategoryStep`)
+--3. 次に少量ドキュメントか大量ドキュメントかで処理を分岐
+--  3-a. 少量ドキュメントの場合
+--    3-a-1. 現状通り結合ドキュメントをそのままレビュー用AIの入力コンテキストに与えて、カテゴリごとにレビューさせる
+--  3-b. 大量ドキュメントの場合
+--    3-b-1. 個々のドキュメントの要約とトピック抽出
+--    3-b-2. レビュー用AIの組み立て(step内での動的なtool作成)を実施、個々のドキュメントの要約とトピックを組み合わせたものを初期の入力コンテキストとして与えてレビューさせる
+--
+--### 実装時の注意点
+--- 次のようなフォルダ構成にする
+--src/mastra/workflows/
+--├── sourceReview/
+--│   ├── index.ts  # 各Stepのimportとワークフローの組み立て
+--│   ├── ~Step.ts  # workflowのstep定義
+--│   ├── ~Step.ts. # workflowのstep定義
+--│   └── ...
+--- 今回のように初期の入力コンテキストには質問可能なドキュメントの要約を与えて、そのドキュメントに対する質問をtoolで実行させる例につちえはチャット機能のドキュメント検索toolを参考にすること
+--- mastraのAIエージェントに関する実装スタイルは既存のコードを参考にすること
+-+- 要件: レビュー機能において、リトライ機能を追加する
+-+- 背景
+-+  - 現状、レビュー実行でエラーになったチェックリストを再実行したい場合は、エラーになったチェックリストのみを抜き出して、再実行するしかない
+-+  - エラーになったチェックリストのみを簡単に再度レビュー実行できるようにしたい
+-+- フロントエンド要件
+-+  - `src/renderer/components/review/ReviewArea.tsx`を編集
+-+    - 既にレビュー実行済み（一つ以上レビュー結果が存在する）の場合は「レビュー実行」ボタンを「リトライ」ボタンに変更する
+-+      - 「リトライ」ボタンを押すと「レビュー未済のチェックリストのみ」or「全てのチェックリスト」を選択してレビューを再実行するモーダルが表示される
+-+- バックエンド要件
+-+  - UIの選択に合わせてレビューを実行することができる
+-+    - リトライの場合は、初回レビュー実行時に保存済みのドキュメントキャッシュ(`review_document_caches`テーブルに保存)を利用して、レビューを実行する
+-+      - レビューの設定（追加指示やドキュメント量等）については初回実行時と同じ値を利用する
+-+    - レビューworkflow（`src/mastra/workflows/sourceReview`）の変更も必要
+-+      - 初回レビュー実行もリトライも同じworkflowを使えるようにworkflowや各stepのinputSchema,outputSchemaを工夫すること
+-+      - リトライ方法に合わせて`classifyChecklistStep.ts`では返すチェックリストを変更する
+-+      - 各種キャッシュについてもレビュー実行対象への考慮も必要になる
+-+        - 初回レビュー実行時
+-+          - ドキュメントキャッシュ削除
+-+          - 全ての大量ドキュメント結果キャッシュ削除
+-+        - 「レビュー未済のチェックリストのみ」リトライの場合
+-+          - レビュー未済のチェックリストに関する大量ドキュメント結果キャッシュのみを削除
+-+        - 「全てのチェックリスト」リトライの場合
+-+          - 全てのレビュー結果を削除
+-+          - 全ての大量ドキュメント結果キャッシュ削除
+-+- 実装時の注意点
+-+  - リトライの定義は「一つ以上レビュー結果が存在する場合のレビュー実行」であるので注意すること
+-+  - キャッシュについてはテーブル定義`src/adapter/db/drizzle/schema.ts`で各キャッシュの定義を把握すること
+-+  - workflow処理については要件が複雑かつ、考慮できていない事項も多いはず
+-+    - なので、しっかり処理の全体像を捉えて実装して欲しい
+-+    - テストも十分に実施して欲しい
+-diff --git a/CLAUDE.md b/CLAUDE.md
+-index fcf048593..47d346b42 100644
+---- a/CLAUDE.md
+-+++ b/CLAUDE.md
+-@@ -215,7 +215,33 @@ ElectronのIPCを使用してフロントエンド・バックエンド間の通
+-   - 前述の通り、古典派的な方針でテストを実装するので、機能が作成完了した段階で新規テストを作成すること
+- 
+- ## 依頼タスク
+--- 大量ドキュメントレビューのworkflowテストの改良
+--  - 関連コード
+--    - `src/mastra/workflows/sourceReview/executeReview/largeDocumentReview/index.ts`  
+--  - 「分割リトライ最大回数超過時にエラーになること」のテストにて、リトライ回数が5回を超えた場合、エラーメッセージが「ドキュメント分割を複数回実行しましたが、コンテキスト長エラーが解消されませんでした」となることを確認する
+-+- 要件: レビュー機能において、リトライ機能を追加する
+-+- 背景
+-+  - 現状、レビュー実行でエラーになったチェックリストを再実行したい場合は、エラーになったチェックリストのみを抜き出して、再実行するしかない
+-+  - エラーになったチェックリストのみを簡単に再度レビュー実行できるようにしたい
+-+- フロントエンド要件
+-+  - `src/renderer/components/review/ReviewArea.tsx`を編集
+-+    - 既にレビュー実行済み（一つ以上レビュー結果が存在する）の場合は「レビュー実行」ボタンを「リトライ」ボタンに変更する
+-+      - 「リトライ」ボタンを押すと「レビュー未済のチェックリストのみ」or「全てのチェックリスト」を選択してレビューを再実行するモーダルが表示される
+-+- バックエンド要件
+-+  - UIの選択に合わせてレビューを実行することができる
+-+    - リトライの場合は、初回レビュー実行時に保存済みのドキュメントキャッシュ(`review_document_caches`テーブルに保存)を利用して、レビューを実行する
+-+      - レビューの設定（追加指示やドキュメント量等）については初回実行時と同じ値を利用する
+-+    - レビューworkflow（`src/mastra/workflows/sourceReview`）の変更も必要
+-+      - 初回レビュー実行もリトライも同じworkflowを使えるようにworkflowや各stepのinputSchema,outputSchemaを工夫すること
+-+      - リトライ方法に合わせて`classifyChecklistStep.ts`では返すチェックリストを変更する
+-+      - 各種キャッシュについてもレビュー実行対象への考慮も必要になる
+-+        - 初回レビュー実行時
+-+          - ドキュメントキャッシュ削除
+-+          - 全ての大量ドキュメント結果キャッシュ削除
+-+        - 「レビュー未済のチェックリストのみ」リトライの場合
+-+          - レビュー未済のチェックリストに関する大量ドキュメント結果キャッシュのみを削除
+-+        - 「全てのチェックリスト」リトライの場合
+-+          - 全てのレビュー結果を削除
+-+          - 全ての大量ドキュメント結果キャッシュ削除
+-+- 実装時の注意点
+-+  - リトライの定義は「一つ以上レビュー結果が存在する場合のレビュー実行」であるので注意すること
+-+  - キャッシュについてはテーブル定義`src/adapter/db/drizzle/schema.ts`で各キャッシュの定義を把握すること
+-+  - workflow処理については要件が複雑かつ、考慮できていない事項も多いはず
+-+    - なので、しっかり処理の全体像を捉えて実装して欲しい
+-+    - テストも十分に実施して欲しい
+-diff --git a/src/__tests__/main/workflows/checklistExtraction.test.ts b/src/__tests__/main/workflows/checklistExtraction.test.ts
+-index 356848b17..d746796d6 100644
+---- a/src/__tests__/main/workflows/checklistExtraction.test.ts
+-+++ b/src/__tests__/main/workflows/checklistExtraction.test.ts
+-@@ -105,13 +105,16 @@ describe('checklistExtractionWorkflow', () => {
+-       updateReviewHistoryTargetDocumentName: jest.fn(),
+-       deleteReviewHistory: jest.fn(),
+-       getChecklists: jest.fn(),
+-+      getUncompletedChecklists: jest.fn(),
+-       updateChecklist: jest.fn(),
+-       deleteChecklist: jest.fn(),
+-       upsertReviewResult: jest.fn(),
+-       getReviewChecklistResults: jest.fn(),
+-       deleteAllReviewResults: jest.fn(),
+-+      clearReviewResultsByChecklistIds: jest.fn(),
+-       deleteReviewDocumentCaches: jest.fn(),
+-       deleteReviewLargedocumentResultCaches: jest.fn(),
+-+      deleteReviewLargedocumentResultCachesByChecklistIds: jest.fn(),
+-       updateReviewHistoryDocumentMode: jest.fn(),
+-       createReviewDocumentCache: jest.fn(),
+-       getReviewDocumentCaches: jest.fn(),
+-diff --git a/src/__tests__/main/workflows/executeReview.test.ts b/src/__tests__/main/workflows/executeReview.test.ts
+-index d12bffd55..b176abdcd 100644
+---- a/src/__tests__/main/workflows/executeReview.test.ts
+-+++ b/src/__tests__/main/workflows/executeReview.test.ts
+-@@ -104,6 +104,7 @@ describe('executeReviewWorkflow', () => {
+-       updateReviewHistoryTargetDocumentName: jest.fn().mockResolvedValue(undefined),
+-       deleteReviewHistory: jest.fn(),
+-       getChecklists: jest.fn(),
+-+      getUncompletedChecklists: jest.fn(),
+-       createChecklist: jest.fn(),
+-       updateChecklist: jest.fn(),
+-       deleteChecklist: jest.fn(),
+-@@ -111,8 +112,10 @@ describe('executeReviewWorkflow', () => {
+-       upsertReviewResult: jest.fn().mockResolvedValue(undefined),
+-       getReviewChecklistResults: jest.fn(),
+-       deleteAllReviewResults: jest.fn().mockResolvedValue(undefined),
+-+      clearReviewResultsByChecklistIds: jest.fn(),
+-       deleteReviewDocumentCaches: jest.fn().mockResolvedValue(undefined),
+-       deleteReviewLargedocumentResultCaches: jest.fn().mockResolvedValue(undefined),
+-+      deleteReviewLargedocumentResultCachesByChecklistIds: jest.fn(),
+-       updateReviewHistoryDocumentMode: jest.fn().mockResolvedValue(undefined),
+-       createReviewDocumentCache: jest.fn(),
+-       getReviewDocumentCaches: jest.fn(),
+-@@ -542,33 +545,49 @@ describe('executeReviewWorkflow', () => {
+-         // カテゴリ1(ID=1): 1回目空、2回目成功
+-         // カテゴリ2(ID=2): 1回目成功
+-         // カテゴリ3(ID=3): 1回目成功
+--        mockReviewExecuteAgent.generateLegacy
+--          // カテゴリ1の1回目（空）
+--          .mockResolvedValueOnce({
+--            object: [],
+--            finishReason: 'stop',
+--          })
+--          // カテゴリ2の1回目（成功）
+--          .mockResolvedValueOnce({
+--            object: [
+--              { checklistId: 2, reviewSections: [], comment: 'コメント2', evaluation: 'B' },
+--            ],
+--            finishReason: 'stop',
+--          })
+--          // カテゴリ3の1回目（成功）
+--          .mockResolvedValueOnce({
+--            object: [
+--              { checklistId: 3, reviewSections: [], comment: 'コメント3', evaluation: 'C' },
+--            ],
+--            finishReason: 'stop',
+--          })
+--          // カテゴリ1の2回目（成功）
+--          .mockResolvedValueOnce({
+--            object: [
+--              { checklistId: 1, reviewSections: [], comment: 'コメント1', evaluation: 'A' },
+--            ],
+--            finishReason: 'stop',
+--          });
+-+        const attemptsByChecklist = new Map<number, number>();
+-+        mockReviewExecuteAgent.generateLegacy.mockImplementation(
+-+          async (_message: any, options: any) => {
+-+            const runtimeContext = options?.runtimeContext;
+-+            const checklistItems =
+-+              runtimeContext?.get('checklistItems') ?? [];
+-+            const targetId: number | undefined = checklistItems[0]?.id;
+-+            if (!targetId) {
+-+              return {
+-+                object: [],
+-+                finishReason: 'stop',
+-+              };
+-+            }
+-+
+-+            const attempt = attemptsByChecklist.get(targetId) ?? 0;
+-+            attemptsByChecklist.set(targetId, attempt + 1);
+-+
+-+            if (targetId === 1 && attempt === 0) {
+-+              return {
+-+                object: [],
+-+                finishReason: 'stop',
+-+              };
+-+            }
+-+
+-+            const evaluationMap: Record<number, string> = {
+-+              1: 'A',
+-+              2: 'B',
+-+              3: 'C',
+-+            };
+-+
+-+            return {
+-+              object: [
+-+                {
+-+                  checklistId: targetId,
+-+                  reviewSections: [],
+-+                  comment: `コメント${targetId}`,
+-+                  evaluation: evaluationMap[targetId] ?? 'A',
+-+                },
+-+              ],
+-+              finishReason: 'stop',
+-+            };
+-+          },
+-+        );
+- 
+-         // Act
+-         const run = await executeReviewWorkflow.createRunAsync();
+-@@ -1011,6 +1030,138 @@ describe('executeReviewWorkflow', () => {
+-         expect(checkResult.errorMessage).toContain('レビュー結果保存エラー');
+-       });
+-     });
+-+
+-+    describe('リトライモード', () => {
+-+      it('retryMode=allで既存キャッシュを利用して全てのチェックリストを再実行できること', async () => {
+-+        // Arrange
+-+        const reviewHistoryId = 'review-1';
+-+        const cachedDocuments = [
+-+          {
+-+            id: 10,
+-+            reviewHistoryId,
+-+            fileName: 'cached-doc.txt',
+-+            processMode: 'text' as const,
+-+            textContent: 'キャッシュ済みテキスト',
+-+            imageData: undefined,
+-+            createdAt: '2024-01-01',
+-+            updatedAt: '2024-01-01',
+-+          },
+-+        ];
+-+        const checklists: ReviewChecklist[] = [
+-+          { id: 1, content: 'チェック項目1', createdBy: 'user', reviewHistoryId, createdAt: '2024-01-01', updatedAt: '2024-01-01' },
+-+        ];
+-+
+-+        mockRepository.getReviewDocumentCaches.mockResolvedValue(cachedDocuments);
+-+        mockRepository.getChecklists.mockResolvedValue(checklists);
+-+        mockReviewExecuteAgent.generateLegacy.mockResolvedValue({
+-+          object: [
+-+            {
+-+              checklistId: 1,
+-+              reviewSections: [],
+-+              comment: 'リトライコメント',
+-+              evaluation: 'A',
+-+            },
+-+          ],
+-+          finishReason: 'stop',
+-+        });
+-+
+-+        // Act
+-+        const run = await executeReviewWorkflow.createRunAsync();
+-+        const result = await run.start({
+-+          inputData: {
+-+            reviewHistoryId,
+-+            retryMode: 'all',
+-+            documentMode: 'small',
+-+          },
+-+        });
+-+
+-+        // Assert
+-+        const checkResult = checkWorkflowResult(result);
+-+        expect(checkResult.status).toBe('success');
+-+        const executedChecklistIds = mockReviewExecuteAgent.generateLegacy.mock.calls
+-+          .flatMap(([, options]: [any, any]) =>
+-+            ((options.runtimeContext.get('checklistItems') || []) as ReviewChecklist[]).map((item) => item.id),
+-+          );
+-+        expect(new Set(executedChecklistIds)).toEqual(
+-+          new Set(checklists.map((checklist) => checklist.id)),
+-+        );
+-+        expect(mockRepository.deleteReviewLargedocumentResultCaches).toHaveBeenCalledWith(reviewHistoryId);
+-+        expect(mockRepository.deleteAllReviewResults).toHaveBeenCalledWith(reviewHistoryId);
+-+        expect(mockRepository.deleteReviewDocumentCaches).not.toHaveBeenCalled();
+-+        expect(mockRepository.createReviewDocumentCache).not.toHaveBeenCalled();
+-+        expect(mockRepository.getReviewDocumentCaches).toHaveBeenCalled();
+-+        expect(mockRepository.getChecklists).toHaveBeenCalledWith(reviewHistoryId);
+-+        expect(mockRepository.getUncompletedChecklists).not.toHaveBeenCalled();
+-+        expect(mockRepository.deleteReviewLargedocumentResultCachesByChecklistIds).not.toHaveBeenCalled();
+-+        expect(mockRepository.upsertReviewResult).toHaveBeenCalled();
+-+        expect(mockExtractText).not.toHaveBeenCalled();
+-+      });
+-+
+-+      it('retryMode=uncompleted-onlyで未済チェックリストのみを再実行できること', async () => {
+-+        // Arrange
+-+        const reviewHistoryId = 'review-1';
+-+        const cachedDocuments = [
+-+          {
+-+            id: 20,
+-+            reviewHistoryId,
+-+            fileName: 'cached-doc.txt',
+-+            processMode: 'text' as const,
+-+            textContent: 'キャッシュ済みテキスト',
+-+            imageData: undefined,
+-+            createdAt: '2024-01-01',
+-+            updatedAt: '2024-01-01',
+-+          },
+-+        ];
+-+        const uncompletedChecklists: ReviewChecklist[] = [
+-+          { id: 2, content: '未済チェック項目', createdBy: 'user', reviewHistoryId, createdAt: '2024-01-01', updatedAt: '2024-01-01' },
+-+        ];
+-+
+-+        mockRepository.getReviewDocumentCaches.mockResolvedValue(cachedDocuments);
+-+        mockRepository.getUncompletedChecklists.mockResolvedValue(uncompletedChecklists);
+-+        mockReviewExecuteAgent.generateLegacy.mockResolvedValue({
+-+          object: [
+-+            {
+-+              checklistId: 2,
+-+              reviewSections: [],
+-+              comment: '未済リトライコメント',
+-+              evaluation: 'A',
+-+            },
+-+          ],
+-+          finishReason: 'stop',
+-+        });
+-+
+-+        // Act
+-+        const run = await executeReviewWorkflow.createRunAsync();
+-+        const result = await run.start({
+-+          inputData: {
+-+            reviewHistoryId,
+-+            retryMode: 'uncompleted-only',
+-+            documentMode: 'small',
+-+          },
+-+        });
+-+
+-+        // Assert
+-+        const checkResult = checkWorkflowResult(result);
+-+        expect(checkResult.status).toBe('success');
+-+        const executedChecklistIds = mockReviewExecuteAgent.generateLegacy.mock.calls
+-+          .flatMap(([, options]: [any, any]) =>
+-+            ((options.runtimeContext.get('checklistItems') || []) as ReviewChecklist[]).map((item) => item.id),
+-+          );
+-+        expect(executedChecklistIds).toEqual([2]);
+-+        expect(mockRepository.deleteReviewLargedocumentResultCachesByChecklistIds).toHaveBeenCalledWith(
+-+          reviewHistoryId,
+-+          [2],
+-+        );
+-+        expect(mockRepository.deleteReviewLargedocumentResultCaches).not.toHaveBeenCalled();
+-+        expect(mockRepository.deleteAllReviewResults).not.toHaveBeenCalled();
+-+        expect(mockRepository.deleteReviewDocumentCaches).not.toHaveBeenCalled();
+-+        expect(mockRepository.createReviewDocumentCache).not.toHaveBeenCalled();
+-+        expect(mockRepository.getUncompletedChecklists).toHaveBeenCalledWith(reviewHistoryId);
+-+        expect(mockRepository.getChecklists).not.toHaveBeenCalled();
+-+        expect(mockRepository.upsertReviewResult).toHaveBeenCalled();
+-+        expect(mockExtractText).not.toHaveBeenCalled();
+-+      });
+-+    });
+-   });
+- 
+-   describe('大量ドキュメントモード（large）', () => {
+-@@ -1619,6 +1770,280 @@ describe('executeReviewWorkflow', () => {
+-         );
+-       });
+- 
+-+      it('テキストと画像が混在する大量ドキュメントレビューが成功すること', async () => {
+-+        // Arrange
+-+        const reviewHistoryId = 'review-1';
+-+        const files: UploadFile[] = [
+-+          {
+-+            id: 'file-1',
+-+            name: 'document.txt',
+-+            path: '/test/document.txt',
+-+            type: 'text/plain',
+-+            processMode: 'text',
+-+          },
+-+          {
+-+            id: 'file-2',
+-+            name: 'diagram.pdf',
+-+            path: '/test/diagram.pdf',
+-+            type: 'application/pdf',
+-+            processMode: 'image',
+-+            imageMode: 'pages',
+-+            imageData: ['data:image/png;base64,page1', 'data:image/png;base64,page2'],
+-+          },
+-+        ];
+-+        const checklists: ReviewChecklist[] = [
+-+          { id: 1, content: 'チェック項目1', createdBy: 'user', reviewHistoryId, createdAt: '2024-01-01', updatedAt: '2024-01-01' },
+-+          { id: 2, content: 'チェック項目2', createdBy: 'user', reviewHistoryId, createdAt: '2024-01-01', updatedAt: '2024-01-01' },
+-+        ];
+-+
+-+        mockRepository.getChecklists.mockResolvedValue(checklists);
+-+        mockExtractText.mockResolvedValueOnce({
+-+          content: 'テキストドキュメントの内容',
+-+        });
+-+
+-+        mockRepository.createReviewDocumentCache
+-+          .mockResolvedValueOnce({
+-+            id: 1,
+-+            reviewHistoryId,
+-+            fileName: 'document.txt',
+-+            processMode: 'text',
+-+            textContent: 'テキストドキュメントの内容',
+-+            imageData: undefined,
+-+            createdAt: '2024-01-01',
+-+            updatedAt: '2024-01-01',
+-+          })
+-+          .mockResolvedValueOnce({
+-+            id: 2,
+-+            reviewHistoryId,
+-+            fileName: 'diagram.pdf',
+-+            processMode: 'image',
+-+            textContent: undefined,
+-+            imageData: ['data:image/png;base64,page1', 'data:image/png;base64,page2'],
+-+            createdAt: '2024-01-01',
+-+            updatedAt: '2024-01-01',
+-+          });
+-+
+-+        mockIndividualDocumentReviewAgent.generateLegacy.mockImplementation(
+-+          async (_message: any, options: any) => {
+-+            const checklistItems: ReviewChecklist[] =
+-+              options.runtimeContext.get('checklistItems') || [];
+-+            const targetId = checklistItems[0]?.id ?? 1;
+-+            return {
+-+              object: [
+-+                {
+-+                  reviewSections: [],
+-+                  checklistId: targetId,
+-+                  comment: `個別コメント${targetId}`,
+-+                },
+-+              ],
+-+              finishReason: 'stop',
+-+            };
+-+          },
+-+        );
+-+
+-+        mockConsolidateReviewAgent.generateLegacy.mockResolvedValue({
+-+          object: [
+-+            { checklistId: 1, comment: '統合コメント1', evaluation: 'A' },
+-+            { checklistId: 2, comment: '統合コメント2', evaluation: 'B' },
+-+          ],
+-+          finishReason: 'stop',
+-+        });
+-+
+-+        // Act
+-+        const run = await executeReviewWorkflow.createRunAsync();
+-+        const result = await run.start({
+-+          inputData: {
+-+            reviewHistoryId,
+-+            files,
+-+            documentMode: 'large',
+-+          },
+-+        });
+-+
+-+        // Assert
+-+        const checkResult = checkWorkflowResult(result);
+-+        expect(checkResult.status).toBe('success');
+-+        expect(mockExtractText).toHaveBeenCalledTimes(1);
+-+        expect(mockRepository.createReviewDocumentCache).toHaveBeenCalledTimes(2);
+-+        expect(mockIndividualDocumentReviewAgent.generateLegacy).toHaveBeenCalledTimes(
+-+          files.length * checklists.length,
+-+        );
+-+        expect(mockRepository.createReviewLargedocumentResultCache).toHaveBeenCalledTimes(
+-+          files.length * checklists.length,
+-+        );
+-+        expect(mockConsolidateReviewAgent.generateLegacy).toHaveBeenCalled();
+-+        expect(mockRepository.upsertReviewResult).toHaveBeenCalled();
+-+      });
+-+
+-+      it('retryMode=allでテキストと画像のキャッシュを利用した大量ドキュメントリトライが成功すること', async () => {
+-+        // Arrange
+-+        const reviewHistoryId = 'review-1';
+-+        const cachedDocuments = [
+-+          {
+-+            id: 10,
+-+            reviewHistoryId,
+-+            fileName: 'cached-doc.txt',
+-+            processMode: 'text' as const,
+-+            textContent: 'キャッシュ済みテキスト',
+-+            imageData: undefined,
+-+            createdAt: '2024-01-01',
+-+            updatedAt: '2024-01-01',
+-+          },
+-+          {
+-+            id: 11,
+-+            reviewHistoryId,
+-+            fileName: 'diagram.pdf',
+-+            processMode: 'image' as const,
+-+            textContent: undefined,
+-+            imageData: ['data:image/png;base64,page1', 'data:image/png;base64,page2'],
+-+            createdAt: '2024-01-01',
+-+            updatedAt: '2024-01-01',
+-+          },
+-+        ];
+-+        const checklists: ReviewChecklist[] = [
+-+          { id: 1, content: 'チェック項目1', createdBy: 'user', reviewHistoryId, createdAt: '2024-01-01', updatedAt: '2024-01-01' },
+-+          { id: 2, content: 'チェック項目2', createdBy: 'user', reviewHistoryId, createdAt: '2024-01-01', updatedAt: '2024-01-01' },
+-+        ];
+-+
+-+        mockRepository.getReviewDocumentCaches.mockResolvedValue(cachedDocuments);
+-+        mockRepository.getChecklists.mockResolvedValue(checklists);
+-+        mockIndividualDocumentReviewAgent.generateLegacy.mockImplementation(
+-+          async (_message: any, options: any) => {
+-+            const checklistItems = (options.runtimeContext.get('checklistItems') || []) as ReviewChecklist[];
+-+            return {
+-+              object: checklistItems.map((item) => ({
+-+                reviewSections: [],
+-+                checklistId: item.id,
+-+                comment: `個別コメント${item.id}`,
+-+              })),
+-+              finishReason: 'stop',
+-+            };
+-+          },
+-+        );
+-+
+-+        mockConsolidateReviewAgent.generateLegacy.mockResolvedValue({
+-+          object: [
+-+            { checklistId: 1, comment: '統合コメント1', evaluation: 'A' },
+-+            { checklistId: 2, comment: '統合コメント2', evaluation: 'B' },
+-+          ],
+-+          finishReason: 'stop',
+-+        });
+-+
+-+        // Act
+-+        const run = await executeReviewWorkflow.createRunAsync();
+-+        const result = await run.start({
+-+          inputData: {
+-+            reviewHistoryId,
+-+            retryMode: 'all',
+-+            documentMode: 'large',
+-+          },
+-+        });
+-+
+-+        // Assert
+-+        const checkResult = checkWorkflowResult(result);
+-+        expect(checkResult.status).toBe('success');
+-+        expect(mockExtractText).not.toHaveBeenCalled();
+-+        expect(mockRepository.createReviewDocumentCache).not.toHaveBeenCalled();
+-+        expect(mockRepository.deleteReviewLargedocumentResultCaches).toHaveBeenCalledWith(reviewHistoryId);
+-+        expect(mockRepository.deleteAllReviewResults).toHaveBeenCalledWith(reviewHistoryId);
+-+        expect(mockRepository.deleteReviewDocumentCaches).not.toHaveBeenCalled();
+-+        expect(mockIndividualDocumentReviewAgent.generateLegacy).toHaveBeenCalledTimes(
+-+          cachedDocuments.length * checklists.length,
+-+        );
+-+        const executedChecklistIds = new Set(
+-+          mockIndividualDocumentReviewAgent.generateLegacy.mock.calls.flatMap(
+-+            ([, options]: [any, any]) =>
+-+              ((options.runtimeContext.get('checklistItems') || []) as ReviewChecklist[]).map((item) => item.id),
+-+          ),
+-+        );
+-+        expect(executedChecklistIds).toEqual(new Set(checklists.map((item) => item.id)));
+-+        expect(mockRepository.upsertReviewResult).toHaveBeenCalled();
+-+      });
+-+
+-+      it('retryMode=uncompleted-onlyで大量ドキュメントの未済チェックリストのみリトライできること', async () => {
+-+        // Arrange
+-+        const reviewHistoryId = 'review-1';
+-+        const cachedDocuments = [
+-+          {
+-+            id: 20,
+-+            reviewHistoryId,
+-+            fileName: 'cached-doc.txt',
+-+            processMode: 'text' as const,
+-+            textContent: 'キャッシュ済みテキスト',
+-+            imageData: undefined,
+-+            createdAt: '2024-01-01',
+-+            updatedAt: '2024-01-01',
+-+          },
+-+          {
+-+            id: 21,
+-+            reviewHistoryId,
+-+            fileName: 'diagram.pdf',
+-+            processMode: 'image' as const,
+-+            textContent: undefined,
+-+            imageData: ['data:image/png;base64,page1'],
+-+            createdAt: '2024-01-01',
+-+            updatedAt: '2024-01-01',
+-+          },
+-+        ];
+-+        const checklists: ReviewChecklist[] = [
+-+          { id: 1, content: '完了済み', createdBy: 'user', reviewHistoryId, createdAt: '2024-01-01', updatedAt: '2024-01-01' },
+-+          { id: 2, content: '未済項目', createdBy: 'user', reviewHistoryId, createdAt: '2024-01-01', updatedAt: '2024-01-01' },
+-+        ];
+-+
+-+        mockRepository.getReviewDocumentCaches.mockResolvedValue(cachedDocuments);
+-+        mockRepository.getUncompletedChecklists.mockResolvedValue([checklists[1]]);
+-+        mockIndividualDocumentReviewAgent.generateLegacy.mockImplementation(
+-+          async (_message: any, options: any) => {
+-+            const checklistItems = (options.runtimeContext.get('checklistItems') || []) as ReviewChecklist[];
+-+            return {
+-+              object: checklistItems.map((item) => ({
+-+                reviewSections: [],
+-+                checklistId: item.id,
+-+                comment: `未済コメント${item.id}`,
+-+              })),
+-+              finishReason: 'stop',
+-+            };
+-+          },
+-+        );
+-+
+-+        mockConsolidateReviewAgent.generateLegacy.mockResolvedValue({
+-+          object: [{ checklistId: 2, comment: '統合コメント2', evaluation: 'B' }],
+-+          finishReason: 'stop',
+-+        });
+-+
+-+        // Act
+-+        const run = await executeReviewWorkflow.createRunAsync();
+-+        const result = await run.start({
+-+          inputData: {
+-+            reviewHistoryId,
+-+            retryMode: 'uncompleted-only',
+-+            documentMode: 'large',
+-+          },
+-+        });
+-+
+-+        // Assert
+-+        const checkResult = checkWorkflowResult(result);
+-+        expect(checkResult.status).toBe('success');
+-+        expect(mockExtractText).not.toHaveBeenCalled();
+-+        expect(mockRepository.createReviewDocumentCache).not.toHaveBeenCalled();
+-+        expect(mockRepository.deleteReviewLargedocumentResultCachesByChecklistIds).toHaveBeenCalledWith(
+-+          reviewHistoryId,
+-+          [2],
+-+        );
+-+        expect(mockRepository.deleteReviewLargedocumentResultCaches).not.toHaveBeenCalled();
+-+        expect(mockRepository.deleteAllReviewResults).not.toHaveBeenCalled();
+-+        expect(mockRepository.deleteReviewDocumentCaches).not.toHaveBeenCalled();
+-+        expect(mockRepository.getChecklists).not.toHaveBeenCalled();
+-+        expect(mockRepository.getUncompletedChecklists).toHaveBeenCalledWith(reviewHistoryId);
+-+        const executedChecklistIds = new Set(
+-+          mockIndividualDocumentReviewAgent.generateLegacy.mock.calls.flatMap(
+-+            ([, options]: [any, any]) =>
+-+              ((options.runtimeContext.get('checklistItems') || []) as ReviewChecklist[]).map((item) => item.id),
+-+          ),
+-+        );
+-+        expect(executedChecklistIds).toEqual(new Set([2]));
+-+        expect(mockRepository.upsertReviewResult).toHaveBeenCalled();
+-+      });
+-+
+-       it('個別レビューでの未完了チェックリスト再試行が成功すること', async () => {
+-         // Arrange
+-         const reviewHistoryId = 'review-1';
+-diff --git a/src/__tests__/main/workflows/reviewChat.test.ts b/src/__tests__/main/workflows/reviewChat.test.ts
+-index b920db219..5351c9287 100644
+---- a/src/__tests__/main/workflows/reviewChat.test.ts
+-+++ b/src/__tests__/main/workflows/reviewChat.test.ts
+-@@ -96,6 +96,7 @@ describe('reviewChatWorkflow', () => {
+-       updateReviewHistoryTargetDocumentName: jest.fn(),
+-       deleteReviewHistory: jest.fn(),
+-       getChecklists: jest.fn(),
+-+      getUncompletedChecklists: jest.fn(),
+-       createChecklist: jest.fn(),
+-       updateChecklist: jest.fn(),
+-       deleteChecklist: jest.fn(),
+-@@ -103,8 +104,10 @@ describe('reviewChatWorkflow', () => {
+-       upsertReviewResult: jest.fn(),
+-       getReviewChecklistResults: jest.fn(),
+-       deleteAllReviewResults: jest.fn(),
+-+      clearReviewResultsByChecklistIds: jest.fn(),
+-       deleteReviewDocumentCaches: jest.fn(),
+-       deleteReviewLargedocumentResultCaches: jest.fn(),
+-+      deleteReviewLargedocumentResultCachesByChecklistIds: jest.fn(),
+-       updateReviewHistoryDocumentMode: jest.fn(),
+-       createReviewDocumentCache: jest.fn(),
+-       getReviewDocumentCaches: jest.fn().mockResolvedValue([
+-diff --git a/src/__tests__/renderer/reviewExecute.test.tsx b/src/__tests__/renderer/reviewExecute.test.tsx
+-index d76f6934d..045060a5b 100644
+---- a/src/__tests__/renderer/reviewExecute.test.tsx
+-+++ b/src/__tests__/renderer/reviewExecute.test.tsx
+-@@ -86,6 +86,21 @@ const mockChecklistResults: ReviewChecklistResult[] = [
+-   },
+- ];
+- 
+-+const mockReviewedChecklistResults: ReviewChecklistResult[] = [
+-+  {
+-+    id: 1,
+-+    content: 'チェック項目1',
+-+    sourceEvaluation: {
+-+      evaluation: 'A',
+-+      comment: '既存のレビュー結果',
+-+    },
+-+  },
+-+  {
+-+    id: 2,
+-+    content: 'チェック項目2',
+-+  },
+-+];
+-+
+- describe('ReviewArea - レビュー実行', () => {
+-   beforeEach(() => {
+-     window.electron = createMockElectronWithOptions({
+-@@ -322,6 +337,95 @@ describe('ReviewArea - レビュー実行', () => {
+-     });
+-   });
+- 
+-+  describe('リトライ機能', () => {
+-+    it('レビュー結果が存在する場合はリトライボタンが表示されること', async () => {
+-+      window.electron = createMockElectronWithOptions({
+-+        reviewHistory: mockReviewHistory,
+-+        reviewChecklistResults: mockReviewedChecklistResults,
+-+      });
+-+
+-+      render(<ReviewArea selectedReviewHistoryId="review-1" />);
+-+
+-+      const retryButton = await waitForChecklistAndEnableButton(/リトライ/);
+-+      expect(retryButton).toBeInTheDocument();
+-+
+-+      await userEvent.click(retryButton);
+-+
+-+      await waitFor(() => {
+-+        expect(screen.getByText('リトライモードの選択')).toBeInTheDocument();
+-+      });
+-+    });
+-+
+-+    it('リトライモードで未済チェックリストのみ再実行できること', async () => {
+-+      const mockExecuteReview = jest.fn().mockResolvedValue({ success: true });
+-+
+-+      window.electron = createMockElectronWithOptions({
+-+        reviewHistory: mockReviewHistory,
+-+        reviewChecklistResults: mockReviewedChecklistResults,
+-+      }) as any;
+-+      window.electron.review.execute = mockExecuteReview;
+-+
+-+      render(<ReviewArea selectedReviewHistoryId="review-1" />);
+-+
+-+      const retryButton = await waitForChecklistAndEnableButton(/リトライ/);
+-+      await userEvent.click(retryButton);
+-+
+-+      await waitFor(() => {
+-+        expect(screen.getByText('リトライモードの選択')).toBeInTheDocument();
+-+      });
+-+
+-+      const submitButton = screen.getByRole('button', { name: 'リトライ実行' });
+-+      await userEvent.click(submitButton);
+-+
+-+      await waitFor(() => {
+-+        expect(mockExecuteReview).toHaveBeenCalledWith(
+-+          expect.objectContaining({
+-+            reviewHistoryId: 'review-1',
+-+            files: undefined,
+-+            retryMode: 'uncompleted-only',
+-+          }),
+-+        );
+-+      });
+-+    });
+-+
+-+    it('リトライモードで全てのチェックリストを再実行できること', async () => {
+-+      const mockExecuteReview = jest.fn().mockResolvedValue({ success: true });
+-+
+-+      window.electron = createMockElectronWithOptions({
+-+        reviewHistory: mockReviewHistory,
+-+        reviewChecklistResults: mockReviewedChecklistResults,
+-+      }) as any;
+-+      window.electron.review.execute = mockExecuteReview;
+-+
+-+      render(<ReviewArea selectedReviewHistoryId="review-1" />);
+-+
+-+      const retryButton = await waitForChecklistAndEnableButton(/リトライ/);
+-+      await userEvent.click(retryButton);
+-+
+-+      await waitFor(() => {
+-+        expect(screen.getByText('リトライモードの選択')).toBeInTheDocument();
+-+      });
+-+
+-+      const allRadio = screen.getByRole('radio', {
+-+        name: /全てのチェックリスト/,
+-+      });
+-+      await userEvent.click(allRadio);
+-+
+-+      const submitButton = screen.getByRole('button', { name: 'リトライ実行' });
+-+      await userEvent.click(submitButton);
+-+
+-+      await waitFor(() => {
+-+        expect(mockExecuteReview).toHaveBeenCalledWith(
+-+          expect.objectContaining({
+-+            reviewHistoryId: 'review-1',
+-+            files: undefined,
+-+            retryMode: 'all',
+-+          }),
+-+        );
+-+      });
+-+    });
+-+  });
+-+
+-   describe('レビュー実行処理', () => {
+-     it('追加指示を設定してレビューを実行した場合、IPC通信に正しく渡されること', async () => {
+-       const mockShowOpenDialog = jest.fn().mockResolvedValue({
+-diff --git a/src/adapter/db/drizzle/repository/reviewRepository.ts b/src/adapter/db/drizzle/repository/reviewRepository.ts
+-index 2117a79d5..45a684061 100644
+---- a/src/adapter/db/drizzle/repository/reviewRepository.ts
+-+++ b/src/adapter/db/drizzle/repository/reviewRepository.ts
+-@@ -1,4 +1,4 @@
+--import { eq, and, inArray, max } from 'drizzle-orm';
+-+import { eq, and, inArray, max, isNull } from 'drizzle-orm';
+- import {
+-   reviewHistories,
+-   reviewChecklists,
+-@@ -57,6 +57,7 @@ export class DrizzleReviewRepository implements IReviewRepository {
+-       additionalInstructions: reviewHistoryEntity.additionalInstructions,
+-       commentFormat: reviewHistoryEntity.commentFormat,
+-       evaluationSettings: null,
+-+      documentMode: reviewHistoryEntity.documentMode as DocumentMode | null,
+-       processingStatus: (reviewHistoryEntity.processingStatus ||
+-         'idle') as ProcessingStatus,
+-       createdAt: reviewHistoryEntity.createdAt,
+-@@ -265,6 +266,33 @@ export class DrizzleReviewRepository implements IReviewRepository {
+-     }
+-   }
+- 
+-+  /** 未完了のチェックリスト一覧を取得 (evaluation が NULL) */
+-+  async getUncompletedChecklists(
+-+    reviewHistoryId: string,
+-+  ): Promise<ReviewChecklist[]> {
+-+    try {
+-+      const db = await getDb();
+-+      const reviewChecklistEntities = await db
+-+        .select()
+-+        .from(reviewChecklists)
+-+        .where(
+-+          and(
+-+            eq(reviewChecklists.reviewHistoryId, reviewHistoryId),
+-+            isNull(reviewChecklists.evaluation),
+-+          ),
+-+        )
+-+        .orderBy(reviewChecklists.updatedAt);
+-+      return reviewChecklistEntities.map((entity) =>
+-+        this.convertReviewChecklistEntityToReviewChecklist(entity),
+-+      );
+-+    } catch (err) {
+-+      throw repositoryError(
+-+        '未完了チェックリスト一覧の取得に失敗しました',
+-+        err,
+-+      );
+-+    }
+-+  }
+-+
+-   /** チェックリストを更新 */
+-   async updateChecklist(id: number, content: string): Promise<void> {
+-     try {
+-@@ -377,6 +405,35 @@ export class DrizzleReviewRepository implements IReviewRepository {
+-     }
+-   }
+- 
+-+  /** 指定したチェックリストのレビュー結果をクリア */
+-+  async clearReviewResultsByChecklistIds(
+-+    reviewHistoryId: string,
+-+    checklistIds: number[],
+-+  ): Promise<void> {
+-+    try {
+-+      const db = await getDb();
+-+      if (checklistIds.length === 0) return;
+-+
+-+      await db
+-+        .update(reviewChecklists)
+-+        .set({
+-+          evaluation: null,
+-+          comment: null,
+-+        })
+-+        .where(
+-+          and(
+-+            eq(reviewChecklists.reviewHistoryId, reviewHistoryId),
+-+            inArray(reviewChecklists.id, checklistIds),
+-+          ),
+-+        );
+-+    } catch (err) {
+-+      throw repositoryError(
+-+        '指定したチェックリストのレビュー結果のクリアに失敗しました',
+-+        err,
+-+      );
+-+    }
+-+  }
+-+
+-   /** ドキュメントキャッシュを削除（DBとファイルシステム） */
+-   async deleteReviewDocumentCaches(reviewHistoryId: string): Promise<void> {
+-     try {
+-@@ -400,15 +457,15 @@ export class DrizzleReviewRepository implements IReviewRepository {
+-   ): Promise<void> {
+-     try {
+-       const db = await getDb();
+--      
+-+
+-       // reviewDocumentCachesとjoinしてreviewHistoryIdで絞り込んで削除
+-       const caches = await db
+-         .select({ id: reviewDocumentCaches.id })
+-         .from(reviewDocumentCaches)
+-         .where(eq(reviewDocumentCaches.reviewHistoryId, reviewHistoryId));
+--      
+-+
+-       const cacheIds = caches.map((c) => c.id);
+--      
+-+
+-       if (cacheIds.length > 0) {
+-         await db
+-           .delete(reviewLargedocumentResultCaches)
+-@@ -427,6 +484,47 @@ export class DrizzleReviewRepository implements IReviewRepository {
+-     }
+-   }
+- 
+-+  /** 指定したチェックリストの大量ドキュメント結果キャッシュを削除 */
+-+  async deleteReviewLargedocumentResultCachesByChecklistIds(
+-+    reviewHistoryId: string,
+-+    checklistIds: number[],
+-+  ): Promise<void> {
+-+    try {
+-+      const db = await getDb();
+-+      if (checklistIds.length === 0) return;
+-+
+-+      // reviewDocumentCachesとjoinしてreviewHistoryIdで絞り込む
+-+      const caches = await db
+-+        .select({ id: reviewDocumentCaches.id })
+-+        .from(reviewDocumentCaches)
+-+        .where(eq(reviewDocumentCaches.reviewHistoryId, reviewHistoryId));
+-+
+-+      const cacheIds = caches.map((c) => c.id);
+-+
+-+      if (cacheIds.length > 0) {
+-+        await db
+-+          .delete(reviewLargedocumentResultCaches)
+-+          .where(
+-+            and(
+-+              inArray(
+-+                reviewLargedocumentResultCaches.reviewDocumentCacheId,
+-+                cacheIds,
+-+              ),
+-+              inArray(
+-+                reviewLargedocumentResultCaches.reviewChecklistId,
+-+                checklistIds,
+-+              ),
+-+            ),
+-+          );
+-+      }
+-+    } catch (err) {
+-+      throw repositoryError(
+-+        '指定したチェックリストの大量ドキュメント結果キャッシュの削除に失敗しました',
+-+        err,
+-+      );
+-+    }
+-+  }
+-+
+-   /** documentModeを更新 */
+-   async updateReviewHistoryDocumentMode(
+-     id: string,
+-diff --git a/src/main/main.ts b/src/main/main.ts
+-index 344d24ee3..cf55ccd49 100644
+---- a/src/main/main.ts
+-+++ b/src/main/main.ts
+-@@ -479,17 +479,8 @@ const setupReviewHandlers = () => {
+-       commentFormat,
+-       evaluationSettings,
+-       documentMode,
+-+      retryMode,
+-     }) => {
+--      reviewService.updateReviewInstruction(
+--        reviewHistoryId,
+--        additionalInstructions,
+--        commentFormat,
+--      );
+--      reviewService.updateReviewEvaluationSettings(
+--        reviewHistoryId,
+--        evaluationSettings,
+--      );
+--
+-       // 非同期でレビュー実行処理を実行
+-       const result = reviewService.executeReviewWithNotification(
+-         reviewHistoryId,
+-@@ -498,6 +489,7 @@ const setupReviewHandlers = () => {
+-         additionalInstructions,
+-         commentFormat,
+-         documentMode,
+-+        retryMode,
+-       );
+- 
+-       if (!result.success) {
+-diff --git a/src/main/service/port/repository/IReviewRepository.ts b/src/main/service/port/repository/IReviewRepository.ts
+-index 9fac263b7..e4109b75a 100644
+---- a/src/main/service/port/repository/IReviewRepository.ts
+-+++ b/src/main/service/port/repository/IReviewRepository.ts
+-@@ -46,6 +46,7 @@ export interface IReviewRepository {
+-     createdBy: ReviewChecklistCreatedBy,
+-   ): Promise<void>;
+-   getChecklists(reviewHistoryId: string): Promise<ReviewChecklist[]>;
+-+  getUncompletedChecklists(reviewHistoryId: string): Promise<ReviewChecklist[]>;
+-   updateChecklist(id: number, content: string): Promise<void>;
+-   deleteChecklist(id: number): Promise<void>;
+-   deleteSystemCreatedChecklists(reviewHistoryId: string): Promise<void>;
+-@@ -62,11 +63,19 @@ export interface IReviewRepository {
+-     reviewHistoryId: string,
+-   ): Promise<ReviewChecklistResult[]>;
+-   deleteAllReviewResults(reviewHistoryId: string): Promise<void>;
+-+  clearReviewResultsByChecklistIds(
+-+    reviewHistoryId: string,
+-+    checklistIds: number[],
+-+  ): Promise<void>;
+- 
+-   // ドキュメントキャッシュ削除
+-   deleteReviewDocumentCaches(reviewHistoryId: string): Promise<void>;
+-   // 大量ドキュメント結果キャッシュ削除
+-   deleteReviewLargedocumentResultCaches(reviewHistoryId: string): Promise<void>;
+-+  deleteReviewLargedocumentResultCachesByChecklistIds(
+-+    reviewHistoryId: string,
+-+    checklistIds: number[],
+-+  ): Promise<void>;
+- 
+-   // documentModeの保存
+-   updateReviewHistoryDocumentMode(
+-diff --git a/src/main/service/reviewService.ts b/src/main/service/reviewService.ts
+-index f1c458144..3d8c2a286 100644
+---- a/src/main/service/reviewService.ts
+-+++ b/src/main/service/reviewService.ts
+-@@ -15,6 +15,7 @@ import {
+-   DocumentMode,
+-   ProcessingStatus,
+-   CsvImportData,
+-+  RetryMode,
+- } from '@/types';
+- import { generateReviewTitle } from '@/mastra/workflows/sourceReview/lib';
+- import { RevieHistory } from '@/types';
+-@@ -56,6 +57,10 @@ export interface IReviewService {
+-     reviewHistoryId: string,
+-     evaluationSettings: CustomEvaluationSettings,
+-   ): Promise<void>;
+-+  updateReviewDocumentMode(
+-+    reviewHistoryId: string,
+-+    documentMode: DocumentMode,
+-+  ): Promise<void>;
+-   extractChecklistFromCsv(
+-     reviewHistoryId: string,
+-     files: UploadFile[],
+-@@ -220,6 +225,19 @@ export class ReviewService implements IReviewService {
+-     );
+-   }
+- 
+-+  /**
+-+   * レビュー履歴のドキュメントモードを更新
+-+   */
+-+  public async updateReviewDocumentMode(
+-+    reviewHistoryId: string,
+-+    documentMode: DocumentMode,
+-+  ): Promise<void> {
+-+    return this.reviewRepository.updateReviewHistoryDocumentMode(
+-+      reviewHistoryId,
+-+      documentMode,
+-+    );
+-+  }
+-+
+-   /**
+-    * CSVファイルからチェックリストを抽出してDBに保存
+-       */
+-@@ -462,26 +480,51 @@ export class ReviewService implements IReviewService {
+-   /**
+-    * アップロードファイルからレビュー実行処理を実行
+-    * @param reviewHistoryId レビュー履歴ID
+--   * @param files アップロードファイルの配列
+-+   * @param files アップロードファイルの配列（リトライ時はオプション）
+-+   * @param retryMode リトライモード
+-    * @returns 処理結果
+-    */
+-   public async executeReview(
+-     reviewHistoryId: string,
+--    files: UploadFile[],
+-+    files: UploadFile[] | undefined,
+-     evaluationSettings: CustomEvaluationSettings,
+-     additionalInstructions?: string,
+-     commentFormat?: string,
+-     documentMode?: DocumentMode,
+-+    retryMode?: RetryMode,
+-   ): Promise<{ status: ReviewExecutionResultStatus; error?: string }> {
+-     try {
+-+      // バリデーション: 初回レビューの場合はfilesが必須
+-+      if (!retryMode && !files) {
+-+        throw internalError({
+-+          expose: true,
+-+          messageCode: 'REVIEW_FILES_REQUIRED',
+-+          messageParams: { reviewHistoryId },
+-+        });
+-+      }
+-+
+-+      // バリデーション: リトライの場合はドキュメントキャッシュが必須
+-+      if (retryMode) {
+-+        const cachedDocuments =
+-+          await this.reviewRepository.getReviewDocumentCaches(reviewHistoryId);
+-+        if (cachedDocuments.length === 0) {
+-+          throw internalError({
+-+            expose: true,
+-+            messageCode: 'REVIEW_DOCUMENT_CACHE_NOT_FOUND',
+-+            messageParams: { reviewHistoryId },
+-+          });
+-+        }
+-+      }
+-+
+-       // レビュー履歴の存在確認
+-       const reviewHistory =
+-         await this.reviewRepository.getReviewHistory(reviewHistoryId);
+-       if (!reviewHistory) {
+--        return {
+--          status: 'failed',
+--          error: `チェックリストが一度も作成されていません`,
+--        };
+-+        throw internalError({
+-+          expose: true,
+-+          messageCode: 'REVIEW_HISTORY_NOT_FOUND',
+-+          messageParams: { reviewHistoryId },
+-+        });
+-       }
+- 
+-       // Mastraワークフローを実行
+-@@ -494,16 +537,38 @@ export class ReviewService implements IReviewService {
+-         });
+-       }
+- 
+--      // タイトルの変更
+--      const fileNames = files.map((f) => f.name.replace(/\.[^/.]+$/, '')); // 拡張子を除いたファイル名
+--      const reviewTitle = generateReviewTitle(fileNames);
+--      // レビュー履歴のタイトルと追加データを更新
+--      await this.reviewRepository.updateReviewHistoryTitle(
+--        reviewHistory.id,
+--        reviewTitle,
+--      );
+--      // タイトル更新時はレビュー履歴更新イベントを送信
+--      publishEvent(IpcChannels.REVIEW_HISTORY_UPDATED, undefined);
+-+      // 初回レビュー時はレビュー指示・評定項目設定・ドキュメントモードを保存
+-+      if (!retryMode) {
+-+        await this.updateReviewInstruction(
+-+          reviewHistoryId,
+-+          additionalInstructions,
+-+          commentFormat,
+-+        );
+-+        await this.updateReviewEvaluationSettings(
+-+          reviewHistoryId,
+-+          evaluationSettings,
+-+        );
+-+        await this.updateReviewDocumentMode(reviewHistoryId, documentMode || 'small');
+-+      } else {
+-+        // リトライ時は最新のレビュー履歴情報を取得
+-+        evaluationSettings = reviewHistory.evaluationSettings!;
+-+        additionalInstructions = reviewHistory.additionalInstructions ?? undefined;
+-+        commentFormat = reviewHistory.commentFormat ?? undefined;
+-+        documentMode = reviewHistory.documentMode || 'small';
+-+      }
+-+
+-+      // タイトルの変更（初回レビューのみ）
+-+      if (!retryMode && files) {
+-+        const fileNames = files.map((f) => f.name.replace(/\.[^/.]+$/, '')); // 拡張子を除いたファイル名
+-+        const reviewTitle = generateReviewTitle(fileNames);
+-+        // レビュー履歴のタイトルと追加データを更新
+-+        await this.reviewRepository.updateReviewHistoryTitle(
+-+          reviewHistory.id,
+-+          reviewTitle,
+-+        );
+-+        // タイトル更新時はレビュー履歴更新イベントを送信
+-+        publishEvent(IpcChannels.REVIEW_HISTORY_UPDATED, undefined);
+-+      }
+- 
+-       const run = await workflow.createRunAsync();
+- 
+-@@ -525,7 +590,8 @@ export class ReviewService implements IReviewService {
+-           evaluationSettings,
+-           additionalInstructions,
+-           commentFormat,
+--          documentMode: documentMode || 'small', // デフォルトは少量ドキュメント
+-+          documentMode: documentMode,
+-+          retryMode,
+-         },
+-       });
+- 
+-@@ -655,11 +721,12 @@ export class ReviewService implements IReviewService {
+-    */
+-   public executeReviewWithNotification(
+-     reviewHistoryId: string,
+--    files: UploadFile[],
+-+    files: UploadFile[] | undefined,
+-     evaluationSettings: CustomEvaluationSettings,
+-     additionalInstructions?: string,
+-     commentFormat?: string,
+-     documentMode?: DocumentMode,
+-+    retryMode?: RetryMode,
+-   ): { success: boolean; error?: string } {
+-     try {
+-       this.executeReview(
+-@@ -669,6 +736,7 @@ export class ReviewService implements IReviewService {
+-         additionalInstructions,
+-         commentFormat,
+-         documentMode,
+-+        retryMode,
+-       )
+-         .then((res) => {
+-           // 完了イベントを送信
+-@@ -701,8 +769,8 @@ export class ReviewService implements IReviewService {
+-       const errorMessage = err.message;
+-       const errorResult = {
+-         success: false,
+--        error: errorMessage,
+--      };
+-+            error: errorMessage,
+-+          };
+-       const payloadResult = {
+-         reviewHistoryId,
+-         status: 'failed' as ReviewExecutionResultStatus,
+-diff --git a/src/mastra/workflows/sourceReview/executeReview/classifyChecklistStep.ts b/src/mastra/workflows/sourceReview/executeReview/classifyChecklistStep.ts
+-index 73fb06c6d..e6bb5eab4 100644
+---- a/src/mastra/workflows/sourceReview/executeReview/classifyChecklistStep.ts
+-+++ b/src/mastra/workflows/sourceReview/executeReview/classifyChecklistStep.ts
+-@@ -22,6 +22,10 @@ const logger = getMainLogger();
+- 
+- export const classifyChecklistsByCategoryInputSchema = z.object({
+-   reviewHistoryId: z.string().describe('レビュー履歴ID'),
+-+  retryMode: z
+-+    .enum(['all', 'uncompleted-only'])
+-+    .optional()
+-+    .describe('リトライモード: all=全てのチェックリスト, uncompleted-only=未完了のみ'),
+- });
+- 
+- // カテゴリ分類ステップの出力スキーマ
+-@@ -49,14 +53,24 @@ export const classifyChecklistsByCategoryStep = createStep({
+-   outputSchema: classifyChecklistsByCategoryOutputSchema,
+-   execute: async ({ inputData, mastra, abortSignal, bail }) => {
+-     // トリガーから入力を取得
+--    const { reviewHistoryId } = inputData;
+-+    const { reviewHistoryId, retryMode } = inputData;
+- 
+-     // レビューリポジトリを取得
+-     const repository = getReviewRepository();
+- 
+-     try {
+--      // チェックリストを取得
+--      const checklistsResult = await repository.getChecklists(reviewHistoryId);
+-+      // リトライモードに応じてチェックリストを取得
+-+      let checklistsResult;
+-+      if (retryMode === 'uncompleted-only') {
+-+        // 未完了のチェックリストのみ取得
+-+        checklistsResult = await repository.getUncompletedChecklists(
+-+          reviewHistoryId,
+-+        );
+-+      } else {
+-+        // 全てのチェックリストを取得（初回レビューまたは'all'リトライ）
+-+        checklistsResult = await repository.getChecklists(reviewHistoryId);
+-+      }
+-+
+-       if (!checklistsResult || checklistsResult.length === 0) {
+-         throw internalError({
+-           expose: true,
+-diff --git a/src/mastra/workflows/sourceReview/executeReview/index.ts b/src/mastra/workflows/sourceReview/executeReview/index.ts
+-index e612c6621..086823109 100644
+---- a/src/mastra/workflows/sourceReview/executeReview/index.ts
+-+++ b/src/mastra/workflows/sourceReview/executeReview/index.ts
+-@@ -48,8 +48,13 @@ export const executeReviewWorkflowInputSchema = z.object({
+-     .describe(
+-       'ドキュメントモード: small=少量ドキュメント, large=大量ドキュメント',
+-     ),
+--  // レビュー対象のドキュメント
+--  files: z.array(uploadedFileSchema),
+-+  // リトライモード (undefinedの場合は初回レビュー)
+-+  retryMode: z
+-+    .enum(['all', 'uncompleted-only'])
+-+    .optional()
+-+    .describe('リトライモード: all=全てのチェックリスト, uncompleted-only=未完了のみ'),
+-+  // レビュー対象のドキュメント (リトライ時はオプション)
+-+  files: z.array(uploadedFileSchema).optional(),
+- });
+- 
+- export const executeReviewWorkflowOutputSchema = baseStepOutputSchema;
+-@@ -101,9 +106,10 @@ export const executeReviewWorkflow = createWorkflow({
+-       outputSchema: textExtractionStep.outputSchema,
+-     })
+-       .map(async ({ inputData }) => {
+--        return { files: inputData.files } as z.infer<
+--          typeof textExtractionStep.inputSchema
+--        >;
+-+        return {
+-+          reviewHistoryId: inputData.reviewHistoryId,
+-+          files: inputData.files,
+-+        } as z.infer<typeof textExtractionStep.inputSchema>;
+-       })
+-       .then(textExtractionStep)
+-       .commit(),
+-@@ -113,9 +119,10 @@ export const executeReviewWorkflow = createWorkflow({
+-       outputSchema: classifyChecklistsByCategoryStep.outputSchema,
+-     })
+-       .map(async ({ inputData }) => {
+--        return { reviewHistoryId: inputData.reviewHistoryId } as z.infer<
+--          typeof classifyChecklistsByCategoryStep.inputSchema
+--        >;
+-+        return {
+-+          reviewHistoryId: inputData.reviewHistoryId,
+-+          retryMode: inputData.retryMode,
+-+        } as z.infer<typeof classifyChecklistsByCategoryStep.inputSchema>;
+-       })
+-       .then(classifyChecklistsByCategoryStep)
+-       .commit(),
+-@@ -145,47 +152,102 @@ export const executeReviewWorkflow = createWorkflow({
+-       typeof executeReviewWorkflowInputSchema
+-     >;
+- 
+--    // 既存のレビュー結果を全て削除
+-     const reviewRepository = getReviewRepository();
+--    // 大量ドキュメント結果キャッシュを削除
+--    await reviewRepository.deleteReviewLargedocumentResultCaches(
+--      initData.reviewHistoryId,
+--    );
+--    // ドキュメントキャッシュを削除（ファイルシステムのキャッシュも削除）
+--    await reviewRepository.deleteReviewDocumentCaches(initData.reviewHistoryId);
+--    // レビュー結果を削除
+--    await reviewRepository.deleteAllReviewResults(initData.reviewHistoryId);
+- 
+--    // documentModeを保存
+--    await reviewRepository.updateReviewHistoryDocumentMode(
+--      initData.reviewHistoryId,
+--      initData.documentMode,
+--    );
+-+    // キャッシュ管理: リトライモードに応じた処理
+-+    if (!initData.retryMode) {
+-+      // シナリオ1: 初回レビュー (retryMode undefined)
+-+      // 全キャッシュと結果を削除
+-+      await reviewRepository.deleteReviewLargedocumentResultCaches(
+-+        initData.reviewHistoryId,
+-+      );
+-+      await reviewRepository.deleteReviewDocumentCaches(initData.reviewHistoryId);
+-+      await reviewRepository.deleteAllReviewResults(initData.reviewHistoryId);
+- 
+--    // ドキュメントキャッシュを保存
+--    for (const document of textExtractionResult.extractedDocuments || []) {
+--      if (!document) continue;
+--      const savedCache = await reviewRepository.createReviewDocumentCache({
+--        reviewHistoryId: initData.reviewHistoryId,
+--        fileName: document.name || '',
+--        processMode: document.processMode || 'text',
+--        textContent: document.textContent,
+--        imageData: document.imageData,
+--      });
+--      // キャッシュIDを付与
+--      document.cacheId = savedCache.id;
+--    }
+-+      // documentModeを保存
+-+      await reviewRepository.updateReviewHistoryDocumentMode(
+-+        initData.reviewHistoryId,
+-+        initData.documentMode,
+-+      );
+- 
+--    // レビュー対象の統合ドキュメント名を保存
+--    const targetDocumentName = (textExtractionResult.extractedDocuments || [])
+--      .map((doc) => doc?.name || '')
+--      .filter((name) => name)
+--      .join('/');
+--    if (targetDocumentName) {
+--      await reviewRepository.updateReviewHistoryTargetDocumentName(
+-+      // ドキュメントキャッシュを作成
+-+      for (const document of textExtractionResult.extractedDocuments || []) {
+-+        if (!document) continue;
+-+        const savedCache = await reviewRepository.createReviewDocumentCache({
+-+          reviewHistoryId: initData.reviewHistoryId,
+-+          fileName: document.name || '',
+-+          processMode: document.processMode || 'text',
+-+          textContent: document.textContent,
+-+          imageData: document.imageData,
+-+        });
+-+        // キャッシュIDを付与
+-+        document.cacheId = savedCache.id;
+-+      }
+-+
+-+      // レビュー対象の統合ドキュメント名を保存
+-+      const targetDocumentName = (textExtractionResult.extractedDocuments || [])
+-+        .map((doc) => doc?.name || '')
+-+        .filter((name) => name)
+-+        .join('/');
+-+      if (targetDocumentName) {
+-+        await reviewRepository.updateReviewHistoryTargetDocumentName(
+-+          initData.reviewHistoryId,
+-+          targetDocumentName,
+-+        );
+-+      }
+-+    } else if (initData.retryMode === 'all') {
+-+      // シナリオ2: 全てのチェックリストをリトライ
+-+      // 大量ドキュメントキャッシュとレビュー結果を削除、ドキュメントキャッシュは保持
+-+      await reviewRepository.deleteReviewLargedocumentResultCaches(
+-+        initData.reviewHistoryId,
+-+      );
+-+      await reviewRepository.deleteAllReviewResults(initData.reviewHistoryId);
+-+
+-+      // キャッシュからロードされたドキュメントにcacheIdを付与
+-+      // (textExtractionStepでキャッシュからロードした場合、cacheIdは未設定)
+-+      const cachedDocuments = await reviewRepository.getReviewDocumentCaches(
+-+        initData.reviewHistoryId,
+-+      );
+-+      for (
+-+        let i = 0;
+-+        i < (textExtractionResult.extractedDocuments || []).length;
+-+        i++
+-+      ) {
+-+        const document = textExtractionResult.extractedDocuments![i];
+-+        if (!document) continue;
+-+        if (cachedDocuments[i]) {
+-+          document.cacheId = cachedDocuments[i].id;
+-+        }
+-+      }
+-+    } else if (initData.retryMode === 'uncompleted-only') {
+-+      // シナリオ3: 未完了チェックリストのみリトライ
+-+      // 未完了チェックリストの大量ドキュメントキャッシュのみ削除
+-+      const uncompletedChecklistIds = classifyChecklistsResult.categories!
+-+        .flatMap((cat) => cat.checklists)
+-+        .map((checklist) => checklist.id);
+-+
+-+      if (uncompletedChecklistIds.length > 0) {
+-+        await reviewRepository.deleteReviewLargedocumentResultCachesByChecklistIds(
+-+          initData.reviewHistoryId,
+-+          uncompletedChecklistIds,
+-+        );
+-+      }
+-+
+-+      // キャッシュからロードされたドキュメントにcacheIdを付与
+-+      const cachedDocuments = await reviewRepository.getReviewDocumentCaches(
+-         initData.reviewHistoryId,
+--        targetDocumentName,
+-       );
+-+      for (
+-+        let i = 0;
+-+        i < (textExtractionResult.extractedDocuments || []).length;
+-+        i++
+-+      ) {
+-+        const document = textExtractionResult.extractedDocuments![i];
+-+        if (!document) continue;
+-+        if (cachedDocuments[i]) {
+-+          document.cacheId = cachedDocuments[i].id;
+-+        }
+-+      }
+-     }
+- 
+-     return classifyChecklistsResult.categories!.map((category) => {
+-diff --git a/src/mastra/workflows/sourceReview/executeReview/textExtractionStep.ts b/src/mastra/workflows/sourceReview/executeReview/textExtractionStep.ts
+-index 935475237..d68d68d9b 100644
+---- a/src/mastra/workflows/sourceReview/executeReview/textExtractionStep.ts
+-+++ b/src/mastra/workflows/sourceReview/executeReview/textExtractionStep.ts
+-@@ -3,16 +3,21 @@ import { createStep } from '@mastra/core';
+- import { z } from 'zod';
+- import { stepStatus } from '../../types';
+- import { baseStepOutputSchema } from '../../schema';
+--import { normalizeUnknownError } from '@/main/lib/error';
+-+import { normalizeUnknownError, internalError } from '@/main/lib/error';
+- import FileExtractor from '@/main/lib/fileExtractor';
+- import { getMainLogger } from '@/main/lib/logger';
+- import { extractedDocumentSchema, uploadedFileSchema } from './schema';
+-+import { getReviewRepository } from '@/adapter/db';
+- 
+- const logger = getMainLogger();
+- 
+- // 入力スキーマ
+- export const textExtractionInputSchema = z.object({
+--  files: z.array(uploadedFileSchema).describe('アップロードファイルのリスト'),
+-+  reviewHistoryId: z.string().describe('レビュー履歴ID'),
+-+  files: z
+-+    .array(uploadedFileSchema)
+-+    .optional()
+-+    .describe('アップロードファイルのリスト（リトライ時はオプション）'),
+- });
+- 
+- // テキスト抽出ステップの出力スキーマ
+-@@ -26,7 +31,7 @@ export const textExtractionStep = createStep({
+-   inputSchema: textExtractionInputSchema,
+-   outputSchema: textExtractionOutputSchema,
+-   execute: async ({ inputData, abortSignal, bail }) => {
+--    const { files } = inputData;
+-+    const { reviewHistoryId, files } = inputData;
+-     const fileIdSequence = (function* () {
+-       let id = 1;
+-       while (true) {
+-@@ -37,6 +42,44 @@ export const textExtractionStep = createStep({
+-     try {
+-       const extractedDocuments: z.infer<typeof extractedDocumentSchema>[] = [];
+- 
+-+      // リトライの場合: キャッシュからロード
+-+      if (!files) {
+-+        const repository = getReviewRepository();
+-+        const cachedDocuments = await repository.getReviewDocumentCaches(
+-+          reviewHistoryId,
+-+        );
+-+
+-+        if (cachedDocuments.length === 0) {
+-+          throw internalError({
+-+            expose: true,
+-+            messageCode: 'REVIEW_DOCUMENT_CACHE_NOT_FOUND',
+-+            messageParams: { reviewHistoryId },
+-+          });
+-+        }
+-+
+-+        // キャッシュからextractedDocuments形式に変換
+-+        for (const cache of cachedDocuments) {
+-+          const id = fileIdSequence.next().value.toString();
+-+
+-+          extractedDocuments.push({
+-+            id,
+-+            name: cache.fileName,
+-+            path: '', // キャッシュからロードした場合はpathは不要
+-+            type: '', // キャッシュからロードした場合はtypeは不要
+-+            processMode: cache.processMode,
+-+            textContent: cache.textContent,
+-+            imageData: cache.imageData,
+-+            imageMode: undefined, // キャッシュにはimageModeが保存されていない
+-+          });
+-+        }
+-+
+-+        return {
+-+          status: 'success' as stepStatus,
+-+          extractedDocuments,
+-+        };
+-+      }
+-+
+-+      // 初回レビュー: ファイルからテキスト抽出
+-       // 各ファイルからテキストを抽出
+-       for (const file of files) {
+-         // ワークフロー内での一意IDを生成
+-diff --git a/src/messages/ja/template.ts b/src/messages/ja/template.ts
+-index a43841672..104dd00d1 100644
+---- a/src/messages/ja/template.ts
+-+++ b/src/messages/ja/template.ts
+-@@ -33,6 +33,7 @@ export const template = {
+-   REVIEW_CHECKLIST_EXTRACTION_FROM_CSV_ERROR: `CSVファイルからのチェックリスト抽出中に予期せぬエラーが発生しました`,
+-   REVIEW_CHECKLIST_EXTRACTION_FILE_IMPORT_ERROR: `チェックリストのインポートに失敗しました\n{detail}`,
+-   REVIEW_HISTORY_NOT_FOUND: `指定されたレビューの情報を取得できませんでした`,
+-+  REVIEW_FILES_REQUIRED: `初回レビュー実行時はドキュメントファイルの選択が必須です`,
+-   AI_API_ERROR: `AIのAPIと通信中にエラーが発生しました\n{detail}`,
+-   AI_MESSAGE_TOO_LARGE: `AIへの入力データが大きすぎます。入力データを減らしてください。`,
+-   AI_INVALID_RESPONSE: `AIから予期せぬ応答が返されました`,
+-diff --git a/src/renderer/components/review/RetryModeSelectionModal.tsx b/src/renderer/components/review/RetryModeSelectionModal.tsx
+-new file mode 100644
+-index 000000000..4e7b44dd6
+---- /dev/null
+-+++ b/src/renderer/components/review/RetryModeSelectionModal.tsx
+-@@ -0,0 +1,140 @@
+-+import React, { useState } from 'react';
+-+import {
+-+  Modal,
+-+  Box,
+-+  Typography,
+-+  Button,
+-+  Paper,
+-+  FormControl,
+-+  RadioGroup,
+-+  FormControlLabel,
+-+  Radio,
+-+  Stack,
+-+  Divider,
+-+} from '@mui/material';
+-+import Backdrop from '@mui/material/Backdrop';
+-+import { RetryMode } from '@/types';
+-+
+-+interface RetryModeSelectionModalProps {
+-+  open: boolean;
+-+  onClose: () => void;
+-+  onSubmit: (retryMode: RetryMode) => void;
+-+  disabled?: boolean;
+-+}
+-+
+-+const RetryModeSelectionModal: React.FC<RetryModeSelectionModalProps> = ({
+-+  open,
+-+  onClose,
+-+  onSubmit,
+-+  disabled = false,
+-+}) => {
+-+  const [retryMode, setRetryMode] = useState<RetryMode>('uncompleted-only');
+-+
+-+  const handleSubmit = () => {
+-+    onSubmit(retryMode);
+-+  };
+-+
+-+  const handleClose = () => {
+-+    if (!disabled) {
+-+      onClose();
+-+    }
+-+  };
+-+
+-+  return (
+-+    <Modal
+-+      open={open}
+-+      onClose={handleClose}
+-+      closeAfterTransition
+-+      slots={{ backdrop: Backdrop }}
+-+      slotProps={{
+-+        backdrop: {
+-+          timeout: 500,
+-+        },
+-+      }}
+-+    >
+-+      <Box
+-+        sx={{
+-+          position: 'absolute',
+-+          top: '50%',
+-+          left: '50%',
+-+          transform: 'translate(-50%, -50%)',
+-+          minWidth: 500,
+-+          maxWidth: '90%',
+-+          bgcolor: 'background.paper',
+-+          borderRadius: 2,
+-+          boxShadow: 24,
+-+          outline: 'none',
+-+        }}
+-+      >
+-+        <Paper elevation={0} sx={{ p: 3 }}>
+-+          {/* ヘッダー */}
+-+          <Typography variant="h5" component="h2" gutterBottom>
+-+            リトライモードの選択
+-+          </Typography>
+-+          <Divider sx={{ mb: 3 }} />
+-+
+-+          {/* 説明文 */}
+-+          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+-+            レビューを再実行するチェックリストを選択してください
+-+          </Typography>
+-+
+-+          {/* リトライモード選択 */}
+-+          <FormControl component="fieldset" sx={{ mb: 3, width: '100%' }}>
+-+            <RadioGroup
+-+              value={retryMode}
+-+              onChange={(e) => setRetryMode(e.target.value as RetryMode)}
+-+            >
+-+              <FormControlLabel
+-+                value="uncompleted-only"
+-+                control={<Radio />}
+-+                label={
+-+                  <Box>
+-+                    <Typography variant="body1">
+-+                      レビュー未済のチェックリストのみ
+-+                    </Typography>
+-+                    <Typography variant="caption" color="text.secondary">
+-+                      評価が未完了のチェックリストのみを再実行します
+-+                    </Typography>
+-+                  </Box>
+-+                }
+-+                sx={{ mb: 2 }}
+-+              />
+-+              <FormControlLabel
+-+                value="all"
+-+                control={<Radio />}
+-+                label={
+-+                  <Box>
+-+                    <Typography variant="body1">全てのチェックリスト</Typography>
+-+                    <Typography variant="caption" color="text.secondary">
+-+                      全てのチェックリストを再実行します（既存の評価は削除されます）
+-+                    </Typography>
+-+                  </Box>
+-+                }
+-+              />
+-+            </RadioGroup>
+-+          </FormControl>
+-+
+-+          {/* アクションボタン */}
+-+          <Stack direction="row" spacing={2} justifyContent="flex-end">
+-+            <Button
+-+              variant="outlined"
+-+              onClick={handleClose}
+-+              disabled={disabled}
+-+            >
+-+              キャンセル
+-+            </Button>
+-+            <Button
+-+              variant="contained"
+-+              onClick={handleSubmit}
+-+              disabled={disabled}
+-+            >
+-+              リトライ実行
+-+            </Button>
+-+          </Stack>
+-+        </Paper>
+-+      </Box>
+-+    </Modal>
+-+  );
+-+};
+-+
+-+export default RetryModeSelectionModal;
+-diff --git a/src/renderer/components/review/ReviewArea.tsx b/src/renderer/components/review/ReviewArea.tsx
+-index f13b364bc..f51d2c4a0 100644
+---- a/src/renderer/components/review/ReviewArea.tsx
+-+++ b/src/renderer/components/review/ReviewArea.tsx
+-@@ -22,11 +22,13 @@ import {
+-   ReviewExecutionResultStatus,
+-   DocumentMode,
+-   ProcessingStatus,
+-+  RetryMode,
+- } from '@/types';
+- import { ReviewAreaProps } from './types';
+- import ReviewChecklistSection from './ReviewChecklistSection';
+- import ReviewSourceModal from './ReviewSourceModal';
+- import ReviewChatPanel from './ReviewChatPanel';
+-+import RetryModeSelectionModal from './RetryModeSelectionModal';
+- import { ReviewApi } from '../../service/reviewApi';
+- import { useAlertStore } from '../../stores/alertStore';
+- import { getSafeErrorMessage } from '../../lib/error';
+-@@ -60,6 +62,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
+-     useState<ProcessingStatus>('idle');
+-   const [isModalOpen, setIsModalOpen] = useState(false);
+-   const [modalMode, setModalMode] = useState<ModalMode | null>(null);
+-+  const [isRetryModalOpen, setIsRetryModalOpen] = useState(false);
+-   const [additionalInstructions, setAdditionalInstructions] = useState('');
+-   const [commentFormat, setCommentFormat] = useState(defaultCommentFormat);
+-   const [evaluationSettings, setEvaluationSettings] =
+-@@ -414,7 +417,11 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
+- 
+-   // レビュー実行処理
+-   const handleExecuteReview = useCallback(
+--    async (files: UploadFile[], documentMode?: DocumentMode) => {
+-+    async (
+-+      files: UploadFile[] | undefined,
+-+      documentMode?: DocumentMode,
+-+      retryMode?: RetryMode,
+-+    ) => {
+-       if (!selectedReviewHistoryId) return;
+- 
+-       const reviewApi = ReviewApi.getInstance();
+-@@ -422,6 +429,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
+-       try {
+-         setIsReviewing(true);
+-         setIsModalOpen(false);
+-+        setIsRetryModalOpen(false);
+- 
+-         // 既存のイベント購読を解除
+-         if (eventUnsubscribeRef.current) {
+-@@ -443,6 +451,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
+-           documentMode,
+-           additionalInstructions || additionalInstructions,
+-           commentFormat || commentFormat,
+-+          retryMode,
+-           { throwError: true, showAlert: false },
+-         );
+-       } catch (error) {
+-@@ -552,12 +561,25 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
+-           checklistRequirements,
+-         );
+-       } else if (modalMode === 'review') {
+--        await handleExecuteReview(files, documentMode);
+-+        await handleExecuteReview(files, documentMode, undefined);
+-       }
+-     },
+-     [modalMode, handleExtractChecklist, handleExecuteReview],
+-   );
+- 
+-+  // リトライモード選択後の処理
+-+  const handleRetrySubmit = useCallback(
+-+    async (retryMode: RetryMode) => {
+-+      await handleExecuteReview(undefined, undefined, retryMode);
+-+    },
+-+    [handleExecuteReview],
+-+  );
+-+
+-+  // レビュー結果が既に存在するかチェック
+-+  const hasExistingReviewResults = checklistResults.some(
+-+    (cl) => cl.sourceEvaluation !== null && cl.sourceEvaluation !== undefined,
+-+  );
+-+
+-   // チェックリストの更新処理
+-   const handleSaveChecklist = async (checklists: ReviewChecklistEdit[]) => {
+-     if (!selectedReviewHistoryId) return;
+-@@ -685,8 +707,12 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
+-                   isReviewing
+-                     ? handleCancelExecuteReview
+-                     : () => {
+--                        setModalMode('review');
+--                        setIsModalOpen(true);
+-+                        if (hasExistingReviewResults) {
+-+                          setIsRetryModalOpen(true);
+-+                        } else {
+-+                          setModalMode('review');
+-+                          setIsModalOpen(true);
+-+                        }
+-                       }
+-                 }
+-                 disabled={
+-@@ -700,7 +726,9 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
+-                   ? processingStatus === 'canceling-review'
+-                     ? 'キャンセル処理中'
+-                     : 'キャンセル'
+--                  : 'レビュー実行'}
+-+                  : hasExistingReviewResults
+-+                    ? 'リトライ'
+-+                    : 'レビュー実行'}
+-               </Button>
+-               <Button
+-                 variant="contained"
+-@@ -801,6 +829,14 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
+-             evaluationSettings={evaluationSettings || defaultEvaluationSettings}
+-             setEvaluationSettings={setEvaluationSettings}
+-           />
+-+
+-+          {/* リトライモード選択モーダル */}
+-+          <RetryModeSelectionModal
+-+            open={isRetryModalOpen}
+-+            onClose={() => setIsRetryModalOpen(false)}
+-+            onSubmit={handleRetrySubmit}
+-+            disabled={isSaving || isExtracting || isReviewing}
+-+          />
+-         </>
+-       )}
+-       {/* チェックリストが選択されていない場合のメッセージ */}
+-diff --git a/src/renderer/service/reviewApi.ts b/src/renderer/service/reviewApi.ts
+-index 50946887d..e3c377f03 100644
+---- a/src/renderer/service/reviewApi.ts
+-+++ b/src/renderer/service/reviewApi.ts
+-@@ -7,6 +7,7 @@ import {
+-   ReviewExecutionResultStatus,
+-   CustomEvaluationSettings,
+-   DocumentMode,
+-+  RetryMode,
+- } from '@/types';
+- import { ApiServiceDefaultOptions } from '../types';
+- import { invokeApi } from '../lib/apiUtils';
+-@@ -50,11 +51,12 @@ export interface IReviewApi {
+-   ): Promise<void>;
+-   executeReview(
+-     historyId: string,
+--    files: UploadFile[],
+-+    files: UploadFile[] | undefined,
+-     evaluationSettings: CustomEvaluationSettings,
+--    documentMode: DocumentMode,
+-+    documentMode?: DocumentMode,
+-     additionalInstructions?: string,
+-     commentFormat?: string,
+-+    retryMode?: RetryMode,
+-     options?: ApiServiceDefaultOptions,
+-   ): Promise<void>;
+-   subscribeChecklistExtractionFinished(
+-@@ -173,11 +175,12 @@ export class ReviewApi implements IReviewApi {
+- 
+-   public async executeReview(
+-     historyId: string,
+--    files: UploadFile[],
+-+    files: UploadFile[] | undefined,
+-     evaluationSettings: CustomEvaluationSettings,
+-     documentMode?: DocumentMode,
+-     additionalInstructions?: string,
+-     commentFormat?: string,
+-+    retryMode?: RetryMode,
+-     options?: ApiServiceDefaultOptions,
+-   ): Promise<void> {
+-     await invokeApi(
+-@@ -189,6 +192,7 @@ export class ReviewApi implements IReviewApi {
+-           commentFormat,
+-           evaluationSettings,
+-           documentMode: documentMode ? documentMode : 'small',
+-+          retryMode,
+-         }),
+-       options,
+-     );
+-diff --git a/src/types/ipc.ts b/src/types/ipc.ts
+-index ccdf39fa5..f78b6c75b 100644
+---- a/src/types/ipc.ts
+-+++ b/src/types/ipc.ts
+-@@ -10,6 +10,7 @@ import type {
+-   ReviewExecutionResultStatus,
+-   CustomEvaluationSettings,
+-   DocumentMode,
+-+  RetryMode,
+- } from './review';
+- import type { SettingsSavingStatus, Settings } from './setting';
+- import type { Source, RevieHistory } from '@/types';
+-@@ -151,7 +152,8 @@ export type IpcRequestPayloadMap = {
+-   };
+-   [IpcChannels.REVIEW_EXECUTE_CALL]: {
+-     reviewHistoryId: string;
+--    files: UploadFile[];
+-+    files?: UploadFile[]; // Optional for retry
+-+    retryMode?: RetryMode; // Undefined = initial review
+-     additionalInstructions?: string;
+-     commentFormat?: string;
+-     evaluationSettings: CustomEvaluationSettings;
+-diff --git a/src/types/message.ts b/src/types/message.ts
+-index 2019cde5e..147aeaab1 100644
+---- a/src/types/message.ts
+-+++ b/src/types/message.ts
+-@@ -25,6 +25,7 @@ export type MessageCode =
+-   | 'REVIEW_EXECUTION_ERROR'
+-   | 'REVIEW_EXECUTION_NO_TARGET_CHECKLIST'
+-   | 'REVIEW_HISTORY_NOT_FOUND'
+-+  | 'REVIEW_FILES_REQUIRED'
+-   | 'AI_API_ERROR'
+-   | 'AI_MESSAGE_TOO_LARGE'
+-   | 'AI_INVALID_RESPONSE'
+-diff --git a/src/types/review.ts b/src/types/review.ts
+-index b76228880..ea9378048 100644
+---- a/src/types/review.ts
+-+++ b/src/types/review.ts
+-@@ -5,6 +5,7 @@ export interface RevieHistory {
+-   additionalInstructions: string | null;
+-   commentFormat?: string | null;
+-   evaluationSettings?: CustomEvaluationSettings | null; // カスタム評定項目設定
+-+  documentMode?: DocumentMode | null; // ドキュメントモード
+-   processingStatus: ProcessingStatus; // 処理ステータス
+-   createdAt: string;
+-   updatedAt: string;
+-@@ -59,6 +60,9 @@ export type ModalMode = 'extract' | 'review';
+- 
+- export type DocumentType = 'checklist-ai' | 'checklist-csv' | 'general';
+- 
+-+// リトライモードの定義
+-+export type RetryMode = 'all' | 'uncompleted-only';
+-+
+- // ドキュメント処理方式の定義（PDF, Word, Excel, PowerPoint対応）
+- export type ProcessMode = 'text' | 'image';
+- 
+diff --git a/src/__tests__/main/workflows/checklistExtraction.test.ts b/src/__tests__/main/workflows/checklistExtraction.test.ts
+index d746796d6..a25cee161 100644
+--- a/src/__tests__/main/workflows/checklistExtraction.test.ts
++++ b/src/__tests__/main/workflows/checklistExtraction.test.ts
+@@ -89,6 +89,7 @@ describe('checklistExtractionWorkflow', () => {
+   let mockChecklistExtractionAgent: any;
+   let mockTopicExtractionAgent: any;
+   let mockTopicChecklistAgent: any;
++  let mockChecklistRefinementAgent: any;
+ 
+   beforeEach(() => {
+     // リポジトリのモック
+@@ -128,6 +129,9 @@ describe('checklistExtractionWorkflow', () => {
+ 
+     (getReviewRepository as jest.Mock).mockReturnValue(mockRepository);
+ 
++    // getChecklistsのデフォルト値を設定（refinementステップでチェックリストがない場合は早期リターン）
++    mockRepository.getChecklists.mockResolvedValue([]);
++
+     // FileExtractorのモック
+     mockExtractText.mockResolvedValue({
+       content: 'テストファイルの内容',
+@@ -143,6 +147,9 @@ describe('checklistExtractionWorkflow', () => {
+     mockTopicChecklistAgent = {
+       generateLegacy: jest.fn(),
+     };
++    mockChecklistRefinementAgent = {
++      generateLegacy: jest.fn(),
++    };
+ 
+     // mastra.getAgentのモック
+     jest.spyOn(mastra, 'getAgent').mockImplementation((agentName: string) => {
+@@ -155,6 +162,9 @@ describe('checklistExtractionWorkflow', () => {
+       if (agentName === 'topicChecklistAgent') {
+         return mockTopicChecklistAgent;
+       }
++      if (agentName === 'checklistRefinementAgent') {
++        return mockChecklistRefinementAgent;
++      }
+       throw new Error(`Unknown agent: ${agentName}`);
+     });
+   });
+@@ -582,6 +592,17 @@ describe('checklistExtractionWorkflow', () => {
+             },
+           });
+ 
++        // checklistRefinementStepのモック設定（ブラッシュアップ後のチェックリスト）
++        mockChecklistRefinementAgent.generateLegacy.mockResolvedValue({
++          object: {
++            refinedChecklists: [
++              'セキュリティ項目1',
++              'セキュリティ項目2',
++              'データ保護項目1',
++            ],
++          },
++        });
++
+         // Act
+         const run = await checklistExtractionWorkflow.createRunAsync();
+         const result = await run.start({
+@@ -653,6 +674,13 @@ describe('checklistExtractionWorkflow', () => {
+           },
+         });
+ 
++        // checklistRefinementStepのモック設定（ブラッシュアップ後のチェックリスト）
++        mockChecklistRefinementAgent.generateLegacy.mockResolvedValue({
++          object: {
++            refinedChecklists: ['チェック項目1', 'チェック項目2', 'チェック項目3'],
++          },
++        });
++
+         // Act
+         const run = await checklistExtractionWorkflow.createRunAsync();
+         const result = await run.start({
+@@ -668,6 +696,7 @@ describe('checklistExtractionWorkflow', () => {
+         expect(checkResult.status).toBe('success');
+         // 各トピックに対してチェックリスト作成が実行される
+         expect(mockTopicChecklistAgent.generateLegacy).toHaveBeenCalledTimes(3);
++        // ブラッシュアップ後のチェックリストがDBに保存される
+         expect(mockRepository.createChecklist).toHaveBeenCalledTimes(3);
+       });
+ 
+@@ -784,6 +813,14 @@ describe('checklistExtractionWorkflow', () => {
+             },
+           });
+ 
++        // checklistRefinementStepのモック設定（ブラッシュアップ後のチェックリスト）
++        // 2件のチェックリストが生成された（2つ目のトピックは空）
++        mockChecklistRefinementAgent.generateLegacy.mockResolvedValue({
++          object: {
++            refinedChecklists: ['チェック項目1', 'チェック項目3'],
++          },
++        });
++
+         // Act
+         const run = await checklistExtractionWorkflow.createRunAsync();
+         const result = await run.start({
+@@ -1006,4 +1043,233 @@ describe('checklistExtractionWorkflow', () => {
+       expect(mockChecklistExtractionAgent.generateLegacy).toHaveBeenCalled();
+     });
+   });
++
++  describe('チェックリストブラッシュアップステップ', () => {
++    describe('正常系', () => {
++      it('一般ドキュメントワークフローでチェックリストがブラッシュアップされること', async () => {
++        // Arrange
++        const reviewHistoryId = 'review-1';
++        const files: UploadFile[] = [
++          {
++            id: 'file-1',
++            name: 'general.pdf',
++            path: '/test/general.pdf',
++            type: 'application/pdf',
++            processMode: 'text',
++          },
++        ];
++
++        mockTopicExtractionAgent.generateLegacy.mockResolvedValue({
++          object: {
++            topics: [{ topic: 'トピック1', reason: '理由1' }],
++          },
++        });
++
++        mockTopicChecklistAgent.generateLegacy.mockResolvedValue({
++          object: {
++            checklistItems: [
++              { checklistItem: '重複項目A', reason: '理由A' },
++              { checklistItem: '重複項目A', reason: '理由B' },
++              { checklistItem: '項目B', reason: '理由C' },
++            ],
++          },
++        });
++
++        // ブラッシュアップの結果（重複削除後）
++        // checklistRefinementStepは前ステップの結果（inputData.systemChecklists）からチェックリストを取得する
++        mockChecklistRefinementAgent.generateLegacy.mockResolvedValue({
++          object: {
++            refinedChecklists: ['統合項目A', '項目B'],
++          },
++        });
++
++        // Act
++        const run = await checklistExtractionWorkflow.createRunAsync();
++        const result = await run.start({
++          inputData: {
++            reviewHistoryId,
++            files,
++            documentType: 'general',
++          },
++        });
++
++        // Assert
++        const checkResult = checkWorkflowResult(result);
++        expect(checkResult.status).toBe('success');
++
++        // checklistRefinementAgentが呼ばれることを確認
++        expect(mockChecklistRefinementAgent.generateLegacy).toHaveBeenCalledTimes(1);
++
++        // トピック抽出ステップで既存チェックリストが削除されること
++        expect(mockRepository.deleteSystemCreatedChecklists).toHaveBeenCalledWith(
++          reviewHistoryId,
++        );
++        expect(
++          mockRepository.deleteSystemCreatedChecklists,
++        ).toHaveBeenCalledTimes(1);
++      });
++
++      it('トピックからチェックリストが生成されない場合はブラッシュアップをスキップすること', async () => {
++        // Arrange
++        const reviewHistoryId = 'review-1';
++        const files: UploadFile[] = [
++          {
++            id: 'file-1',
++            name: 'general.pdf',
++            path: '/test/general.pdf',
++            type: 'application/pdf',
++            processMode: 'text',
++          },
++        ];
++
++        mockTopicExtractionAgent.generateLegacy.mockResolvedValue({
++          object: {
++            topics: [{ topic: 'トピック1', reason: '理由1' }],
++          },
++        });
++
++        // トピックからチェックリストが生成されない（空のchecklistItems）
++        mockTopicChecklistAgent.generateLegacy.mockResolvedValue({
++          object: {
++            checklistItems: [],
++          },
++        });
++
++        // Act
++        const run = await checklistExtractionWorkflow.createRunAsync();
++        const result = await run.start({
++          inputData: {
++            reviewHistoryId,
++            files,
++            documentType: 'general',
++          },
++        });
++
++        // Assert
++        const checkResult = checkWorkflowResult(result);
++        expect(checkResult.status).toBe('success');
++
++        // チェックリストがないのでブラッシュアップエージェントは呼ばれない
++        expect(mockChecklistRefinementAgent.generateLegacy).not.toHaveBeenCalled();
++        // チェックリストがないのでDB保存も呼ばれない
++        expect(mockRepository.createChecklist).not.toHaveBeenCalled();
++      });
++
++      it('ブラッシュアップでruntimeContextにchecklistRequirementsが正しく設定されること', async () => {
++        // Arrange
++        const reviewHistoryId = 'review-1';
++        const files: UploadFile[] = [
++          {
++            id: 'file-1',
++            name: 'general.pdf',
++            path: '/test/general.pdf',
++            type: 'application/pdf',
++            processMode: 'text',
++          },
++        ];
++        const checklistRequirements = 'ブラッシュアップ時の要件';
++
++        mockTopicExtractionAgent.generateLegacy.mockResolvedValue({
++          object: {
++            topics: [{ topic: 'トピック1', reason: '理由1' }],
++          },
++        });
++
++        mockTopicChecklistAgent.generateLegacy.mockResolvedValue({
++          object: {
++            checklistItems: [{ checklistItem: '元項目1', reason: '理由1' }],
++          },
++        });
++
++        mockRepository.getChecklists.mockResolvedValue([
++          { id: 1, reviewHistoryId: 'review-1', content: '元項目1', createdBy: 'system', createdAt: '2024-01-01', updatedAt: '2024-01-01' },
++        ]);
++
++        mockChecklistRefinementAgent.generateLegacy.mockResolvedValue({
++          object: {
++            refinedChecklists: ['ブラッシュアップ後項目1'],
++          },
++        });
++
++        // Act
++        const run = await checklistExtractionWorkflow.createRunAsync();
++        await run.start({
++          inputData: {
++            reviewHistoryId,
++            files,
++            documentType: 'general',
++            checklistRequirements,
++          },
++        });
++
++        // Assert
++        const callArgs = mockChecklistRefinementAgent.generateLegacy.mock.calls[0];
++        const options = callArgs[1];
++        const runtimeContext = options.runtimeContext;
++
++        // checklistRequirementsが設定されていること
++        expect(runtimeContext.get('checklistRequirements')).toBe(checklistRequirements);
++
++        // userプロンプトにチェックリスト項目が含まれていること
++        const prompt = callArgs[0];
++        expect(prompt).toContain('元項目1');
++        expect(prompt).toContain('ORIGINAL CHECKLIST ITEMS TO REFINE');
++      });
++    });
++
++    describe('異常系', () => {
++      it('ブラッシュアップ中のAI APIエラー時にbailで終了すること', async () => {
++        // Arrange
++        const reviewHistoryId = 'review-1';
++        const files: UploadFile[] = [
++          {
++            id: 'file-1',
++            name: 'general.pdf',
++            path: '/test/general.pdf',
++            type: 'application/pdf',
++            processMode: 'text',
++          },
++        ];
++
++        mockTopicExtractionAgent.generateLegacy.mockResolvedValue({
++          object: {
++            topics: [{ topic: 'トピック1', reason: '理由1' }],
++          },
++        });
++
++        mockTopicChecklistAgent.generateLegacy.mockResolvedValue({
++          object: {
++            checklistItems: [{ checklistItem: '項目1', reason: '理由1' }],
++          },
++        });
++
++        mockRepository.getChecklists.mockResolvedValue([
++          { id: 1, reviewHistoryId: 'review-1', content: '項目1', createdBy: 'system', createdAt: '2024-01-01', updatedAt: '2024-01-01' },
++        ]);
++
++        mockChecklistRefinementAgent.generateLegacy.mockRejectedValue(
++          internalError({
++            expose: true,
++            messageCode: 'PLAIN_MESSAGE',
++            messageParams: { message: 'ブラッシュアップエラー' },
++          }),
++        );
++
++        // Act
++        const run = await checklistExtractionWorkflow.createRunAsync();
++        const result = await run.start({
++          inputData: {
++            reviewHistoryId,
++            files,
++            documentType: 'general',
++          },
++        });
++
++        // Assert
++        const checkResult = checkWorkflowResult(result);
++        expect(checkResult.status).toBe('failed');
++        expect(checkResult.errorMessage).toBe('ブラッシュアップエラー');
++      });
++    });
++  });
+ });
+diff --git a/src/mastra/agents/prompts.ts b/src/mastra/agents/prompts.ts
+index 1ba3b3377..653370286 100644
+--- a/src/mastra/agents/prompts.ts
++++ b/src/mastra/agents/prompts.ts
+@@ -4,6 +4,7 @@ import { OrchestratorRuntimeContext } from './orchestrator';
+ import { DocumentExpertAgentRuntimeContext } from './toolAgents';
+ import {
+   ChecklistExtractionAgentRuntimeContext,
++  ChecklistRefinementAgentRuntimeContext,
+   ClassifyCategoryAgentRuntimeContext,
+   ReviewExecuteAgentRuntimeContext,
+   TopicExtractionAgentRuntimeContext,
+@@ -290,7 +291,7 @@ Guidelines for topic extraction:
+ - Each topic should be independent and cover a specific area
+ - Provide a clear, concise title for each topic
+ - Focus on topics that would benefit from separate review criteria
+-- Aim for 3-8 topics per document (adjust based on document complexity)
++- Aim for 1-5 topics per document (adjust based on document complexity)
+ - Topics should be specific enough to generate targeted checklist items
+ 
+ ${
+@@ -341,7 +342,7 @@ Please ensure that the checklist items you create align with these requirements
+ }## Output Style
+ - Write in **the same language as the topic description**. If unclear, default to **Japanese**.
+ - Explain the reason why the checklist items based on the document are valuable.
+-- Provide **5–15 items** unless the topic naturally yields fewer high-quality items.
++- Provide **1-5 items** unless the topic naturally yields fewer high-quality items.
+ - **Do NOT add unnecessary prefixes or suffixes** to checklist items
+ 
+ ## Quality Requirements
+@@ -395,6 +396,62 @@ Now produce the checklist items **only for the topic: ${title}**, following all
+ // `;
+ // }
+ 
++/**
++ * チェックリストブラッシュアップ用のシステムプロンプトを取得する関数
++ * 抽出されたチェックリスト項目の重複削除・結合を行う
++ */
++// チェックリストブラッシュアップ用のプロンプト
++export function getChecklistRefinementPrompt({
++  runtimeContext,
++}: {
++  runtimeContext: RuntimeContext<ChecklistRefinementAgentRuntimeContext>;
++}): string {
++  const checklistRequirements = runtimeContext.get('checklistRequirements');
++
++  // ユーザ要件セクションの構築
++  const requirementsSection = checklistRequirements
++    ? `
++USER'S CHECKLIST REQUIREMENTS:
++<requirements>
++${checklistRequirements}
++</requirements>
++Consider these requirements when refining the checklist items. Ensure the refined checklist aligns with the user's intent.
++`
++    : '';
++
++  return `You are a professional document quality specialist who consolidates and refines checklist items.
++
++WORKFLOW CONTEXT:
++- This is the FINAL REFINEMENT STEP of the checklist extraction workflow
++- Previous steps have extracted checklist items from the source document
++- Your task is to consolidate these items into a polished, practical checklist
++- The refined checklist will be used for document review
++- Do NOT mention "refinement", "consolidation", or any internal workflow process in your output
++${requirementsSection}
++REFINEMENT GUIDELINES:
++1. Remove exact duplicates and highly similar items
++2. Merge semantically similar items
++3. Preserve items that are subsets of others only if they add specific, actionable value
++
++4. IMPORTANT - Maintain appropriate granularity:
++   - Do NOT over-consolidate items into overly broad or vague statements
++   - Each checklist item should be independently verifiable during document review
++   - Practical checklists have specific, actionable items rather than abstract principles
++   - When in doubt, keep items separate rather than merging them
++   - A good checklist item can be answered with "Yes/No" or has clear criteria
++
++5. Language and format:
++   - Write in the same language as the original checklist items
++   - Preserve the original tone and terminology
++   - Each refined item should be clear and unambiguous
++
++OUTPUT REQUIREMENTS:
++- Output ONLY the refined checklist items
++- Do not include explanations, reasoning, or commentary
++- Ensure no critical review criteria are lost in the consolidation
++`;
++}
++
+ /**
+  * チェックリストカテゴリ分割用のシステムプロンプトを取得する関数
+  * @param maxItems  一つのカテゴリに含める最大チェックリスト数
+diff --git a/src/mastra/agents/workflowAgents.ts b/src/mastra/agents/workflowAgents.ts
+index f2d5644b4..fb515bb38 100644
+--- a/src/mastra/agents/workflowAgents.ts
++++ b/src/mastra/agents/workflowAgents.ts
+@@ -10,6 +10,7 @@ import {
+   getTopicExtractionPrompt,
+   getTopicChecklistCreationPrompt,
+   // getChecklistIntegrationPrompt,
++  getChecklistRefinementPrompt,
+   getChecklistCategolizePrompt,
+   getDocumentReviewExecutionPrompt,
+   getIndividualDocumentReviewPrompt,
+@@ -47,6 +48,10 @@ export type TopicChecklistAgentRuntimeContext = BaseRuntimeContext & {
+   checklistRequirements?: string;
+ };
+ 
++export type ChecklistRefinementAgentRuntimeContext = BaseRuntimeContext & {
++  checklistRequirements?: string; // ユーザのチェックリスト生成要件
++};
++
+ export type IndividualDocumentReviewAgentRuntimeContext = BaseRuntimeContext & {
+   checklistItems: { id: number; content: string }[];
+   additionalInstructions?: string;
+@@ -138,6 +143,13 @@ export const topicChecklistAgent = new Agent({
+ //   model: getOpenAICompatibleModel,
+ // });
+ 
++// チェックリストブラッシュアップ用エージェント
++export const checklistRefinementAgent = new Agent({
++  name: 'checklistRefinementAgent',
++  instructions: getChecklistRefinementPrompt,
++  model: getOpenAICompatibleModel,
++});
++
+ // 個別ドキュメントレビュー用エージェント（効率化版）
+ export const individualDocumentReviewAgent = new Agent({
+   name: 'individualDocumentReviewAgent',
+diff --git a/src/mastra/index.ts b/src/mastra/index.ts
+index 976120234..a20cecdf4 100644
+--- a/src/mastra/index.ts
++++ b/src/mastra/index.ts
+@@ -17,6 +17,7 @@ import {
+   reviewExecuteAgent,
+   topicExtractionAgent,
+   topicChecklistAgent,
++  checklistRefinementAgent,
+   individualDocumentReviewAgent,
+   consolidateReviewAgent,
+   reviewChatPlanningAgent,
+@@ -74,6 +75,7 @@ export const mastra: Mastra = new Mastra({
+     reviewExecuteAgent,
+     topicExtractionAgent,
+     topicChecklistAgent,
++    checklistRefinementAgent,
+     individualDocumentReviewAgent,
+     consolidateReviewAgent,
+     reviewChatPlanningAgent,
+diff --git a/src/mastra/workflows/sourceReview/checklistExtraction.ts b/src/mastra/workflows/sourceReview/checklistExtraction.ts
+index ea51a5b3a..9142d2ea2 100644
+--- a/src/mastra/workflows/sourceReview/checklistExtraction.ts
++++ b/src/mastra/workflows/sourceReview/checklistExtraction.ts
+@@ -8,6 +8,7 @@ import { baseStepOutputSchema } from '../schema';
+ import { stepStatus } from '../types';
+ import {
+   ChecklistExtractionAgentRuntimeContext,
++  ChecklistRefinementAgentRuntimeContext,
+   TopicExtractionAgentRuntimeContext,
+   TopicChecklistAgentRuntimeContext,
+ } from '../../agents/workflowAgents';
+@@ -70,6 +71,11 @@ const topicChecklistStepOutputSchema = baseStepOutputSchema.extend({
+ // チェックリスト統合の出力スキーマ
+ // const checklistIntegrationStepOutputSchema = baseStepOutputSchema;
+ 
++// チェックリストブラッシュアップの出力スキーマ
++const checklistRefinementStepOutputSchema = baseStepOutputSchema.extend({
++  refinedItems: z.array(z.string()).optional(),
++});
++
+ // === チェックリストドキュメント用ステップ ===
+ 
+ const checklistDocumentExtractionStep = createStep({
+@@ -327,8 +333,7 @@ const topicChecklistCreationStep = createStep({
+   }),
+   outputSchema: topicChecklistStepOutputSchema,
+   execute: async ({ inputData, mastra, bail, abortSignal }) => {
+-    const { title, files, reviewHistoryId, checklistRequirements } = inputData;
+-    const reviewRepository = getReviewRepository();
++    const { title, files, checklistRequirements } = inputData;
+ 
+     try {
+       // 複数ファイルを統合してメッセージを作成
+@@ -385,20 +390,14 @@ const topicChecklistCreationStep = createStep({
+         };
+       }
+ 
+-      // 抽出されたチェックリストをDBに保存
+-      for (const c of result.object.checklistItems) {
+-        await reviewRepository.createChecklist(
+-          reviewHistoryId,
+-          c.checklistItem,
+-          'system',
+-        );
+-      }
++      // チェックリストをoutputとして返す（DB保存はchecklistRefinementStep完了後に行う）
++      const checklistItems = result.object.checklistItems.map(
++        (item) => item.checklistItem,
++      );
+ 
+       return {
+         status: 'success' as stepStatus,
+-        checklistItems: result.object.checklistItems.map(
+-          (item) => item.checklistItem,
+-        ),
++        checklistItems,
+       };
+     } catch (error) {
+       logger.error(error, `チェックリスト作成処理に失敗しました: ${title}`);
+@@ -481,6 +480,167 @@ const topicChecklistCreationStep = createStep({
+ //   },
+ // });
+ 
++// Step3: チェックリストブラッシュアップステップ（重複削除・結合）
++const checklistRefinementStep = createStep({
++  id: 'checklistRefinementStep',
++  description:
++    '抽出されたチェックリスト項目を重複削除・結合してブラッシュアップするステップ',
++  inputSchema: z.object({
++    reviewHistoryId: z.string(),
++    checklistRequirements: z.string().optional(),
++    systemChecklists: z.array(z.string()),
++  }),
++  outputSchema: checklistRefinementStepOutputSchema,
++  execute: async ({ inputData, mastra, bail, abortSignal }) => {
++    const { reviewHistoryId, checklistRequirements, systemChecklists } =
++      inputData;
++    const reviewRepository = getReviewRepository();
++
++    try {
++      // チェックリストがない場合は成功で返す
++      if (systemChecklists.length === 0) {
++        return {
++          status: 'success' as stepStatus,
++          refinedItems: [],
++        };
++      }
++
++      // AIでブラッシュアップ実行
++      const checklistRefinementAgent = mastra.getAgent(
++        'checklistRefinementAgent',
++      );
++      const outputSchema = z.object({
++        refinedChecklists: z
++          .array(z.string().describe('Refined checklist item'))
++          .describe('Refined and consolidated checklist items'),
++      });
++
++      // これまでにブラッシュアップしたチェックリスト項目を蓄積する配列
++      const accumulated: string[] = [];
++
++      // 最大試行回数
++      const MAX_ATTEMPTS = 5;
++      let attempts = 0;
++
++      while (attempts < MAX_ATTEMPTS) {
++        let isCompleted = true;
++        const runtimeContext =
++          await createRuntimeContext<ChecklistRefinementAgentRuntimeContext>();
++        // ユーザのチェックリスト生成要件を設定（指定されている場合）
++        if (checklistRequirements) {
++          runtimeContext.set('checklistRequirements', checklistRequirements);
++        }
++
++        // userプロンプトに全チェックリスト情報を含める
++        const userPrompt = `ORIGINAL CHECKLIST ITEMS TO REFINE (${systemChecklists.length} items):
++${systemChecklists.map((item, i) => `${i + 1}. ${item}`).join('\n')}
++
++${
++  accumulated.length > 0
++    ? `ALREADY REFINED ITEMS (${accumulated.length} items):
++${accumulated.map((item, i) => `${i + 1}. ${item}`).join('\n')}
++
++Please continue refining the remaining items, avoiding duplicates with already refined items.`
++    : 'Please refine these checklist items according to the guidelines.'
++}`;
++
++        const refinementResult = await checklistRefinementAgent.generateLegacy(
++          userPrompt,
++          {
++            output: outputSchema,
++            runtimeContext,
++            abortSignal,
++            // AIの限界生成トークン数を超えた場合のエラーを回避するための設定
++            experimental_repairText: async (options) => {
++              isCompleted = false;
++              const { text } = options;
++              let repairedText = text;
++              let deleteLastItemFlag = false;
++              try {
++                const lastChar = text.charAt(text.length - 1);
++                if (lastChar === '"') {
++                  repairedText = text + ']}';
++                } else if (lastChar === ']') {
++                  repairedText = text + '}';
++                } else if (lastChar === ',') {
++                  // 最後のカンマを削除してから ']} を追加
++                  repairedText = text.slice(0, -1) + ']}';
++                } else {
++                  // その他のケースでは強制的に ']} を追加
++                  repairedText = text + '"]}';
++                  deleteLastItemFlag = true;
++                }
++                // JSONに変換してみて、エラーが出ないか確かめる
++                // deleteLastItemFlagがtrueの場合は最後の項目を削除する
++                const parsedJson = JSON.parse(repairedText) as z.infer<
++                  typeof outputSchema
++                >;
++                if (deleteLastItemFlag) {
++                  parsedJson.refinedChecklists.pop(); // 最後の項目を削除
++                }
++                repairedText = JSON.stringify(parsedJson);
++              } catch (error) {
++                console.error(
++                  `チェックリストブラッシュアップの修正に失敗しました: ${error}`,
++                );
++                throw internalError({
++                  expose: true,
++                  messageCode: 'REVIEW_CHECKLIST_REFINEMENT_OVER_MAX_TOKENS',
++                });
++              }
++              return repairedText;
++            },
++          },
++        );
++
++        // ブラッシュアップされたチェックリストから新規のものを蓄積
++        const newRefinedItems =
++          refinementResult.object.refinedChecklists?.filter(
++            (item: string) => !accumulated.includes(item),
++          ) || [];
++        accumulated.push(...newRefinedItems);
++
++        // ブラッシュアップが完了した場合はループを抜ける
++        if (isCompleted) {
++          break;
++        }
++        attempts++;
++        if (attempts >= MAX_ATTEMPTS) {
++          throw internalError({
++            expose: true,
++            messageCode: 'REVIEW_CHECKLIST_REFINEMENT_OVER_MAX_TOKENS',
++          });
++        }
++      }
++
++      // ブラッシュアップ後のチェックリストをDBに保存
++      for (const refinedItem of accumulated) {
++        await reviewRepository.createChecklist(
++          reviewHistoryId,
++          refinedItem,
++          'system',
++        );
++      }
++
++      logger.debug(
++        `チェックリストブラッシュアップ完了: ${systemChecklists.length}件 → ${accumulated.length}件`,
++      );
++
++      return {
++        status: 'success' as stepStatus,
++        refinedItems: accumulated,
++      };
++    } catch (error) {
++      logger.error(error, 'チェックリストブラッシュアップ処理に失敗しました');
++      const normalizedError = normalizeUnknownError(error);
++      return bail({
++        status: 'failed' as stepStatus,
++        errorMessage: normalizedError.message,
++      });
++    }
++  },
++});
++
+ // === メインワークフロー ===
+ 
+ export const checklistExtractionWorkflow = createWorkflow({
+@@ -524,28 +684,22 @@ export const checklistExtractionWorkflow = createWorkflow({
+         })
+         // Step2: 各トピックに対してチェックリスト作成（foreachでループ）
+         .foreach(topicChecklistCreationStep)
+-        // Step2でDB保存を行うため、Step3はコメントアウト
+-        // .map(async ({ getInitData, inputData }) => {
+-        //   const initData = getInitData();
+-        //   const allChecklistItems = inputData
+-        //     .map((i) => {
+-        //       if (i.status !== 'success' || !i.checklistItems) {
+-        //         throw new Error(
+-        //           i?.errorMessage ||
+-        //             'トピック別チェックリスト作成に失敗しました',
+-        //         );
+-        //       }
+-        //       return i.checklistItems;
+-        //     })
+-        //     .flat();
+-
+-        //   return {
+-        //     reviewHistoryId: initData.reviewHistoryId,
+-        //     allChecklistItems,
+-        //   };
+-        // })
+-        // // Step3: チェックリスト統合(保存)
+-        // .then(checklistIntegrationStep)
++        // Step3用入力データ変換（foreachの結果を統合してchecklistRefinementStepに渡す）
++        .map(async ({ inputData, getInitData }) => {
++          const initData = getInitData();
++          // foreachの結果は配列で、各要素がtopicChecklistCreationStepのoutput
++          // checklistItemsを統合する
++          const allChecklistItems = (
++            inputData as { checklistItems?: string[] }[]
++          ).flatMap((topicResult) => topicResult.checklistItems || []);
++          return {
++            reviewHistoryId: initData.reviewHistoryId,
++            checklistRequirements: initData.checklistRequirements,
++            systemChecklists: allChecklistItems,
++          };
++        })
++        // Step3: チェックリストブラッシュアップ（重複削除・結合）
++        .then(checklistRefinementStep)
+         .commit(),
+     ],
+   ])
+diff --git a/src/messages/ja/template.ts b/src/messages/ja/template.ts
+index 104dd00d1..32bf22087 100644
+--- a/src/messages/ja/template.ts
++++ b/src/messages/ja/template.ts
+@@ -27,6 +27,7 @@ export const template = {
+   REVIEW_CHECKLIST_EXTRACTION_ERROR: `チェックリスト抽出処理に失敗しました\n{detail}`,
+   REVIEW_EXECUTION_ERROR: `レビュー実行処理に失敗しました\n{detail}`,
+   REVIEW_CHECKLIST_EXTRACTION_OVER_MAX_TOKENS: `チェックリストの抽出結果がAIモデルの最大出力トークン数を超え、不正な出力となった為修正を試みましたが失敗しました。抽出結果が最大出力トークン内に収まるようにチェックリストのファイル分割を検討してください。`,
++  REVIEW_CHECKLIST_REFINEMENT_OVER_MAX_TOKENS: `チェックリストのブラッシュアップ処理でAIの最大出力トークン数を超えました。チェックリストの数を減らすか、ファイルを分割してください。`,
+   REVIEW_CHECKLIST_EXTRACTION_NOT_CHECKLIST_DOCUMENT: `チェックリスト抽出に適さないドキュメントとして判定されたため処理を終了しました`,
+   REVIEW_CHECKLIST_EXTRACTION_NO_CHECKLIST_ITEM: `チェックリストが抽出されませんでした`,
+   REVIEW_EXECUTION_NO_TARGET_CHECKLIST: `対象のチェックリストが存在しないためレビューを実行できませんでした`,
+diff --git a/src/types/message.ts b/src/types/message.ts
+index 147aeaab1..0571e1e9e 100644
+--- a/src/types/message.ts
++++ b/src/types/message.ts
+@@ -18,6 +18,7 @@ export type MessageCode =
+   | 'SOURCE_REGISTRATION_DIR_NOT_SET'
+   | 'REVIEW_CHECKLIST_EXTRACTION_ERROR'
+   | 'REVIEW_CHECKLIST_EXTRACTION_OVER_MAX_TOKENS'
++  | 'REVIEW_CHECKLIST_REFINEMENT_OVER_MAX_TOKENS'
+   | 'REVIEW_CHECKLIST_EXTRACTION_NOT_CHECKLIST_DOCUMENT'
+   | 'REVIEW_CHECKLIST_EXTRACTION_NO_CHECKLIST_ITEM'
+   | 'REVIEW_CHECKLIST_EXTRACTION_FROM_CSV_ERROR'
