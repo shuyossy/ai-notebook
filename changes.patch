@@ -1,662 +1,488 @@
 diff --git a/CLAUDE.md b/CLAUDE.md
-index 22dc47610..1d60036f4 100644
+index 1d60036f4..b4dad0420 100644
 --- a/CLAUDE.md
 +++ b/CLAUDE.md
-@@ -217,15 +217,11 @@ ElectronのIPCを使用してフロントエンド・バックエンド間の通
-   - 前述の通り、古典派的な方針でテストを実装するので、機能が作成完了した段階で新規テストを作成すること
- 
- ## 依頼タスク
--- 要件: チェックリスト抽出workflowに、現状抽出したチェックリストを最終的にブラッシュアップする工程を追加する
-+- 要件: チェックリスト抽出・レビュー実行（少量レビュー・大量レビュー）時に、ファイルのテキスト抽出処理の進捗を表示する
- - 背景
--  - 現状抽出されるチェックリストは重複している項目やまとめて一つにした方が良い項目が多く、数だけが多くなり、ユーザ目線では役にたつチェックリストになっていない
-+  - 複数ファイルを選択してチェックリスト抽出やレビュー実行を実施する際のファイルのテキスト抽出処理にて、特定ファイルの処理にかなり変換に時間がかかる場合がある
-+  - 進捗を表示することでどのファイルで処理が止まっているかをユーザが把握できるようにし、必要に応じて、そのファイルを除外するなどの措置を取れるようにする
- - 機能要件
--  - チェックリスト抽出workflowの最終Stepとして以下を追加
--    - 現在、抽出済みのチェックリストをAIに与え、重複削除、複数項目の結合を実施させる
--      - 一度に大量のチェックリストのチェックリストを出力するので構造化出力が壊れやすいと想定される。そこでチェックリストのAI抽出処理(`checklistDocumentExtractionStep`)と同じようにrepaireTextで都度構造を修復しながら（最大試行回数:5回）チェックリストを完成させる
--  - 指摘事項
--    - workflowの設計について
--       - チェックリスト統合ステップの前ステップでわざわざDBに保存している
--         - フロントエンド側からは一定間隔でポーリングしてDBの値を取得しているので、処理過程のチェックリストが画面に表示されてしまう
--         - step間のデータ受け渡しで統合ステップにチェックリストを渡してほしい
-+  - チェックリスト抽出・レビュー実行時にどのファイルを現在テキスト抽出中なのか、画面に表示する
-+  - テキスト抽出完了後は、「チェックリスト抽出中...」「レビュー実行中...」と表示する
-+  - 現在はプログレスバーを表示しているので、その代わりに進捗の文言を表示するようにする
+@@ -225,3 +225,7 @@ ElectronのIPCを使用してフロントエンド・バックエンド間の通
+   - チェックリスト抽出・レビュー実行時にどのファイルを現在テキスト抽出中なのか、画面に表示する
+   - テキスト抽出完了後は、「チェックリスト抽出中...」「レビュー実行中...」と表示する
+   - 現在はプログレスバーを表示しているので、その代わりに進捗の文言を表示するようにする
++- 指摘事項
++  - 画像として読み込むファイルまで、画面で「テキスト抽出中...」と表示されてしまい、利用者に誤解を生じさせてしまう
++    - 文言を「ファイル処理中...」に変更する
++      - イベント名や変数名などもこれに合わせるように注意する
 diff --git a/src/__tests__/main/workflows/checklistExtraction.test.ts b/src/__tests__/main/workflows/checklistExtraction.test.ts
-index a25cee161..21cd15833 100644
+index 21cd15833..752aea1a0 100644
 --- a/src/__tests__/main/workflows/checklistExtraction.test.ts
 +++ b/src/__tests__/main/workflows/checklistExtraction.test.ts
-@@ -25,6 +25,7 @@ import FileExtractor from '@/main/lib/fileExtractor';
- import { checkWorkflowResult } from '@/mastra/lib/workflowUtils';
- import type { IReviewRepository } from '@/main/service/port/repository';
- import type { UploadFile } from '@/types';
-+import { IpcChannels } from '@/types';
- import { internalError } from '@/main/lib/error';
- 
- // モック設定
-@@ -77,8 +78,10 @@ jest.mock('@/main/lib/fileExtractor', () => ({
-     },
-   },
- }));
-+// イベント発火のモック
-+const mockPublishEvent = jest.fn();
- jest.mock('@/main/lib/eventPayloadHelper', () => ({
--  publishEvent: jest.fn(),
-+  publishEvent: (...args: any[]) => mockPublishEvent(...args),
- }));
- 
- describe('checklistExtractionWorkflow', () => {
-@@ -92,6 +95,9 @@ describe('checklistExtractionWorkflow', () => {
-   let mockChecklistRefinementAgent: any;
- 
-   beforeEach(() => {
-+    // イベントモックのリセット
-+    mockPublishEvent.mockClear();
-+
-     // リポジトリのモック
-     mockRepository = {
-       deleteSystemCreatedChecklists: jest.fn().mockResolvedValue(undefined),
-@@ -232,6 +238,29 @@ describe('checklistExtractionWorkflow', () => {
-           'チェック項目3',
+@@ -239,24 +239,24 @@ describe('checklistExtractionWorkflow', () => {
            'system',
          );
-+
-+        // テキスト抽出進捗イベントが発行されたことを検証
-+        expect(mockPublishEvent).toHaveBeenCalledWith(
-+          IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS,
-+          expect.objectContaining({
-+            reviewHistoryId,
-+            phase: 'extracting',
-+            currentFileIndex: 0,
-+            totalFiles: 1,
-+            currentFileName: 'checklist.pdf',
-+          }),
-+        );
-+
-+        // テキスト抽出完了イベントが発行されたことを検証
-+        expect(mockPublishEvent).toHaveBeenCalledWith(
-+          IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS,
-+          expect.objectContaining({
-+            reviewHistoryId,
-+            phase: 'processing',
-+            currentFileIndex: 1,
-+            totalFiles: 1,
-+          }),
-+        );
-       });
  
-       it('複数ファイルの統合抽出が成功すること', async () => {
-@@ -290,6 +319,39 @@ describe('checklistExtractionWorkflow', () => {
-             }),
+-        // テキスト抽出進捗イベントが発行されたことを検証
++        // ファイル処理進捗イベントが発行されたことを検証
+         expect(mockPublishEvent).toHaveBeenCalledWith(
+-          IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS,
++          IpcChannels.REVIEW_FILE_PROCESSING_PROGRESS,
+           expect.objectContaining({
+             reviewHistoryId,
+-            phase: 'extracting',
++            phase: 'processing',
+             currentFileIndex: 0,
+             totalFiles: 1,
+             currentFileName: 'checklist.pdf',
+           }),
+         );
+ 
+-        // テキスト抽出完了イベントが発行されたことを検証
++        // ファイル処理完了イベントが発行されたことを検証
+         expect(mockPublishEvent).toHaveBeenCalledWith(
+-          IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS,
++          IpcChannels.REVIEW_FILE_PROCESSING_PROGRESS,
+           expect.objectContaining({
+             reviewHistoryId,
+-            phase: 'processing',
++            phase: 'completed',
+             currentFileIndex: 1,
+             totalFiles: 1,
+           }),
+@@ -320,34 +320,34 @@ describe('checklistExtractionWorkflow', () => {
            ]),
          );
-+
-+        // 各ファイルに対してテキスト抽出進捗イベントが発行されたことを検証
-+        expect(mockPublishEvent).toHaveBeenCalledWith(
-+          IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS,
-+          expect.objectContaining({
-+            reviewHistoryId,
-+            phase: 'extracting',
-+            currentFileIndex: 0,
-+            totalFiles: 2,
-+            currentFileName: 'checklist1.pdf',
-+          }),
-+        );
-+        expect(mockPublishEvent).toHaveBeenCalledWith(
-+          IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS,
-+          expect.objectContaining({
-+            reviewHistoryId,
-+            phase: 'extracting',
-+            currentFileIndex: 1,
-+            totalFiles: 2,
-+            currentFileName: 'checklist2.pdf',
-+          }),
-+        );
-+
-+        // テキスト抽出完了イベントが発行されたことを検証
-+        expect(mockPublishEvent).toHaveBeenCalledWith(
-+          IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS,
-+          expect.objectContaining({
-+            reviewHistoryId,
-+            phase: 'processing',
-+            currentFileIndex: 2,
-+            totalFiles: 2,
-+          }),
-+        );
-       });
  
-       it('画像モード（ページ別）での抽出が成功すること', async () => {
-@@ -638,6 +700,29 @@ describe('checklistExtractionWorkflow', () => {
-           'データ保護項目1',
+-        // 各ファイルに対してテキスト抽出進捗イベントが発行されたことを検証
++        // 各ファイルに対してファイル処理進捗イベントが発行されたことを検証
+         expect(mockPublishEvent).toHaveBeenCalledWith(
+-          IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS,
++          IpcChannels.REVIEW_FILE_PROCESSING_PROGRESS,
+           expect.objectContaining({
+             reviewHistoryId,
+-            phase: 'extracting',
++            phase: 'processing',
+             currentFileIndex: 0,
+             totalFiles: 2,
+             currentFileName: 'checklist1.pdf',
+           }),
+         );
+         expect(mockPublishEvent).toHaveBeenCalledWith(
+-          IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS,
++          IpcChannels.REVIEW_FILE_PROCESSING_PROGRESS,
+           expect.objectContaining({
+             reviewHistoryId,
+-            phase: 'extracting',
++            phase: 'processing',
+             currentFileIndex: 1,
+             totalFiles: 2,
+             currentFileName: 'checklist2.pdf',
+           }),
+         );
+ 
+-        // テキスト抽出完了イベントが発行されたことを検証
++        // ファイル処理完了イベントが発行されたことを検証
+         expect(mockPublishEvent).toHaveBeenCalledWith(
+-          IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS,
++          IpcChannels.REVIEW_FILE_PROCESSING_PROGRESS,
+           expect.objectContaining({
+             reviewHistoryId,
+-            phase: 'processing',
++            phase: 'completed',
+             currentFileIndex: 2,
+             totalFiles: 2,
+           }),
+@@ -701,24 +701,24 @@ describe('checklistExtractionWorkflow', () => {
            'system',
          );
-+
-+        // テキスト抽出進捗イベントが発行されたことを検証（トピック抽出ステップ）
-+        expect(mockPublishEvent).toHaveBeenCalledWith(
-+          IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS,
-+          expect.objectContaining({
-+            reviewHistoryId,
-+            phase: 'extracting',
-+            currentFileIndex: 0,
-+            totalFiles: 1,
-+            currentFileName: 'general.pdf',
-+          }),
-+        );
-+
-+        // テキスト抽出完了イベントが発行されたことを検証
-+        expect(mockPublishEvent).toHaveBeenCalledWith(
-+          IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS,
-+          expect.objectContaining({
-+            reviewHistoryId,
-+            phase: 'processing',
-+            currentFileIndex: 1,
-+            totalFiles: 1,
-+          }),
-+        );
-       });
  
-       it('複数トピックに対してチェックリストが作成されること', async () => {
+-        // テキスト抽出進捗イベントが発行されたことを検証（トピック抽出ステップ）
++        // ファイル処理進捗イベントが発行されたことを検証（トピック抽出ステップ）
+         expect(mockPublishEvent).toHaveBeenCalledWith(
+-          IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS,
++          IpcChannels.REVIEW_FILE_PROCESSING_PROGRESS,
+           expect.objectContaining({
+             reviewHistoryId,
+-            phase: 'extracting',
++            phase: 'processing',
+             currentFileIndex: 0,
+             totalFiles: 1,
+             currentFileName: 'general.pdf',
+           }),
+         );
+ 
+-        // テキスト抽出完了イベントが発行されたことを検証
++        // ファイル処理完了イベントが発行されたことを検証
+         expect(mockPublishEvent).toHaveBeenCalledWith(
+-          IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS,
++          IpcChannels.REVIEW_FILE_PROCESSING_PROGRESS,
+           expect.objectContaining({
+             reviewHistoryId,
+-            phase: 'processing',
++            phase: 'completed',
+             currentFileIndex: 1,
+             totalFiles: 1,
+           }),
 diff --git a/src/__tests__/main/workflows/executeReview.test.ts b/src/__tests__/main/workflows/executeReview.test.ts
-index b176abdcd..b03017ce9 100644
+index b03017ce9..caad97219 100644
 --- a/src/__tests__/main/workflows/executeReview.test.ts
 +++ b/src/__tests__/main/workflows/executeReview.test.ts
-@@ -25,6 +25,7 @@ import FileExtractor from '@/main/lib/fileExtractor';
- import { checkWorkflowResult } from '@/mastra/lib/workflowUtils';
- import type { IReviewRepository } from '@/main/service/port/repository/IReviewRepository';
- import type { UploadFile, ReviewChecklist } from '@/types';
-+import { IpcChannels } from '@/types';
- import { internalError } from '@/main/lib/error';
- import { APICallError } from 'ai';
- 
-@@ -77,8 +78,10 @@ jest.mock('@/main/lib/fileExtractor', () => ({
-   },
- }));
- 
-+// イベント発火のモック
-+const mockPublishEvent = jest.fn();
- jest.mock('@/main/lib/eventPayloadHelper', () => ({
--  publishEvent: jest.fn(),
-+  publishEvent: (...args: any[]) => mockPublishEvent(...args),
- }));
- 
- describe('executeReviewWorkflow', () => {
-@@ -92,6 +95,9 @@ describe('executeReviewWorkflow', () => {
-   let mockConsolidateReviewAgent: any;
- 
-   beforeEach(() => {
-+    // イベントモックのリセット
-+    mockPublishEvent.mockClear();
-+
-     // リポジトリのモック
-     mockRepository = {
-       createReviewHistory: jest.fn(),
-@@ -234,6 +240,29 @@ describe('executeReviewWorkflow', () => {
-         expect(mockRepository.updateReviewHistoryDocumentMode).toHaveBeenCalledWith(reviewHistoryId, 'small');
+@@ -241,24 +241,24 @@ describe('executeReviewWorkflow', () => {
          expect(mockRepository.createReviewDocumentCache).toHaveBeenCalled();
          expect(mockRepository.upsertReviewResult).toHaveBeenCalled();
-+
-+        // テキスト抽出進捗イベントが発行されたことを検証
-+        expect(mockPublishEvent).toHaveBeenCalledWith(
-+          IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS,
-+          expect.objectContaining({
-+            reviewHistoryId,
-+            phase: 'extracting',
-+            currentFileIndex: 0,
-+            totalFiles: 1,
-+            currentFileName: 'document.txt',
-+          }),
-+        );
-+
-+        // テキスト抽出完了イベントが発行されたことを検証
-+        expect(mockPublishEvent).toHaveBeenCalledWith(
-+          IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS,
-+          expect.objectContaining({
-+            reviewHistoryId,
-+            phase: 'processing',
-+            currentFileIndex: 1,
-+            totalFiles: 1,
-+          }),
-+        );
-       });
  
-       it('複数ファイルの統合レビューが成功すること', async () => {
-@@ -308,6 +337,39 @@ describe('executeReviewWorkflow', () => {
-           reviewHistoryId,
+-        // テキスト抽出進捗イベントが発行されたことを検証
++        // ファイル処理進捗イベントが発行されたことを検証
+         expect(mockPublishEvent).toHaveBeenCalledWith(
+-          IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS,
++          IpcChannels.REVIEW_FILE_PROCESSING_PROGRESS,
+           expect.objectContaining({
+             reviewHistoryId,
+-            phase: 'extracting',
++            phase: 'processing',
+             currentFileIndex: 0,
+             totalFiles: 1,
+             currentFileName: 'document.txt',
+           }),
+         );
+ 
+-        // テキスト抽出完了イベントが発行されたことを検証
++        // ファイル処理完了イベントが発行されたことを検証
+         expect(mockPublishEvent).toHaveBeenCalledWith(
+-          IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS,
++          IpcChannels.REVIEW_FILE_PROCESSING_PROGRESS,
+           expect.objectContaining({
+             reviewHistoryId,
+-            phase: 'processing',
++            phase: 'completed',
+             currentFileIndex: 1,
+             totalFiles: 1,
+           }),
+@@ -338,34 +338,34 @@ describe('executeReviewWorkflow', () => {
            'document1.txt/document2.txt',
          );
-+
-+        // 各ファイルに対してテキスト抽出進捗イベントが発行されたことを検証
-+        expect(mockPublishEvent).toHaveBeenCalledWith(
-+          IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS,
-+          expect.objectContaining({
-+            reviewHistoryId,
-+            phase: 'extracting',
-+            currentFileIndex: 0,
-+            totalFiles: 2,
-+            currentFileName: 'document1.txt',
-+          }),
-+        );
-+        expect(mockPublishEvent).toHaveBeenCalledWith(
-+          IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS,
-+          expect.objectContaining({
-+            reviewHistoryId,
-+            phase: 'extracting',
-+            currentFileIndex: 1,
-+            totalFiles: 2,
-+            currentFileName: 'document2.txt',
-+          }),
-+        );
-+
-+        // テキスト抽出完了イベントが発行されたことを検証
-+        expect(mockPublishEvent).toHaveBeenCalledWith(
-+          IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS,
-+          expect.objectContaining({
-+            reviewHistoryId,
+ 
+-        // 各ファイルに対してテキスト抽出進捗イベントが発行されたことを検証
++        // 各ファイルに対してファイル処理進捗イベントが発行されたことを検証
+         expect(mockPublishEvent).toHaveBeenCalledWith(
+-          IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS,
++          IpcChannels.REVIEW_FILE_PROCESSING_PROGRESS,
+           expect.objectContaining({
+             reviewHistoryId,
+-            phase: 'extracting',
 +            phase: 'processing',
-+            currentFileIndex: 2,
-+            totalFiles: 2,
-+          }),
-+        );
-       });
+             currentFileIndex: 0,
+             totalFiles: 2,
+             currentFileName: 'document1.txt',
+           }),
+         );
+         expect(mockPublishEvent).toHaveBeenCalledWith(
+-          IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS,
++          IpcChannels.REVIEW_FILE_PROCESSING_PROGRESS,
+           expect.objectContaining({
+             reviewHistoryId,
+-            phase: 'extracting',
++            phase: 'processing',
+             currentFileIndex: 1,
+             totalFiles: 2,
+             currentFileName: 'document2.txt',
+           }),
+         );
  
-       it('画像モード（ページ別）でのレビューが成功すること', async () => {
-diff --git a/src/__tests__/renderer/reviewChecklistExtract.test.tsx b/src/__tests__/renderer/reviewChecklistExtract.test.tsx
-index d897660d8..14a21e13e 100644
---- a/src/__tests__/renderer/reviewChecklistExtract.test.tsx
-+++ b/src/__tests__/renderer/reviewChecklistExtract.test.tsx
-@@ -413,9 +413,13 @@ describe('ReviewArea - チェックリスト抽出', () => {
-       render(<ReviewArea selectedReviewHistoryId="review-1" />);
- 
-       await waitFor(() => {
--        // LinearProgressが表示されることを確認
-+        // CircularProgressが表示されることを確認
-         const progress = document.querySelector('.MuiLinearProgress-root');
-         expect(progress).toBeInTheDocument();
-+        // チェックリスト抽出中のテキストが表示されることを確認
-+        expect(
-+          screen.getByText('チェックリスト抽出中...'),
-+        ).toBeInTheDocument();
-       });
-     });
- 
-diff --git a/src/__tests__/renderer/reviewExecute.test.tsx b/src/__tests__/renderer/reviewExecute.test.tsx
-index 045060a5b..6e41d7194 100644
---- a/src/__tests__/renderer/reviewExecute.test.tsx
-+++ b/src/__tests__/renderer/reviewExecute.test.tsx
-@@ -836,9 +836,11 @@ describe('ReviewArea - レビュー実行', () => {
-       render(<ReviewArea selectedReviewHistoryId="review-1" />);
- 
-       await waitFor(() => {
--        // LinearProgressが表示されることを確認
-+        // CircularProgressが表示されることを確認
-         const progress = document.querySelector('.MuiLinearProgress-root');
-         expect(progress).toBeInTheDocument();
-+        // レビュー実行中のテキストが表示されることを確認
-+        expect(screen.getByText('レビュー実行中...')).toBeInTheDocument();
-       });
-     });
- 
+-        // テキスト抽出完了イベントが発行されたことを検証
++        // ファイル処理完了イベントが発行されたことを検証
+         expect(mockPublishEvent).toHaveBeenCalledWith(
+-          IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS,
++          IpcChannels.REVIEW_FILE_PROCESSING_PROGRESS,
+           expect.objectContaining({
+             reviewHistoryId,
+-            phase: 'processing',
++            phase: 'completed',
+             currentFileIndex: 2,
+             totalFiles: 2,
+           }),
 diff --git a/src/mastra/workflows/sourceReview/checklistExtraction.ts b/src/mastra/workflows/sourceReview/checklistExtraction.ts
-index 9142d2ea2..9f0dd2cc2 100644
+index 9f0dd2cc2..03660ee8f 100644
 --- a/src/mastra/workflows/sourceReview/checklistExtraction.ts
 +++ b/src/mastra/workflows/sourceReview/checklistExtraction.ts
-@@ -15,6 +15,8 @@ import {
- import { createRuntimeContext } from '../../lib/agentUtils';
- import { normalizeUnknownError, internalError } from '@/main/lib/error';
- import { getMainLogger } from '@/main/lib/logger';
-+import { publishEvent } from '@/main/lib/eventPayloadHelper';
-+import { IpcChannels } from '@/types';
- import { createCombinedMessage } from './lib';
- 
- const logger = getMainLogger();
-@@ -97,8 +99,26 @@ const checklistDocumentExtractionStep = createStep({
-       const message = await createCombinedMessage(
+@@ -100,23 +100,23 @@ const checklistDocumentExtractionStep = createStep({
          files,
          'Please extract checklist items from this document',
-+        (currentIndex, fileName) => {
-+          publishEvent(IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS, {
-+            reviewHistoryId,
-+            currentFileName: fileName,
-+            currentFileIndex: currentIndex,
-+            totalFiles: files.length,
-+            phase: 'extracting',
-+          });
-+        },
+         (currentIndex, fileName) => {
+-          publishEvent(IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS, {
++          publishEvent(IpcChannels.REVIEW_FILE_PROCESSING_PROGRESS, {
+             reviewHistoryId,
+             currentFileName: fileName,
+             currentFileIndex: currentIndex,
+             totalFiles: files.length,
+-            phase: 'extracting',
++            phase: 'processing',
+           });
+         },
        );
  
-+      // テキスト抽出完了を通知
-+      publishEvent(IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS, {
-+        reviewHistoryId,
-+        currentFileName: '',
-+        currentFileIndex: files.length,
-+        totalFiles: files.length,
-+        phase: 'processing',
-+      });
-+
+-      // テキスト抽出完了を通知
+-      publishEvent(IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS, {
++      // ファイル処理完了を通知
++      publishEvent(IpcChannels.REVIEW_FILE_PROCESSING_PROGRESS, {
+         reviewHistoryId,
+         currentFileName: '',
+         currentFileIndex: files.length,
+         totalFiles: files.length,
+-        phase: 'processing',
++        phase: 'completed',
+       });
+ 
        const checklistExtractionAgent = mastra.getAgent(
-         'checklistExtractionAgent',
-       );
-@@ -262,8 +282,26 @@ const topicExtractionStep = createStep({
-       const message = await createCombinedMessage(
+@@ -283,23 +283,23 @@ const topicExtractionStep = createStep({
          files,
          'Please extract topics from this document',
-+        (currentIndex, fileName) => {
-+          publishEvent(IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS, {
-+            reviewHistoryId,
-+            currentFileName: fileName,
-+            currentFileIndex: currentIndex,
-+            totalFiles: files.length,
-+            phase: 'extracting',
-+          });
-+        },
+         (currentIndex, fileName) => {
+-          publishEvent(IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS, {
++          publishEvent(IpcChannels.REVIEW_FILE_PROCESSING_PROGRESS, {
+             reviewHistoryId,
+             currentFileName: fileName,
+             currentFileIndex: currentIndex,
+             totalFiles: files.length,
+-            phase: 'extracting',
++            phase: 'processing',
+           });
+         },
        );
  
-+      // テキスト抽出完了を通知
-+      publishEvent(IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS, {
-+        reviewHistoryId,
-+        currentFileName: '',
-+        currentFileIndex: files.length,
-+        totalFiles: files.length,
-+        phase: 'processing',
-+      });
-+
-       const topicExtractionAgent = mastra.getAgent('topicExtractionAgent');
-       const outputSchema = z.object({
-         topics: z
-@@ -333,14 +371,33 @@ const topicChecklistCreationStep = createStep({
-   }),
-   outputSchema: topicChecklistStepOutputSchema,
-   execute: async ({ inputData, mastra, bail, abortSignal }) => {
--    const { title, files, checklistRequirements } = inputData;
-+    const { title, files, reviewHistoryId, checklistRequirements } = inputData;
+-      // テキスト抽出完了を通知
+-      publishEvent(IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS, {
++      // ファイル処理完了を通知
++      publishEvent(IpcChannels.REVIEW_FILE_PROCESSING_PROGRESS, {
+         reviewHistoryId,
+         currentFileName: '',
+         currentFileIndex: files.length,
+         totalFiles: files.length,
+-        phase: 'processing',
++        phase: 'completed',
+       });
  
-     try {
-       // 複数ファイルを統合してメッセージを作成
-       const message = await createCombinedMessage(
+       const topicExtractionAgent = mastra.getAgent('topicExtractionAgent');
+@@ -379,23 +379,23 @@ const topicChecklistCreationStep = createStep({
          files,
          `Please create checklist items from this document for topic: ${title}`,
-+        (currentIndex, fileName) => {
-+          publishEvent(IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS, {
-+            reviewHistoryId,
-+            currentFileName: fileName,
-+            currentFileIndex: currentIndex,
-+            totalFiles: files.length,
-+            phase: 'extracting',
-+          });
-+        },
+         (currentIndex, fileName) => {
+-          publishEvent(IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS, {
++          publishEvent(IpcChannels.REVIEW_FILE_PROCESSING_PROGRESS, {
+             reviewHistoryId,
+             currentFileName: fileName,
+             currentFileIndex: currentIndex,
+             totalFiles: files.length,
+-            phase: 'extracting',
++            phase: 'processing',
+           });
+         },
        );
-+
-+      // テキスト抽出完了を通知
-+      publishEvent(IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS, {
-+        reviewHistoryId,
-+        currentFileName: '',
-+        currentFileIndex: files.length,
-+        totalFiles: files.length,
-+        phase: 'processing',
-+      });
-+
+ 
+-      // テキスト抽出完了を通知
+-      publishEvent(IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS, {
++      // ファイル処理完了を通知
++      publishEvent(IpcChannels.REVIEW_FILE_PROCESSING_PROGRESS, {
+         reviewHistoryId,
+         currentFileName: '',
+         currentFileIndex: files.length,
+         totalFiles: files.length,
+-        phase: 'processing',
++        phase: 'completed',
+       });
+ 
        const topicChecklistAgent = mastra.getAgent('topicChecklistAgent');
-       const outputSchema = z.object({
-         checklistItems: z
 diff --git a/src/mastra/workflows/sourceReview/executeReview/textExtractionStep.ts b/src/mastra/workflows/sourceReview/executeReview/textExtractionStep.ts
-index d68d68d9b..e9183a273 100644
+index e9183a273..5d95acec6 100644
 --- a/src/mastra/workflows/sourceReview/executeReview/textExtractionStep.ts
 +++ b/src/mastra/workflows/sourceReview/executeReview/textExtractionStep.ts
-@@ -8,6 +8,8 @@ import FileExtractor from '@/main/lib/fileExtractor';
- import { getMainLogger } from '@/main/lib/logger';
- import { extractedDocumentSchema, uploadedFileSchema } from './schema';
- import { getReviewRepository } from '@/adapter/db';
-+import { publishEvent } from '@/main/lib/eventPayloadHelper';
-+import { IpcChannels } from '@/types';
+@@ -87,12 +87,12 @@ export const textExtractionStep = createStep({
+         const file = files[i];
  
- const logger = getMainLogger();
+         // 進捗イベントを発行
+-        publishEvent(IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS, {
++        publishEvent(IpcChannels.REVIEW_FILE_PROCESSING_PROGRESS, {
+           reviewHistoryId,
+           currentFileName: file.name,
+           currentFileIndex: i,
+           totalFiles: files.length,
+-          phase: 'extracting',
++          phase: 'processing',
+         });
  
-@@ -81,7 +83,18 @@ export const textExtractionStep = createStep({
- 
-       // 初回レビュー: ファイルからテキスト抽出
-       // 各ファイルからテキストを抽出
--      for (const file of files) {
-+      for (let i = 0; i < files.length; i++) {
-+        const file = files[i];
-+
-+        // 進捗イベントを発行
-+        publishEvent(IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS, {
-+          reviewHistoryId,
-+          currentFileName: file.name,
-+          currentFileIndex: i,
-+          totalFiles: files.length,
-+          phase: 'extracting',
-+        });
-+
          // ワークフロー内での一意IDを生成
-         const id = fileIdSequence.next().value.toString();
- 
-@@ -119,6 +132,15 @@ export const textExtractionStep = createStep({
+@@ -132,13 +132,13 @@ export const textExtractionStep = createStep({
          }
        }
  
-+      // テキスト抽出完了を通知
-+      publishEvent(IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS, {
-+        reviewHistoryId,
-+        currentFileName: '',
-+        currentFileIndex: files.length,
-+        totalFiles: files.length,
-+        phase: 'processing',
-+      });
-+
+-      // テキスト抽出完了を通知
+-      publishEvent(IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS, {
++      // ファイル処理完了を通知
++      publishEvent(IpcChannels.REVIEW_FILE_PROCESSING_PROGRESS, {
+         reviewHistoryId,
+         currentFileName: '',
+         currentFileIndex: files.length,
+         totalFiles: files.length,
+-        phase: 'processing',
++        phase: 'completed',
+       });
+ 
        return {
-         status: 'success' as stepStatus,
+@@ -146,7 +146,7 @@ export const textExtractionStep = createStep({
          extractedDocuments,
-diff --git a/src/mastra/workflows/sourceReview/lib.ts b/src/mastra/workflows/sourceReview/lib.ts
-index 9518de038..972909ea6 100644
---- a/src/mastra/workflows/sourceReview/lib.ts
-+++ b/src/mastra/workflows/sourceReview/lib.ts
-@@ -69,10 +69,14 @@ export function splitChecklistEquallyByMaxSize(
+       };
+     } catch (error) {
+-      logger.error(error, 'テキスト抽出処理に失敗しました');
++      logger.error(error, 'ファイル処理に失敗しました');
+       const normalizedError = normalizeUnknownError(error);
  
- /**
-  * 複数ファイルを統合したメッセージオブジェクトを作成する
-+ * @param files ファイルリスト
-+ * @param promptText プロンプトテキスト
-+ * @param onFileProcessing ファイル処理時のコールバック（オプション）
-  */
- export async function createCombinedMessage(
-   files: UploadFile[],
-   promptText: string,
-+  onFileProcessing?: (currentIndex: number, fileName: string) => void,
- ): Promise<{
-   role: 'user';
-   content: Array<
-@@ -95,7 +99,12 @@ export async function createCombinedMessage(
-   ];
- 
-   // ファイル選択順に処理
--  for (const file of files) {
-+  for (let i = 0; i < files.length; i++) {
-+    const file = files[i];
-+
-+    // コールバックがあれば呼び出し
-+    onFileProcessing?.(i, file.name);
-+
-     // 画像として処理する場合（PDF、Office ドキュメント問わず）
-     if (
-       file.processMode === 'image' &&
+       return bail({
 diff --git a/src/renderer/components/review/ReviewArea.tsx b/src/renderer/components/review/ReviewArea.tsx
-index f51d2c4a0..2e82fcbb6 100644
+index 2e82fcbb6..977c8529c 100644
 --- a/src/renderer/components/review/ReviewArea.tsx
 +++ b/src/renderer/components/review/ReviewArea.tsx
-@@ -73,6 +73,14 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
+@@ -73,12 +73,12 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
    const [chatPanelWidth, setChatPanelWidth] = useState(500);
    const [isResizing, setIsResizing] = useState(false);
  
-+  // テキスト抽出進捗の状態管理
-+  const [extractionProgress, setExtractionProgress] = useState<{
-+    currentFileName: string;
-+    currentFileIndex: number;
-+    totalFiles: number;
-+    phase: 'extracting' | 'processing';
-+  } | null>(null);
-+
-   const addAlert = useAlertStore((state) => state.addAlert);
+-  // テキスト抽出進捗の状態管理
+-  const [extractionProgress, setExtractionProgress] = useState<{
++  // ファイル処理進捗の状態管理
++  const [fileProcessingProgress, setFileProcessingProgress] = useState<{
+     currentFileName: string;
+     currentFileIndex: number;
+     totalFiles: number;
+-    phase: 'extracting' | 'processing';
++    phase: 'processing' | 'completed';
+   } | null>(null);
  
-   // イベント購読の解除関数を管理
-@@ -162,6 +170,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
+   const addAlert = useAlertStore((state) => state.addAlert);
+@@ -170,7 +170,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
        }
  
        setIsExtracting(false);
-+      setExtractionProgress(null);
+-      setExtractionProgress(null);
++      setFileProcessingProgress(null);
      },
      [
        selectedReviewHistoryId,
-@@ -212,6 +221,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
+@@ -221,7 +221,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
        }
  
        setIsReviewing(false);
-+      setExtractionProgress(null);
+-      setExtractionProgress(null);
++      setFileProcessingProgress(null);
  
        // イベント購読解除
        if (eventUnsubscribeRef.current) {
-@@ -243,6 +253,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
+@@ -253,7 +253,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
      setCommentFormat(defaultCommentFormat);
      setEvaluationSettings(defaultEvaluationSettings);
      setChatPanelOpen(false);
-+    setExtractionProgress(null);
+-    setExtractionProgress(null);
++    setFileProcessingProgress(null);
  
      // 初期データ取得（エラーが発生しなくなるまでポーリング）
      const loadInitialData = async () => {
-@@ -359,6 +370,35 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
+@@ -370,10 +370,10 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
      fetchChecklistResults,
    ]);
  
-+  // テキスト抽出進捗イベントの購読
-+  useEffect(() => {
-+    if (!selectedReviewHistoryId || (!isExtracting && !isReviewing)) {
-+      setExtractionProgress(null);
-+      return undefined;
-+    }
-+
-+    const reviewApi = ReviewApi.getInstance();
-+    let unsubscribe: (() => void) | null = null;
-+
-+    reviewApi
-+      .subscribeTextExtractionProgress((payload) => {
-+        if (payload.reviewHistoryId === selectedReviewHistoryId) {
-+          setExtractionProgress(payload);
-+        }
-+      })
-+      .then((unsub) => {
-+        unsubscribe = unsub;
-+        return unsub;
-+      })
-+      .catch(() => {
-+        // イベント購読エラーは無視（ログのみ）
-+      });
-+
-+    return () => {
-+      unsubscribe?.();
-+    };
-+  }, [selectedReviewHistoryId, isExtracting, isReviewing]);
-+
-   // チェックリストの抽出処理
-   const handleExtractChecklist = useCallback(
-     async (
-@@ -642,6 +682,17 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
-     };
-   }, [isResizing]);
+-  // テキスト抽出進捗イベントの購読
++  // ファイル処理進捗イベントの購読
+   useEffect(() => {
+     if (!selectedReviewHistoryId || (!isExtracting && !isReviewing)) {
+-      setExtractionProgress(null);
++      setFileProcessingProgress(null);
+       return undefined;
+     }
  
-+  // 進捗表示テキストを取得
-+  const getProgressText = (): string => {
-+    if (extractionProgress?.phase === 'extracting') {
-+      return `テキスト抽出中... (${extractionProgress.currentFileIndex + 1}/${extractionProgress.totalFiles}) ${extractionProgress.currentFileName}`;
-+    }
-+    if (isExtracting) {
-+      return 'チェックリスト抽出中...';
-+    }
-+    return 'レビュー実行中...';
-+  };
-+
-   return (
-     <Box
-       sx={{
-@@ -663,6 +714,9 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
-           {/* 処理中インジケーター */}
-           {(isExtracting || isReviewing) && (
-             <Box sx={{ mb: 2 }}>
-+              <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
-+                {getProgressText()}
-+              </Typography>
-               <LinearProgress />
-             </Box>
-           )}
+@@ -381,9 +381,9 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
+     let unsubscribe: (() => void) | null = null;
+ 
+     reviewApi
+-      .subscribeTextExtractionProgress((payload) => {
++      .subscribeFileProcessingProgress((payload) => {
+         if (payload.reviewHistoryId === selectedReviewHistoryId) {
+-          setExtractionProgress(payload);
++          setFileProcessingProgress(payload);
+         }
+       })
+       .then((unsub) => {
+@@ -684,8 +684,8 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
+ 
+   // 進捗表示テキストを取得
+   const getProgressText = (): string => {
+-    if (extractionProgress?.phase === 'extracting') {
+-      return `テキスト抽出中... (${extractionProgress.currentFileIndex + 1}/${extractionProgress.totalFiles}) ${extractionProgress.currentFileName}`;
++    if (fileProcessingProgress?.phase === 'processing') {
++      return `ファイル処理中... (${fileProcessingProgress.currentFileIndex + 1}/${fileProcessingProgress.totalFiles}) ${fileProcessingProgress.currentFileName}`;
+     }
+     if (isExtracting) {
+       return 'チェックリスト抽出中...';
 diff --git a/src/renderer/service/reviewApi.ts b/src/renderer/service/reviewApi.ts
-index e3c377f03..ad9d68cee 100644
+index ad9d68cee..e8edf19e1 100644
 --- a/src/renderer/service/reviewApi.ts
 +++ b/src/renderer/service/reviewApi.ts
-@@ -82,6 +82,15 @@ export interface IReviewApi {
+@@ -82,13 +82,13 @@ export interface IReviewApi {
        totalSheets?: number;
      }) => void,
    ): Promise<() => void>;
-+  subscribeTextExtractionProgress(
-+    callback: (payload: {
-+      reviewHistoryId: string;
-+      currentFileName: string;
-+      currentFileIndex: number;
-+      totalFiles: number;
-+      phase: 'extracting' | 'processing';
-+    }) => void,
-+  ): Promise<() => void>;
+-  subscribeTextExtractionProgress(
++  subscribeFileProcessingProgress(
+     callback: (payload: {
+       reviewHistoryId: string;
+       currentFileName: string;
+       currentFileIndex: number;
+       totalFiles: number;
+-      phase: 'extracting' | 'processing';
++      phase: 'processing' | 'completed';
+     }) => void,
+   ): Promise<() => void>;
    updateChecklist(
-     historyId: string,
-     checklistEdits: ReviewChecklistEdit[],
-@@ -278,6 +287,24 @@ export class ReviewApi implements IReviewApi {
+@@ -287,18 +287,18 @@ export class ReviewApi implements IReviewApi {
      );
    }
  
-+  public async subscribeTextExtractionProgress(
-+    callback: (payload: {
-+      reviewHistoryId: string;
-+      currentFileName: string;
-+      currentFileIndex: number;
-+      totalFiles: number;
-+      phase: 'extracting' | 'processing';
-+    }) => void,
-+  ): Promise<() => void> {
-+    const pushClient = new ElectronPushClient();
-+    return pushClient.subscribeAsync(
-+      IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS,
-+      (event) => {
-+        callback(event.payload);
-+      },
-+    );
-+  }
-+
-   public async updateChecklist(
-     historyId: string,
-     checklistEdits: ReviewChecklistEdit[],
+-  public async subscribeTextExtractionProgress(
++  public async subscribeFileProcessingProgress(
+     callback: (payload: {
+       reviewHistoryId: string;
+       currentFileName: string;
+       currentFileIndex: number;
+       totalFiles: number;
+-      phase: 'extracting' | 'processing';
++      phase: 'processing' | 'completed';
+     }) => void,
+   ): Promise<() => void> {
+     const pushClient = new ElectronPushClient();
+     return pushClient.subscribeAsync(
+-      IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS,
++      IpcChannels.REVIEW_FILE_PROCESSING_PROGRESS,
+       (event) => {
+         callback(event.payload);
+       },
 diff --git a/src/types/ipc.ts b/src/types/ipc.ts
-index f78b6c75b..356ddcdc9 100644
+index 356ddcdc9..fbbe902ac 100644
 --- a/src/types/ipc.ts
 +++ b/src/types/ipc.ts
-@@ -89,6 +89,7 @@ export const IpcChannels = {
+@@ -89,7 +89,7 @@ export const IpcChannels = {
    REVIEW_CHAT_COMPLETE: 'review-chat-complete', // レビューチャット完了
    REVIEW_CHAT_ERROR: 'review-chat-error', // レビューチャットエラー
    REVIEW_CHAT_ABORT: 'review-chat-abort', // レビューチャット中断
-+  REVIEW_TEXT_EXTRACTION_PROGRESS: 'review-text-extraction-progress', // テキスト抽出進捗通知
+-  REVIEW_TEXT_EXTRACTION_PROGRESS: 'review-text-extraction-progress', // テキスト抽出進捗通知
++  REVIEW_FILE_PROCESSING_PROGRESS: 'review-file-processing-progress', // ファイル処理進捗通知
  } as const;
  
  export type IpcChannel = (typeof IpcChannels)[keyof typeof IpcChannels];
-@@ -251,6 +252,13 @@ export type IpcEventPayloadMap = {
+@@ -252,12 +252,12 @@ export type IpcEventPayloadMap = {
    [IpcChannels.REVIEW_CHAT_STREAM_RESPONSE]: any; // AI SDKが定義するDataStreamが入る想定(型がexportされていないためany型)
    [IpcChannels.REVIEW_CHAT_COMPLETE]: unknown;
    [IpcChannels.REVIEW_CHAT_ERROR]: { message: string };
-+  [IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS]: {
-+    reviewHistoryId: string;
-+    currentFileName: string;
-+    currentFileIndex: number;
-+    totalFiles: number;
-+    phase: 'extracting' | 'processing';
-+  };
+-  [IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS]: {
++  [IpcChannels.REVIEW_FILE_PROCESSING_PROGRESS]: {
+     reviewHistoryId: string;
+     currentFileName: string;
+     currentFileIndex: number;
+     totalFiles: number;
+-    phase: 'extracting' | 'processing';
++    phase: 'processing' | 'completed';
+   };
  };
  
- /**
