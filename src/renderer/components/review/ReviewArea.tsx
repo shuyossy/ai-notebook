@@ -73,6 +73,14 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
   const [chatPanelWidth, setChatPanelWidth] = useState(500);
   const [isResizing, setIsResizing] = useState(false);
 
+  // テキスト抽出進捗の状態管理
+  const [extractionProgress, setExtractionProgress] = useState<{
+    currentFileName: string;
+    currentFileIndex: number;
+    totalFiles: number;
+    phase: 'extracting' | 'processing';
+  } | null>(null);
+
   const addAlert = useAlertStore((state) => state.addAlert);
 
   // イベント購読の解除関数を管理
@@ -162,6 +170,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
       }
 
       setIsExtracting(false);
+      setExtractionProgress(null);
     },
     [
       selectedReviewHistoryId,
@@ -212,6 +221,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
       }
 
       setIsReviewing(false);
+      setExtractionProgress(null);
 
       // イベント購読解除
       if (eventUnsubscribeRef.current) {
@@ -243,6 +253,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
     setCommentFormat(defaultCommentFormat);
     setEvaluationSettings(defaultEvaluationSettings);
     setChatPanelOpen(false);
+    setExtractionProgress(null);
 
     // 初期データ取得（エラーが発生しなくなるまでポーリング）
     const loadInitialData = async () => {
@@ -358,6 +369,35 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
     isReviewing,
     fetchChecklistResults,
   ]);
+
+  // テキスト抽出進捗イベントの購読
+  useEffect(() => {
+    if (!selectedReviewHistoryId || (!isExtracting && !isReviewing)) {
+      setExtractionProgress(null);
+      return undefined;
+    }
+
+    const reviewApi = ReviewApi.getInstance();
+    let unsubscribe: (() => void) | null = null;
+
+    reviewApi
+      .subscribeTextExtractionProgress((payload) => {
+        if (payload.reviewHistoryId === selectedReviewHistoryId) {
+          setExtractionProgress(payload);
+        }
+      })
+      .then((unsub) => {
+        unsubscribe = unsub;
+        return unsub;
+      })
+      .catch(() => {
+        // イベント購読エラーは無視（ログのみ）
+      });
+
+    return () => {
+      unsubscribe?.();
+    };
+  }, [selectedReviewHistoryId, isExtracting, isReviewing]);
 
   // チェックリストの抽出処理
   const handleExtractChecklist = useCallback(
@@ -642,6 +682,17 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
     };
   }, [isResizing]);
 
+  // 進捗表示テキストを取得
+  const getProgressText = (): string => {
+    if (extractionProgress?.phase === 'extracting') {
+      return `テキスト抽出中... (${extractionProgress.currentFileIndex + 1}/${extractionProgress.totalFiles}) ${extractionProgress.currentFileName}`;
+    }
+    if (isExtracting) {
+      return 'チェックリスト抽出中...';
+    }
+    return 'レビュー実行中...';
+  };
+
   return (
     <Box
       sx={{
@@ -663,6 +714,9 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
           {/* 処理中インジケーター */}
           {(isExtracting || isReviewing) && (
             <Box sx={{ mb: 2 }}>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
+                {getProgressText()}
+              </Typography>
               <LinearProgress />
             </Box>
           )}

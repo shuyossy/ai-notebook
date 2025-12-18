@@ -8,6 +8,8 @@ import FileExtractor from '@/main/lib/fileExtractor';
 import { getMainLogger } from '@/main/lib/logger';
 import { extractedDocumentSchema, uploadedFileSchema } from './schema';
 import { getReviewRepository } from '@/adapter/db';
+import { publishEvent } from '@/main/lib/eventPayloadHelper';
+import { IpcChannels } from '@/types';
 
 const logger = getMainLogger();
 
@@ -81,7 +83,18 @@ export const textExtractionStep = createStep({
 
       // 初回レビュー: ファイルからテキスト抽出
       // 各ファイルからテキストを抽出
-      for (const file of files) {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+
+        // 進捗イベントを発行
+        publishEvent(IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS, {
+          reviewHistoryId,
+          currentFileName: file.name,
+          currentFileIndex: i,
+          totalFiles: files.length,
+          phase: 'extracting',
+        });
+
         // ワークフロー内での一意IDを生成
         const id = fileIdSequence.next().value.toString();
 
@@ -118,6 +131,15 @@ export const textExtractionStep = createStep({
           });
         }
       }
+
+      // テキスト抽出完了を通知
+      publishEvent(IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS, {
+        reviewHistoryId,
+        currentFileName: '',
+        currentFileIndex: files.length,
+        totalFiles: files.length,
+        phase: 'processing',
+      });
 
       return {
         status: 'success' as stepStatus,

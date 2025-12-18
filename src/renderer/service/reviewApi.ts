@@ -82,6 +82,15 @@ export interface IReviewApi {
       totalSheets?: number;
     }) => void,
   ): Promise<() => void>;
+  subscribeTextExtractionProgress(
+    callback: (payload: {
+      reviewHistoryId: string;
+      currentFileName: string;
+      currentFileIndex: number;
+      totalFiles: number;
+      phase: 'extracting' | 'processing';
+    }) => void,
+  ): Promise<() => void>;
   updateChecklist(
     historyId: string,
     checklistEdits: ReviewChecklistEdit[],
@@ -272,6 +281,24 @@ export class ReviewApi implements IReviewApi {
     const pushClient = new ElectronPushClient();
     return pushClient.subscribeAsync(
       IpcChannels.FS_CONVERT_OFFICE_TO_PDF_PROGRESS,
+      (event) => {
+        callback(event.payload);
+      },
+    );
+  }
+
+  public async subscribeTextExtractionProgress(
+    callback: (payload: {
+      reviewHistoryId: string;
+      currentFileName: string;
+      currentFileIndex: number;
+      totalFiles: number;
+      phase: 'extracting' | 'processing';
+    }) => void,
+  ): Promise<() => void> {
+    const pushClient = new ElectronPushClient();
+    return pushClient.subscribeAsync(
+      IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS,
       (event) => {
         callback(event.payload);
       },

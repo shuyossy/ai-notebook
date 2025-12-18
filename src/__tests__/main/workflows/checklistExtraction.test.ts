@@ -25,6 +25,7 @@ import FileExtractor from '@/main/lib/fileExtractor';
 import { checkWorkflowResult } from '@/mastra/lib/workflowUtils';
 import type { IReviewRepository } from '@/main/service/port/repository';
 import type { UploadFile } from '@/types';
+import { IpcChannels } from '@/types';
 import { internalError } from '@/main/lib/error';
 
 // モック設定
@@ -77,8 +78,10 @@ jest.mock('@/main/lib/fileExtractor', () => ({
     },
   },
 }));
+// イベント発火のモック
+const mockPublishEvent = jest.fn();
 jest.mock('@/main/lib/eventPayloadHelper', () => ({
-  publishEvent: jest.fn(),
+  publishEvent: (...args: any[]) => mockPublishEvent(...args),
 }));
 
 describe('checklistExtractionWorkflow', () => {
@@ -92,6 +95,9 @@ describe('checklistExtractionWorkflow', () => {
   let mockChecklistRefinementAgent: any;
 
   beforeEach(() => {
+    // イベントモックのリセット
+    mockPublishEvent.mockClear();
+
     // リポジトリのモック
     mockRepository = {
       deleteSystemCreatedChecklists: jest.fn().mockResolvedValue(undefined),
@@ -232,6 +238,29 @@ describe('checklistExtractionWorkflow', () => {
           'チェック項目3',
           'system',
         );
+
+        // テキスト抽出進捗イベントが発行されたことを検証
+        expect(mockPublishEvent).toHaveBeenCalledWith(
+          IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS,
+          expect.objectContaining({
+            reviewHistoryId,
+            phase: 'extracting',
+            currentFileIndex: 0,
+            totalFiles: 1,
+            currentFileName: 'checklist.pdf',
+          }),
+        );
+
+        // テキスト抽出完了イベントが発行されたことを検証
+        expect(mockPublishEvent).toHaveBeenCalledWith(
+          IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS,
+          expect.objectContaining({
+            reviewHistoryId,
+            phase: 'processing',
+            currentFileIndex: 1,
+            totalFiles: 1,
+          }),
+        );
       });
 
       it('複数ファイルの統合抽出が成功すること', async () => {
@@ -289,6 +318,39 @@ describe('checklistExtractionWorkflow', () => {
               text: expect.stringContaining('checklist1.pdf, checklist2.pdf'),
             }),
           ]),
+        );
+
+        // 各ファイルに対してテキスト抽出進捗イベントが発行されたことを検証
+        expect(mockPublishEvent).toHaveBeenCalledWith(
+          IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS,
+          expect.objectContaining({
+            reviewHistoryId,
+            phase: 'extracting',
+            currentFileIndex: 0,
+            totalFiles: 2,
+            currentFileName: 'checklist1.pdf',
+          }),
+        );
+        expect(mockPublishEvent).toHaveBeenCalledWith(
+          IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS,
+          expect.objectContaining({
+            reviewHistoryId,
+            phase: 'extracting',
+            currentFileIndex: 1,
+            totalFiles: 2,
+            currentFileName: 'checklist2.pdf',
+          }),
+        );
+
+        // テキスト抽出完了イベントが発行されたことを検証
+        expect(mockPublishEvent).toHaveBeenCalledWith(
+          IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS,
+          expect.objectContaining({
+            reviewHistoryId,
+            phase: 'processing',
+            currentFileIndex: 2,
+            totalFiles: 2,
+          }),
         );
       });
 
@@ -637,6 +699,29 @@ describe('checklistExtractionWorkflow', () => {
           reviewHistoryId,
           'データ保護項目1',
           'system',
+        );
+
+        // テキスト抽出進捗イベントが発行されたことを検証（トピック抽出ステップ）
+        expect(mockPublishEvent).toHaveBeenCalledWith(
+          IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS,
+          expect.objectContaining({
+            reviewHistoryId,
+            phase: 'extracting',
+            currentFileIndex: 0,
+            totalFiles: 1,
+            currentFileName: 'general.pdf',
+          }),
+        );
+
+        // テキスト抽出完了イベントが発行されたことを検証
+        expect(mockPublishEvent).toHaveBeenCalledWith(
+          IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS,
+          expect.objectContaining({
+            reviewHistoryId,
+            phase: 'processing',
+            currentFileIndex: 1,
+            totalFiles: 1,
+          }),
         );
       });
 

@@ -15,6 +15,8 @@ import {
 import { createRuntimeContext } from '../../lib/agentUtils';
 import { normalizeUnknownError, internalError } from '@/main/lib/error';
 import { getMainLogger } from '@/main/lib/logger';
+import { publishEvent } from '@/main/lib/eventPayloadHelper';
+import { IpcChannels } from '@/types';
 import { createCombinedMessage } from './lib';
 
 const logger = getMainLogger();
@@ -97,7 +99,25 @@ const checklistDocumentExtractionStep = createStep({
       const message = await createCombinedMessage(
         files,
         'Please extract checklist items from this document',
+        (currentIndex, fileName) => {
+          publishEvent(IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS, {
+            reviewHistoryId,
+            currentFileName: fileName,
+            currentFileIndex: currentIndex,
+            totalFiles: files.length,
+            phase: 'extracting',
+          });
+        },
       );
+
+      // テキスト抽出完了を通知
+      publishEvent(IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS, {
+        reviewHistoryId,
+        currentFileName: '',
+        currentFileIndex: files.length,
+        totalFiles: files.length,
+        phase: 'processing',
+      });
 
       const checklistExtractionAgent = mastra.getAgent(
         'checklistExtractionAgent',
@@ -262,7 +282,25 @@ const topicExtractionStep = createStep({
       const message = await createCombinedMessage(
         files,
         'Please extract topics from this document',
+        (currentIndex, fileName) => {
+          publishEvent(IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS, {
+            reviewHistoryId,
+            currentFileName: fileName,
+            currentFileIndex: currentIndex,
+            totalFiles: files.length,
+            phase: 'extracting',
+          });
+        },
       );
+
+      // テキスト抽出完了を通知
+      publishEvent(IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS, {
+        reviewHistoryId,
+        currentFileName: '',
+        currentFileIndex: files.length,
+        totalFiles: files.length,
+        phase: 'processing',
+      });
 
       const topicExtractionAgent = mastra.getAgent('topicExtractionAgent');
       const outputSchema = z.object({
@@ -333,14 +371,33 @@ const topicChecklistCreationStep = createStep({
   }),
   outputSchema: topicChecklistStepOutputSchema,
   execute: async ({ inputData, mastra, bail, abortSignal }) => {
-    const { title, files, checklistRequirements } = inputData;
+    const { title, files, reviewHistoryId, checklistRequirements } = inputData;
 
     try {
       // 複数ファイルを統合してメッセージを作成
       const message = await createCombinedMessage(
         files,
         `Please create checklist items from this document for topic: ${title}`,
+        (currentIndex, fileName) => {
+          publishEvent(IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS, {
+            reviewHistoryId,
+            currentFileName: fileName,
+            currentFileIndex: currentIndex,
+            totalFiles: files.length,
+            phase: 'extracting',
+          });
+        },
       );
+
+      // テキスト抽出完了を通知
+      publishEvent(IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS, {
+        reviewHistoryId,
+        currentFileName: '',
+        currentFileIndex: files.length,
+        totalFiles: files.length,
+        phase: 'processing',
+      });
+
       const topicChecklistAgent = mastra.getAgent('topicChecklistAgent');
       const outputSchema = z.object({
         checklistItems: z

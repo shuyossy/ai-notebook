@@ -25,6 +25,7 @@ import FileExtractor from '@/main/lib/fileExtractor';
 import { checkWorkflowResult } from '@/mastra/lib/workflowUtils';
 import type { IReviewRepository } from '@/main/service/port/repository/IReviewRepository';
 import type { UploadFile, ReviewChecklist } from '@/types';
+import { IpcChannels } from '@/types';
 import { internalError } from '@/main/lib/error';
 import { APICallError } from 'ai';
 
@@ -77,8 +78,10 @@ jest.mock('@/main/lib/fileExtractor', () => ({
   },
 }));
 
+// イベント発火のモック
+const mockPublishEvent = jest.fn();
 jest.mock('@/main/lib/eventPayloadHelper', () => ({
-  publishEvent: jest.fn(),
+  publishEvent: (...args: any[]) => mockPublishEvent(...args),
 }));
 
 describe('executeReviewWorkflow', () => {
@@ -92,6 +95,9 @@ describe('executeReviewWorkflow', () => {
   let mockConsolidateReviewAgent: any;
 
   beforeEach(() => {
+    // イベントモックのリセット
+    mockPublishEvent.mockClear();
+
     // リポジトリのモック
     mockRepository = {
       createReviewHistory: jest.fn(),
@@ -234,6 +240,29 @@ describe('executeReviewWorkflow', () => {
         expect(mockRepository.updateReviewHistoryDocumentMode).toHaveBeenCalledWith(reviewHistoryId, 'small');
         expect(mockRepository.createReviewDocumentCache).toHaveBeenCalled();
         expect(mockRepository.upsertReviewResult).toHaveBeenCalled();
+
+        // テキスト抽出進捗イベントが発行されたことを検証
+        expect(mockPublishEvent).toHaveBeenCalledWith(
+          IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS,
+          expect.objectContaining({
+            reviewHistoryId,
+            phase: 'extracting',
+            currentFileIndex: 0,
+            totalFiles: 1,
+            currentFileName: 'document.txt',
+          }),
+        );
+
+        // テキスト抽出完了イベントが発行されたことを検証
+        expect(mockPublishEvent).toHaveBeenCalledWith(
+          IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS,
+          expect.objectContaining({
+            reviewHistoryId,
+            phase: 'processing',
+            currentFileIndex: 1,
+            totalFiles: 1,
+          }),
+        );
       });
 
       it('複数ファイルの統合レビューが成功すること', async () => {
@@ -307,6 +336,39 @@ describe('executeReviewWorkflow', () => {
         expect(mockRepository.updateReviewHistoryTargetDocumentName).toHaveBeenCalledWith(
           reviewHistoryId,
           'document1.txt/document2.txt',
+        );
+
+        // 各ファイルに対してテキスト抽出進捗イベントが発行されたことを検証
+        expect(mockPublishEvent).toHaveBeenCalledWith(
+          IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS,
+          expect.objectContaining({
+            reviewHistoryId,
+            phase: 'extracting',
+            currentFileIndex: 0,
+            totalFiles: 2,
+            currentFileName: 'document1.txt',
+          }),
+        );
+        expect(mockPublishEvent).toHaveBeenCalledWith(
+          IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS,
+          expect.objectContaining({
+            reviewHistoryId,
+            phase: 'extracting',
+            currentFileIndex: 1,
+            totalFiles: 2,
+            currentFileName: 'document2.txt',
+          }),
+        );
+
+        // テキスト抽出完了イベントが発行されたことを検証
+        expect(mockPublishEvent).toHaveBeenCalledWith(
+          IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS,
+          expect.objectContaining({
+            reviewHistoryId,
+            phase: 'processing',
+            currentFileIndex: 2,
+            totalFiles: 2,
+          }),
         );
       });
 

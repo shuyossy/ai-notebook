@@ -69,10 +69,14 @@ export function splitChecklistEquallyByMaxSize(
 
 /**
  * 複数ファイルを統合したメッセージオブジェクトを作成する
+ * @param files ファイルリスト
+ * @param promptText プロンプトテキスト
+ * @param onFileProcessing ファイル処理時のコールバック（オプション）
  */
 export async function createCombinedMessage(
   files: UploadFile[],
   promptText: string,
+  onFileProcessing?: (currentIndex: number, fileName: string) => void,
 ): Promise<{
   role: 'user';
   content: Array<
@@ -95,7 +99,12 @@ export async function createCombinedMessage(
   ];
 
   // ファイル選択順に処理
-  for (const file of files) {
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+
+    // コールバックがあれば呼び出し
+    onFileProcessing?.(i, file.name);
+
     // 画像として処理する場合（PDF、Office ドキュメント問わず）
     if (
       file.processMode === 'image' &&

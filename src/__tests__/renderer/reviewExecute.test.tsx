@@ -836,9 +836,11 @@ describe('ReviewArea - レビュー実行', () => {
       render(<ReviewArea selectedReviewHistoryId="review-1" />);
 
       await waitFor(() => {
-        // LinearProgressが表示されることを確認
+        // CircularProgressが表示されることを確認
         const progress = document.querySelector('.MuiLinearProgress-root');
         expect(progress).toBeInTheDocument();
+        // レビュー実行中のテキストが表示されることを確認
+        expect(screen.getByText('レビュー実行中...')).toBeInTheDocument();
       });
     });
 

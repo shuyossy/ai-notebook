@@ -89,6 +89,7 @@ export const IpcChannels = {
   REVIEW_CHAT_COMPLETE: 'review-chat-complete', // レビューチャット完了
   REVIEW_CHAT_ERROR: 'review-chat-error', // レビューチャットエラー
   REVIEW_CHAT_ABORT: 'review-chat-abort', // レビューチャット中断
+  REVIEW_TEXT_EXTRACTION_PROGRESS: 'review-text-extraction-progress', // テキスト抽出進捗通知
 } as const;
 
 export type IpcChannel = (typeof IpcChannels)[keyof typeof IpcChannels];
@@ -251,6 +252,13 @@ export type IpcEventPayloadMap = {
   [IpcChannels.REVIEW_CHAT_STREAM_RESPONSE]: any; // AI SDKが定義するDataStreamが入る想定(型がexportされていないためany型)
   [IpcChannels.REVIEW_CHAT_COMPLETE]: unknown;
   [IpcChannels.REVIEW_CHAT_ERROR]: { message: string };
+  [IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS]: {
+    reviewHistoryId: string;
+    currentFileName: string;
+    currentFileIndex: number;
+    totalFiles: number;
+    phase: 'extracting' | 'processing';
+  };
 };
 
 /**
