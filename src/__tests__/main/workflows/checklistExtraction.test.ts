@@ -239,24 +239,24 @@ describe('checklistExtractionWorkflow', () => {
           'system',
         );
 
-        // テキスト抽出進捗イベントが発行されたことを検証
+        // ファイル処理進捗イベントが発行されたことを検証
         expect(mockPublishEvent).toHaveBeenCalledWith(
-          IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS,
+          IpcChannels.REVIEW_FILE_PROCESSING_PROGRESS,
           expect.objectContaining({
             reviewHistoryId,
-            phase: 'extracting',
+            phase: 'processing',
             currentFileIndex: 0,
             totalFiles: 1,
             currentFileName: 'checklist.pdf',
           }),
         );
 
-        // テキスト抽出完了イベントが発行されたことを検証
+        // ファイル処理完了イベントが発行されたことを検証
         expect(mockPublishEvent).toHaveBeenCalledWith(
-          IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS,
+          IpcChannels.REVIEW_FILE_PROCESSING_PROGRESS,
           expect.objectContaining({
             reviewHistoryId,
-            phase: 'processing',
+            phase: 'completed',
             currentFileIndex: 1,
             totalFiles: 1,
           }),
@@ -320,34 +320,34 @@ describe('checklistExtractionWorkflow', () => {
           ]),
         );
 
-        // 各ファイルに対してテキスト抽出進捗イベントが発行されたことを検証
+        // 各ファイルに対してファイル処理進捗イベントが発行されたことを検証
         expect(mockPublishEvent).toHaveBeenCalledWith(
-          IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS,
+          IpcChannels.REVIEW_FILE_PROCESSING_PROGRESS,
           expect.objectContaining({
             reviewHistoryId,
-            phase: 'extracting',
+            phase: 'processing',
             currentFileIndex: 0,
             totalFiles: 2,
             currentFileName: 'checklist1.pdf',
           }),
         );
         expect(mockPublishEvent).toHaveBeenCalledWith(
-          IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS,
+          IpcChannels.REVIEW_FILE_PROCESSING_PROGRESS,
           expect.objectContaining({
             reviewHistoryId,
-            phase: 'extracting',
+            phase: 'processing',
             currentFileIndex: 1,
             totalFiles: 2,
             currentFileName: 'checklist2.pdf',
           }),
         );
 
-        // テキスト抽出完了イベントが発行されたことを検証
+        // ファイル処理完了イベントが発行されたことを検証
         expect(mockPublishEvent).toHaveBeenCalledWith(
-          IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS,
+          IpcChannels.REVIEW_FILE_PROCESSING_PROGRESS,
           expect.objectContaining({
             reviewHistoryId,
-            phase: 'processing',
+            phase: 'completed',
             currentFileIndex: 2,
             totalFiles: 2,
           }),
@@ -701,24 +701,24 @@ describe('checklistExtractionWorkflow', () => {
           'system',
         );
 
-        // テキスト抽出進捗イベントが発行されたことを検証（トピック抽出ステップ）
+        // ファイル処理進捗イベントが発行されたことを検証（トピック抽出ステップ）
         expect(mockPublishEvent).toHaveBeenCalledWith(
-          IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS,
+          IpcChannels.REVIEW_FILE_PROCESSING_PROGRESS,
           expect.objectContaining({
             reviewHistoryId,
-            phase: 'extracting',
+            phase: 'processing',
             currentFileIndex: 0,
             totalFiles: 1,
             currentFileName: 'general.pdf',
           }),
         );
 
-        // テキスト抽出完了イベントが発行されたことを検証
+        // ファイル処理完了イベントが発行されたことを検証
         expect(mockPublishEvent).toHaveBeenCalledWith(
-          IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS,
+          IpcChannels.REVIEW_FILE_PROCESSING_PROGRESS,
           expect.objectContaining({
             reviewHistoryId,
-            phase: 'processing',
+            phase: 'completed',
             currentFileIndex: 1,
             totalFiles: 1,
           }),

@@ -73,12 +73,12 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
   const [chatPanelWidth, setChatPanelWidth] = useState(500);
   const [isResizing, setIsResizing] = useState(false);
 
-  // テキスト抽出進捗の状態管理
-  const [extractionProgress, setExtractionProgress] = useState<{
+  // ファイル処理進捗の状態管理
+  const [fileProcessingProgress, setFileProcessingProgress] = useState<{
     currentFileName: string;
     currentFileIndex: number;
     totalFiles: number;
-    phase: 'extracting' | 'processing';
+    phase: 'processing' | 'completed';
   } | null>(null);
 
   const addAlert = useAlertStore((state) => state.addAlert);
@@ -170,7 +170,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
       }
 
       setIsExtracting(false);
-      setExtractionProgress(null);
+      setFileProcessingProgress(null);
     },
     [
       selectedReviewHistoryId,
@@ -221,7 +221,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
       }
 
       setIsReviewing(false);
-      setExtractionProgress(null);
+      setFileProcessingProgress(null);
 
       // イベント購読解除
       if (eventUnsubscribeRef.current) {
@@ -253,7 +253,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
     setCommentFormat(defaultCommentFormat);
     setEvaluationSettings(defaultEvaluationSettings);
     setChatPanelOpen(false);
-    setExtractionProgress(null);
+    setFileProcessingProgress(null);
 
     // 初期データ取得（エラーが発生しなくなるまでポーリング）
     const loadInitialData = async () => {
@@ -370,10 +370,10 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
     fetchChecklistResults,
   ]);
 
-  // テキスト抽出進捗イベントの購読
+  // ファイル処理進捗イベントの購読
   useEffect(() => {
     if (!selectedReviewHistoryId || (!isExtracting && !isReviewing)) {
-      setExtractionProgress(null);
+      setFileProcessingProgress(null);
       return undefined;
     }
 
@@ -381,9 +381,9 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
     let unsubscribe: (() => void) | null = null;
 
     reviewApi
-      .subscribeTextExtractionProgress((payload) => {
+      .subscribeFileProcessingProgress((payload) => {
         if (payload.reviewHistoryId === selectedReviewHistoryId) {
-          setExtractionProgress(payload);
+          setFileProcessingProgress(payload);
         }
       })
       .then((unsub) => {
@@ -684,8 +684,8 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
 
   // 進捗表示テキストを取得
   const getProgressText = (): string => {
-    if (extractionProgress?.phase === 'extracting') {
-      return `テキスト抽出中... (${extractionProgress.currentFileIndex + 1}/${extractionProgress.totalFiles}) ${extractionProgress.currentFileName}`;
+    if (fileProcessingProgress?.phase === 'processing') {
+      return `ファイル処理中... (${fileProcessingProgress.currentFileIndex + 1}/${fileProcessingProgress.totalFiles}) ${fileProcessingProgress.currentFileName}`;
     }
     if (isExtracting) {
       return 'チェックリスト抽出中...';

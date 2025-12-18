@@ -241,24 +241,24 @@ describe('executeReviewWorkflow', () => {
         expect(mockRepository.createReviewDocumentCache).toHaveBeenCalled();
         expect(mockRepository.upsertReviewResult).toHaveBeenCalled();
 
-        // テキスト抽出進捗イベントが発行されたことを検証
+        // ファイル処理進捗イベントが発行されたことを検証
         expect(mockPublishEvent).toHaveBeenCalledWith(
-          IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS,
+          IpcChannels.REVIEW_FILE_PROCESSING_PROGRESS,
           expect.objectContaining({
             reviewHistoryId,
-            phase: 'extracting',
+            phase: 'processing',
             currentFileIndex: 0,
             totalFiles: 1,
             currentFileName: 'document.txt',
           }),
         );
 
-        // テキスト抽出完了イベントが発行されたことを検証
+        // ファイル処理完了イベントが発行されたことを検証
         expect(mockPublishEvent).toHaveBeenCalledWith(
-          IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS,
+          IpcChannels.REVIEW_FILE_PROCESSING_PROGRESS,
           expect.objectContaining({
             reviewHistoryId,
-            phase: 'processing',
+            phase: 'completed',
             currentFileIndex: 1,
             totalFiles: 1,
           }),
@@ -338,34 +338,34 @@ describe('executeReviewWorkflow', () => {
           'document1.txt/document2.txt',
         );
 
-        // 各ファイルに対してテキスト抽出進捗イベントが発行されたことを検証
+        // 各ファイルに対してファイル処理進捗イベントが発行されたことを検証
         expect(mockPublishEvent).toHaveBeenCalledWith(
-          IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS,
+          IpcChannels.REVIEW_FILE_PROCESSING_PROGRESS,
           expect.objectContaining({
             reviewHistoryId,
-            phase: 'extracting',
+            phase: 'processing',
             currentFileIndex: 0,
             totalFiles: 2,
             currentFileName: 'document1.txt',
           }),
         );
         expect(mockPublishEvent).toHaveBeenCalledWith(
-          IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS,
+          IpcChannels.REVIEW_FILE_PROCESSING_PROGRESS,
           expect.objectContaining({
             reviewHistoryId,
-            phase: 'extracting',
+            phase: 'processing',
             currentFileIndex: 1,
             totalFiles: 2,
             currentFileName: 'document2.txt',
           }),
         );
 
-        // テキスト抽出完了イベントが発行されたことを検証
+        // ファイル処理完了イベントが発行されたことを検証
         expect(mockPublishEvent).toHaveBeenCalledWith(
-          IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS,
+          IpcChannels.REVIEW_FILE_PROCESSING_PROGRESS,
           expect.objectContaining({
             reviewHistoryId,
-            phase: 'processing',
+            phase: 'completed',
             currentFileIndex: 2,
             totalFiles: 2,
           }),

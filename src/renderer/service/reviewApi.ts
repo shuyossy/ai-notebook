@@ -82,13 +82,13 @@ export interface IReviewApi {
       totalSheets?: number;
     }) => void,
   ): Promise<() => void>;
-  subscribeTextExtractionProgress(
+  subscribeFileProcessingProgress(
     callback: (payload: {
       reviewHistoryId: string;
       currentFileName: string;
       currentFileIndex: number;
       totalFiles: number;
-      phase: 'extracting' | 'processing';
+      phase: 'processing' | 'completed';
     }) => void,
   ): Promise<() => void>;
   updateChecklist(
@@ -287,18 +287,18 @@ export class ReviewApi implements IReviewApi {
     );
   }
 
-  public async subscribeTextExtractionProgress(
+  public async subscribeFileProcessingProgress(
     callback: (payload: {
       reviewHistoryId: string;
       currentFileName: string;
       currentFileIndex: number;
       totalFiles: number;
-      phase: 'extracting' | 'processing';
+      phase: 'processing' | 'completed';
     }) => void,
   ): Promise<() => void> {
     const pushClient = new ElectronPushClient();
     return pushClient.subscribeAsync(
-      IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS,
+      IpcChannels.REVIEW_FILE_PROCESSING_PROGRESS,
       (event) => {
         callback(event.payload);
       },

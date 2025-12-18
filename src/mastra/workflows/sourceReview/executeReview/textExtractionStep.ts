@@ -87,12 +87,12 @@ export const textExtractionStep = createStep({
         const file = files[i];
 
         // 進捗イベントを発行
-        publishEvent(IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS, {
+        publishEvent(IpcChannels.REVIEW_FILE_PROCESSING_PROGRESS, {
           reviewHistoryId,
           currentFileName: file.name,
           currentFileIndex: i,
           totalFiles: files.length,
-          phase: 'extracting',
+          phase: 'processing',
         });
 
         // ワークフロー内での一意IDを生成
@@ -132,13 +132,13 @@ export const textExtractionStep = createStep({
         }
       }
 
-      // テキスト抽出完了を通知
-      publishEvent(IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS, {
+      // ファイル処理完了を通知
+      publishEvent(IpcChannels.REVIEW_FILE_PROCESSING_PROGRESS, {
         reviewHistoryId,
         currentFileName: '',
         currentFileIndex: files.length,
         totalFiles: files.length,
-        phase: 'processing',
+        phase: 'completed',
       });
 
       return {
@@ -146,7 +146,7 @@ export const textExtractionStep = createStep({
         extractedDocuments,
       };
     } catch (error) {
-      logger.error(error, 'テキスト抽出処理に失敗しました');
+      logger.error(error, 'ファイル処理に失敗しました');
       const normalizedError = normalizeUnknownError(error);
 
       return bail({

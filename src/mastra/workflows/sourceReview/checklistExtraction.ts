@@ -100,23 +100,23 @@ const checklistDocumentExtractionStep = createStep({
         files,
         'Please extract checklist items from this document',
         (currentIndex, fileName) => {
-          publishEvent(IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS, {
+          publishEvent(IpcChannels.REVIEW_FILE_PROCESSING_PROGRESS, {
             reviewHistoryId,
             currentFileName: fileName,
             currentFileIndex: currentIndex,
             totalFiles: files.length,
-            phase: 'extracting',
+            phase: 'processing',
           });
         },
       );
 
-      // テキスト抽出完了を通知
-      publishEvent(IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS, {
+      // ファイル処理完了を通知
+      publishEvent(IpcChannels.REVIEW_FILE_PROCESSING_PROGRESS, {
         reviewHistoryId,
         currentFileName: '',
         currentFileIndex: files.length,
         totalFiles: files.length,
-        phase: 'processing',
+        phase: 'completed',
       });
 
       const checklistExtractionAgent = mastra.getAgent(
@@ -283,23 +283,23 @@ const topicExtractionStep = createStep({
         files,
         'Please extract topics from this document',
         (currentIndex, fileName) => {
-          publishEvent(IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS, {
+          publishEvent(IpcChannels.REVIEW_FILE_PROCESSING_PROGRESS, {
             reviewHistoryId,
             currentFileName: fileName,
             currentFileIndex: currentIndex,
             totalFiles: files.length,
-            phase: 'extracting',
+            phase: 'processing',
           });
         },
       );
 
-      // テキスト抽出完了を通知
-      publishEvent(IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS, {
+      // ファイル処理完了を通知
+      publishEvent(IpcChannels.REVIEW_FILE_PROCESSING_PROGRESS, {
         reviewHistoryId,
         currentFileName: '',
         currentFileIndex: files.length,
         totalFiles: files.length,
-        phase: 'processing',
+        phase: 'completed',
       });
 
       const topicExtractionAgent = mastra.getAgent('topicExtractionAgent');
@@ -379,23 +379,23 @@ const topicChecklistCreationStep = createStep({
         files,
         `Please create checklist items from this document for topic: ${title}`,
         (currentIndex, fileName) => {
-          publishEvent(IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS, {
+          publishEvent(IpcChannels.REVIEW_FILE_PROCESSING_PROGRESS, {
             reviewHistoryId,
             currentFileName: fileName,
             currentFileIndex: currentIndex,
             totalFiles: files.length,
-            phase: 'extracting',
+            phase: 'processing',
           });
         },
       );
 
-      // テキスト抽出完了を通知
-      publishEvent(IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS, {
+      // ファイル処理完了を通知
+      publishEvent(IpcChannels.REVIEW_FILE_PROCESSING_PROGRESS, {
         reviewHistoryId,
         currentFileName: '',
         currentFileIndex: files.length,
         totalFiles: files.length,
-        phase: 'processing',
+        phase: 'completed',
       });
 
       const topicChecklistAgent = mastra.getAgent('topicChecklistAgent');
