@@ -96,6 +96,7 @@ import { getMainLogger } from './lib/logger';
 import { internalError, normalizeUnknownError, toPayload } from './lib/error';
 import { formatMessage } from './lib/messages';
 import { SourceService } from './service/sourceService';
+import { InformationService } from './service/informationService';
 import FileExtractor from './lib/fileExtractor';
 import { ZodSchema } from 'zod';
 import { normalizeUnknownIpcError } from './lib/error';
@@ -204,6 +205,8 @@ const reviewService = ReviewService.getInstance();
 
 const sourceService = SourceService.getInstance();
 
+const informationService = InformationService.getInstance();
+
 const logger = getMainLogger();
 
 /**
@@ -227,6 +230,15 @@ const setupSettingsHandlers = () => {
   handleIpc(IpcChannels.SET_SETTINGS, async (settings) => {
     await settingsService.saveSettings(settings);
     return true;
+  });
+};
+
+/**
+ * お知らせ関連のIPCハンドラを設定する
+ */
+const setupInformationHandlers = () => {
+  handleIpc(IpcChannels.INFORMATION_GET, async () => {
+    return await informationService.getInformations();
   });
 };
 
@@ -708,6 +720,7 @@ const initialize = async () => {
   setupFsHandlers();
   setupSourceHandlers();
   setupReviewHandlers();
+  setupInformationHandlers();
   initializeSourceRegistration();
 };
 

@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { MemoryRouter as Router, Routes, Route } from 'react-router-dom';
 import {
   ThemeProvider,
@@ -19,6 +19,7 @@ import ChatRoomList, { ChatRoomListRef } from './components/chat/ChatRoomList';
 import ReviewHistoryList from './components/review/ReviewHistoryList';
 import { useAgentStatusStore } from './stores/agentStatusStore';
 import AppErrorBoundary from './components/common/AppErrorBoundary';
+import InformationBanner from './components/common/InformationBanner';
 
 // テーマの設定
 const theme = createTheme({
@@ -68,7 +69,6 @@ function App() {
   const chatRoomListRef = useRef<ChatRoomListRef>(null);
   const alerts = useAlertStore((state) => state.alerts);
   const removeAlert = useAlertStore((state) => state.removeAlert);
-  const addAlert = useAlertStore((state) => state.addAlert);
   const { status: agentStatus, closeMessage } = useAgentStatusStore();
 
   // ソース再読み込みハンドラ
@@ -90,126 +90,135 @@ function App() {
           <Box
             sx={{
               display: 'flex',
+              flexDirection: 'column',
               height: '100vh',
             }}
           >
-            {/* サイドバー */}
-            <Sidebar onReloadSources={handleReloadSources}>
-              <Routes>
-                <Route
-                  path={ROUTES.CHAT}
-                  element={
-                    <ChatRoomList
-                      ref={chatRoomListRef}
-                      onRoomSelect={setSelectedRoomId}
-                      selectedRoomId={selectedRoomId}
-                    />
-                  }
-                />
-                <Route
-                  path={ROUTES.REVIEW}
-                  element={
-                    <ReviewHistoryList
-                      onReviewHistorySelect={setSelectedReviewHistoryId}
-                      selectedReviewHistoryId={selectedReviewHistoryId}
-                    />
-                  }
-                />
-              </Routes>
-            </Sidebar>
+            {/* お知らせバナー（最上部・全幅） */}
+            <InformationBanner />
 
-            {/* メインコンテンツ領域：ここを relative にして、内部で absolute 配置する */}
-            <Box
-              component="main"
-              sx={{
-                position: 'relative', // ★ アラートを「この領域の中」で絶対配置できるようにする
-                flex: 1, // サイドバー以外の空間をすべて使う
-                minWidth: 0, // コンテンツのオーバーフロー対策
-                overflow: 'hidden', // スクロールバー制御（必要なら調整）
-                display: 'flex', // 中身のレイアウト（任意）
-              }}
-            >
-              {/* ルーティング（通常表示の中身） */}
-              <Routes>
-                <Route
-                  path={ROUTES.CHAT}
-                  element={
-                    <ChatArea
-                      selectedRoomId={selectedRoomId}
-                      onChatRoomUpdate={() => {
-                        // チャットルーム一覧を更新
-                        if (chatRoomListRef.current) {
-                          chatRoomListRef.current.refreshChatRooms();
-                        }
-                      }}
-                    />
-                  }
-                />
-                <Route
-                  path={ROUTES.REVIEW}
-                  element={
-                    <ReviewArea
-                      selectedReviewHistoryId={selectedReviewHistoryId}
-                    />
-                  }
-                />
-              </Routes>
+            {/* サイドバー＋メイン画面のコンテナ */}
+            <Box sx={{ display: 'flex', flex: 1, minHeight: 0 }}>
+              {/* サイドバー */}
+              <Sidebar onReloadSources={handleReloadSources}>
+                <Routes>
+                  <Route
+                    path={ROUTES.CHAT}
+                    element={
+                      <ChatRoomList
+                        ref={chatRoomListRef}
+                        onRoomSelect={setSelectedRoomId}
+                        selectedRoomId={selectedRoomId}
+                      />
+                    }
+                  />
+                  <Route
+                    path={ROUTES.REVIEW}
+                    element={
+                      <ReviewHistoryList
+                        onReviewHistorySelect={setSelectedReviewHistoryId}
+                        selectedReviewHistoryId={selectedReviewHistoryId}
+                      />
+                    }
+                  />
+                </Routes>
+              </Sidebar>
 
-              {/* 中央オーバーレイのエラーメッセージ表示 */}
-              {(alerts.length > 0 || agentStatus.messages.length > 0) && (
-                <Box
-                  // ★ main(Box)の「中」で中央に重ねる
-                  sx={{
-                    position: 'absolute',
-                    top: 20,
-                    left: '50%',
-                    transform: 'translateX(-50%)',
-                    width: 'fit-content',
-                    maxWidth: '80%',
-                    zIndex: 1400,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 1,
-                  }}
-                >
-                  <Stack spacing={1} sx={{ pointerEvents: 'auto' }}>
-                    {agentStatus.messages?.map((message) => (
-                      <Alert
-                        key={message.id}
-                        severity={message.type}
-                        sx={{
-                          whiteSpace: 'pre-line',
-                          boxShadow: 3,
-                          maxHeight: '200px',
-                          overflowY: 'auto',
-                          overflowX: 'hidden',
-                          wordBreak: 'break-word',
-                        }}
-                        onClose={() => closeMessage(message.id)}
-                      >
-                        {message.content}
-                      </Alert>
-                    ))}
-                    {alerts.map((error) => (
-                      <Alert
-                        key={error.id}
-                        severity={error.severity}
-                        onClose={() => removeAlert(error.id)}
-                        sx={{
-                          whiteSpace: 'pre-line',
-                          boxShadow: 3,
-                          maxHeight: '200px',
-                          overflowY: 'auto',
-                          overflowX: 'hidden',
-                          wordBreak: 'break-word',
-                        }}
-                      >
-                        {error.message}
-                      </Alert>
-                    ))}
-                  </Stack>
+              {/* メインコンテンツ領域：ここを relative にして、内部で absolute 配置する */}
+              <Box
+                component="main"
+                sx={{
+                  position: 'relative', // ★ アラートを「この領域の中」で絶対配置できるようにする
+                  flex: 1, // サイドバー以外の空間をすべて使う
+                  minWidth: 0, // コンテンツのオーバーフロー対策
+                  overflow: 'hidden', // スクロールバー制御（必要なら調整）
+                  display: 'flex', // 中身のレイアウト
+                }}
+              >
+                {/* ルーティング（通常表示の中身） */}
+                <Box sx={{ flex: 1, overflow: 'auto', display: 'flex' }}>
+                  <Routes>
+                    <Route
+                      path={ROUTES.CHAT}
+                      element={
+                        <ChatArea
+                          selectedRoomId={selectedRoomId}
+                          onChatRoomUpdate={() => {
+                            // チャットルーム一覧を更新
+                            if (chatRoomListRef.current) {
+                              chatRoomListRef.current.refreshChatRooms();
+                            }
+                          }}
+                        />
+                      }
+                    />
+                    <Route
+                      path={ROUTES.REVIEW}
+                      element={
+                        <ReviewArea
+                          selectedReviewHistoryId={selectedReviewHistoryId}
+                        />
+                      }
+                    />
+                  </Routes>
                 </Box>
-              )}
+
+                {/* 中央オーバーレイのエラーメッセージ表示 */}
+                {(alerts.length > 0 || agentStatus.messages.length > 0) && (
+                  <Box
+                    // ★ main(Box)の「中」で中央に重ねる
+                    sx={{
+                      position: 'absolute',
+                      top: 20,
+                      left: '50%',
+                      transform: 'translateX(-50%)',
+                      width: 'fit-content',
+                      maxWidth: '95%',
+                      zIndex: 1400,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 1,
+                    }}
+                  >
+                    <Stack spacing={1} sx={{ pointerEvents: 'auto' }}>
+                      {agentStatus.messages?.map((message) => (
+                        <Alert
+                          key={message.id}
+                          severity={message.type}
+                          sx={{
+                            whiteSpace: 'pre-line',
+                            boxShadow: 3,
+                            maxHeight: '200px',
+                            overflowY: 'auto',
+                            overflowX: 'hidden',
+                            wordBreak: 'break-word',
+                          }}
+                          onClose={() => closeMessage(message.id)}
+                        >
+                          {message.content}
+                        </Alert>
+                      ))}
+                      {alerts.map((error) => (
+                        <Alert
+                          key={error.id}
+                          severity={error.severity}
+                          onClose={() => removeAlert(error.id)}
+                          sx={{
+                            whiteSpace: 'pre-line',
+                            boxShadow: 3,
+                            maxHeight: '200px',
+                            overflowY: 'auto',
+                            overflowX: 'hidden',
+                            wordBreak: 'break-word',
+                          }}
+                        >
+                          {error.message}
+                        </Alert>
+                      ))}
+                    </Stack>
+                  </Box>
+                )}
+              </Box>
             </Box>
           </Box>
         </Router>

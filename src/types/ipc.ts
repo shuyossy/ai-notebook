@@ -14,6 +14,7 @@ import type {
 } from './review';
 import type { SettingsSavingStatus, Settings } from './setting';
 import type { Source, RevieHistory } from '@/types';
+import type { InformationItem } from './information';
 
 type IpcSuccess<T> = {
   success: true;
@@ -90,6 +91,9 @@ export const IpcChannels = {
   REVIEW_CHAT_ERROR: 'review-chat-error', // レビューチャットエラー
   REVIEW_CHAT_ABORT: 'review-chat-abort', // レビューチャット中断
   REVIEW_FILE_PROCESSING_PROGRESS: 'review-file-processing-progress', // ファイル処理進捗通知
+
+  // お知らせ関連
+  INFORMATION_GET: 'information-get', // お知らせ情報の取得
 } as const;
 
 export type IpcChannel = (typeof IpcChannels)[keyof typeof IpcChannels];
@@ -167,6 +171,9 @@ export type IpcRequestPayloadMap = {
     question: string;
   };
   [IpcChannels.REVIEW_CHAT_ABORT]: string; // review history id
+
+  // お知らせ関連
+  [IpcChannels.INFORMATION_GET]: undefined;
 };
 
 export type IpcResponsePayloadMap = {
@@ -222,6 +229,9 @@ export type IpcResponsePayloadMap = {
   [IpcChannels.REVIEW_EXECUTE_ABORT]: IpcResult;
   [IpcChannels.REVIEW_CHAT_SEND_MESSAGE]: IpcResult;
   [IpcChannels.REVIEW_CHAT_ABORT]: IpcResult;
+
+  // お知らせ関連
+  [IpcChannels.INFORMATION_GET]: IpcResult<InformationItem[]>;
 };
 
 export type IpcEventPayloadMap = {
@@ -324,4 +334,7 @@ export const IpcNameMap = {
   [IpcChannels.REVIEW_CHAT_COMPLETE]: 'レビューチャット完了',
   [IpcChannels.REVIEW_CHAT_ERROR]: 'レビューチャットエラー',
   [IpcChannels.REVIEW_CHAT_ABORT]: 'レビューチャット中断',
+
+  // お知らせ関連
+  [IpcChannels.INFORMATION_GET]: 'お知らせ情報の取得',
 };

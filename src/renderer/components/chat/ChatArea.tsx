@@ -374,7 +374,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
     <Box
       sx={{
         width: '100%',
-        height: '100vh',
+        height: '100%',
         display: 'flex',
         flexDirection: 'column',
         position: 'relative',

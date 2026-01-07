@@ -6,6 +6,7 @@ export * from './ipc';
 export * from './message';
 export * from './error';
 export * from './eventPush';
+export * from './information';
 
 // パス定義
 export const ROUTES = {

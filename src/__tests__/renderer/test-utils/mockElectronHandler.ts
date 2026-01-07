@@ -1,5 +1,5 @@
 import type { ElectronHandler } from '@/main/preload';
-import type { Source, ChatRoom, SettingsSavingStatus, Settings, ChatMessage, RevieHistory, ReviewChecklistResult } from '@/types';
+import type { Source, ChatRoom, SettingsSavingStatus, Settings, ChatMessage, RevieHistory, ReviewChecklistResult, InformationItem } from '@/types';
 import type { IpcChannels, IpcResponsePayloadMap } from '@/types/ipc';
 
 /**
@@ -68,6 +68,7 @@ export interface MockOptions {
   reviewHistory?: RevieHistory | null;
   reviewChecklistResults?: ReviewChecklistResult[];
   reviewTargetDocumentName?: string | null;
+  informations?: InformationItem[];
 }
 
 /**
@@ -234,6 +235,11 @@ export const createMockElectronWithOptions = (
       abortChat: jest
         .fn<Promise<IpcResponsePayloadMap[typeof IpcChannels.REVIEW_CHAT_ABORT]>, [string]>()
         .mockResolvedValue({ success: true }),
+    },
+    information: {
+      getInformations: jest
+        .fn<Promise<IpcResponsePayloadMap[typeof IpcChannels.INFORMATION_GET]>, []>()
+        .mockResolvedValue({ success: true, data: options.informations ?? [] }),
     },
   };
 

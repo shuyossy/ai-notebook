@@ -117,6 +117,10 @@ const electronHandler = {
       params: IpcRequestPayloadMap[typeof IpcChannels.SOURCE_UPDATE_ENABLED],
     ) => invokeIpc(IpcChannels.SOURCE_UPDATE_ENABLED, params),
   },
+  information: {
+    /** お知らせ情報取得 */
+    getInformations: () => invokeIpc(IpcChannels.INFORMATION_GET),
+  },
   review: {
     /** レビュー履歴一覧 */
     getHistories: () => invokeIpc(IpcChannels.REVIEW_GET_HISTORIES),

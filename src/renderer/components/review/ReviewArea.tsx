@@ -705,7 +705,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
         right: 0,
         top: 0,
         bottom: 0,
-        height: '100vh',
+        height: '100%',
         overflow: 'hidden',
       }}
     >
