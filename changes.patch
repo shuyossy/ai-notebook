@@ -1,488 +1,1307 @@
+diff --git a/.gitignore b/.gitignore
+index 614fb2018..9672d5c87 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -47,3 +47,4 @@ mcp.log
+ /release/app/drizzle
+ dev_appdata
+ .serena
++MEMO.md
+diff --git a/.mcp.json b/.mcp.json
+index 1afeed552..4f8ee9824 100644
+--- a/.mcp.json
++++ b/.mcp.json
+@@ -32,11 +32,6 @@
+         "@upstash/context7-mcp"
+       ],
+       "env": {}
+-    },
+-    "codex": {
+-      "type": "stdio",
+-      "command": "codex",
+-      "args": ["mcp"]
+     }
+   }
+ }
 diff --git a/CLAUDE.md b/CLAUDE.md
-index 1d60036f4..b4dad0420 100644
+index b4dad0420..d40b682ec 100644
 --- a/CLAUDE.md
 +++ b/CLAUDE.md
-@@ -225,3 +225,7 @@ ElectronのIPCを使用してフロントエンド・バックエンド間の通
-   - チェックリスト抽出・レビュー実行時にどのファイルを現在テキスト抽出中なのか、画面に表示する
-   - テキスト抽出完了後は、「チェックリスト抽出中...」「レビュー実行中...」と表示する
-   - 現在はプログレスバーを表示しているので、その代わりに進捗の文言を表示するようにする
-+- 指摘事項
-+  - 画像として読み込むファイルまで、画面で「テキスト抽出中...」と表示されてしまい、利用者に誤解を生じさせてしまう
-+    - 文言を「ファイル処理中...」に変更する
-+      - イベント名や変数名などもこれに合わせるように注意する
-diff --git a/src/__tests__/main/workflows/checklistExtraction.test.ts b/src/__tests__/main/workflows/checklistExtraction.test.ts
-index 21cd15833..752aea1a0 100644
---- a/src/__tests__/main/workflows/checklistExtraction.test.ts
-+++ b/src/__tests__/main/workflows/checklistExtraction.test.ts
-@@ -239,24 +239,24 @@ describe('checklistExtractionWorkflow', () => {
-           'system',
-         );
+@@ -217,15 +217,18 @@ ElectronのIPCを使用してフロントエンド・バックエンド間の通
+   - 前述の通り、古典派的な方針でテストを実装するので、機能が作成完了した段階で新規テストを作成すること
  
--        // テキスト抽出進捗イベントが発行されたことを検証
-+        // ファイル処理進捗イベントが発行されたことを検証
-         expect(mockPublishEvent).toHaveBeenCalledWith(
--          IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS,
-+          IpcChannels.REVIEW_FILE_PROCESSING_PROGRESS,
-           expect.objectContaining({
-             reviewHistoryId,
--            phase: 'extracting',
-+            phase: 'processing',
-             currentFileIndex: 0,
-             totalFiles: 1,
-             currentFileName: 'checklist.pdf',
-           }),
-         );
+ ## 依頼タスク
+-- 要件: チェックリスト抽出・レビュー実行（少量レビュー・大量レビュー）時に、ファイルのテキスト抽出処理の進捗を表示する
+-- 背景
+-  - 複数ファイルを選択してチェックリスト抽出やレビュー実行を実施する際のファイルのテキスト抽出処理にて、特定ファイルの処理にかなり変換に時間がかかる場合がある
+-  - 進捗を表示することでどのファイルで処理が止まっているかをユーザが把握できるようにし、必要に応じて、そのファイルを除外するなどの措置を取れるようにする
+-- 機能要件
+-  - チェックリスト抽出・レビュー実行時にどのファイルを現在テキスト抽出中なのか、画面に表示する
+-  - テキスト抽出完了後は、「チェックリスト抽出中...」「レビュー実行中...」と表示する
+-  - 現在はプログレスバーを表示しているので、その代わりに進捗の文言を表示するようにする
++- 要件: アプリの運営者がお知らせを配信できるようにする
++- 実装方針
++  - gitlab（社内ホスト版）の特定publicリポジトリにinformation.jsonというファイルを用意して、そこでお知らせ内容を管理する
++    - このファイルをアプリ起動時に確認し、お知らせ内容を表示する
++    - information.jsonではお知らせ内容と表示順を管理できる
++    - ただし、開発環境ではローカルファイル`information/information.json`を見に行くようにする
++      - `information/README.md`にはinfowmation.jsonの記載方法や記載例を書いておくこと
++  - お知らせは画面上部（サイドバー＋メイン画面の上）に表示する
++    - 複数メッセージが表示できるようにする
++    - 改行についても問題なく反映されるようにする
++    - お知らせを確認したら×ボタンで削除できるようにする
++      - ただし、アプリを再起動した場合は、お知らさせは再度表示されるようにする
+ - 指摘事項
+-  - 画像として読み込むファイルまで、画面で「テキスト抽出中...」と表示されてしまい、利用者に誤解を生じさせてしまう
+-    - 文言を「ファイル処理中...」に変更する
+-      - イベント名や変数名などもこれに合わせるように注意する
++  - お知らせを格納するAlertコンポーネントの角が少し丸くなっているので、直して欲しい
++  - また、同コンポーネントの下部には薄く線を引いて、複数コンポーネントやアプリ画面と視覚的に区分できるようにしたい
+diff --git a/information/README.md b/information/README.md
+new file mode 100644
+index 000000000..534955c8f
+--- /dev/null
++++ b/information/README.md
+@@ -0,0 +1,93 @@
++# information.json 記載方法
++
++## 概要
++このファイルはAIKATAアプリのお知らせ配信に使用されます。
++アプリ起動時にこのファイルを読み込み、お知らせをユーザーに表示します。
++
++## 環境について
++- **開発環境**: このローカルファイル (`information/information.json`) が読み込まれます
++- **本番環境**: GitLabリポジトリに配置された `information.json` が読み込まれます
++
++## ファイル形式
++JSONファイルとして、以下の形式で記載します。
++
++```json
++{
++  "informations": [
++    {
++      "id": "一意の識別子",
++      "message": "お知らせ本文",
++      "order": 表示順
++    }
++  ]
++}
++```
++
++## フィールド説明
++
++| フィールド | 型 | 必須 | 説明 |
++|-----------|------|------|------|
++| informations | array | Yes | お知らせ情報の配列 |
++| informations[].id | string | Yes | お知らせの一意識別子（重複不可） |
++| informations[].message | string | Yes | お知らせ本文（改行は `\n` で表現） |
++| informations[].order | number | Yes | 表示順（小さい数字が上に表示、整数のみ） |
++
++## 記載例
++
++### 単一のお知らせ
++```json
++{
++  "informations": [
++    {
++      "id": "maintenance-20260107",
++      "message": "【メンテナンス予定】\n2026年1月10日 10:00〜12:00にメンテナンスを実施します。",
++      "order": 1
++    }
++  ]
++}
++```
++
++### 複数のお知らせ
++```json
++{
++  "informations": [
++    {
++      "id": "urgent-notice",
++      "message": "【重要】システムに関する重要なお知らせです。",
++      "order": 1
++    },
++    {
++      "id": "update-v1.2.0",
++      "message": "バージョン1.2.0がリリースされました。\n新機能の詳細は公式サイトをご確認ください。",
++      "order": 2
++    },
++    {
++      "id": "event-info",
++      "message": "年末年始の営業についてのご案内です。",
++      "order": 3
++    }
++  ]
++}
++```
++
++### お知らせを非表示にする（空配列）
++```json
++{
++  "informations": []
++}
++```
++
++## 注意事項
++
++1. **id の一意性**: 各お知らせの `id` は重複しないようにしてください
++2. **order の順序**: `order` の値が小さいほど画面の上に表示されます
++3. **改行の記載**: 改行は `\n` を使用してください（JSONの仕様）
++4. **JSON の妥当性**: ファイル保存前にJSON形式が正しいか確認してください
++5. **文字コード**: UTF-8で保存してください
++
++## お知らせの表示について
++
++- お知らせはアプリのメインコンテンツエリア上部にバナー形式で表示されます
++- ユーザーは×ボタンでお知らせを閉じることができます
++- 閉じたお知らせはアプリを再起動すると再度表示されます
++- お知らせの取得に失敗した場合、エラーは表示されずお知らせが非表示になります
+diff --git a/information/information.json b/information/information.json
+new file mode 100644
+index 000000000..4ae74dfcb
+--- /dev/null
++++ b/information/information.json
+@@ -0,0 +1,14 @@
++{
++  "informations": [
++    {
++      "id": "sample-001",
++      "message": "これはお知らせのサンプルです。\n改行も正しく表示されます。",
++      "order": 1
++    },
++    {
++      "id": "sample-002",
++      "message": "複数のお知らせを表示できます。",
++      "order": 2
++    }
++  ]
++}
+diff --git a/src/__tests__/renderer/InformationBanner.test.tsx b/src/__tests__/renderer/InformationBanner.test.tsx
+new file mode 100644
+index 000000000..da7ef230a
+--- /dev/null
++++ b/src/__tests__/renderer/InformationBanner.test.tsx
+@@ -0,0 +1,269 @@
++/**
++ * @jest-environment jsdom
++ */
++import {
++  render,
++  screen,
++  fireEvent,
++  waitFor,
++} from '@testing-library/react';
++import '@testing-library/jest-dom';
++
++import InformationBanner from '@/renderer/components/common/InformationBanner';
++import type { InformationItem } from '@/types';
++import { createMockElectronWithOptions } from '@/__tests__/renderer/test-utils/mockElectronHandler';
++import { informationStore } from '@/renderer/stores/informationStore';
++
++// テスト用のモックデータ
++const mockInformations: InformationItem[] = [
++  {
++    id: 'info-001',
++    message: 'これはお知らせのサンプルです。',
++    order: 1,
++  },
++  {
++    id: 'info-002',
++    message: '複数のお知らせを表示できます。',
++    order: 2,
++  },
++];
++
++// 改行を含むお知らせ
++const mockInformationsWithNewline: InformationItem[] = [
++  {
++    id: 'info-newline',
++    message: 'お知らせ1行目\nお知らせ2行目\nお知らせ3行目',
++    order: 1,
++  },
++];
++
++describe('InformationBanner Component', () => {
++  // テスト前のセットアップ
++  beforeEach(() => {
++    // ストアをリセット
++    informationStore.setState({
++      informations: [],
++      loaded: false,
++    });
++
++    // Electronモックをデフォルト設定でセットアップ
++    window.electron = createMockElectronWithOptions({
++      informations: mockInformations,
++    });
++  });
++
++  // テスト後のクリーンアップ
++  afterEach(() => {
++    jest.clearAllMocks();
++  });
++
++  // ========================================
++  // 正常系テスト
++  // ========================================
++
++  // テスト1: お知らせが正常に表示されること
++  test('お知らせが正常に表示されること', async () => {
++    render(<InformationBanner />);
++
++    // お知らせ情報が取得されるまで待機
++    await waitFor(() => {
++      expect(window.electron.information.getInformations).toHaveBeenCalled();
++    });
++
++    // 各お知らせが表示されていることを確認
++    await waitFor(() => {
++      expect(screen.getByText('これはお知らせのサンプルです。')).toBeInTheDocument();
++      expect(screen.getByText('複数のお知らせを表示できます。')).toBeInTheDocument();
++    });
++  });
++
++  // テスト2: 改行が正しく表示されること
++  test('改行が正しく表示されること', async () => {
++    // 改行を含むお知らせをセットアップ
++    window.electron = createMockElectronWithOptions({
++      informations: mockInformationsWithNewline,
++    });
++
++    render(<InformationBanner />);
++
++    // お知らせ情報が取得されるまで待機
++    await waitFor(() => {
++      expect(window.electron.information.getInformations).toHaveBeenCalled();
++    });
++
++    // 改行を含むメッセージが表示されていることを確認
++    await waitFor(() => {
++      // 改行はwhiteSpace: 'pre-line'で表示されるため、テキストは1つの要素として存在
++      expect(screen.getByText(/お知らせ1行目/)).toBeInTheDocument();
++      expect(screen.getByText(/お知らせ2行目/)).toBeInTheDocument();
++      expect(screen.getByText(/お知らせ3行目/)).toBeInTheDocument();
++    });
++  });
++
++  // テスト3: ×ボタンでお知らせが閉じられること
++  test('×ボタンでお知らせが閉じられること', async () => {
++    render(<InformationBanner />);
++
++    // お知らせ情報が取得されるまで待機
++    await waitFor(() => {
++      expect(window.electron.information.getInformations).toHaveBeenCalled();
++    });
++
++    // お知らせが表示されるのを待機
++    await waitFor(() => {
++      expect(screen.getByText('これはお知らせのサンプルです。')).toBeInTheDocument();
++    });
++
++    // 最初のお知らせの閉じるボタンをクリック
++    const closeButtons = screen.getAllByRole('button', { name: /close/i });
++    fireEvent.click(closeButtons[0]);
++
++    // 最初のお知らせが非表示になることを確認
++    await waitFor(() => {
++      expect(screen.queryByText('これはお知らせのサンプルです。')).not.toBeInTheDocument();
++    });
++
++    // 2つ目のお知らせはまだ表示されていることを確認
++    expect(screen.getByText('複数のお知らせを表示できます。')).toBeInTheDocument();
++  });
++
++  // テスト4: 全てのお知らせを閉じた場合、コンポーネントが非表示になること
++  test('全てのお知らせを閉じた場合、コンポーネントが非表示になること', async () => {
++    // 1つだけのお知らせをセットアップ
++    window.electron = createMockElectronWithOptions({
++      informations: [mockInformations[0]],
++    });
++
++    const { container } = render(<InformationBanner />);
++
++    // お知らせが表示されるのを待機
++    await waitFor(() => {
++      expect(screen.getByText('これはお知らせのサンプルです。')).toBeInTheDocument();
++    });
++
++    // 閉じるボタンをクリック
++    const closeButton = screen.getByRole('button', { name: /close/i });
++    fireEvent.click(closeButton);
++
++    // コンポーネントが空になることを確認（nullを返す）
++    await waitFor(() => {
++      expect(container.firstChild).toBeNull();
++    });
++  });
++
++  // テスト5: 一度読み込み済みの場合、再度APIを呼び出さないこと
++  test('一度読み込み済みの場合、再度APIを呼び出さないこと', async () => {
++    // 最初のレンダリング
++    const { unmount } = render(<InformationBanner />);
++
++    // お知らせ情報が取得されるまで待機
++    await waitFor(() => {
++      expect(window.electron.information.getInformations).toHaveBeenCalledTimes(1);
++    });
++
++    // コンポーネントをアンマウント
++    unmount();
++
++    // 再度レンダリング
++    render(<InformationBanner />);
++
++    // APIが再度呼び出されないことを確認（storeのloadedフラグがtrueのため）
++    await waitFor(() => {
++      expect(window.electron.information.getInformations).toHaveBeenCalledTimes(1);
++    });
++
++    // お知らせが引き続き表示されていることを確認
++    expect(screen.getByText('これはお知らせのサンプルです。')).toBeInTheDocument();
++  });
++
++  // ========================================
++  // 異常系テスト
++  // ========================================
++
++  // テスト6: お知らせがない場合は何も表示しないこと
++  test('お知らせがない場合は何も表示しないこと', async () => {
++    // 空のお知らせをセットアップ
++    window.electron = createMockElectronWithOptions({
++      informations: [],
++    });
++
++    const { container } = render(<InformationBanner />);
++
++    // お知らせ情報が取得されるまで待機
++    await waitFor(() => {
++      expect(window.electron.information.getInformations).toHaveBeenCalled();
++    });
++
++    // コンポーネントが空であることを確認
++    await waitFor(() => {
++      expect(container.firstChild).toBeNull();
++    });
++  });
++
++  // テスト7: API呼び出しがnullを返した場合、何も表示しないこと
++  test('API呼び出しがnullを返した場合、何も表示しないこと', async () => {
++    // nullを返すモックをセットアップ
++    window.electron.information.getInformations = jest.fn().mockResolvedValue({
++      success: true,
++      data: null,
++    });
++
++    const { container } = render(<InformationBanner />);
++
++    // お知らせ情報が取得されるまで待機
++    await waitFor(() => {
++      expect(window.electron.information.getInformations).toHaveBeenCalled();
++    });
++
++    // コンポーネントが空であることを確認（nullの場合は空配列として扱われる）
++    await waitFor(() => {
++      expect(container.firstChild).toBeNull();
++    });
++  });
++
++  // テスト8: API呼び出しが失敗した場合、何も表示しないこと
++  test('API呼び出しが失敗した場合、何も表示しないこと', async () => {
++    // エラーを返すモックをセットアップ
++    window.electron.information.getInformations = jest.fn().mockRejectedValue(
++      new Error('API error')
++    );
++
++    // コンソールエラーをスパイ
++    const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
++
++    const { container } = render(<InformationBanner />);
++
++    // お知らせ情報が取得されるまで待機
++    await waitFor(() => {
++      expect(window.electron.information.getInformations).toHaveBeenCalled();
++    });
++
++    // コンポーネントが空であることを確認
++    await waitFor(() => {
++      expect(container.firstChild).toBeNull();
++    });
++
++    consoleSpy.mockRestore();
++  });
++
++  // テスト9: API呼び出しがsuccess: falseを返した場合、何も表示しないこと
++  test('API呼び出しがsuccess: falseを返した場合、何も表示しないこと', async () => {
++    // 失敗レスポンスを返すモックをセットアップ
++    window.electron.information.getInformations = jest.fn().mockResolvedValue({
++      success: false,
++      error: { message: 'Failed to fetch informations', code: 'FETCH_FAILED' },
++    });
++
++    const { container } = render(<InformationBanner />);
++
++    // お知らせ情報が取得されるまで待機
++    await waitFor(() => {
++      expect(window.electron.information.getInformations).toHaveBeenCalled();
++    });
++
++    // コンポーネントが空であることを確認
++    await waitFor(() => {
++      expect(container.firstChild).toBeNull();
++    });
++  });
++});
+diff --git a/src/__tests__/renderer/test-utils/mockElectronHandler.ts b/src/__tests__/renderer/test-utils/mockElectronHandler.ts
+index e1a9b0351..51d198d1f 100644
+--- a/src/__tests__/renderer/test-utils/mockElectronHandler.ts
++++ b/src/__tests__/renderer/test-utils/mockElectronHandler.ts
+@@ -1,5 +1,5 @@
+ import type { ElectronHandler } from '@/main/preload';
+-import type { Source, ChatRoom, SettingsSavingStatus, Settings, ChatMessage, RevieHistory, ReviewChecklistResult } from '@/types';
++import type { Source, ChatRoom, SettingsSavingStatus, Settings, ChatMessage, RevieHistory, ReviewChecklistResult, InformationItem } from '@/types';
+ import type { IpcChannels, IpcResponsePayloadMap } from '@/types/ipc';
  
--        // テキスト抽出完了イベントが発行されたことを検証
-+        // ファイル処理完了イベントが発行されたことを検証
-         expect(mockPublishEvent).toHaveBeenCalledWith(
--          IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS,
-+          IpcChannels.REVIEW_FILE_PROCESSING_PROGRESS,
-           expect.objectContaining({
-             reviewHistoryId,
--            phase: 'processing',
-+            phase: 'completed',
-             currentFileIndex: 1,
-             totalFiles: 1,
-           }),
-@@ -320,34 +320,34 @@ describe('checklistExtractionWorkflow', () => {
-           ]),
-         );
+ /**
+@@ -68,6 +68,7 @@ export interface MockOptions {
+   reviewHistory?: RevieHistory | null;
+   reviewChecklistResults?: ReviewChecklistResult[];
+   reviewTargetDocumentName?: string | null;
++  informations?: InformationItem[];
+ }
  
--        // 各ファイルに対してテキスト抽出進捗イベントが発行されたことを検証
-+        // 各ファイルに対してファイル処理進捗イベントが発行されたことを検証
-         expect(mockPublishEvent).toHaveBeenCalledWith(
--          IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS,
-+          IpcChannels.REVIEW_FILE_PROCESSING_PROGRESS,
-           expect.objectContaining({
-             reviewHistoryId,
--            phase: 'extracting',
-+            phase: 'processing',
-             currentFileIndex: 0,
-             totalFiles: 2,
-             currentFileName: 'checklist1.pdf',
-           }),
-         );
-         expect(mockPublishEvent).toHaveBeenCalledWith(
--          IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS,
-+          IpcChannels.REVIEW_FILE_PROCESSING_PROGRESS,
-           expect.objectContaining({
-             reviewHistoryId,
--            phase: 'extracting',
-+            phase: 'processing',
-             currentFileIndex: 1,
-             totalFiles: 2,
-             currentFileName: 'checklist2.pdf',
-           }),
-         );
+ /**
+@@ -235,6 +236,11 @@ export const createMockElectronWithOptions = (
+         .fn<Promise<IpcResponsePayloadMap[typeof IpcChannels.REVIEW_CHAT_ABORT]>, [string]>()
+         .mockResolvedValue({ success: true }),
+     },
++    information: {
++      getInformations: jest
++        .fn<Promise<IpcResponsePayloadMap[typeof IpcChannels.INFORMATION_GET]>, []>()
++        .mockResolvedValue({ success: true, data: options.informations ?? [] }),
++    },
+   };
  
--        // テキスト抽出完了イベントが発行されたことを検証
-+        // ファイル処理完了イベントが発行されたことを検証
-         expect(mockPublishEvent).toHaveBeenCalledWith(
--          IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS,
-+          IpcChannels.REVIEW_FILE_PROCESSING_PROGRESS,
-           expect.objectContaining({
-             reviewHistoryId,
--            phase: 'processing',
-+            phase: 'completed',
-             currentFileIndex: 2,
-             totalFiles: 2,
-           }),
-@@ -701,24 +701,24 @@ describe('checklistExtractionWorkflow', () => {
-           'system',
-         );
+   return mockHandlers as ElectronMock;
+diff --git a/src/main/main.ts b/src/main/main.ts
+index cf55ccd49..fe3cde3d7 100644
+--- a/src/main/main.ts
++++ b/src/main/main.ts
+@@ -96,6 +96,7 @@ import { getMainLogger } from './lib/logger';
+ import { internalError, normalizeUnknownError, toPayload } from './lib/error';
+ import { formatMessage } from './lib/messages';
+ import { SourceService } from './service/sourceService';
++import { InformationService } from './service/informationService';
+ import FileExtractor from './lib/fileExtractor';
+ import { ZodSchema } from 'zod';
+ import { normalizeUnknownIpcError } from './lib/error';
+@@ -204,6 +205,8 @@ const reviewService = ReviewService.getInstance();
  
--        // テキスト抽出進捗イベントが発行されたことを検証（トピック抽出ステップ）
-+        // ファイル処理進捗イベントが発行されたことを検証（トピック抽出ステップ）
-         expect(mockPublishEvent).toHaveBeenCalledWith(
--          IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS,
-+          IpcChannels.REVIEW_FILE_PROCESSING_PROGRESS,
-           expect.objectContaining({
-             reviewHistoryId,
--            phase: 'extracting',
-+            phase: 'processing',
-             currentFileIndex: 0,
-             totalFiles: 1,
-             currentFileName: 'general.pdf',
-           }),
-         );
+ const sourceService = SourceService.getInstance();
  
--        // テキスト抽出完了イベントが発行されたことを検証
-+        // ファイル処理完了イベントが発行されたことを検証
-         expect(mockPublishEvent).toHaveBeenCalledWith(
--          IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS,
-+          IpcChannels.REVIEW_FILE_PROCESSING_PROGRESS,
-           expect.objectContaining({
-             reviewHistoryId,
--            phase: 'processing',
-+            phase: 'completed',
-             currentFileIndex: 1,
-             totalFiles: 1,
-           }),
-diff --git a/src/__tests__/main/workflows/executeReview.test.ts b/src/__tests__/main/workflows/executeReview.test.ts
-index b03017ce9..caad97219 100644
---- a/src/__tests__/main/workflows/executeReview.test.ts
-+++ b/src/__tests__/main/workflows/executeReview.test.ts
-@@ -241,24 +241,24 @@ describe('executeReviewWorkflow', () => {
-         expect(mockRepository.createReviewDocumentCache).toHaveBeenCalled();
-         expect(mockRepository.upsertReviewResult).toHaveBeenCalled();
++const informationService = InformationService.getInstance();
++
+ const logger = getMainLogger();
  
--        // テキスト抽出進捗イベントが発行されたことを検証
-+        // ファイル処理進捗イベントが発行されたことを検証
-         expect(mockPublishEvent).toHaveBeenCalledWith(
--          IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS,
-+          IpcChannels.REVIEW_FILE_PROCESSING_PROGRESS,
-           expect.objectContaining({
-             reviewHistoryId,
--            phase: 'extracting',
-+            phase: 'processing',
-             currentFileIndex: 0,
-             totalFiles: 1,
-             currentFileName: 'document.txt',
-           }),
-         );
+ /**
+@@ -230,6 +233,15 @@ const setupSettingsHandlers = () => {
+   });
+ };
  
--        // テキスト抽出完了イベントが発行されたことを検証
-+        // ファイル処理完了イベントが発行されたことを検証
-         expect(mockPublishEvent).toHaveBeenCalledWith(
--          IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS,
-+          IpcChannels.REVIEW_FILE_PROCESSING_PROGRESS,
-           expect.objectContaining({
-             reviewHistoryId,
--            phase: 'processing',
-+            phase: 'completed',
-             currentFileIndex: 1,
-             totalFiles: 1,
-           }),
-@@ -338,34 +338,34 @@ describe('executeReviewWorkflow', () => {
-           'document1.txt/document2.txt',
-         );
++/**
++ * お知らせ関連のIPCハンドラを設定する
++ */
++const setupInformationHandlers = () => {
++  handleIpc(IpcChannels.INFORMATION_GET, async () => {
++    return await informationService.getInformations();
++  });
++};
++
+ /**
+  * 設定状態を取得するIPCハンドラ
+  */
+@@ -708,6 +720,7 @@ const initialize = async () => {
+   setupFsHandlers();
+   setupSourceHandlers();
+   setupReviewHandlers();
++  setupInformationHandlers();
+   initializeSourceRegistration();
+ };
  
--        // 各ファイルに対してテキスト抽出進捗イベントが発行されたことを検証
-+        // 各ファイルに対してファイル処理進捗イベントが発行されたことを検証
-         expect(mockPublishEvent).toHaveBeenCalledWith(
--          IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS,
-+          IpcChannels.REVIEW_FILE_PROCESSING_PROGRESS,
-           expect.objectContaining({
-             reviewHistoryId,
--            phase: 'extracting',
-+            phase: 'processing',
-             currentFileIndex: 0,
-             totalFiles: 2,
-             currentFileName: 'document1.txt',
-           }),
-         );
-         expect(mockPublishEvent).toHaveBeenCalledWith(
--          IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS,
-+          IpcChannels.REVIEW_FILE_PROCESSING_PROGRESS,
-           expect.objectContaining({
-             reviewHistoryId,
--            phase: 'extracting',
-+            phase: 'processing',
-             currentFileIndex: 1,
-             totalFiles: 2,
-             currentFileName: 'document2.txt',
-           }),
-         );
+diff --git a/src/main/preload.ts b/src/main/preload.ts
+index 9c13022f7..95768ab05 100644
+--- a/src/main/preload.ts
++++ b/src/main/preload.ts
+@@ -117,6 +117,10 @@ const electronHandler = {
+       params: IpcRequestPayloadMap[typeof IpcChannels.SOURCE_UPDATE_ENABLED],
+     ) => invokeIpc(IpcChannels.SOURCE_UPDATE_ENABLED, params),
+   },
++  information: {
++    /** お知らせ情報取得 */
++    getInformations: () => invokeIpc(IpcChannels.INFORMATION_GET),
++  },
+   review: {
+     /** レビュー履歴一覧 */
+     getHistories: () => invokeIpc(IpcChannels.REVIEW_GET_HISTORIES),
+diff --git a/src/main/service/informationService.ts b/src/main/service/informationService.ts
+new file mode 100644
+index 000000000..4fb0e28cd
+--- /dev/null
++++ b/src/main/service/informationService.ts
+@@ -0,0 +1,140 @@
++import { app } from 'electron';
++import { RepositoryFiles } from '@gitbeaker/rest';
++import { join } from 'path';
++import fs from 'fs/promises';
++import { InformationItem, InformationSchema } from '@/types';
++import { getMainLogger } from '@/main/lib/logger';
++
++const logger = getMainLogger();
++
++// GitLab設定（プレースホルダー）
++// TODO: 実際の値に置換してください
++const GITLAB_HOST = 'https://gitlab.example.com';
++const GITLAB_PROJECT_ID = 'your-group/information-repo';
++const GITLAB_FILE_PATH = 'information.json';
++const GITLAB_REF = 'main';
++
++/**
++ * お知らせサービスのインターフェース
++ */
++export interface IInformationService {
++  /**
++   * お知らせ情報を取得する
++   */
++  getInformations(): Promise<InformationItem[]>;
++}
++
++/**
++ * お知らせサービスの実装
++ * アプリ起動時にGitLab（本番）またはローカルファイル（開発）からお知らせを取得する
++ */
++export class InformationService implements IInformationService {
++  // シングルトン変数
++  private static instance: InformationService;
++
++  // キャッシュ（セッション中に保持）
++  private cachedInformations: InformationItem[] | null = null;
++
++  /**
++   * シングルトンインスタンスを取得
++   */
++  public static getInstance(): InformationService {
++    if (!InformationService.instance) {
++      InformationService.instance = new InformationService();
++    }
++    return InformationService.instance;
++  }
++
++  private constructor() {}
++
++  /**
++   * お知らせ情報を取得する
++   * 開発環境ではローカルファイル、本番環境ではGitLabから取得
++   */
++  public async getInformations(): Promise<InformationItem[]> {
++    // キャッシュがある場合はそれを返す
++    if (this.cachedInformations !== null) {
++      return this.cachedInformations;
++    }
++
++    try {
++      let jsonContent: string;
++
++      if (app.isPackaged) {
++        // 本番環境: GitLabからファイルを取得
++        jsonContent = await this.fetchFromGitLab();
++      } else {
++        // 開発環境: ローカルファイルを読み込む
++        jsonContent = await this.readLocalFile();
++      }
++
++      // JSONをパース・バリデーション
++      const parsed = JSON.parse(jsonContent);
++      const validated = InformationSchema.parse(parsed);
++
++      // order順にソートしてキャッシュに保存
++      this.cachedInformations = validated.informations.sort(
++        (a, b) => a.order - b.order,
++      );
++
++      logger.info(
++        `お知らせ情報を取得しました: ${this.cachedInformations.length}件`,
++      );
++
++      return this.cachedInformations;
++    } catch (error) {
++      // エラー時は空配列を返す（サイレントフェイル）
++      logger.warn('お知らせ情報の取得に失敗しました', error);
++      this.cachedInformations = [];
++      return [];
++    }
++  }
++
++  /**
++   * GitLabからinformation.jsonを取得
++   */
++  private async fetchFromGitLab(): Promise<string> {
++    // publicリポジトリの場合、トークンなしでアクセス可能
++    // GitBeakerはトークンが空文字の場合でも動作する
++    const repositoryFiles = new RepositoryFiles({
++      host: GITLAB_HOST,
++      token: '', // publicリポジトリのためトークン不要
++    });
++
++    const fileContent = await repositoryFiles.showRaw(
++      GITLAB_PROJECT_ID,
++      GITLAB_FILE_PATH,
++      GITLAB_REF,
++    );
++
++    // showRawはstring | Blobを返すので、stringに変換
++    if (typeof fileContent === 'string') {
++      return fileContent;
++    }
++    // Blobの場合
++    return await fileContent.text();
++  }
++
++  /**
++   * ローカルのinformation.jsonを読み込む
++   */
++  private async readLocalFile(): Promise<string> {
++    // プロジェクトルートからの相対パス
++    // __dirnameはdist/main/配下になるので、2階層上に移動
++    const localPath = join(
++      __dirname,
++      '..',
++      '..',
++      'information',
++      'information.json',
++    );
++    return await fs.readFile(localPath, 'utf-8');
++  }
++
++  /**
++   * キャッシュをクリア（必要に応じて呼び出す）
++   */
++  public clearCache(): void {
++    this.cachedInformations = null;
++  }
++}
+diff --git a/src/renderer/App.tsx b/src/renderer/App.tsx
+index 72fbc401f..b65d73776 100644
+--- a/src/renderer/App.tsx
++++ b/src/renderer/App.tsx
+@@ -1,4 +1,4 @@
+-import { useState, useCallback, useRef } from 'react';
++import { useState, useRef } from 'react';
+ import { MemoryRouter as Router, Routes, Route } from 'react-router-dom';
+ import {
+   ThemeProvider,
+@@ -19,6 +19,7 @@ import ChatRoomList, { ChatRoomListRef } from './components/chat/ChatRoomList';
+ import ReviewHistoryList from './components/review/ReviewHistoryList';
+ import { useAgentStatusStore } from './stores/agentStatusStore';
+ import AppErrorBoundary from './components/common/AppErrorBoundary';
++import InformationBanner from './components/common/InformationBanner';
  
--        // テキスト抽出完了イベントが発行されたことを検証
-+        // ファイル処理完了イベントが発行されたことを検証
-         expect(mockPublishEvent).toHaveBeenCalledWith(
--          IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS,
-+          IpcChannels.REVIEW_FILE_PROCESSING_PROGRESS,
-           expect.objectContaining({
-             reviewHistoryId,
--            phase: 'processing',
-+            phase: 'completed',
-             currentFileIndex: 2,
-             totalFiles: 2,
-           }),
-diff --git a/src/mastra/workflows/sourceReview/checklistExtraction.ts b/src/mastra/workflows/sourceReview/checklistExtraction.ts
-index 9f0dd2cc2..03660ee8f 100644
---- a/src/mastra/workflows/sourceReview/checklistExtraction.ts
-+++ b/src/mastra/workflows/sourceReview/checklistExtraction.ts
-@@ -100,23 +100,23 @@ const checklistDocumentExtractionStep = createStep({
-         files,
-         'Please extract checklist items from this document',
-         (currentIndex, fileName) => {
--          publishEvent(IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS, {
-+          publishEvent(IpcChannels.REVIEW_FILE_PROCESSING_PROGRESS, {
-             reviewHistoryId,
-             currentFileName: fileName,
-             currentFileIndex: currentIndex,
-             totalFiles: files.length,
--            phase: 'extracting',
-+            phase: 'processing',
-           });
-         },
-       );
+ // テーマの設定
+ const theme = createTheme({
+@@ -68,7 +69,6 @@ function App() {
+   const chatRoomListRef = useRef<ChatRoomListRef>(null);
+   const alerts = useAlertStore((state) => state.alerts);
+   const removeAlert = useAlertStore((state) => state.removeAlert);
+-  const addAlert = useAlertStore((state) => state.addAlert);
+   const { status: agentStatus, closeMessage } = useAgentStatusStore();
  
--      // テキスト抽出完了を通知
--      publishEvent(IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS, {
-+      // ファイル処理完了を通知
-+      publishEvent(IpcChannels.REVIEW_FILE_PROCESSING_PROGRESS, {
-         reviewHistoryId,
-         currentFileName: '',
-         currentFileIndex: files.length,
-         totalFiles: files.length,
--        phase: 'processing',
-+        phase: 'completed',
-       });
+   // ソース再読み込みハンドラ
+@@ -90,126 +90,135 @@ function App() {
+           <Box
+             sx={{
+               display: 'flex',
++              flexDirection: 'column',
+               height: '100vh',
+             }}
+           >
+-            {/* サイドバー */}
+-            <Sidebar onReloadSources={handleReloadSources}>
+-              <Routes>
+-                <Route
+-                  path={ROUTES.CHAT}
+-                  element={
+-                    <ChatRoomList
+-                      ref={chatRoomListRef}
+-                      onRoomSelect={setSelectedRoomId}
+-                      selectedRoomId={selectedRoomId}
+-                    />
+-                  }
+-                />
+-                <Route
+-                  path={ROUTES.REVIEW}
+-                  element={
+-                    <ReviewHistoryList
+-                      onReviewHistorySelect={setSelectedReviewHistoryId}
+-                      selectedReviewHistoryId={selectedReviewHistoryId}
+-                    />
+-                  }
+-                />
+-              </Routes>
+-            </Sidebar>
++            {/* お知らせバナー（最上部・全幅） */}
++            <InformationBanner />
++
++            {/* サイドバー＋メイン画面のコンテナ */}
++            <Box sx={{ display: 'flex', flex: 1, minHeight: 0 }}>
++              {/* サイドバー */}
++              <Sidebar onReloadSources={handleReloadSources}>
++                <Routes>
++                  <Route
++                    path={ROUTES.CHAT}
++                    element={
++                      <ChatRoomList
++                        ref={chatRoomListRef}
++                        onRoomSelect={setSelectedRoomId}
++                        selectedRoomId={selectedRoomId}
++                      />
++                    }
++                  />
++                  <Route
++                    path={ROUTES.REVIEW}
++                    element={
++                      <ReviewHistoryList
++                        onReviewHistorySelect={setSelectedReviewHistoryId}
++                        selectedReviewHistoryId={selectedReviewHistoryId}
++                      />
++                    }
++                  />
++                </Routes>
++              </Sidebar>
  
-       const checklistExtractionAgent = mastra.getAgent(
-@@ -283,23 +283,23 @@ const topicExtractionStep = createStep({
-         files,
-         'Please extract topics from this document',
-         (currentIndex, fileName) => {
--          publishEvent(IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS, {
-+          publishEvent(IpcChannels.REVIEW_FILE_PROCESSING_PROGRESS, {
-             reviewHistoryId,
-             currentFileName: fileName,
-             currentFileIndex: currentIndex,
-             totalFiles: files.length,
--            phase: 'extracting',
-+            phase: 'processing',
-           });
-         },
-       );
- 
--      // テキスト抽出完了を通知
--      publishEvent(IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS, {
-+      // ファイル処理完了を通知
-+      publishEvent(IpcChannels.REVIEW_FILE_PROCESSING_PROGRESS, {
-         reviewHistoryId,
-         currentFileName: '',
-         currentFileIndex: files.length,
-         totalFiles: files.length,
--        phase: 'processing',
-+        phase: 'completed',
-       });
- 
-       const topicExtractionAgent = mastra.getAgent('topicExtractionAgent');
-@@ -379,23 +379,23 @@ const topicChecklistCreationStep = createStep({
-         files,
-         `Please create checklist items from this document for topic: ${title}`,
-         (currentIndex, fileName) => {
--          publishEvent(IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS, {
-+          publishEvent(IpcChannels.REVIEW_FILE_PROCESSING_PROGRESS, {
-             reviewHistoryId,
-             currentFileName: fileName,
-             currentFileIndex: currentIndex,
-             totalFiles: files.length,
--            phase: 'extracting',
-+            phase: 'processing',
-           });
-         },
-       );
- 
--      // テキスト抽出完了を通知
--      publishEvent(IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS, {
-+      // ファイル処理完了を通知
-+      publishEvent(IpcChannels.REVIEW_FILE_PROCESSING_PROGRESS, {
-         reviewHistoryId,
-         currentFileName: '',
-         currentFileIndex: files.length,
-         totalFiles: files.length,
--        phase: 'processing',
-+        phase: 'completed',
-       });
- 
-       const topicChecklistAgent = mastra.getAgent('topicChecklistAgent');
-diff --git a/src/mastra/workflows/sourceReview/executeReview/textExtractionStep.ts b/src/mastra/workflows/sourceReview/executeReview/textExtractionStep.ts
-index e9183a273..5d95acec6 100644
---- a/src/mastra/workflows/sourceReview/executeReview/textExtractionStep.ts
-+++ b/src/mastra/workflows/sourceReview/executeReview/textExtractionStep.ts
-@@ -87,12 +87,12 @@ export const textExtractionStep = createStep({
-         const file = files[i];
- 
-         // 進捗イベントを発行
--        publishEvent(IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS, {
-+        publishEvent(IpcChannels.REVIEW_FILE_PROCESSING_PROGRESS, {
-           reviewHistoryId,
-           currentFileName: file.name,
-           currentFileIndex: i,
-           totalFiles: files.length,
--          phase: 'extracting',
-+          phase: 'processing',
-         });
- 
-         // ワークフロー内での一意IDを生成
-@@ -132,13 +132,13 @@ export const textExtractionStep = createStep({
-         }
-       }
- 
--      // テキスト抽出完了を通知
--      publishEvent(IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS, {
-+      // ファイル処理完了を通知
-+      publishEvent(IpcChannels.REVIEW_FILE_PROCESSING_PROGRESS, {
-         reviewHistoryId,
-         currentFileName: '',
-         currentFileIndex: files.length,
-         totalFiles: files.length,
--        phase: 'processing',
-+        phase: 'completed',
-       });
- 
-       return {
-@@ -146,7 +146,7 @@ export const textExtractionStep = createStep({
-         extractedDocuments,
-       };
-     } catch (error) {
--      logger.error(error, 'テキスト抽出処理に失敗しました');
-+      logger.error(error, 'ファイル処理に失敗しました');
-       const normalizedError = normalizeUnknownError(error);
- 
-       return bail({
+-            {/* メインコンテンツ領域：ここを relative にして、内部で absolute 配置する */}
+-            <Box
+-              component="main"
+-              sx={{
+-                position: 'relative', // ★ アラートを「この領域の中」で絶対配置できるようにする
+-                flex: 1, // サイドバー以外の空間をすべて使う
+-                minWidth: 0, // コンテンツのオーバーフロー対策
+-                overflow: 'hidden', // スクロールバー制御（必要なら調整）
+-                display: 'flex', // 中身のレイアウト（任意）
+-              }}
+-            >
+-              {/* ルーティング（通常表示の中身） */}
+-              <Routes>
+-                <Route
+-                  path={ROUTES.CHAT}
+-                  element={
+-                    <ChatArea
+-                      selectedRoomId={selectedRoomId}
+-                      onChatRoomUpdate={() => {
+-                        // チャットルーム一覧を更新
+-                        if (chatRoomListRef.current) {
+-                          chatRoomListRef.current.refreshChatRooms();
+-                        }
+-                      }}
++              {/* メインコンテンツ領域：ここを relative にして、内部で absolute 配置する */}
++              <Box
++                component="main"
++                sx={{
++                  position: 'relative', // ★ アラートを「この領域の中」で絶対配置できるようにする
++                  flex: 1, // サイドバー以外の空間をすべて使う
++                  minWidth: 0, // コンテンツのオーバーフロー対策
++                  overflow: 'hidden', // スクロールバー制御（必要なら調整）
++                  display: 'flex', // 中身のレイアウト
++                }}
++              >
++                {/* ルーティング（通常表示の中身） */}
++                <Box sx={{ flex: 1, overflow: 'auto', display: 'flex' }}>
++                  <Routes>
++                    <Route
++                      path={ROUTES.CHAT}
++                      element={
++                        <ChatArea
++                          selectedRoomId={selectedRoomId}
++                          onChatRoomUpdate={() => {
++                            // チャットルーム一覧を更新
++                            if (chatRoomListRef.current) {
++                              chatRoomListRef.current.refreshChatRooms();
++                            }
++                          }}
++                        />
++                      }
+                     />
+-                  }
+-                />
+-                <Route
+-                  path={ROUTES.REVIEW}
+-                  element={
+-                    <ReviewArea
+-                      selectedReviewHistoryId={selectedReviewHistoryId}
++                    <Route
++                      path={ROUTES.REVIEW}
++                      element={
++                        <ReviewArea
++                          selectedReviewHistoryId={selectedReviewHistoryId}
++                        />
++                      }
+                     />
+-                  }
+-                />
+-              </Routes>
+-
+-              {/* 中央オーバーレイのエラーメッセージ表示 */}
+-              {(alerts.length > 0 || agentStatus.messages.length > 0) && (
+-                <Box
+-                  // ★ main(Box)の「中」で中央に重ねる
+-                  sx={{
+-                    position: 'absolute',
+-                    top: 20,
+-                    left: '50%',
+-                    transform: 'translateX(-50%)',
+-                    width: 'fit-content',
+-                    maxWidth: '80%',
+-                    zIndex: 1400,
+-                    display: 'flex',
+-                    flexDirection: 'column',
+-                    gap: 1,
+-                  }}
+-                >
+-                  <Stack spacing={1} sx={{ pointerEvents: 'auto' }}>
+-                    {agentStatus.messages?.map((message) => (
+-                      <Alert
+-                        key={message.id}
+-                        severity={message.type}
+-                        sx={{
+-                          whiteSpace: 'pre-line',
+-                          boxShadow: 3,
+-                          maxHeight: '200px',
+-                          overflowY: 'auto',
+-                          overflowX: 'hidden',
+-                          wordBreak: 'break-word',
+-                        }}
+-                        onClose={() => closeMessage(message.id)}
+-                      >
+-                        {message.content}
+-                      </Alert>
+-                    ))}
+-                    {alerts.map((error) => (
+-                      <Alert
+-                        key={error.id}
+-                        severity={error.severity}
+-                        onClose={() => removeAlert(error.id)}
+-                        sx={{
+-                          whiteSpace: 'pre-line',
+-                          boxShadow: 3,
+-                          maxHeight: '200px',
+-                          overflowY: 'auto',
+-                          overflowX: 'hidden',
+-                          wordBreak: 'break-word',
+-                        }}
+-                      >
+-                        {error.message}
+-                      </Alert>
+-                    ))}
+-                  </Stack>
++                  </Routes>
+                 </Box>
+-              )}
++
++                {/* 中央オーバーレイのエラーメッセージ表示 */}
++                {(alerts.length > 0 || agentStatus.messages.length > 0) && (
++                  <Box
++                    // ★ main(Box)の「中」で中央に重ねる
++                    sx={{
++                      position: 'absolute',
++                      top: 20,
++                      left: '50%',
++                      transform: 'translateX(-50%)',
++                      width: 'fit-content',
++                      maxWidth: '95%',
++                      zIndex: 1400,
++                      display: 'flex',
++                      flexDirection: 'column',
++                      gap: 1,
++                    }}
++                  >
++                    <Stack spacing={1} sx={{ pointerEvents: 'auto' }}>
++                      {agentStatus.messages?.map((message) => (
++                        <Alert
++                          key={message.id}
++                          severity={message.type}
++                          sx={{
++                            whiteSpace: 'pre-line',
++                            boxShadow: 3,
++                            maxHeight: '200px',
++                            overflowY: 'auto',
++                            overflowX: 'hidden',
++                            wordBreak: 'break-word',
++                          }}
++                          onClose={() => closeMessage(message.id)}
++                        >
++                          {message.content}
++                        </Alert>
++                      ))}
++                      {alerts.map((error) => (
++                        <Alert
++                          key={error.id}
++                          severity={error.severity}
++                          onClose={() => removeAlert(error.id)}
++                          sx={{
++                            whiteSpace: 'pre-line',
++                            boxShadow: 3,
++                            maxHeight: '200px',
++                            overflowY: 'auto',
++                            overflowX: 'hidden',
++                            wordBreak: 'break-word',
++                          }}
++                        >
++                          {error.message}
++                        </Alert>
++                      ))}
++                    </Stack>
++                  </Box>
++                )}
++              </Box>
+             </Box>
+           </Box>
+         </Router>
+diff --git a/src/renderer/components/chat/ChatArea.tsx b/src/renderer/components/chat/ChatArea.tsx
+index 5caaa3bd2..3a6f08b99 100644
+--- a/src/renderer/components/chat/ChatArea.tsx
++++ b/src/renderer/components/chat/ChatArea.tsx
+@@ -374,7 +374,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
+     <Box
+       sx={{
+         width: '100%',
+-        height: '100vh',
++        height: '100%',
+         display: 'flex',
+         flexDirection: 'column',
+         position: 'relative',
+diff --git a/src/renderer/components/common/InformationBanner.tsx b/src/renderer/components/common/InformationBanner.tsx
+new file mode 100644
+index 000000000..3935f0f49
+--- /dev/null
++++ b/src/renderer/components/common/InformationBanner.tsx
+@@ -0,0 +1,102 @@
++import React, { useEffect } from 'react';
++import { Box, Alert, Stack, IconButton, Typography } from '@mui/material';
++import CloseIcon from '@mui/icons-material/Close';
++import InfoIcon from '@mui/icons-material/Info';
++import { useInformationStore } from '../../stores/informationStore';
++import { InformationApi } from '../../service/informationApi';
++
++/**
++ * お知らせバナーコンポーネント
++ * アプリ起動時にお知らせを取得し、メインコンテンツエリアの上部に表示する
++ */
++const InformationBanner: React.FC = () => {
++  const informations = useInformationStore((state) => state.informations);
++  const loaded = useInformationStore((state) => state.loaded);
++  const setInformations = useInformationStore(
++    (state) => state.setInformations,
++  );
++  const removeInformation = useInformationStore(
++    (state) => state.removeInformation,
++  );
++
++  useEffect(() => {
++    // 一度だけ読み込み
++    if (!loaded) {
++      const fetchInformations = async () => {
++        const api = InformationApi.getInstance();
++        const result = await api.getInformations({
++          showAlert: false,
++          throwError: false,
++        });
++        if (result) {
++          setInformations(result);
++        } else {
++          // エラー時も読み込み済みとしてマーク
++          setInformations([]);
++        }
++      };
++      fetchInformations();
++    }
++  }, [loaded, setInformations]);
++
++  // お知らせがない場合は何も表示しない
++  if (informations.length === 0) {
++    return null;
++  }
++
++  return (
++    <Box
++      sx={{
++        width: '100%',
++        flexShrink: 0, // メインコンテンツに押しつぶされないようにする
++      }}
++    >
++      <Stack>
++        {informations.map((info) => (
++          <Alert
++            key={info.id}
++            severity="info"
++            icon={<InfoIcon fontSize="small" />}
++            action={
++              <IconButton
++                aria-label="close"
++                color="inherit"
++                size="small"
++                onClick={() => removeInformation(info.id)}
++              >
++                <CloseIcon fontSize="small" />
++              </IconButton>
++            }
++            sx={{
++              py: 0.5,
++              borderRadius: 0, // 角を直角に
++              borderBottom: '1px solid rgba(0, 0, 0, 0.12)', // 下部に区切り線
++              '& .MuiAlert-message': {
++                py: 0,
++              },
++              '& .MuiAlert-icon': {
++                py: 0.5,
++              },
++              '& .MuiAlert-action': {
++                py: 0,
++                alignItems: 'flex-start',
++              },
++            }}
++          >
++            <Typography
++              variant="body2"
++              sx={{
++                whiteSpace: 'pre-line', // 改行を反映
++                wordBreak: 'break-word',
++              }}
++            >
++              {info.message}
++            </Typography>
++          </Alert>
++        ))}
++      </Stack>
++    </Box>
++  );
++};
++
++export default InformationBanner;
 diff --git a/src/renderer/components/review/ReviewArea.tsx b/src/renderer/components/review/ReviewArea.tsx
-index 2e82fcbb6..977c8529c 100644
+index 977c8529c..bfaedc42d 100644
 --- a/src/renderer/components/review/ReviewArea.tsx
 +++ b/src/renderer/components/review/ReviewArea.tsx
-@@ -73,12 +73,12 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
-   const [chatPanelWidth, setChatPanelWidth] = useState(500);
-   const [isResizing, setIsResizing] = useState(false);
+@@ -705,7 +705,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
+         right: 0,
+         top: 0,
+         bottom: 0,
+-        height: '100vh',
++        height: '100%',
+         overflow: 'hidden',
+       }}
+     >
+diff --git a/src/renderer/service/informationApi.ts b/src/renderer/service/informationApi.ts
+new file mode 100644
+index 000000000..4de8ec0c6
+--- /dev/null
++++ b/src/renderer/service/informationApi.ts
+@@ -0,0 +1,48 @@
++import { InformationItem } from '@/types';
++import { invokeApi } from '../lib/apiUtils';
++import { ApiServiceDefaultOptions } from '../types';
++
++/**
++ * お知らせAPIのインターフェース
++ */
++export interface IInformationApi {
++  /**
++   * お知らせ情報を取得する
++   */
++  getInformations(
++    options?: ApiServiceDefaultOptions,
++  ): Promise<InformationItem[] | null>;
++}
++
++/**
++ * お知らせAPIの実装
++ */
++export class InformationApi implements IInformationApi {
++  // シングルトン変数
++  private static instance: InformationApi;
++
++  // コンストラクタをprivateにして外部からのインスタンス化を防止
++  private constructor() {}
++
++  /**
++   * シングルトンインスタンスを取得するための静的メソッド
++   */
++  public static getInstance(): InformationApi {
++    if (!InformationApi.instance) {
++      InformationApi.instance = new InformationApi();
++    }
++    return InformationApi.instance;
++  }
++
++  /**
++   * お知らせ情報を取得する
++   */
++  public async getInformations(
++    options?: ApiServiceDefaultOptions,
++  ): Promise<InformationItem[] | null> {
++    return invokeApi(
++      () => window.electron.information.getInformations(),
++      options,
++    );
++  }
++}
+diff --git a/src/renderer/stores/informationStore.ts b/src/renderer/stores/informationStore.ts
+new file mode 100644
+index 000000000..9485655b1
+--- /dev/null
++++ b/src/renderer/stores/informationStore.ts
+@@ -0,0 +1,50 @@
++import { createStore } from 'zustand/vanilla';
++import { useStore, type StoreApi } from 'zustand';
++import type { InformationItem } from '@/types';
++
++/**
++ * お知らせストアの状態
++ */
++interface InformationState {
++  /** お知らせ一覧 */
++  informations: InformationItem[];
++  /** 読み込み済みフラグ */
++  loaded: boolean;
++}
++
++/**
++ * お知らせストアのアクション
++ */
++interface InformationActions {
++  /** お知らせを設定する */
++  setInformations: (informations: InformationItem[]) => void;
++  /** お知らせを削除する（閉じた場合） */
++  removeInformation: (id: string) => void;
++}
++
++export type InformationStore = InformationState & InformationActions;
++
++/**
++ * お知らせストア
++ */
++export const informationStore: StoreApi<InformationStore> =
++  createStore<InformationStore>()((set) => ({
++    informations: [],
++    loaded: false,
++
++    setInformations: (informations: InformationItem[]) => {
++      set({ informations, loaded: true });
++    },
++
++    removeInformation: (id: string) => {
++      set((state) => ({
++        informations: state.informations.filter((info) => info.id !== id),
++      }));
++    },
++  }));
++
++/**
++ * お知らせストアを利用するためのフック
++ */
++export const useInformationStore = <T>(selector: (s: InformationStore) => T) =>
++  useStore(informationStore, selector);
+diff --git a/src/types/index.ts b/src/types/index.ts
+index 8c5e546f5..1a5e615e2 100644
+--- a/src/types/index.ts
++++ b/src/types/index.ts
+@@ -6,6 +6,7 @@ export * from './ipc';
+ export * from './message';
+ export * from './error';
+ export * from './eventPush';
++export * from './information';
  
--  // テキスト抽出進捗の状態管理
--  const [extractionProgress, setExtractionProgress] = useState<{
-+  // ファイル処理進捗の状態管理
-+  const [fileProcessingProgress, setFileProcessingProgress] = useState<{
-     currentFileName: string;
-     currentFileIndex: number;
-     totalFiles: number;
--    phase: 'extracting' | 'processing';
-+    phase: 'processing' | 'completed';
-   } | null>(null);
- 
-   const addAlert = useAlertStore((state) => state.addAlert);
-@@ -170,7 +170,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
-       }
- 
-       setIsExtracting(false);
--      setExtractionProgress(null);
-+      setFileProcessingProgress(null);
-     },
-     [
-       selectedReviewHistoryId,
-@@ -221,7 +221,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
-       }
- 
-       setIsReviewing(false);
--      setExtractionProgress(null);
-+      setFileProcessingProgress(null);
- 
-       // イベント購読解除
-       if (eventUnsubscribeRef.current) {
-@@ -253,7 +253,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
-     setCommentFormat(defaultCommentFormat);
-     setEvaluationSettings(defaultEvaluationSettings);
-     setChatPanelOpen(false);
--    setExtractionProgress(null);
-+    setFileProcessingProgress(null);
- 
-     // 初期データ取得（エラーが発生しなくなるまでポーリング）
-     const loadInitialData = async () => {
-@@ -370,10 +370,10 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
-     fetchChecklistResults,
-   ]);
- 
--  // テキスト抽出進捗イベントの購読
-+  // ファイル処理進捗イベントの購読
-   useEffect(() => {
-     if (!selectedReviewHistoryId || (!isExtracting && !isReviewing)) {
--      setExtractionProgress(null);
-+      setFileProcessingProgress(null);
-       return undefined;
-     }
- 
-@@ -381,9 +381,9 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
-     let unsubscribe: (() => void) | null = null;
- 
-     reviewApi
--      .subscribeTextExtractionProgress((payload) => {
-+      .subscribeFileProcessingProgress((payload) => {
-         if (payload.reviewHistoryId === selectedReviewHistoryId) {
--          setExtractionProgress(payload);
-+          setFileProcessingProgress(payload);
-         }
-       })
-       .then((unsub) => {
-@@ -684,8 +684,8 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
- 
-   // 進捗表示テキストを取得
-   const getProgressText = (): string => {
--    if (extractionProgress?.phase === 'extracting') {
--      return `テキスト抽出中... (${extractionProgress.currentFileIndex + 1}/${extractionProgress.totalFiles}) ${extractionProgress.currentFileName}`;
-+    if (fileProcessingProgress?.phase === 'processing') {
-+      return `ファイル処理中... (${fileProcessingProgress.currentFileIndex + 1}/${fileProcessingProgress.totalFiles}) ${fileProcessingProgress.currentFileName}`;
-     }
-     if (isExtracting) {
-       return 'チェックリスト抽出中...';
-diff --git a/src/renderer/service/reviewApi.ts b/src/renderer/service/reviewApi.ts
-index ad9d68cee..e8edf19e1 100644
---- a/src/renderer/service/reviewApi.ts
-+++ b/src/renderer/service/reviewApi.ts
-@@ -82,13 +82,13 @@ export interface IReviewApi {
-       totalSheets?: number;
-     }) => void,
-   ): Promise<() => void>;
--  subscribeTextExtractionProgress(
-+  subscribeFileProcessingProgress(
-     callback: (payload: {
-       reviewHistoryId: string;
-       currentFileName: string;
-       currentFileIndex: number;
-       totalFiles: number;
--      phase: 'extracting' | 'processing';
-+      phase: 'processing' | 'completed';
-     }) => void,
-   ): Promise<() => void>;
-   updateChecklist(
-@@ -287,18 +287,18 @@ export class ReviewApi implements IReviewApi {
-     );
-   }
- 
--  public async subscribeTextExtractionProgress(
-+  public async subscribeFileProcessingProgress(
-     callback: (payload: {
-       reviewHistoryId: string;
-       currentFileName: string;
-       currentFileIndex: number;
-       totalFiles: number;
--      phase: 'extracting' | 'processing';
-+      phase: 'processing' | 'completed';
-     }) => void,
-   ): Promise<() => void> {
-     const pushClient = new ElectronPushClient();
-     return pushClient.subscribeAsync(
--      IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS,
-+      IpcChannels.REVIEW_FILE_PROCESSING_PROGRESS,
-       (event) => {
-         callback(event.payload);
-       },
+ // パス定義
+ export const ROUTES = {
+diff --git a/src/types/information.ts b/src/types/information.ts
+new file mode 100644
+index 000000000..d73d4c5f6
+--- /dev/null
++++ b/src/types/information.ts
+@@ -0,0 +1,30 @@
++import { z } from 'zod';
++
++/**
++ * お知らせ項目のスキーマ
++ */
++export const InformationItemSchema = z.object({
++  /** お知らせの一意識別子 */
++  id: z.string().min(1, { message: 'IDは必須です' }),
++  /** お知らせ本文（改行は\nで表現） */
++  message: z.string().min(1, { message: 'メッセージは必須です' }),
++  /** 表示順（小さい数字が上に表示） */
++  order: z.number().int({ message: '表示順は整数である必要があります' }),
++});
++
++/**
++ * お知らせ全体のスキーマ
++ */
++export const InformationSchema = z.object({
++  informations: z.array(InformationItemSchema),
++});
++
++/**
++ * お知らせ項目の型
++ */
++export type InformationItem = z.infer<typeof InformationItemSchema>;
++
++/**
++ * お知らせ全体の型
++ */
++export type Information = z.infer<typeof InformationSchema>;
 diff --git a/src/types/ipc.ts b/src/types/ipc.ts
-index 356ddcdc9..fbbe902ac 100644
+index fbbe902ac..0417fd2b1 100644
 --- a/src/types/ipc.ts
 +++ b/src/types/ipc.ts
-@@ -89,7 +89,7 @@ export const IpcChannels = {
-   REVIEW_CHAT_COMPLETE: 'review-chat-complete', // レビューチャット完了
+@@ -14,6 +14,7 @@ import type {
+ } from './review';
+ import type { SettingsSavingStatus, Settings } from './setting';
+ import type { Source, RevieHistory } from '@/types';
++import type { InformationItem } from './information';
+ 
+ type IpcSuccess<T> = {
+   success: true;
+@@ -90,6 +91,9 @@ export const IpcChannels = {
    REVIEW_CHAT_ERROR: 'review-chat-error', // レビューチャットエラー
    REVIEW_CHAT_ABORT: 'review-chat-abort', // レビューチャット中断
--  REVIEW_TEXT_EXTRACTION_PROGRESS: 'review-text-extraction-progress', // テキスト抽出進捗通知
-+  REVIEW_FILE_PROCESSING_PROGRESS: 'review-file-processing-progress', // ファイル処理進捗通知
+   REVIEW_FILE_PROCESSING_PROGRESS: 'review-file-processing-progress', // ファイル処理進捗通知
++
++  // お知らせ関連
++  INFORMATION_GET: 'information-get', // お知らせ情報の取得
  } as const;
  
  export type IpcChannel = (typeof IpcChannels)[keyof typeof IpcChannels];
-@@ -252,12 +252,12 @@ export type IpcEventPayloadMap = {
-   [IpcChannels.REVIEW_CHAT_STREAM_RESPONSE]: any; // AI SDKが定義するDataStreamが入る想定(型がexportされていないためany型)
-   [IpcChannels.REVIEW_CHAT_COMPLETE]: unknown;
-   [IpcChannels.REVIEW_CHAT_ERROR]: { message: string };
--  [IpcChannels.REVIEW_TEXT_EXTRACTION_PROGRESS]: {
-+  [IpcChannels.REVIEW_FILE_PROCESSING_PROGRESS]: {
-     reviewHistoryId: string;
-     currentFileName: string;
-     currentFileIndex: number;
-     totalFiles: number;
--    phase: 'extracting' | 'processing';
-+    phase: 'processing' | 'completed';
+@@ -167,6 +171,9 @@ export type IpcRequestPayloadMap = {
+     question: string;
    };
+   [IpcChannels.REVIEW_CHAT_ABORT]: string; // review history id
++
++  // お知らせ関連
++  [IpcChannels.INFORMATION_GET]: undefined;
  };
  
+ export type IpcResponsePayloadMap = {
+@@ -222,6 +229,9 @@ export type IpcResponsePayloadMap = {
+   [IpcChannels.REVIEW_EXECUTE_ABORT]: IpcResult;
+   [IpcChannels.REVIEW_CHAT_SEND_MESSAGE]: IpcResult;
+   [IpcChannels.REVIEW_CHAT_ABORT]: IpcResult;
++
++  // お知らせ関連
++  [IpcChannels.INFORMATION_GET]: IpcResult<InformationItem[]>;
+ };
+ 
+ export type IpcEventPayloadMap = {
+@@ -324,4 +334,7 @@ export const IpcNameMap = {
+   [IpcChannels.REVIEW_CHAT_COMPLETE]: 'レビューチャット完了',
+   [IpcChannels.REVIEW_CHAT_ERROR]: 'レビューチャットエラー',
+   [IpcChannels.REVIEW_CHAT_ABORT]: 'レビューチャット中断',
++
++  // お知らせ関連
++  [IpcChannels.INFORMATION_GET]: 'お知らせ情報の取得',
+ };
