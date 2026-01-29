@@ -150,6 +150,7 @@ const checklistDocumentExtractionStep = createStep({
             output: outputSchema,
             runtimeContext,
             abortSignal,
+            maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
             // AIの限界生成トークン数を超えた場合のエラーを回避するための設定
             experimental_repairText: async (options) => {
               isCompleted = false;
@@ -329,6 +330,7 @@ const topicExtractionStep = createStep({
           output: outputSchema,
           runtimeContext,
           abortSignal,
+          maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
         },
       );
 
@@ -427,6 +429,7 @@ const topicChecklistCreationStep = createStep({
         output: outputSchema,
         runtimeContext,
         abortSignal,
+        maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
       });
       logger.debug(
         `Combined document topic(${title}) generated checklist items:`,
@@ -607,6 +610,7 @@ Please continue refining the remaining items, avoiding duplicates with already r
             output: outputSchema,
             runtimeContext,
             abortSignal,
+            maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
             // AIの限界生成トークン数を超えた場合のエラーを回避するための設定
             experimental_repairText: async (options) => {
               isCompleted = false;

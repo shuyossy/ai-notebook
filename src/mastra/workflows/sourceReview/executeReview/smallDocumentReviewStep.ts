@@ -124,6 +124,7 @@ Please review the document against the above checklist items.`;
             output: outputSchema,
             runtimeContext,
             abortSignal,
+            maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
           },
         );
         const { success, reason } = judgeFinishReason(

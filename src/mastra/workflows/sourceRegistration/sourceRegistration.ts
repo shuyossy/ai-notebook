@@ -68,6 +68,7 @@ const analyzeSourceStep = createStep({
         {
           runtimeContext: await createRuntimeContext(),
           output: outputSchema,
+          maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
         },
       );
 
@@ -160,6 +161,7 @@ const extractTopicAndSummaryStep = createStep({
       const analysisResult = await summarizeTopicAgent.generateLegacy(content, {
         runtimeContext: await createRuntimeContext(),
         output: outputSchema,
+        maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
       });
       const { success, reason } = judgeFinishReason(
         analysisResult.finishReason,

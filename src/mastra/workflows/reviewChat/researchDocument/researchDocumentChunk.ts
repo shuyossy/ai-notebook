@@ -117,6 +117,7 @@ export const researchChunkStep = createStep({
         },
         {
           runtimeContext,
+          maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
         },
       );
 

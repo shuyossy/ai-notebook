@@ -186,6 +186,7 @@ export class ChatService implements IChatService {
           threadId, // チャットルームIDをスレッドIDとして使用
           maxSteps: 30, // ツールの利用上限
           abortSignal: controller.signal, // 中断シグナルを設定
+          maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
           onStepFinish: (stepResult) => {
             // https://ai-sdk.dev/docs/ai-sdk-ui/stream-protocol
             // 上記を参考にai-sdkのストリームプロトコルに従ってメッセージを送信

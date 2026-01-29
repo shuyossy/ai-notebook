@@ -100,6 +100,7 @@ ${result.researchResult}`;
       const result = await answerAgent.generateLegacy(promptText, {
         runtimeContext,
         abortSignal,
+        maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
         onStepFinish: (stepResult) => {
           // AI SDK Data Stream Protocol v1 形式でチャンクを送信
           // https://sdk.vercel.ai/docs/ai-sdk-ui/stream-protocol
