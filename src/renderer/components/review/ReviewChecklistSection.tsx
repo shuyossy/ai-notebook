@@ -52,6 +52,7 @@ const getEvaluationColor = (evaluation: ReviewEvaluation): string => {
   // 存在しない場合はハッシュ値から色を生成
   let hash = 0;
   for (let i = 0; i < evaluation.length; i++) {
+    // eslint-disable-next-line no-bitwise
     hash = evaluation.charCodeAt(i) + ((hash << 5) - hash);
   }
   const hue = hash % 360;
@@ -135,6 +136,7 @@ const ReviewChecklistSection: React.FC<ReviewChecklistSectionProps> = ({
             url: settings.api.url,
             key: settings.api.key,
             model: settings.api.model,
+            userId: settings.api.userId,
           }
         : undefined;
 
@@ -172,9 +174,8 @@ const ReviewChecklistSection: React.FC<ReviewChecklistSectionProps> = ({
       // 文字列順で比較
       if (sortDirection === 'desc') {
         return bEv.localeCompare(aEv);
-      } else {
-        return aEv.localeCompare(bEv);
       }
+      return aEv.localeCompare(bEv);
     });
   }, [checklistResults, sortBy, sortDirection]);
 

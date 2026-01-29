@@ -16,7 +16,7 @@ export const getOpenAICompatibleModel = ({
       messageCode: 'VALIDATION_ERROR',
       messageParams: {
         detail:
-          'AI APIの設定が正しくありません。APIキー、URL、BPR IDを確認してください。',
+          'AI APIの設定が正しくありません。APIキー、URL、モデル名を確認してください。',
       },
     });
   }

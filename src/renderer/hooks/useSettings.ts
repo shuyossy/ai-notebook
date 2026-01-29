@@ -25,7 +25,7 @@ const useSettingsStore = () => {
   const [settings, setSettings] = useState<AppSettings>({
     database: { dir: '' },
     source: { registerDir: './source' },
-    api: { key: '', url: '', model: '' },
+    api: { key: '', url: '', model: '', userId: '' },
     redmine: { endpoint: '', apiKey: '' },
     gitlab: { endpoint: '', apiKey: '' },
     mcp: { serverConfig: undefined },

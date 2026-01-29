@@ -138,5 +138,6 @@ export interface CsvImportData {
     url?: string;
     key?: string;
     model?: string;
+    userId?: string;
   };
 }

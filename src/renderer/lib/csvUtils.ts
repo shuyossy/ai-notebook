@@ -1,8 +1,4 @@
-import {
-  ReviewChecklistResult,
-  CustomEvaluationSettings,
-  RevieHistory,
-} from '@/types';
+import { ReviewChecklistResult, RevieHistory } from '@/types';
 
 /**
  * CSV用文字列のエスケープ処理
@@ -37,7 +33,7 @@ const escapeCSVField = (field: string): string => {
 export const convertReviewResultsToCSV = (
   checklistResults: ReviewChecklistResult[],
   reviewHistory?: RevieHistory | null,
-  apiSettings?: { url?: string; key?: string; model?: string },
+  apiSettings?: { url?: string; key?: string; model?: string; userId?: string },
 ): string => {
   // ヘッダー行を構築
   const headers = [
@@ -50,7 +46,8 @@ export const convertReviewResultsToCSV = (
     'コメントフォーマット',
     'AI APIエンドポイント',
     'AI APIキー',
-    'BPR ID',
+    'モデル名',
+    'ユーザID',
   ];
 
   const csvRows: string[] = [];
@@ -67,7 +64,8 @@ export const convertReviewResultsToCSV = (
   // データ行を構築
   for (let i = 0; i < maxRows; i++) {
     const checklist = i < checklistResults.length ? checklistResults[i] : null;
-    const evaluationItem = i < evaluationItems.length ? evaluationItems[i] : null;
+    // 直ぐに戻せるようにコメントアウト
+    // const evaluationItem = i < evaluationItems.length ? evaluationItems[i] : null;
 
     const row: string[] = [
       checklist?.content || '', // チェックリスト
@@ -80,14 +78,16 @@ export const convertReviewResultsToCSV = (
       // i === 0 ? (reviewHistory?.commentFormat || '') : '', // コメントフォーマット（1行目のみ）
       // i === 0 ? (apiSettings?.url || '') : '', // AI APIエンドポイント（1行目のみ）
       // i === 0 ? (apiSettings?.key || '') : '', // AI APIキー（1行目のみ）
-      // i === 0 ? (apiSettings?.model || '') : '', // BPR ID（1行目のみ）
+      // i === 0 ? (apiSettings?.model || '') : '', // モデル名（1行目のみ）
+      // i === 0 ? (apiSettings?.userId || '') : '', // ユーザID（1行目のみ）
       '', // 評定ラベル
       '', // 評定説明
       '', // 追加指示（1行目のみ）
       '', // コメントフォーマット（1行目のみ）
       '', // AI APIエンドポイント（1行目のみ）
       '', // AI APIキー（1行目のみ）
-      '', // BPR ID（1行目のみ）
+      '', // モデル名（1行目のみ）
+      '', // ユーザID（1行目のみ）
     ];
 
     csvRows.push(row.map(escapeCSVField).join(','));

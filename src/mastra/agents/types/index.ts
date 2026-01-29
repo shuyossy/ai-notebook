@@ -6,5 +6,6 @@ export type BaseRuntimeContext = {
     key: string;
     url: string;
     modelName: string;
+    userId: string;
   };
 };

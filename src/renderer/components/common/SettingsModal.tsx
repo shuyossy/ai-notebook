@@ -114,12 +114,23 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
             />
             <TextField
               fullWidth
-              label="BPR ID"
+              label="モデル名"
               value={settings.api.model}
               disabled={loading || saving}
               onChange={(e) => handleChange('api', 'model', e.target.value)}
               error={!!validationErrors.api?.model}
               helperText={validationErrors.api?.model?.message}
+              margin="normal"
+              variant="outlined"
+            />
+            <TextField
+              fullWidth
+              label="ユーザID"
+              value={settings.api.userId}
+              disabled={loading || saving}
+              onChange={(e) => handleChange('api', 'userId', e.target.value)}
+              error={!!validationErrors.api?.userId}
+              helperText={validationErrors.api?.userId?.message}
               margin="normal"
               variant="outlined"
             />

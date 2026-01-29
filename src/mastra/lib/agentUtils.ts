@@ -15,6 +15,7 @@ export async function createRuntimeContext<T extends BaseRuntimeContext>() {
     key: store.api.key,
     url: store.api.url,
     modelName: store.api.model,
+    userId: store.api.userId,
   });
   return runtimeContext;
 }

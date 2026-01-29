@@ -1,4 +1,4 @@
-import type { CsvImportData, CustomEvaluationSettings } from '@/types';
+import type { CsvImportData } from '@/types';
 import { internalError } from './error';
 
 /**
@@ -136,7 +136,7 @@ export class CsvParser {
 
   /**
    * 新フォーマットのCSV/Excelデータをパースする
-   * ヘッダ行: チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,BPR ID
+   * ヘッダ行: チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID
    * @param csvText CSVテキスト
    * @returns パース結果
    * @throws AppError パースに失敗した場合
@@ -162,7 +162,8 @@ export class CsvParser {
       'コメントフォーマット',
       'AI APIエンドポイント',
       'AI APIキー',
-      'BPR ID',
+      'モデル名',
+      'ユーザID',
     ];
 
     // ヘッダ行の列数検証
@@ -201,6 +202,7 @@ export class CsvParser {
     let apiUrl: string | undefined;
     let apiKey: string | undefined;
     let apiModel: string | undefined;
+    let apiUserId: string | undefined;
 
     for (const row of dataRows) {
       // 各列のデータを取得（空の場合はundefined）
@@ -212,6 +214,7 @@ export class CsvParser {
       const apiEndpoint = row[5]?.trim() || undefined;
       const apiKeyValue = row[6]?.trim() || undefined;
       const apiModelName = row[7]?.trim() || undefined;
+      const apiUserIdValue = row[8]?.trim() || undefined;
 
       // チェックリスト項目の収集
       if (checklistContent) {
@@ -242,6 +245,9 @@ export class CsvParser {
       if (apiModelName && !apiModel) {
         apiModel = apiModelName;
       }
+      if (apiUserIdValue && !apiUserId) {
+        apiUserId = apiUserIdValue;
+      }
     }
 
     // インポートデータの構築
@@ -265,11 +271,12 @@ export class CsvParser {
     }
 
     // API設定
-    if (apiUrl || apiKey || apiModel) {
+    if (apiUrl || apiKey || apiModel || apiUserId) {
       importData.apiSettings = {
         url: apiUrl,
         key: apiKey,
         model: apiModel,
+        userId: apiUserId,
       };
     }
 

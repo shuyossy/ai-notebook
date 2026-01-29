@@ -61,7 +61,7 @@ describe('ReviewService - extractChecklistFromCsv', () => {
   let mockSettingsRepository: jest.Mocked<ISettingsRepository>;
 
   const defaultSettings: Settings = {
-    api: { key: 'old-key', url: 'http://old.com', model: 'old-model' },
+    api: { key: 'old-key', url: 'http://old.com', model: 'old-model', userId: 'old-user-id' },
     database: { dir: '/test/db' },
     source: { registerDir: './source' },
     redmine: { endpoint: '', apiKey: '' },
@@ -118,9 +118,9 @@ describe('ReviewService - extractChecklistFromCsv', () => {
 
       // FileExtractor.extractText をモック（API設定を含むCSV）
       mockExtractText.mockResolvedValue({
-        content: `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,BPR ID
-項目1,,,,,http://new-api.com,new-key,new-model
-項目2,,,,,,`,
+        content: `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID
+項目1,,,,,http://new-api.com,new-key,new-model,new-user-id
+項目2,,,,,,,,`,
         metadata: {},
       });
 
@@ -139,6 +139,7 @@ describe('ReviewService - extractChecklistFromCsv', () => {
             key: 'new-key',
             url: 'http://new-api.com',
             model: 'new-model',
+            userId: 'new-user-id',
           },
         })
       );
@@ -163,20 +164,21 @@ describe('ReviewService - extractChecklistFromCsv', () => {
 
       // APIキーのみ更新するCSV
       mockExtractText.mockResolvedValue({
-        content: `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,BPR ID
-項目1,,,,,,new-key-only,`,
+        content: `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID
+項目1,,,,,,new-key-only,,`,
         metadata: {},
       });
 
       await reviewService.extractChecklistFromCsv('review-1', mockFiles);
 
-      // 既存のURLとmodelは保持され、keyのみ更新されること
+      // 既存のURLとmodelとuserIdは保持され、keyのみ更新されること
       expect(mockSettingsRepository.saveSettings).toHaveBeenCalledWith(
         expect.objectContaining({
           api: {
             key: 'new-key-only',
             url: 'http://old.com', // 既存値を保持
             model: 'old-model', // 既存値を保持
+            userId: 'old-user-id', // 既存値を保持
           },
         })
       );
@@ -200,9 +202,9 @@ describe('ReviewService - extractChecklistFromCsv', () => {
 
       // API設定を含まないCSV
       mockExtractText.mockResolvedValue({
-        content: `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,BPR ID
-項目1,,,,,,
-項目2,,,,,,`,
+        content: `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID
+項目1,,,,,,,,
+項目2,,,,,,,,`,
         metadata: {},
       });
 
@@ -236,10 +238,10 @@ describe('ReviewService - extractChecklistFromCsv', () => {
       }];
 
       mockExtractText.mockResolvedValue({
-        content: `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,BPR ID
-項目1,,,,,,
-項目2,,,,,,
-項目3,,,,,,`,
+        content: `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID
+項目1,,,,,,,,
+項目2,,,,,,,,
+項目3,,,,,,,,`,
         metadata: {},
       });
 
@@ -275,10 +277,10 @@ describe('ReviewService - extractChecklistFromCsv', () => {
       }];
 
       mockExtractText.mockResolvedValue({
-        content: `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,BPR ID
-項目1,,,,,,
-,A,優秀,,,,,
-,B,良好,,,,,`,
+        content: `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID
+項目1,,,,,,,,
+,A,優秀,,,,,,
+,B,良好,,,,,,`,
         metadata: {},
       });
 
@@ -305,8 +307,8 @@ describe('ReviewService - extractChecklistFromCsv', () => {
       }];
 
       mockExtractText.mockResolvedValue({
-        content: `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,BPR ID
-項目1,,,厳格にレビューしてください,【評価】{evaluation},,`,
+        content: `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID
+項目1,,,厳格にレビューしてください,【評価】{evaluation},,,,`,
         metadata: {},
       });
 
@@ -377,14 +379,14 @@ describe('ReviewService - extractChecklistFromCsv', () => {
       // 1つ目のファイルにAPI設定あり
       mockExtractText
         .mockResolvedValueOnce({
-          content: `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,BPR ID
-項目1,,,,,http://first.com,first-key,first-model`,
+          content: `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID
+項目1,,,,,http://first.com,first-key,first-model,first-user`,
           metadata: {},
         })
         // 2つ目のファイルにも異なるAPI設定あり（無視されるべき）
         .mockResolvedValueOnce({
-          content: `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,BPR ID
-項目2,,,,,http://second.com,second-key,second-model`,
+          content: `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID
+項目2,,,,,http://second.com,second-key,second-model,second-user`,
           metadata: {},
         });
 
@@ -397,6 +399,7 @@ describe('ReviewService - extractChecklistFromCsv', () => {
             key: 'first-key',
             url: 'http://first.com',
             model: 'first-model',
+            userId: 'first-user',
           },
         })
       );
@@ -411,6 +414,37 @@ describe('ReviewService - extractChecklistFromCsv', () => {
         'review-1',
         '項目2',
         'system'
+      );
+    });
+  });
+
+  describe('ユーザIDを含むCSVインポート', () => {
+    it('ユーザIDのみ指定された場合も正しく処理されること', async () => {
+      const mockFiles: UploadFile[] = [{
+        id: 'file-1',
+        name: 'import.csv',
+        path: '/test/import.csv',
+        type: 'text/csv',
+      }];
+
+      mockExtractText.mockResolvedValue({
+        content: `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID
+項目1,,,,,,,,new-user-id-only`,
+        metadata: {},
+      });
+
+      await reviewService.extractChecklistFromCsv('review-1', mockFiles);
+
+      // ユーザIDのみ更新されること
+      expect(mockSettingsRepository.saveSettings).toHaveBeenCalledWith(
+        expect.objectContaining({
+          api: {
+            key: 'old-key', // 既存値を保持
+            url: 'http://old.com', // 既存値を保持
+            model: 'old-model', // 既存値を保持
+            userId: 'new-user-id-only',
+          },
+        })
       );
     });
   });

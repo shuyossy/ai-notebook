@@ -13,6 +13,7 @@ export interface StoreSchema {
     key: string;
     url: string;
     model: string;
+    userId: string;
   };
   redmine: {
     endpoint?: string;
@@ -51,8 +52,9 @@ const schema = {
       key: { type: 'string' },
       url: { type: 'string' },
       model: { type: 'string' },
+      userId: { type: 'string' },
     },
-    required: ['key', 'url', 'model'],
+    required: ['key', 'url', 'model'], // TODO: userIdを必須にする（ユーザのconfig.jsが十分にuserId追加版に置き換わってから）
   },
   redmine: {
     type: 'object',
@@ -99,6 +101,7 @@ const defaults: StoreSchema = {
     key: 'aaa',
     url: 'http://localhost',
     model: 'aaa',
+    userId: 'aaa',
   },
   redmine: {
     endpoint: 'http://localhost',

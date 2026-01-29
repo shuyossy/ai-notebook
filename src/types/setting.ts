@@ -97,6 +97,7 @@ export const ApiSchema = z.object({
   key: z.string().min(1, { message: 'APIキーは必須です' }),
   url: z.string().url({ message: '有効なURLを入力してください' }),
   model: z.string().min(1, { message: 'モデル名は必須です' }),
+  userId: z.string().min(1, { message: 'ユーザIDは必須です' }),
 });
 
 /**

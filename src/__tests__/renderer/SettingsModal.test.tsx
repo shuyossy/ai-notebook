@@ -67,7 +67,8 @@ describe('SettingsModal Component', () => {
     expect(screen.getByLabelText('APIエンドポイントURL')).toHaveValue(
       'https://api.test.com',
     );
-    expect(screen.getByLabelText('BPR ID')).toHaveValue('test-model');
+    expect(screen.getByLabelText('モデル名')).toHaveValue('test-model');
+    expect(screen.getByLabelText('ユーザID')).toHaveValue('test-user-id');
 
     // Redmine設定
     const redmineEndpoint = screen.getByLabelText('Redmineエンドポイント');
@@ -119,7 +120,8 @@ describe('SettingsModal Component', () => {
     // API設定の更新
     const apiKeyInput = screen.getByLabelText('APIキー');
     const apiEndpointInput = screen.getByLabelText('APIエンドポイントURL');
-    const apiModelInput = screen.getByLabelText('BPR ID');
+    const apiModelInput = screen.getByLabelText('モデル名');
+    const apiUserIdInput = screen.getByLabelText('ユーザID');
 
     await user.clear(apiKeyInput);
     await user.type(apiKeyInput, 'new-test-api-key');
@@ -127,6 +129,8 @@ describe('SettingsModal Component', () => {
     await user.type(apiEndpointInput, 'https://new.api.test.com');
     await user.clear(apiModelInput);
     await user.type(apiModelInput, 'new-test-model');
+    await user.clear(apiUserIdInput);
+    await user.type(apiUserIdInput, 'new-test-user-id');
 
     // データベース設定の更新
     const dbDirInput = screen.getByLabelText('データベース保存フォルダ');
@@ -194,6 +198,7 @@ describe('SettingsModal Component', () => {
         key: 'new-test-api-key',
         url: 'https://new.api.test.com',
         model: 'new-test-model',
+        userId: 'new-test-user-id',
       });
       expect(call.database).toEqual({ dir: '/new/test/db' });
       expect(call.source).toEqual({ registerDir: './new/test/source' });
@@ -259,13 +264,15 @@ describe('SettingsModal Component', () => {
 
     const apiKeyInput = screen.getByLabelText('APIキー');
     const apiEndpointInput = screen.getByLabelText('APIエンドポイントURL');
-    const apiModelInput = screen.getByLabelText('BPR ID');
+    const apiModelInput = screen.getByLabelText('モデル名');
+    const apiUserIdInput = screen.getByLabelText('ユーザID');
     const dbDirInput = screen.getByLabelText('データベース保存フォルダ');
 
     // 必須フィールドをクリア
     await user.clear(apiKeyInput);
     await user.clear(apiEndpointInput);
     await user.clear(apiModelInput);
+    await user.clear(apiUserIdInput);
     await user.clear(dbDirInput);
 
     // 存在しないパスを入力（データベース設定）

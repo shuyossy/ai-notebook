@@ -38,6 +38,7 @@ export class ElectronStoreSettingsRepository implements ISettingsRepository {
       this.store.set('api.key', settings.api.key);
       this.store.set('api.model', settings.api.model);
       this.store.set('api.url', settings.api.url);
+      this.store.set('api.userId', settings.api.userId);
 
       // 任意系は undefined の可能性があるため setOrDelete で処理
       setOrDelete(

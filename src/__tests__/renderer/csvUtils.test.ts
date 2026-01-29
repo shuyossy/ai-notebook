@@ -33,14 +33,14 @@ describe('convertReviewResultsToCSV', () => {
 
       // ヘッダー行の確認
       expect(lines[0]).toBe(
-        'チェックリスト,評定結果,レビュー結果,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,BPR ID',
+        'チェックリスト,評定結果,レビュー結果,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID',
       );
 
       // 1行目のデータ確認
-      expect(lines[1]).toBe('チェック項目1,A,良好です,,,,,,,');
+      expect(lines[1]).toBe('チェック項目1,A,良好です,,,,,,,,');
 
       // 2行目のデータ確認
-      expect(lines[2]).toBe('チェック項目2,B,改善が必要,,,,,,,');
+      expect(lines[2]).toBe('チェック項目2,B,改善が必要,,,,,,,,');
     });
 
     test('評定結果がない場合、評定結果とレビュー結果が空文字になること', () => {
@@ -54,7 +54,7 @@ describe('convertReviewResultsToCSV', () => {
       const result = convertReviewResultsToCSV(checklistResults);
 
       const lines = result.split('\n');
-      expect(lines[1]).toBe('チェック項目1,,,,,,,,,');
+      expect(lines[1]).toBe('チェック項目1,,,,,,,,,,');
     });
 
     test('評定設定がある場合、各行に分散配置されること', () => {
@@ -98,15 +98,15 @@ describe('convertReviewResultsToCSV', () => {
 
       // 1行目: チェック項目1 + 評定設定A
       // expect(lines[1]).toBe('チェック項目1,A,良好です,A,基準を満たす,,,,,');
-      expect(lines[1]).toBe('チェック項目1,A,良好です,,,,,,,');
+      expect(lines[1]).toBe('チェック項目1,A,良好です,,,,,,,,');
 
       // 2行目: チェック項目2 + 評定設定B
       // expect(lines[2]).toBe('チェック項目2,,,B,一部改善が必要,,,,,');
-      expect(lines[2]).toBe('チェック項目2,,,,,,,,,');
+      expect(lines[2]).toBe('チェック項目2,,,,,,,,,,');
 
       // 3行目: 評定設定Cのみ
       // expect(lines[3]).toBe(',,,C,基準未達,,,,,');
-      expect(lines[3]).toBe(',,,,,,,,,');
+      expect(lines[3]).toBe(',,,,,,,,,,');
     });
 
     test('追加指示、コメントフォーマット、API設定が1行目に配置されること', () => {
@@ -161,7 +161,7 @@ describe('convertReviewResultsToCSV', () => {
       // 2行目以降は設定が空であることを確認
       const lines = result.split('\n');
       const lastLine = lines[lines.length - 1];
-      expect(lastLine).toBe('チェック項目2,,,,,,,,,');
+      expect(lastLine).toBe('チェック項目2,,,,,,,,,,');
     });
 
     test('CSV特殊文字のエスケープが正しく行われること', () => {
@@ -233,11 +233,11 @@ describe('convertReviewResultsToCSV', () => {
 
       // 2行目: 評定Bのみ
       // expect(lines[2]).toBe(',,,B,良好,,,,,');
-      expect(lines[2]).toBe(',,,,,,,,,');
+      expect(lines[2]).toBe(',,,,,,,,,,');
 
       // 3行目: 評定Cのみ
       // expect(lines[3]).toBe(',,,C,要改善,,,,,');
-      expect(lines[3]).toBe(',,,,,,,,,');
+      expect(lines[3]).toBe(',,,,,,,,,,');
 
     });
   });
@@ -251,7 +251,7 @@ describe('convertReviewResultsToCSV', () => {
       const lines = result.split('\n');
       expect(lines).toHaveLength(1);
       expect(lines[0]).toBe(
-        'チェックリスト,評定結果,レビュー結果,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,BPR ID',
+        'チェックリスト,評定結果,レビュー結果,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID',
       );
     });
 
@@ -267,7 +267,7 @@ describe('convertReviewResultsToCSV', () => {
 
       const lines = result.split('\n');
       expect(lines).toHaveLength(2);
-      expect(lines[1]).toBe('チェック項目1,,,,,,,,,');
+      expect(lines[1]).toBe('チェック項目1,,,,,,,,,,');
     });
 
     test('apiSettingsがundefinedの場合、エラーにならないこと', () => {
@@ -286,7 +286,7 @@ describe('convertReviewResultsToCSV', () => {
 
       const lines = result.split('\n');
       expect(lines).toHaveLength(2);
-      expect(lines[1]).toBe('チェック項目1,,,,,,,,,');
+      expect(lines[1]).toBe('チェック項目1,,,,,,,,,,');
     });
 
     test('評定設定が空配列の場合、エラーにならないこと', () => {
@@ -315,7 +315,7 @@ describe('convertReviewResultsToCSV', () => {
 
       const lines = result.split('\n');
       expect(lines).toHaveLength(2);
-      expect(lines[1]).toBe('チェック項目1,,,,,,,,,');
+      expect(lines[1]).toBe('チェック項目1,,,,,,,,,,');
     });
   });
 
@@ -380,7 +380,7 @@ describe('convertReviewResultsToCSV', () => {
 
       // ヘッダー確認
       expect(lines[0]).toBe(
-        'チェックリスト,評定結果,レビュー結果,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,BPR ID',
+        'チェックリスト,評定結果,レビュー結果,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID',
       );
 
       // 1行目: すべての設定が含まれる

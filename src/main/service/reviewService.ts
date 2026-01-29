@@ -321,7 +321,7 @@ export class ReviewService implements IReviewService {
         // AI API設定の更新（settingsRepositoryに保存）
         if (importedData.apiSettings) {
           const currentSettings = await this.settingsRepository.getSettings();
-          const updates: { url?: string; key?: string; model?: string } = {};
+          const updates: { url?: string; key?: string; model?: string; userId?: string } = {};
 
           if (importedData.apiSettings.url) {
             updates.url = importedData.apiSettings.url;
@@ -331,6 +331,9 @@ export class ReviewService implements IReviewService {
           }
           if (importedData.apiSettings.model) {
             updates.model = importedData.apiSettings.model;
+          }
+          if (importedData.apiSettings.userId) {
+            updates.userId = importedData.apiSettings.userId;
           }
 
           if (Object.keys(updates).length > 0) {

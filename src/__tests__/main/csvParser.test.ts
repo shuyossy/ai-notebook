@@ -4,13 +4,13 @@ import { AppError } from '@/main/lib/error';
 describe('CsvParser - 新フォーマット対応', () => {
   describe('parseImportFormat', () => {
     it('新フォーマットのCSVを正しくパースできること', () => {
-      const csvText = `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,BPR ID
-要件が明確に定義されているか,,,,,,
-設計書に矛盾がないか,,,,,,
-,A,優秀 - 問題なし,,,,,
-,B,良好 - 軽微な改善推奨,,,,,
+      const csvText = `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID
+要件が明確に定義されているか,,,,,,,
+設計書に矛盾がないか,,,,,,,
+,A,優秀 - 問題なし,,,,,,
+,B,良好 - 軽微な改善推奨,,,,,,
 ,,,レビューは厳格に実施してください。,"【評価】{evaluation}
-【コメント】{comment}",http://localhost:11434/v1,test-api-key,llama3`;
+【コメント】{comment}",http://localhost:11434/v1,test-api-key,llama3,user001`;
 
       const result = CsvParser.parseImportFormat(csvText);
 
@@ -42,14 +42,15 @@ describe('CsvParser - 新フォーマット対応', () => {
         url: 'http://localhost:11434/v1',
         key: 'test-api-key',
         model: 'llama3',
+        userId: 'user001',
       });
     });
 
     it('チェックリスト項目のみのCSVを正しくパースできること', () => {
-      const csvText = `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,BPR ID
-項目1,,,,,,
-項目2,,,,,,
-項目3,,,,,,`;
+      const csvText = `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID
+項目1,,,,,,,
+項目2,,,,,,,
+項目3,,,,,,,`;
 
       const result = CsvParser.parseImportFormat(csvText);
 
@@ -61,10 +62,10 @@ describe('CsvParser - 新フォーマット対応', () => {
     });
 
     it('評定設定のみのCSVを正しくパースできること', () => {
-      const csvText = `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,BPR ID
-,A,優秀,,,,,
-,B,良好,,,,,
-,C,要改善,,,,,`;
+      const csvText = `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID
+,A,優秀,,,,,,
+,B,良好,,,,,,
+,C,要改善,,,,,,`;
 
       const result = CsvParser.parseImportFormat(csvText);
 
@@ -108,8 +109,8 @@ describe('CsvParser - 新フォーマット対応', () => {
     });
 
     it('評定ラベルのみ（説明なし）は無視されること', () => {
-      const csvText = `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,BPR ID
-,A,,,,,,`;
+      const csvText = `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID
+,A,,,,,,,`;
 
       const result = CsvParser.parseImportFormat(csvText);
 
@@ -117,10 +118,10 @@ describe('CsvParser - 新フォーマット対応', () => {
     });
 
     it('空のセルは無視されること', () => {
-      const csvText = `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,BPR ID
-,,,,,,
-項目1,,,,,,
-,,,,,,`;
+      const csvText = `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID
+,,,,,,,
+項目1,,,,,,,
+,,,,,,,`;
 
       const result = CsvParser.parseImportFormat(csvText);
 
@@ -128,9 +129,9 @@ describe('CsvParser - 新フォーマット対応', () => {
     });
 
     it('セル内改行を正しく処理できること', () => {
-      const csvText = `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,BPR ID
+      const csvText = `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID
 "項目1
-改行あり",,,,,,`;
+改行あり",,,,,,,`;
 
       const result = CsvParser.parseImportFormat(csvText);
 
@@ -139,9 +140,9 @@ describe('CsvParser - 新フォーマット対応', () => {
 
     it('Excelのシート名行（#sheet:で始まる行）を正しくスキップできること', () => {
       const csvText = `#sheet:Sheet1
-チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,BPR ID
-項目1,,,,,,
-項目2,,,,,,`;
+チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID
+項目1,,,,,,,
+項目2,,,,,,,`;
 
       const result = CsvParser.parseImportFormat(csvText);
 
@@ -150,12 +151,12 @@ describe('CsvParser - 新フォーマット対応', () => {
 
     it('複数シートのシート名行を正しくスキップできること', () => {
       const csvText = `#sheet:Sheet1
-チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,BPR ID
-項目1,,,,,,
+チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID
+項目1,,,,,,,
 
 #sheet:Sheet2
-チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,BPR ID
-項目2,,,,,,`;
+チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID
+項目2,,,,,,,`;
 
       const result = CsvParser.parseImportFormat(csvText);
 
@@ -166,10 +167,10 @@ describe('CsvParser - 新フォーマット対応', () => {
 
     it('シート名行を含む完全なフォーマットのCSVを正しくパースできること', () => {
       const csvText = `#sheet:Sheet1
-チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,BPR ID
-要件が明確に定義されているか,,,,,,
-,A,優秀,,,,,
-,,,レビューは厳格に。,"【評価】{evaluation}",http://localhost:11434/v1,test-key,llama3`;
+チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID
+要件が明確に定義されているか,,,,,,,
+,A,優秀,,,,,,
+,,,レビューは厳格に。,"【評価】{evaluation}",http://localhost:11434/v1,test-key,llama3,user001`;
 
       const result = CsvParser.parseImportFormat(csvText);
 
@@ -183,6 +184,32 @@ describe('CsvParser - 新フォーマット対応', () => {
         url: 'http://localhost:11434/v1',
         key: 'test-key',
         model: 'llama3',
+        userId: 'user001',
+      });
+    });
+
+    it('ユーザIDのみがある場合も正しくパースできること', () => {
+      const csvText = `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID
+項目1,,,,,,,,user001`;
+
+      const result = CsvParser.parseImportFormat(csvText);
+
+      expect(result.checklists).toEqual(['項目1']);
+      expect(result.apiSettings).toEqual({
+        userId: 'user001',
+      });
+    });
+
+    it('モデル名とユーザIDの両方がある場合も正しくパースできること', () => {
+      const csvText = `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID
+項目1,,,,,,,gpt-4,user001`;
+
+      const result = CsvParser.parseImportFormat(csvText);
+
+      expect(result.checklists).toEqual(['項目1']);
+      expect(result.apiSettings).toEqual({
+        model: 'gpt-4',
+        userId: 'user001',
       });
     });
   });
