@@ -35,7 +35,7 @@ export const createDefaultMockSettings = (): Settings => ({
   api: {
     key: 'test-api-key',
     url: 'https://api.test.com',
-    model: 'test-model',
+    model: 'gpt-4o',
     userId: 'test-user-id',
   },
   redmine: {

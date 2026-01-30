@@ -8,7 +8,7 @@ import { TokenLimiter } from '@mastra/memory/processors';
 import { LibSQLStore } from '@mastra/libsql';
 import { getStore } from '@/adapter/db/electron-store/store';
 import { getOrchestratorSystemPrompt } from './prompts';
-import { getOpenAICompatibleModel } from './model/openAICompatible';
+import { getModel } from './model';
 import { isPathExists, toAbsoluteFileURL } from '@/main/lib/util';
 import { CustomToolCallFilter } from '../memory/filter/customToolCallFilter';
 import { BaseRuntimeContext } from './types';
@@ -97,6 +97,6 @@ const memory = new Memory({
 export const orchestrator = new Agent({
   name: 'orchestrator',
   instructions: getOrchestratorSystemPrompt,
-  model: getOpenAICompatibleModel,
+  model: getModel,
   memory,
 });

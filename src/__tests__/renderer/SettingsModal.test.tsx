@@ -67,7 +67,8 @@ describe('SettingsModal Component', () => {
     expect(screen.getByLabelText('APIエンドポイントURL')).toHaveValue(
       'https://api.test.com',
     );
-    expect(screen.getByLabelText('モデル名')).toHaveValue('test-model');
+    // モデル名はSelectコンポーネントなのでテキストで確認
+    expect(screen.getByRole('combobox', { name: 'モデル名' })).toHaveTextContent('gpt-4o');
     expect(screen.getByLabelText('ユーザID')).toHaveValue('test-user-id');
 
     // Redmine設定
@@ -120,15 +121,16 @@ describe('SettingsModal Component', () => {
     // API設定の更新
     const apiKeyInput = screen.getByLabelText('APIキー');
     const apiEndpointInput = screen.getByLabelText('APIエンドポイントURL');
-    const apiModelInput = screen.getByLabelText('モデル名');
+    const apiModelSelect = screen.getByRole('combobox', { name: 'モデル名' });
     const apiUserIdInput = screen.getByLabelText('ユーザID');
 
     await user.clear(apiKeyInput);
     await user.type(apiKeyInput, 'new-test-api-key');
     await user.clear(apiEndpointInput);
     await user.type(apiEndpointInput, 'https://new.api.test.com');
-    await user.clear(apiModelInput);
-    await user.type(apiModelInput, 'new-test-model');
+    // モデル名をgpt-5に変更（Selectコンポーネント）
+    await user.click(apiModelSelect);
+    await user.click(screen.getByRole('option', { name: 'gpt-5' }));
     await user.clear(apiUserIdInput);
     await user.type(apiUserIdInput, 'new-test-user-id');
 
@@ -197,7 +199,7 @@ describe('SettingsModal Component', () => {
       expect(call.api).toEqual({
         key: 'new-test-api-key',
         url: 'https://new.api.test.com',
-        model: 'new-test-model',
+        model: 'gpt-5',
         userId: 'new-test-user-id',
       });
       expect(call.database).toEqual({ dir: '/new/test/db' });
@@ -264,14 +266,13 @@ describe('SettingsModal Component', () => {
 
     const apiKeyInput = screen.getByLabelText('APIキー');
     const apiEndpointInput = screen.getByLabelText('APIエンドポイントURL');
-    const apiModelInput = screen.getByLabelText('モデル名');
+    // モデル名はSelectコンポーネントなのでclearできない（常に選択肢がある）
     const apiUserIdInput = screen.getByLabelText('ユーザID');
     const dbDirInput = screen.getByLabelText('データベース保存フォルダ');
 
     // 必須フィールドをクリア
     await user.clear(apiKeyInput);
     await user.clear(apiEndpointInput);
-    await user.clear(apiModelInput);
     await user.clear(apiUserIdInput);
     await user.clear(dbDirInput);
 
@@ -309,7 +310,7 @@ describe('SettingsModal Component', () => {
       () => {
         // 必須フィールドのエラー
         expect(screen.getByText('APIキーは必須です')).toBeInTheDocument();
-        expect(screen.getByText('モデル名は必須です')).toBeInTheDocument();
+        // モデル名はSelectコンポーネントなので必須エラーは発生しない（常に選択肢がある）
 
         // パス存在エラー（DB + ドキュメント登録フォルダ）
         expect(
@@ -338,6 +339,48 @@ describe('SettingsModal Component', () => {
     // モックをクリーンアップ
     jest.restoreAllMocks();
   }, 60000);
+
+  // テスト3.5: モデル名がドロップダウンで選択できること
+  test('モデル名がドロップダウンで選択できること', async () => {
+    const user = userEvent.setup({ delay: null });
+
+    render(
+      <SettingsModal
+        open={defaultProps.open}
+        onClose={defaultProps.onClose}
+        onSettingsUpdated={defaultProps.onSettingsUpdated}
+        onValidChange={defaultProps.onValidChange}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(window.electron.settings.getSettings).toHaveBeenCalledTimes(1);
+    });
+
+    // 全てのフィールドが有効になるまで待機
+    await waitFor(() => {
+      const apiKeyInput = screen.getByLabelText('APIキー');
+      expect(apiKeyInput).toBeEnabled();
+    });
+
+    // モデル名のSelectコンポーネントを確認
+    const modelSelect = screen.getByRole('combobox', { name: 'モデル名' });
+    expect(modelSelect).toBeInTheDocument();
+    expect(modelSelect).toHaveTextContent('gpt-4o');
+
+    // ドロップダウンを開く
+    await user.click(modelSelect);
+
+    // オプションが表示されることを確認
+    expect(screen.getByRole('option', { name: 'gpt-4o' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'gpt-5' })).toBeInTheDocument();
+
+    // gpt-5を選択
+    await user.click(screen.getByRole('option', { name: 'gpt-5' }));
+
+    // 選択が反映されることを確認
+    expect(modelSelect).toHaveTextContent('gpt-5');
+  });
 
   // テスト4: MCPスキーマのバリデーションエラーが正しく表示されること
   test('MCPスキーマのバリデーションエラーが正しく表示されること', async () => {

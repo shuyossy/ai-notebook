@@ -19,7 +19,7 @@ import {
   getReviewChatResearchPrompt,
   getReviewChatAnswerPrompt,
 } from './prompts';
-import { getOpenAICompatibleModel } from './model/openAICompatible';
+import { getModel } from './model';
 import { BaseRuntimeContext } from './types';
 import type { CustomEvaluationSettings } from '@/types';
 
@@ -92,92 +92,92 @@ export type ReviewChatAnswerAgentRuntimeContext = BaseRuntimeContext & {
 export const summarizeSourceAgent = new Agent({
   name: 'summarizeSourceAgent',
   instructions: SOURCE_ANALYSIS_SYSTEM_PROMPT,
-  model: getOpenAICompatibleModel,
+  model: getModel,
 });
 
 export const summarizeTopicAgent = new Agent({
   name: 'summarizeTopicAgent',
   instructions: EXTRACT_TOPIC_AND_SUMMARY_SYSTEM_PROMPT,
-  model: getOpenAICompatibleModel,
+  model: getModel,
 });
 
 export const checklistExtractionAgent = new Agent({
   name: 'checklistExtractionAgent',
   instructions: getChecklistExtractionPrompt,
-  model: getOpenAICompatibleModel,
+  model: getModel,
 });
 
 export const generalDocumentChecklistAgent = new Agent({
   name: 'generalDocumentChecklistAgent',
   instructions: getGeneralDocumentChecklistPrompt,
-  model: getOpenAICompatibleModel,
+  model: getModel,
 });
 
 export const classifyCategoryAgent = new Agent({
   name: 'classifyCategoryAgent',
   instructions: getChecklistCategolizePrompt,
-  model: getOpenAICompatibleModel,
+  model: getModel,
 });
 
 export const reviewExecuteAgent = new Agent({
   name: 'reviewExecuteAgent',
   instructions: getDocumentReviewExecutionPrompt,
-  model: getOpenAICompatibleModel,
+  model: getModel,
 });
 
 export const topicExtractionAgent = new Agent({
   name: 'topicExtractionAgent',
   instructions: getTopicExtractionPrompt,
-  model: getOpenAICompatibleModel,
+  model: getModel,
 });
 
 export const topicChecklistAgent = new Agent({
   name: 'topicChecklistAgent',
   instructions: getTopicChecklistCreationPrompt,
-  model: getOpenAICompatibleModel,
+  model: getModel,
 });
 
 // export const checklistIntegrationAgent = new Agent({
 //   name: 'checklistIntegrationAgent',
 //   instructions: getChecklistIntegrationPrompt,
-//   model: getOpenAICompatibleModel,
+//   model: getModel,
 // });
 
 // チェックリストブラッシュアップ用エージェント
 export const checklistRefinementAgent = new Agent({
   name: 'checklistRefinementAgent',
   instructions: getChecklistRefinementPrompt,
-  model: getOpenAICompatibleModel,
+  model: getModel,
 });
 
 // 個別ドキュメントレビュー用エージェント（効率化版）
 export const individualDocumentReviewAgent = new Agent({
   name: 'individualDocumentReviewAgent',
   instructions: getIndividualDocumentReviewPrompt,
-  model: getOpenAICompatibleModel,
+  model: getModel,
 });
 
 // レビュー結果統合用エージェント
 export const consolidateReviewAgent = new Agent({
   name: 'consolidateReviewAgent',
   instructions: getConsolidateReviewPrompt,
-  model: getOpenAICompatibleModel,
+  model: getModel,
 });
 
 export const reviewChatPlanningAgent = new Agent({
   name: 'reviewChatPlanningAgent',
   instructions: getReviewChatPlanningPrompt,
-  model: getOpenAICompatibleModel,
+  model: getModel,
 });
 
 export const reviewChatResearchAgent = new Agent({
   name: 'reviewChatResearchAgent',
   instructions: getReviewChatResearchPrompt,
-  model: getOpenAICompatibleModel,
+  model: getModel,
 });
 
 export const reviewChatAnswerAgent = new Agent({
   name: 'reviewChatAnswerAgent',
   instructions: getReviewChatAnswerPrompt,
-  model: getOpenAICompatibleModel,
+  model: getModel,
 });

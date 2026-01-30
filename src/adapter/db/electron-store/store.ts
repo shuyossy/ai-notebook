@@ -100,7 +100,7 @@ const defaults: StoreSchema = {
   api: {
     key: 'aaa',
     url: 'http://localhost',
-    model: 'aaa',
+    model: 'gpt-4o',
     userId: 'aaa',
   },
   redmine: {

@@ -1,7 +1,7 @@
 // toolで利用するエージェントをまとめたクラス
 // @ts-ignore
 import { Agent } from '@mastra/core/agent';
-import { getOpenAICompatibleModel } from './model/openAICompatible';
+import { getModel } from './model';
 // eslint-disable-next-line import/no-cycle
 import { getDocumentQuerySystemPrompt } from './prompts';
 import { BaseRuntimeContext } from './types';
@@ -13,5 +13,5 @@ export type DocumentExpertAgentRuntimeContext = BaseRuntimeContext & {
 export const documentExpertAgent = new Agent({
   name: 'documentExpertAgent',
   instructions: getDocumentQuerySystemPrompt,
-  model: getOpenAICompatibleModel,
+  model: getModel,
 });

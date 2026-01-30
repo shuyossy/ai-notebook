@@ -3,6 +3,7 @@ import { Settings, SettingsSchema } from '@/types';
 import { getStore } from '@/adapter/db/electron-store/store';
 import { repositoryError } from '@/main/lib/error';
 import { ISettingsRepository } from '@/main/service/port/repository';
+import { isValidModelName, DEFAULT_MODEL } from '@/config/modelConfig';
 
 /** undefined を保存したら例外になるため、delete に切り替える */
 function setOrDelete<T>(store: any, key: string, value: T | undefined) {
@@ -21,7 +22,13 @@ export class ElectronStoreSettingsRepository implements ISettingsRepository {
 
   async getSettings(): Promise<Settings> {
     try {
-      const settings = await SettingsSchema.parseAsync(this.store.store);
+      // 既存設定との互換性対策：無効なモデル名はデフォルト値にフォールバック
+      const rawSettings = this.store.store;
+      if (rawSettings.api?.model && !isValidModelName(rawSettings.api.model)) {
+        rawSettings.api.model = DEFAULT_MODEL;
+      }
+
+      const settings = await SettingsSchema.parseAsync(rawSettings);
       return settings;
     } catch (err) {
       if (err instanceof z.ZodError) {

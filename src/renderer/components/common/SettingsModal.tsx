@@ -7,10 +7,16 @@ import {
   Box,
   CircularProgress,
   Alert,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  FormHelperText,
 } from '@mui/material';
 import Modal from './Modal';
 import useSettingsStore from '../../hooks/useSettings';
 import { StoreSchema as Settings } from '../../../adapter/db/electron-store/store';
+import { MODEL_OPTIONS } from '@/config/modelConfig';
 
 interface SettingsModalProps {
   open: boolean;
@@ -112,17 +118,33 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
               margin="normal"
               variant="outlined"
             />
-            <TextField
+            <FormControl
               fullWidth
-              label="モデル名"
-              value={settings.api.model}
-              disabled={loading || saving}
-              onChange={(e) => handleChange('api', 'model', e.target.value)}
-              error={!!validationErrors.api?.model}
-              helperText={validationErrors.api?.model?.message}
               margin="normal"
               variant="outlined"
-            />
+              error={!!validationErrors.api?.model}
+              disabled={loading || saving}
+            >
+              <InputLabel id="model-select-label">モデル名</InputLabel>
+              <Select
+                labelId="model-select-label"
+                id="model-select"
+                value={settings.api.model}
+                label="モデル名"
+                onChange={(e) => handleChange('api', 'model', e.target.value)}
+              >
+                {MODEL_OPTIONS.map((option) => (
+                  <MenuItem key={option} value={option}>
+                    {option}
+                  </MenuItem>
+                ))}
+              </Select>
+              {validationErrors.api?.model?.message && (
+                <FormHelperText>
+                  {validationErrors.api.model.message}
+                </FormHelperText>
+              )}
+            </FormControl>
             <TextField
               fullWidth
               label="ユーザID"

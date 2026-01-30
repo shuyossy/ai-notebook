@@ -61,7 +61,7 @@ describe('ReviewService - extractChecklistFromCsv', () => {
   let mockSettingsRepository: jest.Mocked<ISettingsRepository>;
 
   const defaultSettings: Settings = {
-    api: { key: 'old-key', url: 'http://old.com', model: 'old-model', userId: 'old-user-id' },
+    api: { key: 'old-key', url: 'http://old.com', model: 'gpt-4o', userId: 'old-user-id' },
     database: { dir: '/test/db' },
     source: { registerDir: './source' },
     redmine: { endpoint: '', apiKey: '' },
@@ -117,9 +117,10 @@ describe('ReviewService - extractChecklistFromCsv', () => {
       }];
 
       // FileExtractor.extractText をモック（API設定を含むCSV）
+      // モデル名は有効なオプション(gpt-5)を指定
       mockExtractText.mockResolvedValue({
         content: `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID
-項目1,,,,,http://new-api.com,new-key,new-model,new-user-id
+項目1,,,,,http://new-api.com,new-key,gpt-5,new-user-id
 項目2,,,,,,,,`,
         metadata: {},
       });
@@ -138,7 +139,7 @@ describe('ReviewService - extractChecklistFromCsv', () => {
           api: {
             key: 'new-key',
             url: 'http://new-api.com',
-            model: 'new-model',
+            model: 'gpt-5',
             userId: 'new-user-id',
           },
         })
@@ -177,7 +178,7 @@ describe('ReviewService - extractChecklistFromCsv', () => {
           api: {
             key: 'new-key-only',
             url: 'http://old.com', // 既存値を保持
-            model: 'old-model', // 既存値を保持
+            model: 'gpt-4o', // 既存値を保持
             userId: 'old-user-id', // 既存値を保持
           },
         })
@@ -376,17 +377,17 @@ describe('ReviewService - extractChecklistFromCsv', () => {
         },
       ];
 
-      // 1つ目のファイルにAPI設定あり
+      // 1つ目のファイルにAPI設定あり（有効なモデル名gpt-5を使用）
       mockExtractText
         .mockResolvedValueOnce({
           content: `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID
-項目1,,,,,http://first.com,first-key,first-model,first-user`,
+項目1,,,,,http://first.com,first-key,gpt-5,first-user`,
           metadata: {},
         })
         // 2つ目のファイルにも異なるAPI設定あり（無視されるべき）
         .mockResolvedValueOnce({
           content: `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID
-項目2,,,,,http://second.com,second-key,second-model,second-user`,
+項目2,,,,,http://second.com,second-key,gpt-4o,second-user`,
           metadata: {},
         });
 
@@ -398,7 +399,7 @@ describe('ReviewService - extractChecklistFromCsv', () => {
           api: {
             key: 'first-key',
             url: 'http://first.com',
-            model: 'first-model',
+            model: 'gpt-5',
             userId: 'first-user',
           },
         })
@@ -441,7 +442,7 @@ describe('ReviewService - extractChecklistFromCsv', () => {
           api: {
             key: 'old-key', // 既存値を保持
             url: 'http://old.com', // 既存値を保持
-            model: 'old-model', // 既存値を保持
+            model: 'gpt-4o', // 既存値を保持
             userId: 'new-user-id-only',
           },
         })

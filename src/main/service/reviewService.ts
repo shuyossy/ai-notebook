@@ -17,6 +17,7 @@ import {
   CsvImportData,
   RetryMode,
 } from '@/types';
+import { isValidModelName, type ModelName } from '@/config/modelConfig';
 import { generateReviewTitle } from '@/mastra/workflows/sourceReview/lib';
 import { RevieHistory } from '@/types';
 import FileExtractor from '@/main/lib/fileExtractor';
@@ -321,7 +322,7 @@ export class ReviewService implements IReviewService {
         // AI API設定の更新（settingsRepositoryに保存）
         if (importedData.apiSettings) {
           const currentSettings = await this.settingsRepository.getSettings();
-          const updates: { url?: string; key?: string; model?: string; userId?: string } = {};
+          const updates: { url?: string; key?: string; model?: ModelName; userId?: string } = {};
 
           if (importedData.apiSettings.url) {
             updates.url = importedData.apiSettings.url;
@@ -329,7 +330,11 @@ export class ReviewService implements IReviewService {
           if (importedData.apiSettings.key) {
             updates.key = importedData.apiSettings.key;
           }
-          if (importedData.apiSettings.model) {
+          // モデル名が有効な場合のみ更新
+          if (
+            importedData.apiSettings.model &&
+            isValidModelName(importedData.apiSettings.model)
+          ) {
             updates.model = importedData.apiSettings.model;
           }
           if (importedData.apiSettings.userId) {

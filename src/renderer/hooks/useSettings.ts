@@ -12,6 +12,7 @@ import { useAgentStatusStore } from '../stores/agentStatusStore';
 import { useAlertStore } from '../stores/alertStore';
 import { getSafeErrorMessage, internalError } from '../lib/error';
 import { usePushChannel } from './usePushChannel';
+import { DEFAULT_MODEL } from '@/config/modelConfig';
 
 type AppSettings = Omit<Settings, 'mcp'> & {
   mcp: { serverConfig: string | undefined };
@@ -25,7 +26,7 @@ const useSettingsStore = () => {
   const [settings, setSettings] = useState<AppSettings>({
     database: { dir: '' },
     source: { registerDir: './source' },
-    api: { key: '', url: '', model: '', userId: '' },
+    api: { key: '', url: '', model: DEFAULT_MODEL, userId: '' },
     redmine: { endpoint: '', apiKey: '' },
     gitlab: { endpoint: '', apiKey: '' },
     mcp: { serverConfig: undefined },
