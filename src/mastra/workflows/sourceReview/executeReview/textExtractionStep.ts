@@ -47,9 +47,8 @@ export const textExtractionStep = createStep({
       // リトライの場合: キャッシュからロード
       if (!files) {
         const repository = getReviewRepository();
-        const cachedDocuments = await repository.getReviewDocumentCaches(
-          reviewHistoryId,
-        );
+        const cachedDocuments =
+          await repository.getReviewDocumentCaches(reviewHistoryId);
 
         if (cachedDocuments.length === 0) {
           throw internalError({

@@ -714,7 +714,11 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
           {/* 処理中インジケーター */}
           {(isExtracting || isReviewing) && (
             <Box sx={{ mb: 2 }}>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
+              <Typography
+                variant="body2"
+                color="text.secondary"
+                sx={{ mb: 0.5 }}
+              >
                 {getProgressText()}
               </Typography>
               <LinearProgress />

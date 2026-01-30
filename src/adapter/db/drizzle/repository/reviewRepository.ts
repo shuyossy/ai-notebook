@@ -438,12 +438,12 @@ export class DrizzleReviewRepository implements IReviewRepository {
   async deleteReviewDocumentCaches(reviewHistoryId: string): Promise<void> {
     try {
       const db = await getDb();
-      
+
       // まずDBレコードを削除
       await db
         .delete(reviewDocumentCaches)
         .where(eq(reviewDocumentCaches.reviewHistoryId, reviewHistoryId));
-      
+
       // ファイルシステムのキャッシュディレクトリも削除
       await ReviewCacheHelper.deleteCacheDirectory(reviewHistoryId);
     } catch (err) {

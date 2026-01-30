@@ -130,7 +130,9 @@ describe('ReviewArea - レビュー質問機能', () => {
   const waitForChecklistAndEnableQuestionButton = async () => {
     // チェックリスト結果が読み込まれるまで待機
     await waitFor(() => {
-      expect(screen.getByText('仕様書の記載内容が正確であること')).toBeInTheDocument();
+      expect(
+        screen.getByText('仕様書の記載内容が正確であること'),
+      ).toBeInTheDocument();
     });
 
     // 質問ボタンが有効化されるまで待機
@@ -252,9 +254,15 @@ describe('ReviewArea - レビュー質問機能', () => {
 
     // メニューが表示されることを確認
     await waitFor(() => {
-      expect(screen.getByText('@仕様書の記載内容が正確であること')).toBeInTheDocument();
-      expect(screen.getByText('@設計書の整合性が取れていること')).toBeInTheDocument();
-      expect(screen.getByText('@テスト計画が十分であること')).toBeInTheDocument();
+      expect(
+        screen.getByText('@仕様書の記載内容が正確であること'),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText('@設計書の整合性が取れていること'),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText('@テスト計画が十分であること'),
+      ).toBeInTheDocument();
     });
   });
 
@@ -271,7 +279,8 @@ describe('ReviewArea - レビュー質問機能', () => {
     await user.type(input, '@');
 
     // 最初のチェックリストを選択
-    const firstOption = await screen.findByText('@仕様書の記載内容が正確であること');
+    const firstOption =
+      await screen.findByText('@仕様書の記載内容が正確であること');
     await user.click(firstOption);
 
     // 選択したチェックリストがChipとして表示されることを確認
@@ -298,7 +307,8 @@ describe('ReviewArea - レビュー質問機能', () => {
     await user.type(input, '@');
 
     // チェックリストを選択
-    const firstOption = await screen.findByText('@仕様書の記載内容が正確であること');
+    const firstOption =
+      await screen.findByText('@仕様書の記載内容が正確であること');
     await user.click(firstOption);
 
     // Chipが表示されることを確認（複数存在する可能性があるため、MuiChip-rootで絞り込む）
@@ -309,7 +319,9 @@ describe('ReviewArea - レビュー質問機能', () => {
 
     // 最初のChipの削除アイコンをクリック
     const chips = document.querySelectorAll('.MuiChip-root');
-    const deleteIcon = within(chips[0] as HTMLElement).getByTestId('CancelIcon');
+    const deleteIcon = within(chips[0] as HTMLElement).getByTestId(
+      'CancelIcon',
+    );
     await user.click(deleteIcon);
 
     // Chipが削除されることを確認
@@ -333,9 +345,15 @@ describe('ReviewArea - レビュー質問機能', () => {
 
     // フィルタリングされたチェックリストのみが表示されることを確認
     await waitFor(() => {
-      expect(screen.getByText('@仕様書の記載内容が正確であること')).toBeInTheDocument();
-      expect(screen.queryByText('@設計書の整合性が取れていること')).not.toBeInTheDocument();
-      expect(screen.queryByText('@テスト計画が十分であること')).not.toBeInTheDocument();
+      expect(
+        screen.getByText('@仕様書の記載内容が正確であること'),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText('@設計書の整合性が取れていること'),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByText('@テスト計画が十分であること'),
+      ).not.toBeInTheDocument();
     });
   });
 
@@ -369,7 +387,9 @@ describe('ReviewArea - レビュー質問機能', () => {
     const user = userEvent.setup();
     const mockAddAlert = jest.fn();
     // useAlertStoreをモック
-    jest.spyOn(require('@/renderer/stores/alertStore'), 'useAlertStore').mockReturnValue(mockAddAlert);
+    jest
+      .spyOn(require('@/renderer/stores/alertStore'), 'useAlertStore')
+      .mockReturnValue(mockAddAlert);
 
     render(<ReviewArea selectedReviewHistoryId="review-1" />);
 
@@ -403,7 +423,8 @@ describe('ReviewArea - レビュー質問機能', () => {
 
     // チェックリストを選択
     await user.type(input, '@');
-    const firstOption = await screen.findByText('@仕様書の記載内容が正確であること');
+    const firstOption =
+      await screen.findByText('@仕様書の記載内容が正確であること');
     await user.click(firstOption);
 
     // 送信ボタンが無効化されていることを確認
@@ -428,7 +449,8 @@ describe('ReviewArea - レビュー質問機能', () => {
 
     // チェックリストを選択
     await user.type(input, '@');
-    const firstOption = await screen.findByText('@仕様書の記載内容が正確であること');
+    const firstOption =
+      await screen.findByText('@仕様書の記載内容が正確であること');
     await user.click(firstOption);
 
     // メッセージを入力
@@ -443,7 +465,8 @@ describe('ReviewArea - レビュー質問機能', () => {
       expect(window.electron.review.sendChatMessage).toHaveBeenCalledWith({
         reviewHistoryId: 'review-1',
         checklistIds: [1],
-        question: '@仕様書の記載内容が正確であること\n\nこの項目について詳しく教えてください',
+        question:
+          '@仕様書の記載内容が正確であること\n\nこの項目について詳しく教えてください',
       });
     });
   });
@@ -461,7 +484,8 @@ describe('ReviewArea - レビュー質問機能', () => {
 
     // チェックリストを選択
     await user.type(input, '@');
-    const firstOption = await screen.findByText('@仕様書の記載内容が正確であること');
+    const firstOption =
+      await screen.findByText('@仕様書の記載内容が正確であること');
     await user.click(firstOption);
 
     // メッセージを入力
@@ -497,7 +521,8 @@ describe('ReviewArea - レビュー質問機能', () => {
 
     // チェックリストを選択してメッセージを送信
     await user.type(input, '@');
-    const firstOption = await screen.findByText('@仕様書の記載内容が正確であること');
+    const firstOption =
+      await screen.findByText('@仕様書の記載内容が正確であること');
     await user.click(firstOption);
     await user.type(input, 'テスト質問');
 
@@ -526,12 +551,14 @@ describe('ReviewArea - レビュー質問機能', () => {
 
     // 1つ目のチェックリストを選択
     await user.type(input, '@');
-    const firstOption = await screen.findByText('@仕様書の記載内容が正確であること');
+    const firstOption =
+      await screen.findByText('@仕様書の記載内容が正確であること');
     await user.click(firstOption);
 
     // 2つ目のチェックリストを選択
     await user.type(input, '@');
-    const secondOption = await screen.findByText('@設計書の整合性が取れていること');
+    const secondOption =
+      await screen.findByText('@設計書の整合性が取れていること');
     await user.click(secondOption);
 
     // 両方のChipが表示されることを確認
@@ -568,7 +595,8 @@ describe('ReviewArea - レビュー質問機能', () => {
 
     // チェックリストを選択
     await user.type(input, '@');
-    const firstOption = await screen.findByText('@仕様書の記載内容が正確であること');
+    const firstOption =
+      await screen.findByText('@仕様書の記載内容が正確であること');
     await user.click(firstOption);
 
     // メッセージを入力
@@ -597,7 +625,8 @@ describe('ReviewArea - レビュー質問機能', () => {
 
     // チェックリストを選択
     await user.type(input, '@');
-    const firstOption = await screen.findByText('@仕様書の記載内容が正確であること');
+    const firstOption =
+      await screen.findByText('@仕様書の記載内容が正確であること');
     await user.click(firstOption);
 
     // メッセージを入力
@@ -626,7 +655,8 @@ describe('ReviewArea - レビュー質問機能', () => {
 
     // 1回目の選択
     await user.type(input, '@');
-    const firstOption = await screen.findByText('@仕様書の記載内容が正確であること');
+    const firstOption =
+      await screen.findByText('@仕様書の記載内容が正確であること');
     await user.click(firstOption);
 
     // 1つのChipが表示されることを確認
@@ -637,7 +667,8 @@ describe('ReviewArea - レビュー質問機能', () => {
 
     // 2回目の選択（同じチェックリスト）
     await user.type(input, '@');
-    const secondOption = await screen.findByText('@仕様書の記載内容が正確であること');
+    const secondOption =
+      await screen.findByText('@仕様書の記載内容が正確であること');
     await user.click(secondOption);
 
     // Chipは1つのままであることを確認（重複選択されない）
@@ -673,9 +704,15 @@ describe('ReviewArea - レビュー質問機能', () => {
 
     // コメント付きの項目は表示される
     await waitFor(() => {
-      expect(screen.getByText('@仕様書の記載内容が正確であること')).toBeInTheDocument();
-      expect(screen.getByText('@設計書の整合性が取れていること')).toBeInTheDocument();
-      expect(screen.getByText('@テスト計画が十分であること')).toBeInTheDocument();
+      expect(
+        screen.getByText('@仕様書の記載内容が正確であること'),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText('@設計書の整合性が取れていること'),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText('@テスト計画が十分であること'),
+      ).toBeInTheDocument();
     });
 
     // コメントなし項目は表示されない

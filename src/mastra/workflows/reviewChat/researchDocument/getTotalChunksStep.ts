@@ -33,9 +33,8 @@ export const getTotalChunksStep = createStep({
       const reviewRepository = getReviewRepository();
 
       // 既存の最大チャンク数を取得
-      const totalChunks = await reviewRepository.getMaxTotalChunksForDocument(
-        documentCacheId,
-      );
+      const totalChunks =
+        await reviewRepository.getMaxTotalChunksForDocument(documentCacheId);
 
       return {
         status: 'success' as stepStatus,

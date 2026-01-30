@@ -1,12 +1,7 @@
 /**
  * @jest-environment jsdom
  */
-import {
-  render,
-  screen,
-  fireEvent,
-  waitFor,
-} from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 
 import InformationBanner from '@/renderer/components/common/InformationBanner';
@@ -72,8 +67,12 @@ describe('InformationBanner Component', () => {
 
     // 各お知らせが表示されていることを確認
     await waitFor(() => {
-      expect(screen.getByText('これはお知らせのサンプルです。')).toBeInTheDocument();
-      expect(screen.getByText('複数のお知らせを表示できます。')).toBeInTheDocument();
+      expect(
+        screen.getByText('これはお知らせのサンプルです。'),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText('複数のお知らせを表示できます。'),
+      ).toBeInTheDocument();
     });
   });
 
@@ -111,7 +110,9 @@ describe('InformationBanner Component', () => {
 
     // お知らせが表示されるのを待機
     await waitFor(() => {
-      expect(screen.getByText('これはお知らせのサンプルです。')).toBeInTheDocument();
+      expect(
+        screen.getByText('これはお知らせのサンプルです。'),
+      ).toBeInTheDocument();
     });
 
     // 最初のお知らせの閉じるボタンをクリック
@@ -120,11 +121,15 @@ describe('InformationBanner Component', () => {
 
     // 最初のお知らせが非表示になることを確認
     await waitFor(() => {
-      expect(screen.queryByText('これはお知らせのサンプルです。')).not.toBeInTheDocument();
+      expect(
+        screen.queryByText('これはお知らせのサンプルです。'),
+      ).not.toBeInTheDocument();
     });
 
     // 2つ目のお知らせはまだ表示されていることを確認
-    expect(screen.getByText('複数のお知らせを表示できます。')).toBeInTheDocument();
+    expect(
+      screen.getByText('複数のお知らせを表示できます。'),
+    ).toBeInTheDocument();
   });
 
   // テスト4: 全てのお知らせを閉じた場合、コンポーネントが非表示になること
@@ -138,7 +143,9 @@ describe('InformationBanner Component', () => {
 
     // お知らせが表示されるのを待機
     await waitFor(() => {
-      expect(screen.getByText('これはお知らせのサンプルです。')).toBeInTheDocument();
+      expect(
+        screen.getByText('これはお知らせのサンプルです。'),
+      ).toBeInTheDocument();
     });
 
     // 閉じるボタンをクリック
@@ -158,7 +165,9 @@ describe('InformationBanner Component', () => {
 
     // お知らせ情報が取得されるまで待機
     await waitFor(() => {
-      expect(window.electron.information.getInformations).toHaveBeenCalledTimes(1);
+      expect(window.electron.information.getInformations).toHaveBeenCalledTimes(
+        1,
+      );
     });
 
     // コンポーネントをアンマウント
@@ -169,11 +178,15 @@ describe('InformationBanner Component', () => {
 
     // APIが再度呼び出されないことを確認（storeのloadedフラグがtrueのため）
     await waitFor(() => {
-      expect(window.electron.information.getInformations).toHaveBeenCalledTimes(1);
+      expect(window.electron.information.getInformations).toHaveBeenCalledTimes(
+        1,
+      );
     });
 
     // お知らせが引き続き表示されていることを確認
-    expect(screen.getByText('これはお知らせのサンプルです。')).toBeInTheDocument();
+    expect(
+      screen.getByText('これはお知らせのサンプルです。'),
+    ).toBeInTheDocument();
   });
 
   // ========================================
@@ -224,12 +237,14 @@ describe('InformationBanner Component', () => {
   // テスト8: API呼び出しが失敗した場合、何も表示しないこと
   test('API呼び出しが失敗した場合、何も表示しないこと', async () => {
     // エラーを返すモックをセットアップ
-    window.electron.information.getInformations = jest.fn().mockRejectedValue(
-      new Error('API error')
-    );
+    window.electron.information.getInformations = jest
+      .fn()
+      .mockRejectedValue(new Error('API error'));
 
     // コンソールエラーをスパイ
-    const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    const consoleSpy = jest
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
 
     const { container } = render(<InformationBanner />);
 

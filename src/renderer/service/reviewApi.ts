@@ -123,7 +123,10 @@ export class ReviewApi implements IReviewApi {
     historyId: string,
     options?: ApiServiceDefaultOptions,
   ): Promise<RevieHistory | null> {
-    return invokeApi(() => window.electron.review.getHistoryById(historyId), options);
+    return invokeApi(
+      () => window.electron.review.getHistoryById(historyId),
+      options,
+    );
   }
 
   public async deleteHistory(

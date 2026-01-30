@@ -12,9 +12,7 @@ import { InformationApi } from '../../service/informationApi';
 const InformationBanner: React.FC = () => {
   const informations = useInformationStore((state) => state.informations);
   const loaded = useInformationStore((state) => state.loaded);
-  const setInformations = useInformationStore(
-    (state) => state.setInformations,
-  );
+  const setInformations = useInformationStore((state) => state.setInformations);
   const removeInformation = useInformationStore(
     (state) => state.removeInformation,
   );

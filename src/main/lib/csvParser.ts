@@ -41,7 +41,8 @@ export class CsvParser {
           currentRow.push(currentCell.trim());
           if (currentRow.length > 0 && !this.isEmptyRow(currentRow)) {
             // Excelファイル抽出時のシート名行（#sheet:で始まる行）をスキップ
-            const isSheetNameRow = currentRow.length === 1 && currentRow[0].startsWith('#sheet:');
+            const isSheetNameRow =
+              currentRow.length === 1 && currentRow[0].startsWith('#sheet:');
             if (!isSheetNameRow) {
               rows.push(currentRow);
             }
@@ -76,7 +77,8 @@ export class CsvParser {
     currentRow.push(currentCell.trim());
     if (currentRow.length > 0 && !this.isEmptyRow(currentRow)) {
       // Excelファイル抽出時のシート名行（#sheet:で始まる行）をスキップ
-      const isSheetNameRow = currentRow.length === 1 && currentRow[0].startsWith('#sheet:');
+      const isSheetNameRow =
+        currentRow.length === 1 && currentRow[0].startsWith('#sheet:');
       if (!isSheetNameRow) {
         rows.push(currentRow);
       }
@@ -84,7 +86,6 @@ export class CsvParser {
 
     return rows;
   }
-
 
   /**
    * 行が空かどうかを判定する

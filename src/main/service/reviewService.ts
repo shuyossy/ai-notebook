@@ -107,7 +107,8 @@ export class ReviewService implements IReviewService {
    * 特定のレビュー履歴を取得
    */
   public async getReviewHistoryById(reviewHistoryId: string) {
-    const history = await this.reviewRepository.getReviewHistory(reviewHistoryId);
+    const history =
+      await this.reviewRepository.getReviewHistory(reviewHistoryId);
     return history;
   }
 
@@ -241,7 +242,7 @@ export class ReviewService implements IReviewService {
 
   /**
    * CSVファイルからチェックリストを抽出してDBに保存
-      */
+   */
   public async extractChecklistFromCsv(
     reviewHistoryId: string,
     files: UploadFile[],
@@ -308,10 +309,7 @@ export class ReviewService implements IReviewService {
         }
 
         // 追加指示・コメントフォーマットの更新
-        if (
-          importedData.additionalInstructions ||
-          importedData.commentFormat
-        ) {
+        if (importedData.additionalInstructions || importedData.commentFormat) {
           await this.reviewRepository.updateReviewHistoryAdditionalInstructionsAndCommentFormat(
             reviewHistoryId,
             importedData.additionalInstructions,
@@ -322,7 +320,12 @@ export class ReviewService implements IReviewService {
         // AI API設定の更新（settingsRepositoryに保存）
         if (importedData.apiSettings) {
           const currentSettings = await this.settingsRepository.getSettings();
-          const updates: { url?: string; key?: string; model?: ModelName; userId?: string } = {};
+          const updates: {
+            url?: string;
+            key?: string;
+            model?: ModelName;
+            userId?: string;
+          } = {};
 
           if (importedData.apiSettings.url) {
             updates.url = importedData.apiSettings.url;
@@ -556,11 +559,15 @@ export class ReviewService implements IReviewService {
           reviewHistoryId,
           evaluationSettings,
         );
-        await this.updateReviewDocumentMode(reviewHistoryId, documentMode || 'small');
+        await this.updateReviewDocumentMode(
+          reviewHistoryId,
+          documentMode || 'small',
+        );
       } else {
         // リトライ時は最新のレビュー履歴情報を取得
         evaluationSettings = reviewHistory.evaluationSettings!;
-        additionalInstructions = reviewHistory.additionalInstructions ?? undefined;
+        additionalInstructions =
+          reviewHistory.additionalInstructions ?? undefined;
         commentFormat = reviewHistory.commentFormat ?? undefined;
         documentMode = reviewHistory.documentMode || 'small';
       }
@@ -777,8 +784,8 @@ export class ReviewService implements IReviewService {
       const errorMessage = err.message;
       const errorResult = {
         success: false,
-            error: errorMessage,
-          };
+        error: errorMessage,
+      };
       const payloadResult = {
         reviewHistoryId,
         status: 'failed' as ReviewExecutionResultStatus,
@@ -852,7 +859,9 @@ export class ReviewService implements IReviewService {
         runningWorkflow.cancel();
         this.runningWorkflows.delete(reviewHistoryId);
 
-        logger.info(`レビュー実行処理のキャンセルを開始しました: ${reviewHistoryId}`);
+        logger.info(
+          `レビュー実行処理のキャンセルを開始しました: ${reviewHistoryId}`,
+        );
         return { success: true };
       } else {
         logger.warn(

@@ -3,8 +3,14 @@
  */
 
 // Electron モックを最初に適用
-jest.mock('electron', () => require('../../test-utils/mockElectron').mockElectron);
-jest.mock('electron-store', () => require('../../test-utils/mockElectron').default);
+jest.mock(
+  'electron',
+  () => require('../../test-utils/mockElectron').mockElectron,
+);
+jest.mock(
+  'electron-store',
+  () => require('../../test-utils/mockElectron').default,
+);
 
 // main.ts の初期化処理をスキップ
 jest.mock('@/main/main', () => {

@@ -128,13 +128,14 @@ describe('Sidebar Component', () => {
     onReloadSources: jest.fn(),
   };
 
-  const renderAtPath = (initialPath: string, selectedRoomId: string | null = null) => {
+  const renderAtPath = (
+    initialPath: string,
+    selectedRoomId: string | null = null,
+  ) => {
     render(
       // MemoryRouter でテスト用の履歴を用意
       <MemoryRouter initialEntries={[initialPath]}>
-        <Sidebar
-          onReloadSources={defaultProps.onReloadSources}
-        >
+        <Sidebar onReloadSources={defaultProps.onReloadSources}>
           <Routes>
             <Route
               path={ROUTES.CHAT}
@@ -184,7 +185,10 @@ describe('Sidebar Component', () => {
     window.electron.chat.getRooms = jest.fn().mockImplementation(
       () =>
         new Promise((resolve) => {
-          setTimeout(() => resolve({ success: true, data: mockChatRooms }), 100);
+          setTimeout(
+            () => resolve({ success: true, data: mockChatRooms }),
+            100,
+          );
         }),
     );
 
@@ -348,42 +352,38 @@ describe('Sidebar Component', () => {
   });
 
   // テスト10: チャットルーム一覧の初回読み込みエラー時の再試行
-  test(
-    'チャットルーム一覧の初回読み込みエラー時の再試行',
-    async () => {
-      // 最初はエラーを返し、2回目は成功するようにモックを設定
-      let callCount = 0;
-      window.electron.chat.getRooms = jest.fn().mockImplementation(() => {
-        callCount++;
-        if (callCount === 1) {
-          return Promise.reject(new Error('Failed to fetch chat rooms'));
-        }
-        return Promise.resolve({ success: true, data: mockChatRooms });
-      });
+  test('チャットルーム一覧の初回読み込みエラー時の再試行', async () => {
+    // 最初はエラーを返し、2回目は成功するようにモックを設定
+    let callCount = 0;
+    window.electron.chat.getRooms = jest.fn().mockImplementation(() => {
+      callCount++;
+      if (callCount === 1) {
+        return Promise.reject(new Error('Failed to fetch chat rooms'));
+      }
+      return Promise.resolve({ success: true, data: mockChatRooms });
+    });
 
-      renderAtPath(ROUTES.CHAT);
+    renderAtPath(ROUTES.CHAT);
 
-      // 初回の取得を確認(失敗)
-      await waitFor(() => {
-        expect(window.electron.chat.getRooms).toHaveBeenCalledTimes(1);
-      });
+    // 初回の取得を確認(失敗)
+    await waitFor(() => {
+      expect(window.electron.chat.getRooms).toHaveBeenCalledTimes(1);
+    });
 
-      // 再試行が呼ばれることを確認（ポーリング間隔が5000msなので、5.5秒以内に2回目が呼ばれる）
-      await waitFor(
-        () => {
-          expect(window.electron.chat.getRooms).toHaveBeenCalledTimes(2);
-        },
-        { timeout: 8000 },
-      );
+    // 再試行が呼ばれることを確認（ポーリング間隔が5000msなので、5.5秒以内に2回目が呼ばれる）
+    await waitFor(
+      () => {
+        expect(window.electron.chat.getRooms).toHaveBeenCalledTimes(2);
+      },
+      { timeout: 8000 },
+    );
 
-      // チャットルーム一覧が表示されることを確認
-      await waitFor(() => {
-        expect(screen.getByText('Chat Room 1')).toBeInTheDocument();
-        expect(screen.getByText('Chat Room 2')).toBeInTheDocument();
-      });
-    },
-    10000,
-  ); // タイムアウトを10秒に設定
+    // チャットルーム一覧が表示されることを確認
+    await waitFor(() => {
+      expect(screen.getByText('Chat Room 1')).toBeInTheDocument();
+      expect(screen.getByText('Chat Room 2')).toBeInTheDocument();
+    });
+  }, 10000); // タイムアウトを10秒に設定
 
   // テスト11: チャットルーム取得時のエラーハンドリング
   test('チャットルーム取得時のエラーハンドリング', async () => {
@@ -563,9 +563,7 @@ describe('Sidebar Component', () => {
 
     // モーダルが閉じたことを確認
     await waitFor(() => {
-      expect(
-        screen.queryByText('ドキュメント一覧'),
-      ).not.toBeInTheDocument();
+      expect(screen.queryByText('ドキュメント一覧')).not.toBeInTheDocument();
     });
 
     // 完了後のソースデータ
@@ -613,9 +611,7 @@ describe('Sidebar Component', () => {
 
     // モーダルが閉じたことを確認
     await waitFor(() => {
-      expect(
-        screen.queryByText('ドキュメント一覧'),
-      ).not.toBeInTheDocument();
+      expect(screen.queryByText('ドキュメント一覧')).not.toBeInTheDocument();
     });
 
     // バッジに有効なソース数（2）が表示されることを確認
@@ -830,7 +826,9 @@ describe('Review Sidebar Component', () => {
     onReloadSources: jest.fn(),
   };
 
-  const renderAtReviewPath = (selectedReviewHistoryId: string | null = null) => {
+  const renderAtReviewPath = (
+    selectedReviewHistoryId: string | null = null,
+  ) => {
     render(
       <MemoryRouter initialEntries={[ROUTES.REVIEW]}>
         <Sidebar onReloadSources={defaultProps.onReloadSources}>
@@ -1005,9 +1003,8 @@ describe('Review Sidebar Component', () => {
     });
 
     // 初回呼び出しのカウントを保存
-    const initialCallCount = (
-      window.electron.review.getHistories as jest.Mock
-    ).mock.calls.length;
+    const initialCallCount = (window.electron.review.getHistories as jest.Mock)
+      .mock.calls.length;
 
     // サーバプッシュイベントをトリガー
     if (subscribedCallback) {
@@ -1071,7 +1068,10 @@ describe('Review Sidebar Component', () => {
     // 削除に失敗するようにモックを設定
     window.electron.review.deleteHistory = jest.fn().mockResolvedValue({
       success: false,
-      error: { message: 'Failed to delete review history', code: 'DELETE_ERROR' },
+      error: {
+        message: 'Failed to delete review history',
+        code: 'DELETE_ERROR',
+      },
     });
 
     const user = userEvent.setup();
@@ -1135,11 +1135,13 @@ describe('Review Sidebar Component', () => {
     });
 
     // レビュー履歴の順序を確認（updatedAtで降順ソート）
-    const listItems = screen.getAllByRole('button').filter(
-      (button) =>
-        button.textContent === 'Review History 1' ||
-        button.textContent === 'Review History 2',
-    );
+    const listItems = screen
+      .getAllByRole('button')
+      .filter(
+        (button) =>
+          button.textContent === 'Review History 1' ||
+          button.textContent === 'Review History 2',
+      );
 
     // Review History 2 (2025-05-02) が Review History 1 (2025-05-01) より先に表示される
     expect(listItems[0]).toHaveTextContent('Review History 2');

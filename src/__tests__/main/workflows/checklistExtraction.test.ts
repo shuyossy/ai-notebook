@@ -5,7 +5,10 @@
 
 // Electron モックを最初に適用（他のインポートより前に実行する必要がある）
 jest.mock('electron', () => require('../test-utils/mockElectron').mockElectron);
-jest.mock('electron-store', () => require('../test-utils/mockElectron').default);
+jest.mock(
+  'electron-store',
+  () => require('../test-utils/mockElectron').default,
+);
 
 // main.ts の初期化処理をスキップ（テスト環境では不要）
 jest.mock('@/main/main', () => {
@@ -198,11 +201,7 @@ describe('checklistExtractionWorkflow', () => {
         mockChecklistExtractionAgent.generateLegacy.mockResolvedValue({
           object: {
             isChecklistDocument: true,
-            newChecklists: [
-              'チェック項目1',
-              'チェック項目2',
-              'チェック項目3',
-            ],
+            newChecklists: ['チェック項目1', 'チェック項目2', 'チェック項目3'],
           },
         });
 
@@ -219,9 +218,9 @@ describe('checklistExtractionWorkflow', () => {
         // Assert
         const checkResult = checkWorkflowResult(result);
         expect(checkResult.status).toBe('success');
-        expect(mockRepository.deleteSystemCreatedChecklists).toHaveBeenCalledWith(
-          reviewHistoryId,
-        );
+        expect(
+          mockRepository.deleteSystemCreatedChecklists,
+        ).toHaveBeenCalledWith(reviewHistoryId);
         expect(mockRepository.createChecklist).toHaveBeenCalledTimes(3);
         expect(mockRepository.createChecklist).toHaveBeenCalledWith(
           reviewHistoryId,
@@ -304,12 +303,13 @@ describe('checklistExtractionWorkflow', () => {
         const checkResult = checkWorkflowResult(result);
         expect(checkResult.status).toBe('success');
         expect(FileExtractor.extractText).toHaveBeenCalledTimes(2);
-        expect(mockChecklistExtractionAgent.generateLegacy).toHaveBeenCalledTimes(
-          1,
-        );
+        expect(
+          mockChecklistExtractionAgent.generateLegacy,
+        ).toHaveBeenCalledTimes(1);
 
         // generateLegacyに渡されたメッセージを確認
-        const callArgs = mockChecklistExtractionAgent.generateLegacy.mock.calls[0];
+        const callArgs =
+          mockChecklistExtractionAgent.generateLegacy.mock.calls[0];
         const message = callArgs[0];
         expect(message.content).toEqual(
           expect.arrayContaining([
@@ -397,7 +397,8 @@ describe('checklistExtractionWorkflow', () => {
         expect(FileExtractor.extractText).not.toHaveBeenCalled();
 
         // generateLegacyに画像データが含まれることを確認
-        const callArgs = mockChecklistExtractionAgent.generateLegacy.mock.calls[0];
+        const callArgs =
+          mockChecklistExtractionAgent.generateLegacy.mock.calls[0];
         const message = callArgs[0];
         expect(message.content).toEqual(
           expect.arrayContaining([
@@ -460,7 +461,8 @@ describe('checklistExtractionWorkflow', () => {
         expect(checkResult.status).toBe('success');
 
         // generateLegacyに統合画像データが含まれることを確認
-        const callArgs = mockChecklistExtractionAgent.generateLegacy.mock.calls[0];
+        const callArgs =
+          mockChecklistExtractionAgent.generateLegacy.mock.calls[0];
         const message = callArgs[0];
         expect(message.content).toEqual(
           expect.arrayContaining([
@@ -611,7 +613,8 @@ describe('checklistExtractionWorkflow', () => {
             processMode: 'text',
           },
         ];
-        const checklistRequirements = 'セキュリティに関する項目を作成してください';
+        const checklistRequirements =
+          'セキュリティに関する項目を作成してください';
 
         mockTopicExtractionAgent.generateLegacy.mockResolvedValue({
           object: {
@@ -679,10 +682,12 @@ describe('checklistExtractionWorkflow', () => {
         // Assert
         const checkResult = checkWorkflowResult(result);
         expect(checkResult.status).toBe('success');
-        expect(mockRepository.deleteSystemCreatedChecklists).toHaveBeenCalledWith(
-          reviewHistoryId,
+        expect(
+          mockRepository.deleteSystemCreatedChecklists,
+        ).toHaveBeenCalledWith(reviewHistoryId);
+        expect(mockTopicExtractionAgent.generateLegacy).toHaveBeenCalledTimes(
+          1,
         );
-        expect(mockTopicExtractionAgent.generateLegacy).toHaveBeenCalledTimes(1);
         expect(mockTopicChecklistAgent.generateLegacy).toHaveBeenCalledTimes(2);
         expect(mockRepository.createChecklist).toHaveBeenCalledTimes(3);
         expect(mockRepository.createChecklist).toHaveBeenCalledWith(
@@ -762,7 +767,11 @@ describe('checklistExtractionWorkflow', () => {
         // checklistRefinementStepのモック設定（ブラッシュアップ後のチェックリスト）
         mockChecklistRefinementAgent.generateLegacy.mockResolvedValue({
           object: {
-            refinedChecklists: ['チェック項目1', 'チェック項目2', 'チェック項目3'],
+            refinedChecklists: [
+              'チェック項目1',
+              'チェック項目2',
+              'チェック項目3',
+            ],
           },
         });
 
@@ -1085,7 +1094,8 @@ describe('checklistExtractionWorkflow', () => {
       );
       // deleteSystemCreatedChecklistsがcreateChecklistより前に呼ばれることを確認
       const deleteCallOrder =
-        mockRepository.deleteSystemCreatedChecklists.mock.invocationCallOrder[0];
+        mockRepository.deleteSystemCreatedChecklists.mock
+          .invocationCallOrder[0];
       const createCallOrder =
         mockRepository.createChecklist.mock.invocationCallOrder[0];
       expect(deleteCallOrder).toBeLessThan(createCallOrder);
@@ -1183,12 +1193,14 @@ describe('checklistExtractionWorkflow', () => {
         expect(checkResult.status).toBe('success');
 
         // checklistRefinementAgentが呼ばれることを確認
-        expect(mockChecklistRefinementAgent.generateLegacy).toHaveBeenCalledTimes(1);
+        expect(
+          mockChecklistRefinementAgent.generateLegacy,
+        ).toHaveBeenCalledTimes(1);
 
         // トピック抽出ステップで既存チェックリストが削除されること
-        expect(mockRepository.deleteSystemCreatedChecklists).toHaveBeenCalledWith(
-          reviewHistoryId,
-        );
+        expect(
+          mockRepository.deleteSystemCreatedChecklists,
+        ).toHaveBeenCalledWith(reviewHistoryId);
         expect(
           mockRepository.deleteSystemCreatedChecklists,
         ).toHaveBeenCalledTimes(1);
@@ -1235,7 +1247,9 @@ describe('checklistExtractionWorkflow', () => {
         expect(checkResult.status).toBe('success');
 
         // チェックリストがないのでブラッシュアップエージェントは呼ばれない
-        expect(mockChecklistRefinementAgent.generateLegacy).not.toHaveBeenCalled();
+        expect(
+          mockChecklistRefinementAgent.generateLegacy,
+        ).not.toHaveBeenCalled();
         // チェックリストがないのでDB保存も呼ばれない
         expect(mockRepository.createChecklist).not.toHaveBeenCalled();
       });
@@ -1267,7 +1281,14 @@ describe('checklistExtractionWorkflow', () => {
         });
 
         mockRepository.getChecklists.mockResolvedValue([
-          { id: 1, reviewHistoryId: 'review-1', content: '元項目1', createdBy: 'system', createdAt: '2024-01-01', updatedAt: '2024-01-01' },
+          {
+            id: 1,
+            reviewHistoryId: 'review-1',
+            content: '元項目1',
+            createdBy: 'system',
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          },
         ]);
 
         mockChecklistRefinementAgent.generateLegacy.mockResolvedValue({
@@ -1288,12 +1309,15 @@ describe('checklistExtractionWorkflow', () => {
         });
 
         // Assert
-        const callArgs = mockChecklistRefinementAgent.generateLegacy.mock.calls[0];
+        const callArgs =
+          mockChecklistRefinementAgent.generateLegacy.mock.calls[0];
         const options = callArgs[1];
         const runtimeContext = options.runtimeContext;
 
         // checklistRequirementsが設定されていること
-        expect(runtimeContext.get('checklistRequirements')).toBe(checklistRequirements);
+        expect(runtimeContext.get('checklistRequirements')).toBe(
+          checklistRequirements,
+        );
 
         // userプロンプトにチェックリスト項目が含まれていること
         const prompt = callArgs[0];
@@ -1329,7 +1353,14 @@ describe('checklistExtractionWorkflow', () => {
         });
 
         mockRepository.getChecklists.mockResolvedValue([
-          { id: 1, reviewHistoryId: 'review-1', content: '項目1', createdBy: 'system', createdAt: '2024-01-01', updatedAt: '2024-01-01' },
+          {
+            id: 1,
+            reviewHistoryId: 'review-1',
+            content: '項目1',
+            createdBy: 'system',
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          },
         ]);
 
         mockChecklistRefinementAgent.generateLegacy.mockRejectedValue(

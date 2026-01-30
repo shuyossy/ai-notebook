@@ -104,7 +104,9 @@ const RetryModeSelectionModal: React.FC<RetryModeSelectionModalProps> = ({
                 control={<Radio />}
                 label={
                   <Box>
-                    <Typography variant="body1">全てのチェックリスト</Typography>
+                    <Typography variant="body1">
+                      全てのチェックリスト
+                    </Typography>
                     <Typography variant="caption" color="text.secondary">
                       全てのチェックリストを再実行します（既存の評価は削除されます）
                     </Typography>

@@ -100,9 +100,7 @@ export interface IReviewRepository {
   getReviewLargedocumentResultCaches(
     reviewHistoryId: string,
   ): Promise<ReviewLargedocumentResultCache[]>;
-  getMaxTotalChunksForDocument(
-    reviewDocumentCacheId: number,
-  ): Promise<number>;
+  getMaxTotalChunksForDocument(reviewDocumentCacheId: number): Promise<number>;
 
   // レビューチャット用: チェックリスト結果と個別レビュー結果を取得
   getChecklistResultsWithIndividualResults(

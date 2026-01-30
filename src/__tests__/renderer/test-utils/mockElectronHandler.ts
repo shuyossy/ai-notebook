@@ -1,5 +1,14 @@
 import type { ElectronHandler } from '@/main/preload';
-import type { Source, ChatRoom, SettingsSavingStatus, Settings, ChatMessage, RevieHistory, ReviewChecklistResult, InformationItem } from '@/types';
+import type {
+  Source,
+  ChatRoom,
+  SettingsSavingStatus,
+  Settings,
+  ChatMessage,
+  RevieHistory,
+  ReviewChecklistResult,
+  InformationItem,
+} from '@/types';
 import type { IpcChannels, IpcResponsePayloadMap } from '@/types/ipc';
 
 /**
@@ -85,7 +94,12 @@ export const createMockElectronWithOptions = (
   const mockHandlers = {
     settings: {
       getStatus: jest
-        .fn<Promise<IpcResponsePayloadMap[typeof IpcChannels.GET_SETTINGS_STATUS]>, []>()
+        .fn<
+          Promise<
+            IpcResponsePayloadMap[typeof IpcChannels.GET_SETTINGS_STATUS]
+          >,
+          []
+        >()
         .mockResolvedValue({
           success: true,
           data: options.settingsStatus || {
@@ -100,36 +114,70 @@ export const createMockElectronWithOptions = (
           },
         }),
       reinitialize: jest
-        .fn<Promise<IpcResponsePayloadMap[typeof IpcChannels.REINITIALIZE_SETTINGS]>, []>()
+        .fn<
+          Promise<
+            IpcResponsePayloadMap[typeof IpcChannels.REINITIALIZE_SETTINGS]
+          >,
+          []
+        >()
         .mockResolvedValue({ success: true }),
       removeMessage: jest
-        .fn<Promise<IpcResponsePayloadMap[typeof IpcChannels.REMOVE_SETTINGS_MESSAGE]>, [string]>()
+        .fn<
+          Promise<
+            IpcResponsePayloadMap[typeof IpcChannels.REMOVE_SETTINGS_MESSAGE]
+          >,
+          [string]
+        >()
         .mockResolvedValue({ success: true }),
       getSettings: jest
-        .fn<Promise<IpcResponsePayloadMap[typeof IpcChannels.GET_SETTINGS]>, []>()
+        .fn<
+          Promise<IpcResponsePayloadMap[typeof IpcChannels.GET_SETTINGS]>,
+          []
+        >()
         .mockResolvedValue({ success: true, data: settings }),
       setSettings: jest
-        .fn<Promise<IpcResponsePayloadMap[typeof IpcChannels.SET_SETTINGS]>, [Settings]>()
+        .fn<
+          Promise<IpcResponsePayloadMap[typeof IpcChannels.SET_SETTINGS]>,
+          [Settings]
+        >()
         .mockResolvedValue({ success: true, data: true }),
     },
     fs: {
       access: jest
-        .fn<Promise<IpcResponsePayloadMap[typeof IpcChannels.FS_CHECK_PATH_EXISTS]>, [string]>()
+        .fn<
+          Promise<
+            IpcResponsePayloadMap[typeof IpcChannels.FS_CHECK_PATH_EXISTS]
+          >,
+          [string]
+        >()
         .mockResolvedValue({ success: true, data: options.fsAccess ?? true }),
       showOpenDialog: jest
-        .fn<Promise<IpcResponsePayloadMap[typeof IpcChannels.FS_SHOW_OPEN_DIALOG]>, [any]>()
+        .fn<
+          Promise<
+            IpcResponsePayloadMap[typeof IpcChannels.FS_SHOW_OPEN_DIALOG]
+          >,
+          [any]
+        >()
         .mockResolvedValue({
           success: true,
           data: { filePaths: [], canceled: false },
         }),
       readFile: jest
-        .fn<Promise<IpcResponsePayloadMap[typeof IpcChannels.FS_READ_FILE]>, [string]>()
+        .fn<
+          Promise<IpcResponsePayloadMap[typeof IpcChannels.FS_READ_FILE]>,
+          [string]
+        >()
         .mockResolvedValue({
           success: true,
           data: new Uint8Array(),
         }),
       convertOfficeToPdf: jest
-        .fn<Promise<IpcResponsePayloadMap[typeof IpcChannels.FS_CONVERT_OFFICE_TO_PDF]>, [string]>()
+        .fn<
+          Promise<
+            IpcResponsePayloadMap[typeof IpcChannels.FS_CONVERT_OFFICE_TO_PDF]
+          >,
+          [string]
+        >()
         .mockResolvedValue({
           success: true,
           data: new Uint8Array(),
@@ -137,42 +185,76 @@ export const createMockElectronWithOptions = (
     },
     chat: {
       sendMessage: jest
-        .fn<Promise<IpcResponsePayloadMap[typeof IpcChannels.CHAT_SEND_MESSAGE]>, [any]>()
+        .fn<
+          Promise<IpcResponsePayloadMap[typeof IpcChannels.CHAT_SEND_MESSAGE]>,
+          [any]
+        >()
         .mockResolvedValue({ success: true }),
       getRooms: jest
-        .fn<Promise<IpcResponsePayloadMap[typeof IpcChannels.CHAT_GET_ROOMS]>, []>()
+        .fn<
+          Promise<IpcResponsePayloadMap[typeof IpcChannels.CHAT_GET_ROOMS]>,
+          []
+        >()
         .mockResolvedValue({ success: true, data: options.chatRooms ?? [] }),
       getMessages: jest
-        .fn<Promise<IpcResponsePayloadMap[typeof IpcChannels.CHAT_GET_MESSAGES]>, [string]>()
+        .fn<
+          Promise<IpcResponsePayloadMap[typeof IpcChannels.CHAT_GET_MESSAGES]>,
+          [string]
+        >()
         .mockResolvedValue({ success: true, data: options.chatMessages ?? [] }),
       deleteRoom: jest
-        .fn<Promise<IpcResponsePayloadMap[typeof IpcChannels.CHAT_DELETE_ROOM]>, [string]>()
+        .fn<
+          Promise<IpcResponsePayloadMap[typeof IpcChannels.CHAT_DELETE_ROOM]>,
+          [string]
+        >()
         .mockResolvedValue({ success: true }),
       createThread: jest
-        .fn<Promise<IpcResponsePayloadMap[typeof IpcChannels.CHAT_CREATE_THREAD]>, [any]>()
+        .fn<
+          Promise<IpcResponsePayloadMap[typeof IpcChannels.CHAT_CREATE_THREAD]>,
+          [any]
+        >()
         .mockResolvedValue({ success: true }),
       requestAbort: jest
-        .fn<Promise<IpcResponsePayloadMap[typeof IpcChannels.CHAT_ABORT_REQUEST]>, [any]>()
+        .fn<
+          Promise<IpcResponsePayloadMap[typeof IpcChannels.CHAT_ABORT_REQUEST]>,
+          [any]
+        >()
         .mockResolvedValue({ success: true }),
       deleteMessagesBeforeSpecificId: jest
-        .fn<Promise<IpcResponsePayloadMap[typeof IpcChannels.CHAT_DELETE_MESSAGES_BEFORE_SPECIFIC_ID]>, [any]>()
+        .fn<
+          Promise<
+            IpcResponsePayloadMap[typeof IpcChannels.CHAT_DELETE_MESSAGES_BEFORE_SPECIFIC_ID]
+          >,
+          [any]
+        >()
         .mockResolvedValue({ success: true }),
     },
     source: {
       reloadSources: jest
-        .fn<Promise<IpcResponsePayloadMap[typeof IpcChannels.SOURCE_RELOAD]>, []>()
+        .fn<
+          Promise<IpcResponsePayloadMap[typeof IpcChannels.SOURCE_RELOAD]>,
+          []
+        >()
         .mockResolvedValue({
           success: true,
           data: { message: 'Source reloaded successfully' },
         }),
       getSources: jest
-        .fn<Promise<IpcResponsePayloadMap[typeof IpcChannels.SOURCE_GET_ALL]>, []>()
+        .fn<
+          Promise<IpcResponsePayloadMap[typeof IpcChannels.SOURCE_GET_ALL]>,
+          []
+        >()
         .mockResolvedValue({
           success: true,
           data: options.sources ?? [],
         }),
       updateSourceEnabled: jest
-        .fn<Promise<IpcResponsePayloadMap[typeof IpcChannels.SOURCE_UPDATE_ENABLED]>, [any]>()
+        .fn<
+          Promise<
+            IpcResponsePayloadMap[typeof IpcChannels.SOURCE_UPDATE_ENABLED]
+          >,
+          [any]
+        >()
         .mockResolvedValue({
           success: true,
         }),
@@ -183,63 +265,139 @@ export const createMockElectronWithOptions = (
       once: jest.fn(),
     },
     pushApi: {
-      subscribe: jest.fn<Promise<() => void>, [any, any]>().mockResolvedValue(() => {}),
+      subscribe: jest
+        .fn<Promise<() => void>, [any, any]>()
+        .mockResolvedValue(() => {}),
     },
     review: {
       getHistories: jest
-        .fn<Promise<IpcResponsePayloadMap[typeof IpcChannels.REVIEW_GET_HISTORIES]>, []>()
-        .mockResolvedValue({ success: true, data: options.reviewHistories ?? [] }),
+        .fn<
+          Promise<
+            IpcResponsePayloadMap[typeof IpcChannels.REVIEW_GET_HISTORIES]
+          >,
+          []
+        >()
+        .mockResolvedValue({
+          success: true,
+          data: options.reviewHistories ?? [],
+        }),
       getHistoryById: jest
-        .fn<Promise<IpcResponsePayloadMap[typeof IpcChannels.REVIEW_GET_HISTORY_BY_ID]>, [string]>()
-        .mockResolvedValue({ success: true, data: options.reviewHistory ?? null }),
+        .fn<
+          Promise<
+            IpcResponsePayloadMap[typeof IpcChannels.REVIEW_GET_HISTORY_BY_ID]
+          >,
+          [string]
+        >()
+        .mockResolvedValue({
+          success: true,
+          data: options.reviewHistory ?? null,
+        }),
       getHistoryDetail: jest
-        .fn<Promise<IpcResponsePayloadMap[typeof IpcChannels.REVIEW_GET_HISTORY_DETAIL]>, [string]>()
-        .mockResolvedValue({ success: true, data: {
-          checklistResults: options.reviewChecklistResults ?? [],
-          targetDocumentName: options.reviewTargetDocumentName ?? null,
-        } }),
-      getHistoryInstruction: jest
-        .fn<Promise<IpcResponsePayloadMap[typeof IpcChannels.REVIEW_GET_HISTORY_INSTRUCTION]>, [string]>()
-        .mockResolvedValue({ success: true, data: {
-          additionalInstructions: '',
-          commentFormat: '【評価理由・根拠】\n（具体的な理由と根拠を記載）\n\n【改善提案】\n（改善のための具体的な提案を記載）',
-          evaluationSettings: {
-            items: [
-              { label: 'A', description: '基準を完全に満たしている' },
-              { label: 'B', description: '基準をある程度満たしている' },
-              { label: 'C', description: '基準を満たしていない' },
-              { label: '–', description: '評価の対象外、または評価できない' },
-            ],
+        .fn<
+          Promise<
+            IpcResponsePayloadMap[typeof IpcChannels.REVIEW_GET_HISTORY_DETAIL]
+          >,
+          [string]
+        >()
+        .mockResolvedValue({
+          success: true,
+          data: {
+            checklistResults: options.reviewChecklistResults ?? [],
+            targetDocumentName: options.reviewTargetDocumentName ?? null,
           },
-        } }),
+        }),
+      getHistoryInstruction: jest
+        .fn<
+          Promise<
+            IpcResponsePayloadMap[typeof IpcChannels.REVIEW_GET_HISTORY_INSTRUCTION]
+          >,
+          [string]
+        >()
+        .mockResolvedValue({
+          success: true,
+          data: {
+            additionalInstructions: '',
+            commentFormat:
+              '【評価理由・根拠】\n（具体的な理由と根拠を記載）\n\n【改善提案】\n（改善のための具体的な提案を記載）',
+            evaluationSettings: {
+              items: [
+                { label: 'A', description: '基準を完全に満たしている' },
+                { label: 'B', description: '基準をある程度満たしている' },
+                { label: 'C', description: '基準を満たしていない' },
+                { label: '–', description: '評価の対象外、または評価できない' },
+              ],
+            },
+          },
+        }),
       deleteHistory: jest
-        .fn<Promise<IpcResponsePayloadMap[typeof IpcChannels.REVIEW_DELETE_HISTORY]>, [string]>()
+        .fn<
+          Promise<
+            IpcResponsePayloadMap[typeof IpcChannels.REVIEW_DELETE_HISTORY]
+          >,
+          [string]
+        >()
         .mockResolvedValue({ success: true }),
       extractChecklist: jest
-        .fn<Promise<IpcResponsePayloadMap[typeof IpcChannels.REVIEW_EXTRACT_CHECKLIST_CALL]>, [any]>()
+        .fn<
+          Promise<
+            IpcResponsePayloadMap[typeof IpcChannels.REVIEW_EXTRACT_CHECKLIST_CALL]
+          >,
+          [any]
+        >()
         .mockResolvedValue({ success: true }),
       abortExtractChecklist: jest
-        .fn<Promise<IpcResponsePayloadMap[typeof IpcChannels.REVIEW_EXTRACT_CHECKLIST_ABORT]>, [string]>()
+        .fn<
+          Promise<
+            IpcResponsePayloadMap[typeof IpcChannels.REVIEW_EXTRACT_CHECKLIST_ABORT]
+          >,
+          [string]
+        >()
         .mockResolvedValue({ success: true }),
       updateChecklist: jest
-        .fn<Promise<IpcResponsePayloadMap[typeof IpcChannels.REVIEW_UPDATE_CHECKLIST]>, [any]>()
+        .fn<
+          Promise<
+            IpcResponsePayloadMap[typeof IpcChannels.REVIEW_UPDATE_CHECKLIST]
+          >,
+          [any]
+        >()
         .mockResolvedValue({ success: true }),
       execute: jest
-        .fn<Promise<IpcResponsePayloadMap[typeof IpcChannels.REVIEW_EXECUTE_CALL]>, [any]>()
+        .fn<
+          Promise<
+            IpcResponsePayloadMap[typeof IpcChannels.REVIEW_EXECUTE_CALL]
+          >,
+          [any]
+        >()
         .mockResolvedValue({ success: true }),
       abortExecute: jest
-        .fn<Promise<IpcResponsePayloadMap[typeof IpcChannels.REVIEW_EXECUTE_ABORT]>, [string]>()
+        .fn<
+          Promise<
+            IpcResponsePayloadMap[typeof IpcChannels.REVIEW_EXECUTE_ABORT]
+          >,
+          [string]
+        >()
         .mockResolvedValue({ success: true }),
       sendChatMessage: jest
-        .fn<Promise<IpcResponsePayloadMap[typeof IpcChannels.REVIEW_CHAT_SEND_MESSAGE]>, [any]>()
+        .fn<
+          Promise<
+            IpcResponsePayloadMap[typeof IpcChannels.REVIEW_CHAT_SEND_MESSAGE]
+          >,
+          [any]
+        >()
         .mockResolvedValue({ success: true }),
       abortChat: jest
-        .fn<Promise<IpcResponsePayloadMap[typeof IpcChannels.REVIEW_CHAT_ABORT]>, [string]>()
+        .fn<
+          Promise<IpcResponsePayloadMap[typeof IpcChannels.REVIEW_CHAT_ABORT]>,
+          [string]
+        >()
         .mockResolvedValue({ success: true }),
     },
     information: {
       getInformations: jest
-        .fn<Promise<IpcResponsePayloadMap[typeof IpcChannels.INFORMATION_GET]>, []>()
+        .fn<
+          Promise<IpcResponsePayloadMap[typeof IpcChannels.INFORMATION_GET]>,
+          []
+        >()
         .mockResolvedValue({ success: true, data: options.informations ?? [] }),
     },
   };

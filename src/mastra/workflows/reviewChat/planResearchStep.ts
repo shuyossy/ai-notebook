@@ -113,7 +113,7 @@ export const planResearchStep = createStep({
       if (researchTasks.length === 0) {
         throw internalError({
           expose: true,
-          messageCode: 'AI_INVALID_RESPONSE'
+          messageCode: 'AI_INVALID_RESPONSE',
         });
       }
 

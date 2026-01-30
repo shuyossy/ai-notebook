@@ -134,9 +134,8 @@ describe('ReviewArea - レビュー実行', () => {
       render(<ReviewArea selectedReviewHistoryId="review-1" />);
 
       // チェックリスト読み込みとボタン有効化を待機
-      const reviewButton = await waitForChecklistAndEnableButton(
-        /^レビュー実行$/,
-      );
+      const reviewButton =
+        await waitForChecklistAndEnableButton(/^レビュー実行$/);
 
       // ボタンをクリック
       await act(async () => {
@@ -169,7 +168,8 @@ describe('ReviewArea - レビュー実行', () => {
       render(<ReviewArea selectedReviewHistoryId="review-1" />);
 
       // チェックリスト読み込みとボタン有効化を待機
-      const reviewButton = await waitForChecklistAndEnableButton(/レビュー実行/);
+      const reviewButton =
+        await waitForChecklistAndEnableButton(/レビュー実行/);
 
       // ボタンをクリック
       fireEvent.click(reviewButton);
@@ -214,7 +214,8 @@ describe('ReviewArea - レビュー実行', () => {
       render(<ReviewArea selectedReviewHistoryId="review-1" />);
 
       // チェックリスト読み込みとボタン有効化を待機
-      const reviewButton = await waitForChecklistAndEnableButton(/レビュー実行/);
+      const reviewButton =
+        await waitForChecklistAndEnableButton(/レビュー実行/);
 
       // ボタンをクリック
       await act(async () => {
@@ -238,7 +239,9 @@ describe('ReviewArea - レビュー実行', () => {
       // アコーディオンが展開されて内容が表示されるまで待機
       await waitFor(
         () => {
-          expect(screen.getByText('基準を完全に満たしている')).toBeInTheDocument();
+          expect(
+            screen.getByText('基準を完全に満たしている'),
+          ).toBeInTheDocument();
         },
         { timeout: 3000 },
       );
@@ -276,7 +279,8 @@ describe('ReviewArea - レビュー実行', () => {
       render(<ReviewArea selectedReviewHistoryId="review-1" />);
 
       // チェックリスト読み込みとボタン有効化を待機
-      const reviewButton = await waitForChecklistAndEnableButton(/レビュー実行/);
+      const reviewButton =
+        await waitForChecklistAndEnableButton(/レビュー実行/);
 
       // ボタンをクリック
       fireEvent.click(reviewButton);
@@ -302,7 +306,8 @@ describe('ReviewArea - レビュー実行', () => {
       render(<ReviewArea selectedReviewHistoryId="review-1" />);
 
       // チェックリスト読み込みとボタン有効化を待機
-      const reviewButton = await waitForChecklistAndEnableButton(/レビュー実行/);
+      const reviewButton =
+        await waitForChecklistAndEnableButton(/レビュー実行/);
 
       // ボタンをクリック
       fireEvent.click(reviewButton);
@@ -456,7 +461,8 @@ describe('ReviewArea - レビュー実行', () => {
       render(<ReviewArea selectedReviewHistoryId="review-1" />);
 
       // チェックリスト読み込みとボタン有効化を待機
-      const reviewButton = await waitForChecklistAndEnableButton(/レビュー実行/i);
+      const reviewButton =
+        await waitForChecklistAndEnableButton(/レビュー実行/i);
 
       // ボタンをクリック
       await userEvent.click(reviewButton);
@@ -534,7 +540,8 @@ describe('ReviewArea - レビュー実行', () => {
       render(<ReviewArea selectedReviewHistoryId="review-1" />);
 
       // チェックリスト読み込みとボタン有効化を待機
-      const reviewButton = await waitForChecklistAndEnableButton(/レビュー実行/i);
+      const reviewButton =
+        await waitForChecklistAndEnableButton(/レビュー実行/i);
 
       // ボタンをクリック
       await userEvent.click(reviewButton);
@@ -612,7 +619,8 @@ describe('ReviewArea - レビュー実行', () => {
       render(<ReviewArea selectedReviewHistoryId="review-1" />);
 
       // チェックリスト読み込みとボタン有効化を待機
-      const reviewButton = await waitForChecklistAndEnableButton(/レビュー実行/i);
+      const reviewButton =
+        await waitForChecklistAndEnableButton(/レビュー実行/i);
 
       // ボタンをクリック
       await userEvent.click(reviewButton);
@@ -633,16 +641,20 @@ describe('ReviewArea - レビュー実行', () => {
       // アコーディオンが展開されて内容が表示されるまで待機
       await waitFor(
         () => {
-          expect(screen.getByText('基準を完全に満たしている')).toBeInTheDocument();
+          expect(
+            screen.getByText('基準を完全に満たしている'),
+          ).toBeInTheDocument();
         },
         { timeout: 3000 },
       );
 
       // 既存の評価項目「A」の編集ボタンをクリック
       // 評価項目は順番に表示されているので、最初の編集ボタンが「A」の編集ボタン
-      const editButtons = screen.getAllByRole('button', { name: '' }).filter(
-        (button) => button.querySelector('svg[data-testid="EditIcon"]'),
-      );
+      const editButtons = screen
+        .getAllByRole('button', { name: '' })
+        .filter((button) =>
+          button.querySelector('svg[data-testid="EditIcon"]'),
+        );
 
       await act(async () => {
         fireEvent.click(editButtons[0]);
@@ -672,7 +684,9 @@ describe('ReviewArea - レビュー実行', () => {
 
       // 編集された評価項目が表示されることを確認
       await waitFor(() => {
-        expect(screen.getByText('基準を大きく上回っている')).toBeInTheDocument();
+        expect(
+          screen.getByText('基準を大きく上回っている'),
+        ).toBeInTheDocument();
       });
 
       // ファイル選択
@@ -700,7 +714,10 @@ describe('ReviewArea - レビュー実行', () => {
             reviewHistoryId: 'review-1',
             evaluationSettings: expect.objectContaining({
               items: expect.arrayContaining([
-                expect.objectContaining({ label: 'A+', description: '基準を大きく上回っている' }),
+                expect.objectContaining({
+                  label: 'A+',
+                  description: '基準を大きく上回っている',
+                }),
                 expect.objectContaining({ label: 'B' }),
                 expect.objectContaining({ label: 'C' }),
                 expect.objectContaining({ label: '–' }),
@@ -740,7 +757,8 @@ describe('ReviewArea - レビュー実行', () => {
       render(<ReviewArea selectedReviewHistoryId="review-1" />);
 
       // チェックリスト読み込みとボタン有効化を待機
-      const reviewButton = await waitForChecklistAndEnableButton(/レビュー実行/i);
+      const reviewButton =
+        await waitForChecklistAndEnableButton(/レビュー実行/i);
 
       // ボタンをクリック
       await userEvent.click(reviewButton);
@@ -761,16 +779,20 @@ describe('ReviewArea - レビュー実行', () => {
       // アコーディオンが展開されて内容が表示されるまで待機
       await waitFor(
         () => {
-          expect(screen.getByText('基準を完全に満たしている')).toBeInTheDocument();
+          expect(
+            screen.getByText('基準を完全に満たしている'),
+          ).toBeInTheDocument();
         },
         { timeout: 3000 },
       );
 
       // 既存の評価項目「C」の削除ボタンをクリック
       // 評価項目は順番に表示されているので、3番目の削除ボタンが「C」の削除ボタン
-      const deleteButtons = screen.getAllByRole('button', { name: '' }).filter(
-        (button) => button.querySelector('svg[data-testid="DeleteIcon"]'),
-      );
+      const deleteButtons = screen
+        .getAllByRole('button', { name: '' })
+        .filter((button) =>
+          button.querySelector('svg[data-testid="DeleteIcon"]'),
+        );
 
       await act(async () => {
         fireEvent.click(deleteButtons[2]); // 「C」の削除ボタン
@@ -778,7 +800,9 @@ describe('ReviewArea - レビュー実行', () => {
 
       // 「C」の項目が削除されたことを確認（「基準を満たしていない」が表示されなくなる）
       await waitFor(() => {
-        expect(screen.queryByText('基準を満たしていない')).not.toBeInTheDocument();
+        expect(
+          screen.queryByText('基準を満たしていない'),
+        ).not.toBeInTheDocument();
       });
 
       // ファイル選択
@@ -818,7 +842,7 @@ describe('ReviewArea - レビュー実行', () => {
         // 「C」が含まれていないことを確認
         const call = mockExecuteReview.mock.calls[0][0];
         const hasC = call.evaluationSettings.items.some(
-          (item: any) => item.label === 'C'
+          (item: any) => item.label === 'C',
         );
         expect(hasC).toBe(false);
       });
@@ -873,7 +897,8 @@ describe('ReviewArea - レビュー実行', () => {
       render(<ReviewArea selectedReviewHistoryId="review-1" />);
 
       // チェックリスト読み込みとボタン有効化を待機
-      const reviewButton = await waitForChecklistAndEnableButton(/レビュー実行/i);
+      const reviewButton =
+        await waitForChecklistAndEnableButton(/レビュー実行/i);
 
       // ボタンをクリック
       await userEvent.click(reviewButton);
@@ -894,7 +919,9 @@ describe('ReviewArea - レビュー実行', () => {
       // アコーディオンが展開されて内容が表示されるまで待機
       await waitFor(
         () => {
-          expect(screen.getByText('基準を完全に満たしている')).toBeInTheDocument();
+          expect(
+            screen.getByText('基準を完全に満たしている'),
+          ).toBeInTheDocument();
         },
         { timeout: 3000 },
       );
@@ -960,7 +987,10 @@ describe('ReviewArea - レビュー実行', () => {
             reviewHistoryId: 'review-1',
             evaluationSettings: expect.objectContaining({
               items: expect.arrayContaining([
-                expect.objectContaining({ label: 'S', description: '非常に優れている' }),
+                expect.objectContaining({
+                  label: 'S',
+                  description: '非常に優れている',
+                }),
                 expect.objectContaining({ label: 'A' }),
                 expect.objectContaining({ label: 'B' }),
                 expect.objectContaining({ label: 'C' }),
@@ -1017,7 +1047,8 @@ describe('ReviewArea - レビュー実行', () => {
       render(<ReviewArea selectedReviewHistoryId="review-1" />);
 
       // チェックリスト読み込みとボタン有効化を待機
-      const reviewButton = await waitForChecklistAndEnableButton(/レビュー実行/i);
+      const reviewButton =
+        await waitForChecklistAndEnableButton(/レビュー実行/i);
 
       // ボタンをクリック
       await userEvent.click(reviewButton);
@@ -1031,8 +1062,8 @@ describe('ReviewArea - レビュー実行', () => {
 
       // ドキュメント量のラジオボタンを値で検索して「大」を選択
       const radioButtons = await screen.findAllByRole('radio');
-      const largeRadio = radioButtons.find((radio) =>
-        (radio as HTMLInputElement).value === 'large'
+      const largeRadio = radioButtons.find(
+        (radio) => (radio as HTMLInputElement).value === 'large',
       );
 
       expect(largeRadio).toBeDefined();
@@ -1115,7 +1146,8 @@ describe('ReviewArea - レビュー実行', () => {
       render(<ReviewArea selectedReviewHistoryId="review-1" />);
 
       // チェックリスト読み込みとボタン有効化を待機
-      const reviewButton = await waitForChecklistAndEnableButton(/レビュー実行/i);
+      const reviewButton =
+        await waitForChecklistAndEnableButton(/レビュー実行/i);
 
       // ボタンをクリック
       await userEvent.click(reviewButton);
@@ -1151,7 +1183,9 @@ describe('ReviewArea - レビュー実行', () => {
 
       await waitFor(
         () => {
-          expect(screen.getByText('基準を完全に満たしている')).toBeInTheDocument();
+          expect(
+            screen.getByText('基準を完全に満たしている'),
+          ).toBeInTheDocument();
         },
         { timeout: 3000 },
       );
@@ -1189,8 +1223,8 @@ describe('ReviewArea - レビュー実行', () => {
 
       // 4. ドキュメント量を「大」に設定
       const radioButtons = await screen.findAllByRole('radio');
-      const largeRadio = radioButtons.find((radio) =>
-        (radio as HTMLInputElement).value === 'large'
+      const largeRadio = radioButtons.find(
+        (radio) => (radio as HTMLInputElement).value === 'large',
       );
 
       expect(largeRadio).toBeDefined();
@@ -1223,7 +1257,10 @@ describe('ReviewArea - レビュー実行', () => {
             commentFormat: '【指摘】\n{内容}\n【根拠】\n{理由}',
             evaluationSettings: expect.objectContaining({
               items: expect.arrayContaining([
-                expect.objectContaining({ label: 'S', description: '卓越している' }),
+                expect.objectContaining({
+                  label: 'S',
+                  description: '卓越している',
+                }),
                 expect.objectContaining({ label: 'A' }),
                 expect.objectContaining({ label: 'B' }),
                 expect.objectContaining({ label: 'C' }),
@@ -1416,7 +1453,8 @@ describe('ReviewArea - レビュー実行', () => {
       render(<ReviewArea selectedReviewHistoryId="review-1" />);
 
       // チェックリスト読み込みとボタン有効化を待機
-      const reviewButton = await waitForChecklistAndEnableButton(/レビュー実行/i);
+      const reviewButton =
+        await waitForChecklistAndEnableButton(/レビュー実行/i);
 
       // ボタンをクリック
       await userEvent.click(reviewButton);

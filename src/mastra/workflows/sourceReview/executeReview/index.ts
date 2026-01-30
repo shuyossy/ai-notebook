@@ -52,7 +52,9 @@ export const executeReviewWorkflowInputSchema = z.object({
   retryMode: z
     .enum(['all', 'uncompleted-only'])
     .optional()
-    .describe('リトライモード: all=全てのチェックリスト, uncompleted-only=未完了のみ'),
+    .describe(
+      'リトライモード: all=全てのチェックリスト, uncompleted-only=未完了のみ',
+    ),
   // レビュー対象のドキュメント (リトライ時はオプション)
   files: z.array(uploadedFileSchema).optional(),
 });
@@ -161,7 +163,9 @@ export const executeReviewWorkflow = createWorkflow({
       await reviewRepository.deleteReviewLargedocumentResultCaches(
         initData.reviewHistoryId,
       );
-      await reviewRepository.deleteReviewDocumentCaches(initData.reviewHistoryId);
+      await reviewRepository.deleteReviewDocumentCaches(
+        initData.reviewHistoryId,
+      );
       await reviewRepository.deleteAllReviewResults(initData.reviewHistoryId);
 
       // documentModeを保存
@@ -222,8 +226,8 @@ export const executeReviewWorkflow = createWorkflow({
     } else if (initData.retryMode === 'uncompleted-only') {
       // シナリオ3: 未完了チェックリストのみリトライ
       // 未完了チェックリストの大量ドキュメントキャッシュのみ削除
-      const uncompletedChecklistIds = classifyChecklistsResult.categories!
-        .flatMap((cat) => cat.checklists)
+      const uncompletedChecklistIds = classifyChecklistsResult
+        .categories!.flatMap((cat) => cat.checklists)
         .map((checklist) => checklist.id);
 
       if (uncompletedChecklistIds.length > 0) {

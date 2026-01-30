@@ -417,9 +417,7 @@ describe('ReviewArea - チェックリスト抽出', () => {
         const progress = document.querySelector('.MuiLinearProgress-root');
         expect(progress).toBeInTheDocument();
         // チェックリスト抽出中のテキストが表示されることを確認
-        expect(
-          screen.getByText('チェックリスト抽出中...'),
-        ).toBeInTheDocument();
+        expect(screen.getByText('チェックリスト抽出中...')).toBeInTheDocument();
       });
     });
 
@@ -960,7 +958,10 @@ describe('ReviewArea - チェックリスト抽出', () => {
                   { label: 'A', description: '基準を完全に満たしている' },
                   { label: 'B', description: '基準をある程度満たしている' },
                   { label: 'C', description: '基準を満たしていない' },
-                  { label: '–', description: '評価の対象外、または評価できない' },
+                  {
+                    label: '–',
+                    description: '評価の対象外、または評価できない',
+                  },
                 ],
               },
             },
@@ -1957,7 +1958,7 @@ describe('ReviewArea - チェックリスト抽出', () => {
       });
 
       // チェックリスト作成要件を入力
-      const requirementInput = screen.getByLabelText('チェックリスト作成要件')
+      const requirementInput = screen.getByLabelText('チェックリスト作成要件');
       fireEvent.change(requirementInput, { target: { value: 'テスト要件' } });
 
       // モーダルの送信ボタンをクリック
@@ -2089,7 +2090,9 @@ describe('ReviewArea - チェックリスト抽出', () => {
       await userEvent.type(requirementInput, 'テスト要件');
 
       // モーダルの送信ボタンをクリック
-      const submitButton = screen.getByRole('button', { name: /チェックリスト抽出/i });
+      const submitButton = screen.getByRole('button', {
+        name: /チェックリスト抽出/i,
+      });
       await userEvent.click(submitButton);
 
       // PDF読み込みが呼ばれたことを確認
@@ -2219,7 +2222,9 @@ describe('ReviewArea - チェックリスト抽出', () => {
       await userEvent.type(requirementInput, 'テスト要件');
 
       // モーダルの送信ボタンをクリック
-      const submitButton = screen.getByRole('button', { name: /チェックリスト抽出/i });
+      const submitButton = screen.getByRole('button', {
+        name: /チェックリスト抽出/i,
+      });
       await userEvent.click(submitButton);
 
       // PDF読み込みが呼ばれたことを確認
