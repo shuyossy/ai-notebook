@@ -10,6 +10,7 @@ import {
   createRuntimeContext,
   judgeFinishReason,
   judgeErrorIsContentLengthError,
+  getTemperatureOption,
 } from '@/mastra/lib/agentUtils';
 import { getReviewRepository } from '@/adapter/db';
 import { judgeReviewMode, buildResearchChecklistInfo } from '../lib';
@@ -118,6 +119,7 @@ export const researchChunkStep = createStep({
         {
           runtimeContext,
           maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
+          ...getTemperatureOption(runtimeContext),
         },
       );
 

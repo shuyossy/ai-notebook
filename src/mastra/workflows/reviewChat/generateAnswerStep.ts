@@ -12,6 +12,7 @@ import { ReviewChatAnswerAgentRuntimeContext } from '@/mastra/agents/workflowAge
 import {
   createRuntimeContext,
   judgeFinishReason,
+  getTemperatureOption,
 } from '@/mastra/lib/agentUtils';
 import { IpcChannels } from '@/types';
 import { publishEvent } from '@/main/lib/eventPayloadHelper';
@@ -101,6 +102,7 @@ ${result.researchResult}`;
         runtimeContext,
         abortSignal,
         maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
+        ...getTemperatureOption(runtimeContext),
         onStepFinish: (stepResult) => {
           // AI SDK Data Stream Protocol v1 形式でチャンクを送信
           // https://sdk.vercel.ai/docs/ai-sdk-ui/stream-protocol

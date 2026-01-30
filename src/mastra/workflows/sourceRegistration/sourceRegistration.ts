@@ -5,7 +5,11 @@ import { z } from 'zod';
 import { stepStatus } from '../types';
 import { baseStepOutputSchema } from '../schema';
 import { getSourceRepository } from '@/adapter/db';
-import { createRuntimeContext, judgeFinishReason } from '../../lib/agentUtils';
+import {
+  createRuntimeContext,
+  judgeFinishReason,
+  getTemperatureOption,
+} from '../../lib/agentUtils';
 import { normalizeUnknownError, internalError } from '@/main/lib/error';
 import { getMainLogger } from '@/main/lib/logger';
 import FileExtractor from '@/main/lib/fileExtractor';
@@ -63,12 +67,14 @@ const analyzeSourceStep = createStep({
         summary: z.string(),
       });
 
+      const runtimeContext = await createRuntimeContext();
       const analysisResult = await summarizeSourceAgent.generateLegacy(
         content,
         {
-          runtimeContext: await createRuntimeContext(),
+          runtimeContext,
           output: outputSchema,
           maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
+          ...getTemperatureOption(runtimeContext),
         },
       );
 
@@ -158,10 +164,12 @@ const extractTopicAndSummaryStep = createStep({
         ),
       });
 
+      const runtimeContext = await createRuntimeContext();
       const analysisResult = await summarizeTopicAgent.generateLegacy(content, {
-        runtimeContext: await createRuntimeContext(),
+        runtimeContext,
         output: outputSchema,
         maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
+        ...getTemperatureOption(runtimeContext),
       });
       const { success, reason } = judgeFinishReason(
         analysisResult.finishReason,

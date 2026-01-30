@@ -4,6 +4,7 @@ import { getSettingsRepository } from '@/adapter/db';
 import { BaseRuntimeContext } from '../agents/types';
 import { AppError, extractAIAPISafeError } from '@/main/lib/error';
 import { APICallError } from 'ai';
+import { isGpt5Model } from '@/config/modelConfig';
 
 // BaseRuntimeConotextに値を入れた上で、指定したRuntimeContextを返す関数
 export async function createRuntimeContext<T extends BaseRuntimeContext>() {
@@ -64,3 +65,20 @@ export const judgeErrorIsContentLengthError = (error: unknown) => {
   }
   return false;
 };
+
+/**
+ * gpt-5モデルの場合にtemperature:1を設定するヘルパー関数
+ * gpt-5はtemperature:1を指定しないとエラーになるため、この関数で適切なオプションを返す
+ * runtimeContextからモデル名を取得し、gpt-5の場合のみtemperature:1を返す
+ * @param runtimeContext RuntimeContextインスタンス
+ * @returns gpt-5の場合は{temperature:1}、それ以外は空オブジェクト
+ */
+export function getTemperatureOption(
+  runtimeContext: RuntimeContext<BaseRuntimeContext>,
+): { temperature?: number } {
+  const model = runtimeContext.get('model');
+  if (model && isGpt5Model(model.modelName)) {
+    return { temperature: 1 };
+  }
+  return {};
+}
