@@ -1,1307 +1,1939 @@
-diff --git a/.gitignore b/.gitignore
-index 614fb2018..9672d5c87 100644
---- a/.gitignore
-+++ b/.gitignore
-@@ -47,3 +47,4 @@ mcp.log
- /release/app/drizzle
- dev_appdata
- .serena
-+MEMO.md
-diff --git a/.mcp.json b/.mcp.json
-index 1afeed552..4f8ee9824 100644
---- a/.mcp.json
-+++ b/.mcp.json
-@@ -32,11 +32,6 @@
-         "@upstash/context7-mcp"
-       ],
-       "env": {}
--    },
--    "codex": {
--      "type": "stdio",
--      "command": "codex",
--      "args": ["mcp"]
-     }
-   }
- }
+diff --git a/.claude/commands/ddd_1.md b/.claude/commands/ddd_1.md
+new file mode 100644
+index 000000000..9cb796226
+--- /dev/null
++++ b/.claude/commands/ddd_1.md
+@@ -0,0 +1,4 @@
++ID:$ARGUMENTS のPBIについて、`next-server`を十分に分析して以下を実行してください。
++1. 振る舞いを確認するための（ブラックボックス）テストコードの実装
++  - CLAUDE.mdに記載の注意点を良く確認すること
++2. プロダクションコードの実装
+diff --git a/.claude/commands/ddd_2.md b/.claude/commands/ddd_2.md
+new file mode 100644
+index 000000000..79e5ee7f1
+--- /dev/null
++++ b/.claude/commands/ddd_2.md
+@@ -0,0 +1,21 @@
++ID:$ARGUMENTS のPBIについて、プロダクションコードとテストコードの作成が概ね完了（細かいチェックやリファクタリングは未済）しています。
++コードを十分に分析して以下を実行してください。
++- コードのレビュー
++  - 受け入れ基準を満たしているか
++  - アーキテクチャ戦略に沿って作成されているか
++  - 例外は方針に沿って正しく処理され、エラーメッセージは正しくユーザに通知されているか
++  - 冗長な処理はないか
++    - 共通化できていない処理はないか
++      - バックエンド、コンポーネントどちらも確認
++      - コンポーネントはなるべく共通化して保守性を高められているか（必要に応じてshadcn/uiも導入）
++  - 将来的なバグにつながるようなコードはないか
++  - mastra関連コードは設計方針に沿って実装できているか
++- 必要あれば、プロダクションコードの修正・リファクタリング  
++- 必要あれば、テストコードのリファクタリング
++  - 受け入れ基準を検査できているか
++  - テスト観点は足りているか
++    - ホワイトボックステストをすべき複雑なロジックはないか
++    - データのバリエーションテストが必要な箇所はないか
++    - 異常系も漏れなく作成できているか
++  - 適切にアサーションできているか
++    - 検査項目不足が散見されるので、注意すること
+diff --git a/.claude/commands/improve_point.md b/.claude/commands/improve_point.md
+new file mode 100644
+index 000000000..c46d65b0b
+--- /dev/null
++++ b/.claude/commands/improve_point.md
+@@ -0,0 +1,2 @@
++現在、ID:$1のPBIの取り組み中です。
++これまでの取り組み内容を十分に確認して、指摘事項に対応してください。
+\ No newline at end of file
 diff --git a/CLAUDE.md b/CLAUDE.md
-index b4dad0420..d40b682ec 100644
+index d40b682ec..b560ff482 100644
 --- a/CLAUDE.md
 +++ b/CLAUDE.md
-@@ -217,15 +217,18 @@ ElectronのIPCを使用してフロントエンド・バックエンド間の通
+@@ -20,6 +20,9 @@ npm run check # TypeScriptの型チェック
+ npm test
+ ```
+ 
++# アプリの開発方針
++- TDD
++
+ ## アーキテクチャ概要
+ 
+ ### プロジェクト構成
+@@ -216,19 +219,53 @@ ElectronのIPCを使用してフロントエンド・バックエンド間の通
+ - 新規に追加した機能については明確な理由がない限り、新規テストを作成すること
    - 前述の通り、古典派的な方針でテストを実装するので、機能が作成完了した段階で新規テストを作成すること
  
- ## 依頼タスク
--- 要件: チェックリスト抽出・レビュー実行（少量レビュー・大量レビュー）時に、ファイルのテキスト抽出処理の進捗を表示する
--- 背景
--  - 複数ファイルを選択してチェックリスト抽出やレビュー実行を実施する際のファイルのテキスト抽出処理にて、特定ファイルの処理にかなり変換に時間がかかる場合がある
--  - 進捗を表示することでどのファイルで処理が止まっているかをユーザが把握できるようにし、必要に応じて、そのファイルを除外するなどの措置を取れるようにする
--- 機能要件
--  - チェックリスト抽出・レビュー実行時にどのファイルを現在テキスト抽出中なのか、画面に表示する
--  - テキスト抽出完了後は、「チェックリスト抽出中...」「レビュー実行中...」と表示する
--  - 現在はプログレスバーを表示しているので、その代わりに進捗の文言を表示するようにする
-+- 要件: アプリの運営者がお知らせを配信できるようにする
-+- 実装方針
-+  - gitlab（社内ホスト版）の特定publicリポジトリにinformation.jsonというファイルを用意して、そこでお知らせ内容を管理する
-+    - このファイルをアプリ起動時に確認し、お知らせ内容を表示する
-+    - information.jsonではお知らせ内容と表示順を管理できる
-+    - ただし、開発環境ではローカルファイル`information/information.json`を見に行くようにする
-+      - `information/README.md`にはinfowmation.jsonの記載方法や記載例を書いておくこと
-+  - お知らせは画面上部（サイドバー＋メイン画面の上）に表示する
-+    - 複数メッセージが表示できるようにする
-+    - 改行についても問題なく反映されるようにする
-+    - お知らせを確認したら×ボタンで削除できるようにする
-+      - ただし、アプリを再起動した場合は、お知らさせは再度表示されるようにする
+-## 依頼タスク
+-- 要件: アプリの運営者がお知らせを配信できるようにする
+-- 実装方針
+-  - gitlab（社内ホスト版）の特定publicリポジトリにinformation.jsonというファイルを用意して、そこでお知らせ内容を管理する
+-    - このファイルをアプリ起動時に確認し、お知らせ内容を表示する
+-    - information.jsonではお知らせ内容と表示順を管理できる
+-    - ただし、開発環境ではローカルファイル`information/information.json`を見に行くようにする
+-      - `information/README.md`にはinfowmation.jsonの記載方法や記載例を書いておくこと
+-  - お知らせは画面上部（サイドバー＋メイン画面の上）に表示する
+-    - 複数メッセージが表示できるようにする
+-    - 改行についても問題なく反映されるようにする
+-    - お知らせを確認したら×ボタンで削除できるようにする
+-      - ただし、アプリを再起動した場合は、お知らさせは再度表示されるようにする
++## バックログ
++雛形
++```
++# ID:
++- PBI名: 
++- ステータス: [to do/in progress/done]
++- ユーザストーリー/背景
++- 受け入れ基準
++- 注意事項
++- 指摘事項（in progressの場合のみ）
++```
++
++# ID: 1
++- PBI名: 設定項目にユーザIDという項目を追加する
++- ステータス: done
++- 背景
++  - 現状は、設定項目のモデル名を擬似的にユーザID（BPR ID）として取り扱っている
++  - 今後、モデル名とユーザ名を明確に区別する必要があるため、明示的にユーザIDの設定項目を追加する必要がある
++- 受け入れ基準
++  - 設定画面からユーザIDとモデル名を設定できる
++    - ユーザIDは他の設定項目と同様`electron-store`で管理されている
++  - `settingsRepository`を利用してユーザIDを取得できる
++  - mastraの基底runtimecontextにユーザIDが含まれており、`createRuntimeContext`関数で実際のユーザIDがセットされる
++  - レビュー機能のファイルインポート・エクスポートでユーザIDとモデル名が両方インポート・エクスポートできる
++  - フロントエンド、バックエンドで明確にユーザIDとモデル名が区別されている
++- 注意事項
++  - 現状の設定画面やレビュー機能のファイルインポート・エクスポートでは、`BPR ID`という設定項目名としているが`ユーザID`とすること
++    - コード内も`userId`として変数名等を設定すること
++  - 影響範囲はかなり幅広いと想定されるので、十分に注意すること
++
++# ID: 2
++- PBI名: 設定項目であるモデル名を選択式にする
++- ステータス: in progress
++- 背景
++  - 現状、モデル名は自由記述型である
++  - 利用予定のAIモデルは選択肢が限られているので、選択式としたい
++- 受け入れ基準
++  - 設定画面でモデル名を選択式で選ぶことができる
++    - 現状のオプションは以下
++      - gpt-4.1-mini
++      - gpt-4o
++      - gpt-5
++  - 選択されたモデル名に合わせてAI処理時のAIモデルを出し分けている
++    - 現状は各Agent引数オプションで`getOpenAICompatibleModel`を与えているが新たに`getModel`関数を作成して与える
++      - `getModel`ではモデル名に合わせてモデルを出し分ける
++  - 今後、モデル名のオプションを増やす場合のソース変更が一箇所になるように設計されている
++    - configファイル的な形で整備するとスムーズか？
  - 指摘事項
--  - 画像として読み込むファイルまで、画面で「テキスト抽出中...」と表示されてしまい、利用者に誤解を生じさせてしまう
--    - 文言を「ファイル処理中...」に変更する
--      - イベント名や変数名などもこれに合わせるように注意する
-+  - お知らせを格納するAlertコンポーネントの角が少し丸くなっているので、直して欲しい
-+  - また、同コンポーネントの下部には薄く線を引いて、複数コンポーネントやアプリ画面と視覚的に区分できるようにしたい
-diff --git a/information/README.md b/information/README.md
-new file mode 100644
-index 000000000..534955c8f
---- /dev/null
-+++ b/information/README.md
-@@ -0,0 +1,93 @@
-+# information.json 記載方法
-+
-+## 概要
-+このファイルはAIKATAアプリのお知らせ配信に使用されます。
-+アプリ起動時にこのファイルを読み込み、お知らせをユーザーに表示します。
-+
-+## 環境について
-+- **開発環境**: このローカルファイル (`information/information.json`) が読み込まれます
-+- **本番環境**: GitLabリポジトリに配置された `information.json` が読み込まれます
-+
-+## ファイル形式
-+JSONファイルとして、以下の形式で記載します。
-+
-+```json
-+{
-+  "informations": [
-+    {
-+      "id": "一意の識別子",
-+      "message": "お知らせ本文",
-+      "order": 表示順
-+    }
-+  ]
-+}
-+```
-+
-+## フィールド説明
-+
-+| フィールド | 型 | 必須 | 説明 |
-+|-----------|------|------|------|
-+| informations | array | Yes | お知らせ情報の配列 |
-+| informations[].id | string | Yes | お知らせの一意識別子（重複不可） |
-+| informations[].message | string | Yes | お知らせ本文（改行は `\n` で表現） |
-+| informations[].order | number | Yes | 表示順（小さい数字が上に表示、整数のみ） |
-+
-+## 記載例
-+
-+### 単一のお知らせ
-+```json
-+{
-+  "informations": [
-+    {
-+      "id": "maintenance-20260107",
-+      "message": "【メンテナンス予定】\n2026年1月10日 10:00〜12:00にメンテナンスを実施します。",
-+      "order": 1
-+    }
-+  ]
-+}
-+```
-+
-+### 複数のお知らせ
-+```json
-+{
-+  "informations": [
-+    {
-+      "id": "urgent-notice",
-+      "message": "【重要】システムに関する重要なお知らせです。",
-+      "order": 1
+-  - お知らせを格納するAlertコンポーネントの角が少し丸くなっているので、直して欲しい
+-  - また、同コンポーネントの下部には薄く線を引いて、複数コンポーネントやアプリ画面と視覚的に区分できるようにしたい
++  - `src/mastra/agents/model/openAICompatible.ts`については削除できるはず
++    - プロダクション・テストコードで利用している場合は適切に`getModel`に置き換える必要もある
+diff --git a/package-lock.json b/package-lock.json
+index a7d1cfd7c..21dd6f834 100644
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -10,6 +10,7 @@
+       "hasInstallScript": true,
+       "license": "MIT",
+       "dependencies": {
++        "@ai-sdk/openai": "1.3.24",
+         "@ai-sdk/openai-compatible": "0.2.16",
+         "@electron/notarize": "^3.0.0",
+         "@emotion/react": "^11.14.0",
+@@ -404,6 +405,22 @@
+         "zod": "^3.25.76 || ^4.1.8"
+       }
+     },
++    "node_modules/@ai-sdk/openai": {
++      "version": "1.3.24",
++      "resolved": "https://registry.npmjs.org/@ai-sdk/openai/-/openai-1.3.24.tgz",
++      "integrity": "sha512-GYXnGJTHRTZc4gJMSmFRgEQudjqd4PUN0ZjQhPwOAYH1yOAvQoG/Ikqs+HyISRbLPCrhbZnPKCNHuRU4OfpW0Q==",
++      "license": "Apache-2.0",
++      "dependencies": {
++        "@ai-sdk/provider": "1.1.3",
++        "@ai-sdk/provider-utils": "2.2.8"
++      },
++      "engines": {
++        "node": ">=18"
++      },
++      "peerDependencies": {
++        "zod": "^3.0.0"
++      }
 +    },
-+    {
-+      "id": "update-v1.2.0",
-+      "message": "バージョン1.2.0がリリースされました。\n新機能の詳細は公式サイトをご確認ください。",
-+      "order": 2
-+    },
-+    {
-+      "id": "event-info",
-+      "message": "年末年始の営業についてのご案内です。",
-+      "order": 3
-+    }
-+  ]
-+}
-+```
+     "node_modules/@ai-sdk/openai-compatible": {
+       "version": "0.2.16",
+       "resolved": "https://registry.npmjs.org/@ai-sdk/openai-compatible/-/openai-compatible-0.2.16.tgz",
+diff --git a/package.json b/package.json
+index 127f6620c..97aa653f1 100644
+--- a/package.json
++++ b/package.json
+@@ -114,6 +114,7 @@
+   },
+   "dependencies": {
+     "@ai-sdk/openai-compatible": "0.2.16",
++    "@ai-sdk/openai": "1.3.24",
+     "@electron/notarize": "^3.0.0",
+     "@emotion/react": "^11.14.0",
+     "@emotion/styled": "^11.14.0",
+diff --git a/src/__tests__/main/csvParser.test.ts b/src/__tests__/main/csvParser.test.ts
+index ccaa2ef6e..8935feb2c 100644
+--- a/src/__tests__/main/csvParser.test.ts
++++ b/src/__tests__/main/csvParser.test.ts
+@@ -4,13 +4,13 @@ import { AppError } from '@/main/lib/error';
+ describe('CsvParser - 新フォーマット対応', () => {
+   describe('parseImportFormat', () => {
+     it('新フォーマットのCSVを正しくパースできること', () => {
+-      const csvText = `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,BPR ID
+-要件が明確に定義されているか,,,,,,
+-設計書に矛盾がないか,,,,,,
+-,A,優秀 - 問題なし,,,,,
+-,B,良好 - 軽微な改善推奨,,,,,
++      const csvText = `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID
++要件が明確に定義されているか,,,,,,,
++設計書に矛盾がないか,,,,,,,
++,A,優秀 - 問題なし,,,,,,
++,B,良好 - 軽微な改善推奨,,,,,,
+ ,,,レビューは厳格に実施してください。,"【評価】{evaluation}
+-【コメント】{comment}",http://localhost:11434/v1,test-api-key,llama3`;
++【コメント】{comment}",http://localhost:11434/v1,test-api-key,llama3,user001`;
+ 
+       const result = CsvParser.parseImportFormat(csvText);
+ 
+@@ -42,14 +42,15 @@ describe('CsvParser - 新フォーマット対応', () => {
+         url: 'http://localhost:11434/v1',
+         key: 'test-api-key',
+         model: 'llama3',
++        userId: 'user001',
+       });
+     });
+ 
+     it('チェックリスト項目のみのCSVを正しくパースできること', () => {
+-      const csvText = `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,BPR ID
+-項目1,,,,,,
+-項目2,,,,,,
+-項目3,,,,,,`;
++      const csvText = `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID
++項目1,,,,,,,
++項目2,,,,,,,
++項目3,,,,,,,`;
+ 
+       const result = CsvParser.parseImportFormat(csvText);
+ 
+@@ -61,10 +62,10 @@ describe('CsvParser - 新フォーマット対応', () => {
+     });
+ 
+     it('評定設定のみのCSVを正しくパースできること', () => {
+-      const csvText = `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,BPR ID
+-,A,優秀,,,,,
+-,B,良好,,,,,
+-,C,要改善,,,,,`;
++      const csvText = `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID
++,A,優秀,,,,,,
++,B,良好,,,,,,
++,C,要改善,,,,,,`;
+ 
+       const result = CsvParser.parseImportFormat(csvText);
+ 
+@@ -108,8 +109,8 @@ describe('CsvParser - 新フォーマット対応', () => {
+     });
+ 
+     it('評定ラベルのみ（説明なし）は無視されること', () => {
+-      const csvText = `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,BPR ID
+-,A,,,,,,`;
++      const csvText = `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID
++,A,,,,,,,`;
+ 
+       const result = CsvParser.parseImportFormat(csvText);
+ 
+@@ -117,10 +118,10 @@ describe('CsvParser - 新フォーマット対応', () => {
+     });
+ 
+     it('空のセルは無視されること', () => {
+-      const csvText = `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,BPR ID
+-,,,,,,
+-項目1,,,,,,
+-,,,,,,`;
++      const csvText = `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID
++,,,,,,,
++項目1,,,,,,,
++,,,,,,,`;
+ 
+       const result = CsvParser.parseImportFormat(csvText);
+ 
+@@ -128,9 +129,9 @@ describe('CsvParser - 新フォーマット対応', () => {
+     });
+ 
+     it('セル内改行を正しく処理できること', () => {
+-      const csvText = `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,BPR ID
++      const csvText = `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID
+ "項目1
+-改行あり",,,,,,`;
++改行あり",,,,,,,`;
+ 
+       const result = CsvParser.parseImportFormat(csvText);
+ 
+@@ -139,9 +140,9 @@ describe('CsvParser - 新フォーマット対応', () => {
+ 
+     it('Excelのシート名行（#sheet:で始まる行）を正しくスキップできること', () => {
+       const csvText = `#sheet:Sheet1
+-チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,BPR ID
+-項目1,,,,,,
+-項目2,,,,,,`;
++チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID
++項目1,,,,,,,
++項目2,,,,,,,`;
+ 
+       const result = CsvParser.parseImportFormat(csvText);
+ 
+@@ -150,12 +151,12 @@ describe('CsvParser - 新フォーマット対応', () => {
+ 
+     it('複数シートのシート名行を正しくスキップできること', () => {
+       const csvText = `#sheet:Sheet1
+-チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,BPR ID
+-項目1,,,,,,
++チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID
++項目1,,,,,,,
+ 
+ #sheet:Sheet2
+-チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,BPR ID
+-項目2,,,,,,`;
++チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID
++項目2,,,,,,,`;
+ 
+       const result = CsvParser.parseImportFormat(csvText);
+ 
+@@ -166,10 +167,10 @@ describe('CsvParser - 新フォーマット対応', () => {
+ 
+     it('シート名行を含む完全なフォーマットのCSVを正しくパースできること', () => {
+       const csvText = `#sheet:Sheet1
+-チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,BPR ID
+-要件が明確に定義されているか,,,,,,
+-,A,優秀,,,,,
+-,,,レビューは厳格に。,"【評価】{evaluation}",http://localhost:11434/v1,test-key,llama3`;
++チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID
++要件が明確に定義されているか,,,,,,,
++,A,優秀,,,,,,
++,,,レビューは厳格に。,"【評価】{evaluation}",http://localhost:11434/v1,test-key,llama3,user001`;
+ 
+       const result = CsvParser.parseImportFormat(csvText);
+ 
+@@ -183,6 +184,32 @@ describe('CsvParser - 新フォーマット対応', () => {
+         url: 'http://localhost:11434/v1',
+         key: 'test-key',
+         model: 'llama3',
++        userId: 'user001',
++      });
++    });
 +
-+### お知らせを非表示にする（空配列）
-+```json
-+{
-+  "informations": []
-+}
-+```
++    it('ユーザIDのみがある場合も正しくパースできること', () => {
++      const csvText = `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID
++項目1,,,,,,,,user001`;
 +
-+## 注意事項
++      const result = CsvParser.parseImportFormat(csvText);
 +
-+1. **id の一意性**: 各お知らせの `id` は重複しないようにしてください
-+2. **order の順序**: `order` の値が小さいほど画面の上に表示されます
-+3. **改行の記載**: 改行は `\n` を使用してください（JSONの仕様）
-+4. **JSON の妥当性**: ファイル保存前にJSON形式が正しいか確認してください
-+5. **文字コード**: UTF-8で保存してください
++      expect(result.checklists).toEqual(['項目1']);
++      expect(result.apiSettings).toEqual({
++        userId: 'user001',
++      });
++    });
 +
-+## お知らせの表示について
++    it('モデル名とユーザIDの両方がある場合も正しくパースできること', () => {
++      const csvText = `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID
++項目1,,,,,,,gpt-4,user001`;
 +
-+- お知らせはアプリのメインコンテンツエリア上部にバナー形式で表示されます
-+- ユーザーは×ボタンでお知らせを閉じることができます
-+- 閉じたお知らせはアプリを再起動すると再度表示されます
-+- お知らせの取得に失敗した場合、エラーは表示されずお知らせが非表示になります
-diff --git a/information/information.json b/information/information.json
++      const result = CsvParser.parseImportFormat(csvText);
++
++      expect(result.checklists).toEqual(['項目1']);
++      expect(result.apiSettings).toEqual({
++        model: 'gpt-4',
++        userId: 'user001',
+       });
+     });
+   });
+diff --git a/src/__tests__/main/mastra/agents/model/getModel.test.ts b/src/__tests__/main/mastra/agents/model/getModel.test.ts
 new file mode 100644
-index 000000000..4ae74dfcb
+index 000000000..7f34751d5
 --- /dev/null
-+++ b/information/information.json
-@@ -0,0 +1,14 @@
-+{
-+  "informations": [
-+    {
-+      "id": "sample-001",
-+      "message": "これはお知らせのサンプルです。\n改行も正しく表示されます。",
-+      "order": 1
-+    },
-+    {
-+      "id": "sample-002",
-+      "message": "複数のお知らせを表示できます。",
-+      "order": 2
-+    }
-+  ]
-+}
-diff --git a/src/__tests__/renderer/InformationBanner.test.tsx b/src/__tests__/renderer/InformationBanner.test.tsx
-new file mode 100644
-index 000000000..da7ef230a
---- /dev/null
-+++ b/src/__tests__/renderer/InformationBanner.test.tsx
-@@ -0,0 +1,269 @@
++++ b/src/__tests__/main/mastra/agents/model/getModel.test.ts
+@@ -0,0 +1,199 @@
 +/**
-+ * @jest-environment jsdom
++ * @jest-environment node
 + */
-+import {
-+  render,
-+  screen,
-+  fireEvent,
-+  waitFor,
-+} from '@testing-library/react';
-+import '@testing-library/jest-dom';
++import { getModel } from '@/mastra/agents/model';
 +
-+import InformationBanner from '@/renderer/components/common/InformationBanner';
-+import type { InformationItem } from '@/types';
-+import { createMockElectronWithOptions } from '@/__tests__/renderer/test-utils/mockElectronHandler';
-+import { informationStore } from '@/renderer/stores/informationStore';
++// モック用のchatModelとモデル関数
++const mockChatModel = jest.fn();
++const mockOpenAIModel = jest.fn();
 +
-+// テスト用のモックデータ
-+const mockInformations: InformationItem[] = [
-+  {
-+    id: 'info-001',
-+    message: 'これはお知らせのサンプルです。',
-+    order: 1,
-+  },
-+  {
-+    id: 'info-002',
-+    message: '複数のお知らせを表示できます。',
-+    order: 2,
-+  },
-+];
++// モック設定
++jest.mock('@ai-sdk/openai-compatible', () => ({
++  createOpenAICompatible: jest.fn().mockImplementation(({ name }) => ({
++    chatModel: mockChatModel.mockReturnValue({ id: `${name}-chat-model` }),
++  })),
++}));
 +
-+// 改行を含むお知らせ
-+const mockInformationsWithNewline: InformationItem[] = [
-+  {
-+    id: 'info-newline',
-+    message: 'お知らせ1行目\nお知らせ2行目\nお知らせ3行目',
-+    order: 1,
-+  },
-+];
++jest.mock('@ai-sdk/openai', () => ({
++  createOpenAI: jest
++    .fn()
++    .mockImplementation(({ name }) =>
++      mockOpenAIModel.mockReturnValue({ id: `${name}-model` }),
++    ),
++}));
 +
-+describe('InformationBanner Component', () => {
-+  // テスト前のセットアップ
++// モジュールの再インポートでモックを適用
++import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
++import { createOpenAI } from '@ai-sdk/openai';
++
++describe('getModel', () => {
 +  beforeEach(() => {
-+    // ストアをリセット
-+    informationStore.setState({
-+      informations: [],
-+      loaded: false,
-+    });
-+
-+    // Electronモックをデフォルト設定でセットアップ
-+    window.electron = createMockElectronWithOptions({
-+      informations: mockInformations,
-+    });
-+  });
-+
-+  // テスト後のクリーンアップ
-+  afterEach(() => {
 +    jest.clearAllMocks();
 +  });
 +
-+  // ========================================
-+  // 正常系テスト
-+  // ========================================
++  describe('正常系', () => {
++    it('gpt-4.1-miniを選択した場合、OpenAICompatibleModelが返される', () => {
++      // Arrange
++      const mockRuntimeContext = {
++        get: jest.fn().mockReturnValue({
++          key: 'test-api-key',
++          url: 'https://api.test.com',
++          modelName: 'gpt-4.1-mini',
++          userId: 'test-user',
++        }),
++      };
 +
-+  // テスト1: お知らせが正常に表示されること
-+  test('お知らせが正常に表示されること', async () => {
-+    render(<InformationBanner />);
++      // Act
++      const result = getModel({ runtimeContext: mockRuntimeContext as any });
 +
-+    // お知らせ情報が取得されるまで待機
-+    await waitFor(() => {
-+      expect(window.electron.information.getInformations).toHaveBeenCalled();
++      // Assert
++      expect(createOpenAICompatible).toHaveBeenCalledWith({
++        name: 'openAICompatibleModel_gpt4.1-mini',
++        apiKey: 'test-api-key',
++        baseURL: 'https://api.test.com',
++      });
++      expect(mockChatModel).toHaveBeenCalledWith('openai/gpt-4.1-mini');
++      expect(result).toEqual({
++        id: 'openAICompatibleModel_gpt4.1-mini-chat-model',
++      });
 +    });
 +
-+    // 各お知らせが表示されていることを確認
-+    await waitFor(() => {
-+      expect(screen.getByText('これはお知らせのサンプルです。')).toBeInTheDocument();
-+      expect(screen.getByText('複数のお知らせを表示できます。')).toBeInTheDocument();
-+    });
-+  });
++    it('gpt-4oを選択した場合、OpenAICompatibleModelが返される', () => {
++      // Arrange
++      const mockRuntimeContext = {
++        get: jest.fn().mockReturnValue({
++          key: 'test-api-key',
++          url: 'https://api.test.com',
++          modelName: 'gpt-4o',
++          userId: 'test-user',
++        }),
++      };
 +
-+  // テスト2: 改行が正しく表示されること
-+  test('改行が正しく表示されること', async () => {
-+    // 改行を含むお知らせをセットアップ
-+    window.electron = createMockElectronWithOptions({
-+      informations: mockInformationsWithNewline,
-+    });
++      // Act
++      const result = getModel({ runtimeContext: mockRuntimeContext as any });
 +
-+    render(<InformationBanner />);
-+
-+    // お知らせ情報が取得されるまで待機
-+    await waitFor(() => {
-+      expect(window.electron.information.getInformations).toHaveBeenCalled();
-+    });
-+
-+    // 改行を含むメッセージが表示されていることを確認
-+    await waitFor(() => {
-+      // 改行はwhiteSpace: 'pre-line'で表示されるため、テキストは1つの要素として存在
-+      expect(screen.getByText(/お知らせ1行目/)).toBeInTheDocument();
-+      expect(screen.getByText(/お知らせ2行目/)).toBeInTheDocument();
-+      expect(screen.getByText(/お知らせ3行目/)).toBeInTheDocument();
-+    });
-+  });
-+
-+  // テスト3: ×ボタンでお知らせが閉じられること
-+  test('×ボタンでお知らせが閉じられること', async () => {
-+    render(<InformationBanner />);
-+
-+    // お知らせ情報が取得されるまで待機
-+    await waitFor(() => {
-+      expect(window.electron.information.getInformations).toHaveBeenCalled();
++      // Assert
++      expect(createOpenAICompatible).toHaveBeenCalledWith({
++        name: 'openAICompatibleModel_gpt4o',
++        apiKey: 'test-api-key',
++        baseURL: 'https://api.test.com',
++      });
++      expect(mockChatModel).toHaveBeenCalledWith('openai/gpt-4o');
++      expect(result).toEqual({ id: 'openAICompatibleModel_gpt4o-chat-model' });
 +    });
 +
-+    // お知らせが表示されるのを待機
-+    await waitFor(() => {
-+      expect(screen.getByText('これはお知らせのサンプルです。')).toBeInTheDocument();
-+    });
++    it('gpt-5を選択した場合、OpenAIモデルが返される', () => {
++      // Arrange
++      const mockRuntimeContext = {
++        get: jest.fn().mockReturnValue({
++          key: 'test-api-key',
++          url: 'https://api.test.com',
++          modelName: 'gpt-5',
++          userId: 'test-user',
++        }),
++      };
 +
-+    // 最初のお知らせの閉じるボタンをクリック
-+    const closeButtons = screen.getAllByRole('button', { name: /close/i });
-+    fireEvent.click(closeButtons[0]);
++      // Act
++      const result = getModel({ runtimeContext: mockRuntimeContext as any });
 +
-+    // 最初のお知らせが非表示になることを確認
-+    await waitFor(() => {
-+      expect(screen.queryByText('これはお知らせのサンプルです。')).not.toBeInTheDocument();
-+    });
-+
-+    // 2つ目のお知らせはまだ表示されていることを確認
-+    expect(screen.getByText('複数のお知らせを表示できます。')).toBeInTheDocument();
-+  });
-+
-+  // テスト4: 全てのお知らせを閉じた場合、コンポーネントが非表示になること
-+  test('全てのお知らせを閉じた場合、コンポーネントが非表示になること', async () => {
-+    // 1つだけのお知らせをセットアップ
-+    window.electron = createMockElectronWithOptions({
-+      informations: [mockInformations[0]],
-+    });
-+
-+    const { container } = render(<InformationBanner />);
-+
-+    // お知らせが表示されるのを待機
-+    await waitFor(() => {
-+      expect(screen.getByText('これはお知らせのサンプルです。')).toBeInTheDocument();
-+    });
-+
-+    // 閉じるボタンをクリック
-+    const closeButton = screen.getByRole('button', { name: /close/i });
-+    fireEvent.click(closeButton);
-+
-+    // コンポーネントが空になることを確認（nullを返す）
-+    await waitFor(() => {
-+      expect(container.firstChild).toBeNull();
++      // Assert
++      expect(createOpenAI).toHaveBeenCalledWith({
++        name: 'openAI_gpt5',
++        apiKey: 'test-api-key',
++        baseURL: 'https://api.test.com',
++      });
++      expect(mockOpenAIModel).toHaveBeenCalledWith('openai/gpt-5');
++      expect(result).toEqual({ id: 'openAI_gpt5-model' });
 +    });
 +  });
 +
-+  // テスト5: 一度読み込み済みの場合、再度APIを呼び出さないこと
-+  test('一度読み込み済みの場合、再度APIを呼び出さないこと', async () => {
-+    // 最初のレンダリング
-+    const { unmount } = render(<InformationBanner />);
++  describe('異常系', () => {
++    it('モデル設定が不足している場合、エラーがスローされる', () => {
++      // Arrange
++      const mockRuntimeContext = {
++        get: jest.fn().mockReturnValue(null),
++      };
 +
-+    // お知らせ情報が取得されるまで待機
-+    await waitFor(() => {
-+      expect(window.electron.information.getInformations).toHaveBeenCalledTimes(1);
++      // Act & Assert
++      expect(() =>
++        getModel({ runtimeContext: mockRuntimeContext as any }),
++      ).toThrow(
++        'AI APIの設定が正しくありません。APIキー、URL、モデル名を確認してください。',
++      );
 +    });
 +
-+    // コンポーネントをアンマウント
-+    unmount();
++    it('APIキーが不足している場合、エラーがスローされる', () => {
++      // Arrange
++      const mockRuntimeContext = {
++        get: jest.fn().mockReturnValue({
++          key: '',
++          url: 'https://api.test.com',
++          modelName: 'gpt-4o',
++          userId: 'test-user',
++        }),
++      };
 +
-+    // 再度レンダリング
-+    render(<InformationBanner />);
-+
-+    // APIが再度呼び出されないことを確認（storeのloadedフラグがtrueのため）
-+    await waitFor(() => {
-+      expect(window.electron.information.getInformations).toHaveBeenCalledTimes(1);
++      // Act & Assert
++      expect(() =>
++        getModel({ runtimeContext: mockRuntimeContext as any }),
++      ).toThrow(
++        'AI APIの設定が正しくありません。APIキー、URL、モデル名を確認してください。',
++      );
 +    });
 +
-+    // お知らせが引き続き表示されていることを確認
-+    expect(screen.getByText('これはお知らせのサンプルです。')).toBeInTheDocument();
-+  });
++    it('URLが不足している場合、エラーがスローされる', () => {
++      // Arrange
++      const mockRuntimeContext = {
++        get: jest.fn().mockReturnValue({
++          key: 'test-api-key',
++          url: '',
++          modelName: 'gpt-4o',
++          userId: 'test-user',
++        }),
++      };
 +
-+  // ========================================
-+  // 異常系テスト
-+  // ========================================
-+
-+  // テスト6: お知らせがない場合は何も表示しないこと
-+  test('お知らせがない場合は何も表示しないこと', async () => {
-+    // 空のお知らせをセットアップ
-+    window.electron = createMockElectronWithOptions({
-+      informations: [],
++      // Act & Assert
++      expect(() =>
++        getModel({ runtimeContext: mockRuntimeContext as any }),
++      ).toThrow(
++        'AI APIの設定が正しくありません。APIキー、URL、モデル名を確認してください。',
++      );
 +    });
 +
-+    const { container } = render(<InformationBanner />);
++    it('モデル名が不足している場合、エラーがスローされる', () => {
++      // Arrange
++      const mockRuntimeContext = {
++        get: jest.fn().mockReturnValue({
++          key: 'test-api-key',
++          url: 'https://api.test.com',
++          modelName: '',
++          userId: 'test-user',
++        }),
++      };
 +
-+    // お知らせ情報が取得されるまで待機
-+    await waitFor(() => {
-+      expect(window.electron.information.getInformations).toHaveBeenCalled();
++      // Act & Assert
++      expect(() =>
++        getModel({ runtimeContext: mockRuntimeContext as any }),
++      ).toThrow(
++        'AI APIの設定が正しくありません。APIキー、URL、モデル名を確認してください。',
++      );
 +    });
 +
-+    // コンポーネントが空であることを確認
-+    await waitFor(() => {
-+      expect(container.firstChild).toBeNull();
-+    });
-+  });
++    it('無効なモデル名の場合、エラーがスローされる', () => {
++      // Arrange
++      const mockRuntimeContext = {
++        get: jest.fn().mockReturnValue({
++          key: 'test-api-key',
++          url: 'https://api.test.com',
++          modelName: 'invalid-model',
++          userId: 'test-user',
++        }),
++      };
 +
-+  // テスト7: API呼び出しがnullを返した場合、何も表示しないこと
-+  test('API呼び出しがnullを返した場合、何も表示しないこと', async () => {
-+    // nullを返すモックをセットアップ
-+    window.electron.information.getInformations = jest.fn().mockResolvedValue({
-+      success: true,
-+      data: null,
-+    });
-+
-+    const { container } = render(<InformationBanner />);
-+
-+    // お知らせ情報が取得されるまで待機
-+    await waitFor(() => {
-+      expect(window.electron.information.getInformations).toHaveBeenCalled();
-+    });
-+
-+    // コンポーネントが空であることを確認（nullの場合は空配列として扱われる）
-+    await waitFor(() => {
-+      expect(container.firstChild).toBeNull();
-+    });
-+  });
-+
-+  // テスト8: API呼び出しが失敗した場合、何も表示しないこと
-+  test('API呼び出しが失敗した場合、何も表示しないこと', async () => {
-+    // エラーを返すモックをセットアップ
-+    window.electron.information.getInformations = jest.fn().mockRejectedValue(
-+      new Error('API error')
-+    );
-+
-+    // コンソールエラーをスパイ
-+    const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
-+
-+    const { container } = render(<InformationBanner />);
-+
-+    // お知らせ情報が取得されるまで待機
-+    await waitFor(() => {
-+      expect(window.electron.information.getInformations).toHaveBeenCalled();
-+    });
-+
-+    // コンポーネントが空であることを確認
-+    await waitFor(() => {
-+      expect(container.firstChild).toBeNull();
-+    });
-+
-+    consoleSpy.mockRestore();
-+  });
-+
-+  // テスト9: API呼び出しがsuccess: falseを返した場合、何も表示しないこと
-+  test('API呼び出しがsuccess: falseを返した場合、何も表示しないこと', async () => {
-+    // 失敗レスポンスを返すモックをセットアップ
-+    window.electron.information.getInformations = jest.fn().mockResolvedValue({
-+      success: false,
-+      error: { message: 'Failed to fetch informations', code: 'FETCH_FAILED' },
-+    });
-+
-+    const { container } = render(<InformationBanner />);
-+
-+    // お知らせ情報が取得されるまで待機
-+    await waitFor(() => {
-+      expect(window.electron.information.getInformations).toHaveBeenCalled();
-+    });
-+
-+    // コンポーネントが空であることを確認
-+    await waitFor(() => {
-+      expect(container.firstChild).toBeNull();
++      // Act & Assert
++      expect(() =>
++        getModel({ runtimeContext: mockRuntimeContext as any }),
++      ).toThrow('無効なモデル名です: invalid-model');
 +    });
 +  });
 +});
+diff --git a/src/__tests__/main/reviewService.test.ts b/src/__tests__/main/reviewService.test.ts
+index 58007555f..4a1d2f7bc 100644
+--- a/src/__tests__/main/reviewService.test.ts
++++ b/src/__tests__/main/reviewService.test.ts
+@@ -61,7 +61,7 @@ describe('ReviewService - extractChecklistFromCsv', () => {
+   let mockSettingsRepository: jest.Mocked<ISettingsRepository>;
+ 
+   const defaultSettings: Settings = {
+-    api: { key: 'old-key', url: 'http://old.com', model: 'old-model' },
++    api: { key: 'old-key', url: 'http://old.com', model: 'gpt-4o', userId: 'old-user-id' },
+     database: { dir: '/test/db' },
+     source: { registerDir: './source' },
+     redmine: { endpoint: '', apiKey: '' },
+@@ -117,10 +117,11 @@ describe('ReviewService - extractChecklistFromCsv', () => {
+       }];
+ 
+       // FileExtractor.extractText をモック（API設定を含むCSV）
++      // モデル名は有効なオプション(gpt-5)を指定
+       mockExtractText.mockResolvedValue({
+-        content: `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,BPR ID
+-項目1,,,,,http://new-api.com,new-key,new-model
+-項目2,,,,,,`,
++        content: `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID
++項目1,,,,,http://new-api.com,new-key,gpt-5,new-user-id
++項目2,,,,,,,,`,
+         metadata: {},
+       });
+ 
+@@ -138,7 +139,8 @@ describe('ReviewService - extractChecklistFromCsv', () => {
+           api: {
+             key: 'new-key',
+             url: 'http://new-api.com',
+-            model: 'new-model',
++            model: 'gpt-5',
++            userId: 'new-user-id',
+           },
+         })
+       );
+@@ -163,20 +165,21 @@ describe('ReviewService - extractChecklistFromCsv', () => {
+ 
+       // APIキーのみ更新するCSV
+       mockExtractText.mockResolvedValue({
+-        content: `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,BPR ID
+-項目1,,,,,,new-key-only,`,
++        content: `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID
++項目1,,,,,,new-key-only,,`,
+         metadata: {},
+       });
+ 
+       await reviewService.extractChecklistFromCsv('review-1', mockFiles);
+ 
+-      // 既存のURLとmodelは保持され、keyのみ更新されること
++      // 既存のURLとmodelとuserIdは保持され、keyのみ更新されること
+       expect(mockSettingsRepository.saveSettings).toHaveBeenCalledWith(
+         expect.objectContaining({
+           api: {
+             key: 'new-key-only',
+             url: 'http://old.com', // 既存値を保持
+-            model: 'old-model', // 既存値を保持
++            model: 'gpt-4o', // 既存値を保持
++            userId: 'old-user-id', // 既存値を保持
+           },
+         })
+       );
+@@ -200,9 +203,9 @@ describe('ReviewService - extractChecklistFromCsv', () => {
+ 
+       // API設定を含まないCSV
+       mockExtractText.mockResolvedValue({
+-        content: `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,BPR ID
+-項目1,,,,,,
+-項目2,,,,,,`,
++        content: `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID
++項目1,,,,,,,,
++項目2,,,,,,,,`,
+         metadata: {},
+       });
+ 
+@@ -236,10 +239,10 @@ describe('ReviewService - extractChecklistFromCsv', () => {
+       }];
+ 
+       mockExtractText.mockResolvedValue({
+-        content: `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,BPR ID
+-項目1,,,,,,
+-項目2,,,,,,
+-項目3,,,,,,`,
++        content: `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID
++項目1,,,,,,,,
++項目2,,,,,,,,
++項目3,,,,,,,,`,
+         metadata: {},
+       });
+ 
+@@ -275,10 +278,10 @@ describe('ReviewService - extractChecklistFromCsv', () => {
+       }];
+ 
+       mockExtractText.mockResolvedValue({
+-        content: `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,BPR ID
+-項目1,,,,,,
+-,A,優秀,,,,,
+-,B,良好,,,,,`,
++        content: `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID
++項目1,,,,,,,,
++,A,優秀,,,,,,
++,B,良好,,,,,,`,
+         metadata: {},
+       });
+ 
+@@ -305,8 +308,8 @@ describe('ReviewService - extractChecklistFromCsv', () => {
+       }];
+ 
+       mockExtractText.mockResolvedValue({
+-        content: `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,BPR ID
+-項目1,,,厳格にレビューしてください,【評価】{evaluation},,`,
++        content: `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID
++項目1,,,厳格にレビューしてください,【評価】{evaluation},,,,`,
+         metadata: {},
+       });
+ 
+@@ -374,17 +377,17 @@ describe('ReviewService - extractChecklistFromCsv', () => {
+         },
+       ];
+ 
+-      // 1つ目のファイルにAPI設定あり
++      // 1つ目のファイルにAPI設定あり（有効なモデル名gpt-5を使用）
+       mockExtractText
+         .mockResolvedValueOnce({
+-          content: `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,BPR ID
+-項目1,,,,,http://first.com,first-key,first-model`,
++          content: `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID
++項目1,,,,,http://first.com,first-key,gpt-5,first-user`,
+           metadata: {},
+         })
+         // 2つ目のファイルにも異なるAPI設定あり（無視されるべき）
+         .mockResolvedValueOnce({
+-          content: `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,BPR ID
+-項目2,,,,,http://second.com,second-key,second-model`,
++          content: `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID
++項目2,,,,,http://second.com,second-key,gpt-4o,second-user`,
+           metadata: {},
+         });
+ 
+@@ -396,7 +399,8 @@ describe('ReviewService - extractChecklistFromCsv', () => {
+           api: {
+             key: 'first-key',
+             url: 'http://first.com',
+-            model: 'first-model',
++            model: 'gpt-5',
++            userId: 'first-user',
+           },
+         })
+       );
+@@ -414,4 +418,35 @@ describe('ReviewService - extractChecklistFromCsv', () => {
+       );
+     });
+   });
++
++  describe('ユーザIDを含むCSVインポート', () => {
++    it('ユーザIDのみ指定された場合も正しく処理されること', async () => {
++      const mockFiles: UploadFile[] = [{
++        id: 'file-1',
++        name: 'import.csv',
++        path: '/test/import.csv',
++        type: 'text/csv',
++      }];
++
++      mockExtractText.mockResolvedValue({
++        content: `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID
++項目1,,,,,,,,new-user-id-only`,
++        metadata: {},
++      });
++
++      await reviewService.extractChecklistFromCsv('review-1', mockFiles);
++
++      // ユーザIDのみ更新されること
++      expect(mockSettingsRepository.saveSettings).toHaveBeenCalledWith(
++        expect.objectContaining({
++          api: {
++            key: 'old-key', // 既存値を保持
++            url: 'http://old.com', // 既存値を保持
++            model: 'gpt-4o', // 既存値を保持
++            userId: 'new-user-id-only',
++          },
++        })
++      );
++    });
++  });
+ });
+diff --git a/src/__tests__/renderer/SettingsModal.test.tsx b/src/__tests__/renderer/SettingsModal.test.tsx
+index 49cd421a5..4dd164522 100644
+--- a/src/__tests__/renderer/SettingsModal.test.tsx
++++ b/src/__tests__/renderer/SettingsModal.test.tsx
+@@ -67,7 +67,9 @@ describe('SettingsModal Component', () => {
+     expect(screen.getByLabelText('APIエンドポイントURL')).toHaveValue(
+       'https://api.test.com',
+     );
+-    expect(screen.getByLabelText('BPR ID')).toHaveValue('test-model');
++    // モデル名はSelectコンポーネントなのでテキストで確認
++    expect(screen.getByRole('combobox', { name: 'モデル名' })).toHaveTextContent('gpt-4o');
++    expect(screen.getByLabelText('ユーザID')).toHaveValue('test-user-id');
+ 
+     // Redmine設定
+     const redmineEndpoint = screen.getByLabelText('Redmineエンドポイント');
+@@ -119,14 +121,18 @@ describe('SettingsModal Component', () => {
+     // API設定の更新
+     const apiKeyInput = screen.getByLabelText('APIキー');
+     const apiEndpointInput = screen.getByLabelText('APIエンドポイントURL');
+-    const apiModelInput = screen.getByLabelText('BPR ID');
++    const apiModelSelect = screen.getByRole('combobox', { name: 'モデル名' });
++    const apiUserIdInput = screen.getByLabelText('ユーザID');
+ 
+     await user.clear(apiKeyInput);
+     await user.type(apiKeyInput, 'new-test-api-key');
+     await user.clear(apiEndpointInput);
+     await user.type(apiEndpointInput, 'https://new.api.test.com');
+-    await user.clear(apiModelInput);
+-    await user.type(apiModelInput, 'new-test-model');
++    // モデル名をgpt-5に変更（Selectコンポーネント）
++    await user.click(apiModelSelect);
++    await user.click(screen.getByRole('option', { name: 'gpt-5' }));
++    await user.clear(apiUserIdInput);
++    await user.type(apiUserIdInput, 'new-test-user-id');
+ 
+     // データベース設定の更新
+     const dbDirInput = screen.getByLabelText('データベース保存フォルダ');
+@@ -193,7 +199,8 @@ describe('SettingsModal Component', () => {
+       expect(call.api).toEqual({
+         key: 'new-test-api-key',
+         url: 'https://new.api.test.com',
+-        model: 'new-test-model',
++        model: 'gpt-5',
++        userId: 'new-test-user-id',
+       });
+       expect(call.database).toEqual({ dir: '/new/test/db' });
+       expect(call.source).toEqual({ registerDir: './new/test/source' });
+@@ -259,13 +266,14 @@ describe('SettingsModal Component', () => {
+ 
+     const apiKeyInput = screen.getByLabelText('APIキー');
+     const apiEndpointInput = screen.getByLabelText('APIエンドポイントURL');
+-    const apiModelInput = screen.getByLabelText('BPR ID');
++    // モデル名はSelectコンポーネントなのでclearできない（常に選択肢がある）
++    const apiUserIdInput = screen.getByLabelText('ユーザID');
+     const dbDirInput = screen.getByLabelText('データベース保存フォルダ');
+ 
+     // 必須フィールドをクリア
+     await user.clear(apiKeyInput);
+     await user.clear(apiEndpointInput);
+-    await user.clear(apiModelInput);
++    await user.clear(apiUserIdInput);
+     await user.clear(dbDirInput);
+ 
+     // 存在しないパスを入力（データベース設定）
+@@ -302,7 +310,7 @@ describe('SettingsModal Component', () => {
+       () => {
+         // 必須フィールドのエラー
+         expect(screen.getByText('APIキーは必須です')).toBeInTheDocument();
+-        expect(screen.getByText('モデル名は必須です')).toBeInTheDocument();
++        // モデル名はSelectコンポーネントなので必須エラーは発生しない（常に選択肢がある）
+ 
+         // パス存在エラー（DB + ドキュメント登録フォルダ）
+         expect(
+@@ -332,6 +340,48 @@ describe('SettingsModal Component', () => {
+     jest.restoreAllMocks();
+   }, 60000);
+ 
++  // テスト3.5: モデル名がドロップダウンで選択できること
++  test('モデル名がドロップダウンで選択できること', async () => {
++    const user = userEvent.setup({ delay: null });
++
++    render(
++      <SettingsModal
++        open={defaultProps.open}
++        onClose={defaultProps.onClose}
++        onSettingsUpdated={defaultProps.onSettingsUpdated}
++        onValidChange={defaultProps.onValidChange}
++      />,
++    );
++
++    await waitFor(() => {
++      expect(window.electron.settings.getSettings).toHaveBeenCalledTimes(1);
++    });
++
++    // 全てのフィールドが有効になるまで待機
++    await waitFor(() => {
++      const apiKeyInput = screen.getByLabelText('APIキー');
++      expect(apiKeyInput).toBeEnabled();
++    });
++
++    // モデル名のSelectコンポーネントを確認
++    const modelSelect = screen.getByRole('combobox', { name: 'モデル名' });
++    expect(modelSelect).toBeInTheDocument();
++    expect(modelSelect).toHaveTextContent('gpt-4o');
++
++    // ドロップダウンを開く
++    await user.click(modelSelect);
++
++    // オプションが表示されることを確認
++    expect(screen.getByRole('option', { name: 'gpt-4o' })).toBeInTheDocument();
++    expect(screen.getByRole('option', { name: 'gpt-5' })).toBeInTheDocument();
++
++    // gpt-5を選択
++    await user.click(screen.getByRole('option', { name: 'gpt-5' }));
++
++    // 選択が反映されることを確認
++    expect(modelSelect).toHaveTextContent('gpt-5');
++  });
++
+   // テスト4: MCPスキーマのバリデーションエラーが正しく表示されること
+   test('MCPスキーマのバリデーションエラーが正しく表示されること', async () => {
+     const user = userEvent.setup({ delay: null });
+diff --git a/src/__tests__/renderer/csvUtils.test.ts b/src/__tests__/renderer/csvUtils.test.ts
+index 8967731e4..06921998c 100644
+--- a/src/__tests__/renderer/csvUtils.test.ts
++++ b/src/__tests__/renderer/csvUtils.test.ts
+@@ -33,14 +33,14 @@ describe('convertReviewResultsToCSV', () => {
+ 
+       // ヘッダー行の確認
+       expect(lines[0]).toBe(
+-        'チェックリスト,評定結果,レビュー結果,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,BPR ID',
++        'チェックリスト,評定結果,レビュー結果,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID',
+       );
+ 
+       // 1行目のデータ確認
+-      expect(lines[1]).toBe('チェック項目1,A,良好です,,,,,,,');
++      expect(lines[1]).toBe('チェック項目1,A,良好です,,,,,,,,');
+ 
+       // 2行目のデータ確認
+-      expect(lines[2]).toBe('チェック項目2,B,改善が必要,,,,,,,');
++      expect(lines[2]).toBe('チェック項目2,B,改善が必要,,,,,,,,');
+     });
+ 
+     test('評定結果がない場合、評定結果とレビュー結果が空文字になること', () => {
+@@ -54,7 +54,7 @@ describe('convertReviewResultsToCSV', () => {
+       const result = convertReviewResultsToCSV(checklistResults);
+ 
+       const lines = result.split('\n');
+-      expect(lines[1]).toBe('チェック項目1,,,,,,,,,');
++      expect(lines[1]).toBe('チェック項目1,,,,,,,,,,');
+     });
+ 
+     test('評定設定がある場合、各行に分散配置されること', () => {
+@@ -98,15 +98,15 @@ describe('convertReviewResultsToCSV', () => {
+ 
+       // 1行目: チェック項目1 + 評定設定A
+       // expect(lines[1]).toBe('チェック項目1,A,良好です,A,基準を満たす,,,,,');
+-      expect(lines[1]).toBe('チェック項目1,A,良好です,,,,,,,');
++      expect(lines[1]).toBe('チェック項目1,A,良好です,,,,,,,,');
+ 
+       // 2行目: チェック項目2 + 評定設定B
+       // expect(lines[2]).toBe('チェック項目2,,,B,一部改善が必要,,,,,');
+-      expect(lines[2]).toBe('チェック項目2,,,,,,,,,');
++      expect(lines[2]).toBe('チェック項目2,,,,,,,,,,');
+ 
+       // 3行目: 評定設定Cのみ
+       // expect(lines[3]).toBe(',,,C,基準未達,,,,,');
+-      expect(lines[3]).toBe(',,,,,,,,,');
++      expect(lines[3]).toBe(',,,,,,,,,,');
+     });
+ 
+     test('追加指示、コメントフォーマット、API設定が1行目に配置されること', () => {
+@@ -161,7 +161,7 @@ describe('convertReviewResultsToCSV', () => {
+       // 2行目以降は設定が空であることを確認
+       const lines = result.split('\n');
+       const lastLine = lines[lines.length - 1];
+-      expect(lastLine).toBe('チェック項目2,,,,,,,,,');
++      expect(lastLine).toBe('チェック項目2,,,,,,,,,,');
+     });
+ 
+     test('CSV特殊文字のエスケープが正しく行われること', () => {
+@@ -233,11 +233,11 @@ describe('convertReviewResultsToCSV', () => {
+ 
+       // 2行目: 評定Bのみ
+       // expect(lines[2]).toBe(',,,B,良好,,,,,');
+-      expect(lines[2]).toBe(',,,,,,,,,');
++      expect(lines[2]).toBe(',,,,,,,,,,');
+ 
+       // 3行目: 評定Cのみ
+       // expect(lines[3]).toBe(',,,C,要改善,,,,,');
+-      expect(lines[3]).toBe(',,,,,,,,,');
++      expect(lines[3]).toBe(',,,,,,,,,,');
+ 
+     });
+   });
+@@ -251,7 +251,7 @@ describe('convertReviewResultsToCSV', () => {
+       const lines = result.split('\n');
+       expect(lines).toHaveLength(1);
+       expect(lines[0]).toBe(
+-        'チェックリスト,評定結果,レビュー結果,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,BPR ID',
++        'チェックリスト,評定結果,レビュー結果,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID',
+       );
+     });
+ 
+@@ -267,7 +267,7 @@ describe('convertReviewResultsToCSV', () => {
+ 
+       const lines = result.split('\n');
+       expect(lines).toHaveLength(2);
+-      expect(lines[1]).toBe('チェック項目1,,,,,,,,,');
++      expect(lines[1]).toBe('チェック項目1,,,,,,,,,,');
+     });
+ 
+     test('apiSettingsがundefinedの場合、エラーにならないこと', () => {
+@@ -286,7 +286,7 @@ describe('convertReviewResultsToCSV', () => {
+ 
+       const lines = result.split('\n');
+       expect(lines).toHaveLength(2);
+-      expect(lines[1]).toBe('チェック項目1,,,,,,,,,');
++      expect(lines[1]).toBe('チェック項目1,,,,,,,,,,');
+     });
+ 
+     test('評定設定が空配列の場合、エラーにならないこと', () => {
+@@ -315,7 +315,7 @@ describe('convertReviewResultsToCSV', () => {
+ 
+       const lines = result.split('\n');
+       expect(lines).toHaveLength(2);
+-      expect(lines[1]).toBe('チェック項目1,,,,,,,,,');
++      expect(lines[1]).toBe('チェック項目1,,,,,,,,,,');
+     });
+   });
+ 
+@@ -380,7 +380,7 @@ describe('convertReviewResultsToCSV', () => {
+ 
+       // ヘッダー確認
+       expect(lines[0]).toBe(
+-        'チェックリスト,評定結果,レビュー結果,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,BPR ID',
++        'チェックリスト,評定結果,レビュー結果,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID',
+       );
+ 
+       // 1行目: すべての設定が含まれる
 diff --git a/src/__tests__/renderer/test-utils/mockElectronHandler.ts b/src/__tests__/renderer/test-utils/mockElectronHandler.ts
-index e1a9b0351..51d198d1f 100644
+index 51d198d1f..dd5ec48cc 100644
 --- a/src/__tests__/renderer/test-utils/mockElectronHandler.ts
 +++ b/src/__tests__/renderer/test-utils/mockElectronHandler.ts
-@@ -1,5 +1,5 @@
- import type { ElectronHandler } from '@/main/preload';
--import type { Source, ChatRoom, SettingsSavingStatus, Settings, ChatMessage, RevieHistory, ReviewChecklistResult } from '@/types';
-+import type { Source, ChatRoom, SettingsSavingStatus, Settings, ChatMessage, RevieHistory, ReviewChecklistResult, InformationItem } from '@/types';
- import type { IpcChannels, IpcResponsePayloadMap } from '@/types/ipc';
- 
- /**
-@@ -68,6 +68,7 @@ export interface MockOptions {
-   reviewHistory?: RevieHistory | null;
-   reviewChecklistResults?: ReviewChecklistResult[];
-   reviewTargetDocumentName?: string | null;
-+  informations?: InformationItem[];
- }
- 
- /**
-@@ -235,6 +236,11 @@ export const createMockElectronWithOptions = (
-         .fn<Promise<IpcResponsePayloadMap[typeof IpcChannels.REVIEW_CHAT_ABORT]>, [string]>()
-         .mockResolvedValue({ success: true }),
-     },
-+    information: {
-+      getInformations: jest
-+        .fn<Promise<IpcResponsePayloadMap[typeof IpcChannels.INFORMATION_GET]>, []>()
-+        .mockResolvedValue({ success: true, data: options.informations ?? [] }),
-+    },
-   };
- 
-   return mockHandlers as ElectronMock;
-diff --git a/src/main/main.ts b/src/main/main.ts
-index cf55ccd49..fe3cde3d7 100644
---- a/src/main/main.ts
-+++ b/src/main/main.ts
-@@ -96,6 +96,7 @@ import { getMainLogger } from './lib/logger';
- import { internalError, normalizeUnknownError, toPayload } from './lib/error';
- import { formatMessage } from './lib/messages';
- import { SourceService } from './service/sourceService';
-+import { InformationService } from './service/informationService';
- import FileExtractor from './lib/fileExtractor';
- import { ZodSchema } from 'zod';
- import { normalizeUnknownIpcError } from './lib/error';
-@@ -204,6 +205,8 @@ const reviewService = ReviewService.getInstance();
- 
- const sourceService = SourceService.getInstance();
- 
-+const informationService = InformationService.getInstance();
-+
- const logger = getMainLogger();
- 
- /**
-@@ -230,6 +233,15 @@ const setupSettingsHandlers = () => {
-   });
- };
- 
-+/**
-+ * お知らせ関連のIPCハンドラを設定する
-+ */
-+const setupInformationHandlers = () => {
-+  handleIpc(IpcChannels.INFORMATION_GET, async () => {
-+    return await informationService.getInformations();
-+  });
-+};
-+
- /**
-  * 設定状態を取得するIPCハンドラ
-  */
-@@ -708,6 +720,7 @@ const initialize = async () => {
-   setupFsHandlers();
-   setupSourceHandlers();
-   setupReviewHandlers();
-+  setupInformationHandlers();
-   initializeSourceRegistration();
- };
- 
-diff --git a/src/main/preload.ts b/src/main/preload.ts
-index 9c13022f7..95768ab05 100644
---- a/src/main/preload.ts
-+++ b/src/main/preload.ts
-@@ -117,6 +117,10 @@ const electronHandler = {
-       params: IpcRequestPayloadMap[typeof IpcChannels.SOURCE_UPDATE_ENABLED],
-     ) => invokeIpc(IpcChannels.SOURCE_UPDATE_ENABLED, params),
+@@ -35,7 +35,8 @@ export const createDefaultMockSettings = (): Settings => ({
+   api: {
+     key: 'test-api-key',
+     url: 'https://api.test.com',
+-    model: 'test-model',
++    model: 'gpt-4o',
++    userId: 'test-user-id',
    },
-+  information: {
-+    /** お知らせ情報取得 */
-+    getInformations: () => invokeIpc(IpcChannels.INFORMATION_GET),
-+  },
-   review: {
-     /** レビュー履歴一覧 */
-     getHistories: () => invokeIpc(IpcChannels.REVIEW_GET_HISTORIES),
-diff --git a/src/main/service/informationService.ts b/src/main/service/informationService.ts
-new file mode 100644
-index 000000000..4fb0e28cd
---- /dev/null
-+++ b/src/main/service/informationService.ts
-@@ -0,0 +1,140 @@
-+import { app } from 'electron';
-+import { RepositoryFiles } from '@gitbeaker/rest';
-+import { join } from 'path';
-+import fs from 'fs/promises';
-+import { InformationItem, InformationSchema } from '@/types';
-+import { getMainLogger } from '@/main/lib/logger';
-+
-+const logger = getMainLogger();
-+
-+// GitLab設定（プレースホルダー）
-+// TODO: 実際の値に置換してください
-+const GITLAB_HOST = 'https://gitlab.example.com';
-+const GITLAB_PROJECT_ID = 'your-group/information-repo';
-+const GITLAB_FILE_PATH = 'information.json';
-+const GITLAB_REF = 'main';
-+
-+/**
-+ * お知らせサービスのインターフェース
-+ */
-+export interface IInformationService {
-+  /**
-+   * お知らせ情報を取得する
-+   */
-+  getInformations(): Promise<InformationItem[]>;
-+}
-+
-+/**
-+ * お知らせサービスの実装
-+ * アプリ起動時にGitLab（本番）またはローカルファイル（開発）からお知らせを取得する
-+ */
-+export class InformationService implements IInformationService {
-+  // シングルトン変数
-+  private static instance: InformationService;
-+
-+  // キャッシュ（セッション中に保持）
-+  private cachedInformations: InformationItem[] | null = null;
-+
-+  /**
-+   * シングルトンインスタンスを取得
-+   */
-+  public static getInstance(): InformationService {
-+    if (!InformationService.instance) {
-+      InformationService.instance = new InformationService();
-+    }
-+    return InformationService.instance;
-+  }
-+
-+  private constructor() {}
-+
-+  /**
-+   * お知らせ情報を取得する
-+   * 開発環境ではローカルファイル、本番環境ではGitLabから取得
-+   */
-+  public async getInformations(): Promise<InformationItem[]> {
-+    // キャッシュがある場合はそれを返す
-+    if (this.cachedInformations !== null) {
-+      return this.cachedInformations;
-+    }
-+
-+    try {
-+      let jsonContent: string;
-+
-+      if (app.isPackaged) {
-+        // 本番環境: GitLabからファイルを取得
-+        jsonContent = await this.fetchFromGitLab();
-+      } else {
-+        // 開発環境: ローカルファイルを読み込む
-+        jsonContent = await this.readLocalFile();
+   redmine: {
+     endpoint: 'https://redmine.test.com',
+diff --git a/src/adapter/db/electron-store/repository/settingsRepository.ts b/src/adapter/db/electron-store/repository/settingsRepository.ts
+index 050b2000b..8efcda318 100644
+--- a/src/adapter/db/electron-store/repository/settingsRepository.ts
++++ b/src/adapter/db/electron-store/repository/settingsRepository.ts
+@@ -3,6 +3,7 @@ import { Settings, SettingsSchema } from '@/types';
+ import { getStore } from '@/adapter/db/electron-store/store';
+ import { repositoryError } from '@/main/lib/error';
+ import { ISettingsRepository } from '@/main/service/port/repository';
++import { isValidModelName, DEFAULT_MODEL } from '@/config/modelConfig';
+ 
+ /** undefined を保存したら例外になるため、delete に切り替える */
+ function setOrDelete<T>(store: any, key: string, value: T | undefined) {
+@@ -21,7 +22,13 @@ export class ElectronStoreSettingsRepository implements ISettingsRepository {
+ 
+   async getSettings(): Promise<Settings> {
+     try {
+-      const settings = await SettingsSchema.parseAsync(this.store.store);
++      // 既存設定との互換性対策：無効なモデル名はデフォルト値にフォールバック
++      const rawSettings = this.store.store;
++      if (rawSettings.api?.model && !isValidModelName(rawSettings.api.model)) {
++        rawSettings.api.model = DEFAULT_MODEL;
 +      }
 +
-+      // JSONをパース・バリデーション
-+      const parsed = JSON.parse(jsonContent);
-+      const validated = InformationSchema.parse(parsed);
-+
-+      // order順にソートしてキャッシュに保存
-+      this.cachedInformations = validated.informations.sort(
-+        (a, b) => a.order - b.order,
-+      );
-+
-+      logger.info(
-+        `お知らせ情報を取得しました: ${this.cachedInformations.length}件`,
-+      );
-+
-+      return this.cachedInformations;
-+    } catch (error) {
-+      // エラー時は空配列を返す（サイレントフェイル）
-+      logger.warn('お知らせ情報の取得に失敗しました', error);
-+      this.cachedInformations = [];
-+      return [];
-+    }
-+  }
-+
-+  /**
-+   * GitLabからinformation.jsonを取得
-+   */
-+  private async fetchFromGitLab(): Promise<string> {
-+    // publicリポジトリの場合、トークンなしでアクセス可能
-+    // GitBeakerはトークンが空文字の場合でも動作する
-+    const repositoryFiles = new RepositoryFiles({
-+      host: GITLAB_HOST,
-+      token: '', // publicリポジトリのためトークン不要
-+    });
-+
-+    const fileContent = await repositoryFiles.showRaw(
-+      GITLAB_PROJECT_ID,
-+      GITLAB_FILE_PATH,
-+      GITLAB_REF,
-+    );
-+
-+    // showRawはstring | Blobを返すので、stringに変換
-+    if (typeof fileContent === 'string') {
-+      return fileContent;
-+    }
-+    // Blobの場合
-+    return await fileContent.text();
-+  }
-+
-+  /**
-+   * ローカルのinformation.jsonを読み込む
-+   */
-+  private async readLocalFile(): Promise<string> {
-+    // プロジェクトルートからの相対パス
-+    // __dirnameはdist/main/配下になるので、2階層上に移動
-+    const localPath = join(
-+      __dirname,
-+      '..',
-+      '..',
-+      'information',
-+      'information.json',
-+    );
-+    return await fs.readFile(localPath, 'utf-8');
-+  }
-+
-+  /**
-+   * キャッシュをクリア（必要に応じて呼び出す）
-+   */
-+  public clearCache(): void {
-+    this.cachedInformations = null;
-+  }
-+}
-diff --git a/src/renderer/App.tsx b/src/renderer/App.tsx
-index 72fbc401f..b65d73776 100644
---- a/src/renderer/App.tsx
-+++ b/src/renderer/App.tsx
-@@ -1,4 +1,4 @@
--import { useState, useCallback, useRef } from 'react';
-+import { useState, useRef } from 'react';
- import { MemoryRouter as Router, Routes, Route } from 'react-router-dom';
- import {
-   ThemeProvider,
-@@ -19,6 +19,7 @@ import ChatRoomList, { ChatRoomListRef } from './components/chat/ChatRoomList';
- import ReviewHistoryList from './components/review/ReviewHistoryList';
- import { useAgentStatusStore } from './stores/agentStatusStore';
- import AppErrorBoundary from './components/common/AppErrorBoundary';
-+import InformationBanner from './components/common/InformationBanner';
++      const settings = await SettingsSchema.parseAsync(rawSettings);
+       return settings;
+     } catch (err) {
+       if (err instanceof z.ZodError) {
+@@ -38,6 +45,7 @@ export class ElectronStoreSettingsRepository implements ISettingsRepository {
+       this.store.set('api.key', settings.api.key);
+       this.store.set('api.model', settings.api.model);
+       this.store.set('api.url', settings.api.url);
++      this.store.set('api.userId', settings.api.userId);
  
- // テーマの設定
- const theme = createTheme({
-@@ -68,7 +69,6 @@ function App() {
-   const chatRoomListRef = useRef<ChatRoomListRef>(null);
-   const alerts = useAlertStore((state) => state.alerts);
-   const removeAlert = useAlertStore((state) => state.removeAlert);
--  const addAlert = useAlertStore((state) => state.addAlert);
-   const { status: agentStatus, closeMessage } = useAgentStatusStore();
- 
-   // ソース再読み込みハンドラ
-@@ -90,126 +90,135 @@ function App() {
-           <Box
-             sx={{
-               display: 'flex',
-+              flexDirection: 'column',
-               height: '100vh',
-             }}
-           >
--            {/* サイドバー */}
--            <Sidebar onReloadSources={handleReloadSources}>
--              <Routes>
--                <Route
--                  path={ROUTES.CHAT}
--                  element={
--                    <ChatRoomList
--                      ref={chatRoomListRef}
--                      onRoomSelect={setSelectedRoomId}
--                      selectedRoomId={selectedRoomId}
--                    />
--                  }
--                />
--                <Route
--                  path={ROUTES.REVIEW}
--                  element={
--                    <ReviewHistoryList
--                      onReviewHistorySelect={setSelectedReviewHistoryId}
--                      selectedReviewHistoryId={selectedReviewHistoryId}
--                    />
--                  }
--                />
--              </Routes>
--            </Sidebar>
-+            {/* お知らせバナー（最上部・全幅） */}
-+            <InformationBanner />
-+
-+            {/* サイドバー＋メイン画面のコンテナ */}
-+            <Box sx={{ display: 'flex', flex: 1, minHeight: 0 }}>
-+              {/* サイドバー */}
-+              <Sidebar onReloadSources={handleReloadSources}>
-+                <Routes>
-+                  <Route
-+                    path={ROUTES.CHAT}
-+                    element={
-+                      <ChatRoomList
-+                        ref={chatRoomListRef}
-+                        onRoomSelect={setSelectedRoomId}
-+                        selectedRoomId={selectedRoomId}
-+                      />
-+                    }
-+                  />
-+                  <Route
-+                    path={ROUTES.REVIEW}
-+                    element={
-+                      <ReviewHistoryList
-+                        onReviewHistorySelect={setSelectedReviewHistoryId}
-+                        selectedReviewHistoryId={selectedReviewHistoryId}
-+                      />
-+                    }
-+                  />
-+                </Routes>
-+              </Sidebar>
- 
--            {/* メインコンテンツ領域：ここを relative にして、内部で absolute 配置する */}
--            <Box
--              component="main"
--              sx={{
--                position: 'relative', // ★ アラートを「この領域の中」で絶対配置できるようにする
--                flex: 1, // サイドバー以外の空間をすべて使う
--                minWidth: 0, // コンテンツのオーバーフロー対策
--                overflow: 'hidden', // スクロールバー制御（必要なら調整）
--                display: 'flex', // 中身のレイアウト（任意）
--              }}
--            >
--              {/* ルーティング（通常表示の中身） */}
--              <Routes>
--                <Route
--                  path={ROUTES.CHAT}
--                  element={
--                    <ChatArea
--                      selectedRoomId={selectedRoomId}
--                      onChatRoomUpdate={() => {
--                        // チャットルーム一覧を更新
--                        if (chatRoomListRef.current) {
--                          chatRoomListRef.current.refreshChatRooms();
--                        }
--                      }}
-+              {/* メインコンテンツ領域：ここを relative にして、内部で absolute 配置する */}
-+              <Box
-+                component="main"
-+                sx={{
-+                  position: 'relative', // ★ アラートを「この領域の中」で絶対配置できるようにする
-+                  flex: 1, // サイドバー以外の空間をすべて使う
-+                  minWidth: 0, // コンテンツのオーバーフロー対策
-+                  overflow: 'hidden', // スクロールバー制御（必要なら調整）
-+                  display: 'flex', // 中身のレイアウト
-+                }}
-+              >
-+                {/* ルーティング（通常表示の中身） */}
-+                <Box sx={{ flex: 1, overflow: 'auto', display: 'flex' }}>
-+                  <Routes>
-+                    <Route
-+                      path={ROUTES.CHAT}
-+                      element={
-+                        <ChatArea
-+                          selectedRoomId={selectedRoomId}
-+                          onChatRoomUpdate={() => {
-+                            // チャットルーム一覧を更新
-+                            if (chatRoomListRef.current) {
-+                              chatRoomListRef.current.refreshChatRooms();
-+                            }
-+                          }}
-+                        />
-+                      }
-                     />
--                  }
--                />
--                <Route
--                  path={ROUTES.REVIEW}
--                  element={
--                    <ReviewArea
--                      selectedReviewHistoryId={selectedReviewHistoryId}
-+                    <Route
-+                      path={ROUTES.REVIEW}
-+                      element={
-+                        <ReviewArea
-+                          selectedReviewHistoryId={selectedReviewHistoryId}
-+                        />
-+                      }
-                     />
--                  }
--                />
--              </Routes>
--
--              {/* 中央オーバーレイのエラーメッセージ表示 */}
--              {(alerts.length > 0 || agentStatus.messages.length > 0) && (
--                <Box
--                  // ★ main(Box)の「中」で中央に重ねる
--                  sx={{
--                    position: 'absolute',
--                    top: 20,
--                    left: '50%',
--                    transform: 'translateX(-50%)',
--                    width: 'fit-content',
--                    maxWidth: '80%',
--                    zIndex: 1400,
--                    display: 'flex',
--                    flexDirection: 'column',
--                    gap: 1,
--                  }}
--                >
--                  <Stack spacing={1} sx={{ pointerEvents: 'auto' }}>
--                    {agentStatus.messages?.map((message) => (
--                      <Alert
--                        key={message.id}
--                        severity={message.type}
--                        sx={{
--                          whiteSpace: 'pre-line',
--                          boxShadow: 3,
--                          maxHeight: '200px',
--                          overflowY: 'auto',
--                          overflowX: 'hidden',
--                          wordBreak: 'break-word',
--                        }}
--                        onClose={() => closeMessage(message.id)}
--                      >
--                        {message.content}
--                      </Alert>
--                    ))}
--                    {alerts.map((error) => (
--                      <Alert
--                        key={error.id}
--                        severity={error.severity}
--                        onClose={() => removeAlert(error.id)}
--                        sx={{
--                          whiteSpace: 'pre-line',
--                          boxShadow: 3,
--                          maxHeight: '200px',
--                          overflowY: 'auto',
--                          overflowX: 'hidden',
--                          wordBreak: 'break-word',
--                        }}
--                      >
--                        {error.message}
--                      </Alert>
--                    ))}
--                  </Stack>
-+                  </Routes>
-                 </Box>
--              )}
-+
-+                {/* 中央オーバーレイのエラーメッセージ表示 */}
-+                {(alerts.length > 0 || agentStatus.messages.length > 0) && (
-+                  <Box
-+                    // ★ main(Box)の「中」で中央に重ねる
-+                    sx={{
-+                      position: 'absolute',
-+                      top: 20,
-+                      left: '50%',
-+                      transform: 'translateX(-50%)',
-+                      width: 'fit-content',
-+                      maxWidth: '95%',
-+                      zIndex: 1400,
-+                      display: 'flex',
-+                      flexDirection: 'column',
-+                      gap: 1,
-+                    }}
-+                  >
-+                    <Stack spacing={1} sx={{ pointerEvents: 'auto' }}>
-+                      {agentStatus.messages?.map((message) => (
-+                        <Alert
-+                          key={message.id}
-+                          severity={message.type}
-+                          sx={{
-+                            whiteSpace: 'pre-line',
-+                            boxShadow: 3,
-+                            maxHeight: '200px',
-+                            overflowY: 'auto',
-+                            overflowX: 'hidden',
-+                            wordBreak: 'break-word',
-+                          }}
-+                          onClose={() => closeMessage(message.id)}
-+                        >
-+                          {message.content}
-+                        </Alert>
-+                      ))}
-+                      {alerts.map((error) => (
-+                        <Alert
-+                          key={error.id}
-+                          severity={error.severity}
-+                          onClose={() => removeAlert(error.id)}
-+                          sx={{
-+                            whiteSpace: 'pre-line',
-+                            boxShadow: 3,
-+                            maxHeight: '200px',
-+                            overflowY: 'auto',
-+                            overflowX: 'hidden',
-+                            wordBreak: 'break-word',
-+                          }}
-+                        >
-+                          {error.message}
-+                        </Alert>
-+                      ))}
-+                    </Stack>
-+                  </Box>
-+                )}
-+              </Box>
-             </Box>
-           </Box>
-         </Router>
-diff --git a/src/renderer/components/chat/ChatArea.tsx b/src/renderer/components/chat/ChatArea.tsx
-index 5caaa3bd2..3a6f08b99 100644
---- a/src/renderer/components/chat/ChatArea.tsx
-+++ b/src/renderer/components/chat/ChatArea.tsx
-@@ -374,7 +374,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
-     <Box
-       sx={{
-         width: '100%',
--        height: '100vh',
-+        height: '100%',
-         display: 'flex',
-         flexDirection: 'column',
-         position: 'relative',
-diff --git a/src/renderer/components/common/InformationBanner.tsx b/src/renderer/components/common/InformationBanner.tsx
+       // 任意系は undefined の可能性があるため setOrDelete で処理
+       setOrDelete(
+diff --git a/src/adapter/db/electron-store/store.ts b/src/adapter/db/electron-store/store.ts
+index 68036a088..1ee1cfadb 100644
+--- a/src/adapter/db/electron-store/store.ts
++++ b/src/adapter/db/electron-store/store.ts
+@@ -13,6 +13,7 @@ export interface StoreSchema {
+     key: string;
+     url: string;
+     model: string;
++    userId: string;
+   };
+   redmine: {
+     endpoint?: string;
+@@ -51,8 +52,9 @@ const schema = {
+       key: { type: 'string' },
+       url: { type: 'string' },
+       model: { type: 'string' },
++      userId: { type: 'string' },
+     },
+-    required: ['key', 'url', 'model'],
++    required: ['key', 'url', 'model'], // TODO: userIdを必須にする（ユーザのconfig.jsが十分にuserId追加版に置き換わってから）
+   },
+   redmine: {
+     type: 'object',
+@@ -98,7 +100,8 @@ const defaults: StoreSchema = {
+   api: {
+     key: 'aaa',
+     url: 'http://localhost',
+-    model: 'aaa',
++    model: 'gpt-4o',
++    userId: 'aaa',
+   },
+   redmine: {
+     endpoint: 'http://localhost',
+diff --git a/src/config/modelConfig.ts b/src/config/modelConfig.ts
 new file mode 100644
-index 000000000..3935f0f49
+index 000000000..86959d610
 --- /dev/null
-+++ b/src/renderer/components/common/InformationBanner.tsx
-@@ -0,0 +1,102 @@
-+import React, { useEffect } from 'react';
-+import { Box, Alert, Stack, IconButton, Typography } from '@mui/material';
-+import CloseIcon from '@mui/icons-material/Close';
-+import InfoIcon from '@mui/icons-material/Info';
-+import { useInformationStore } from '../../stores/informationStore';
-+import { InformationApi } from '../../service/informationApi';
++++ b/src/config/modelConfig.ts
+@@ -0,0 +1,22 @@
++/**
++ * AIモデル設定の一元管理
++ * モデルオプションを追加する場合はこのファイルのMODEL_OPTIONSに追加する
++ */
++
++// 利用可能なAIモデルオプション
++export const MODEL_OPTIONS = ['gpt-4.1-mini', 'gpt-4o', 'gpt-5'] as const;
++
++// モデル名の型定義
++export type ModelName = (typeof MODEL_OPTIONS)[number];
 +
 +/**
-+ * お知らせバナーコンポーネント
-+ * アプリ起動時にお知らせを取得し、メインコンテンツエリアの上部に表示する
++ * モデル名が有効かどうかを判定する型ガード関数
++ * @param value 検証する値
++ * @returns 値が有効なモデル名の場合はtrue
 + */
-+const InformationBanner: React.FC = () => {
-+  const informations = useInformationStore((state) => state.informations);
-+  const loaded = useInformationStore((state) => state.loaded);
-+  const setInformations = useInformationStore(
-+    (state) => state.setInformations,
-+  );
-+  const removeInformation = useInformationStore(
-+    (state) => state.removeInformation,
-+  );
-+
-+  useEffect(() => {
-+    // 一度だけ読み込み
-+    if (!loaded) {
-+      const fetchInformations = async () => {
-+        const api = InformationApi.getInstance();
-+        const result = await api.getInformations({
-+          showAlert: false,
-+          throwError: false,
-+        });
-+        if (result) {
-+          setInformations(result);
-+        } else {
-+          // エラー時も読み込み済みとしてマーク
-+          setInformations([]);
-+        }
-+      };
-+      fetchInformations();
-+    }
-+  }, [loaded, setInformations]);
-+
-+  // お知らせがない場合は何も表示しない
-+  if (informations.length === 0) {
-+    return null;
-+  }
-+
-+  return (
-+    <Box
-+      sx={{
-+        width: '100%',
-+        flexShrink: 0, // メインコンテンツに押しつぶされないようにする
-+      }}
-+    >
-+      <Stack>
-+        {informations.map((info) => (
-+          <Alert
-+            key={info.id}
-+            severity="info"
-+            icon={<InfoIcon fontSize="small" />}
-+            action={
-+              <IconButton
-+                aria-label="close"
-+                color="inherit"
-+                size="small"
-+                onClick={() => removeInformation(info.id)}
-+              >
-+                <CloseIcon fontSize="small" />
-+              </IconButton>
-+            }
-+            sx={{
-+              py: 0.5,
-+              borderRadius: 0, // 角を直角に
-+              borderBottom: '1px solid rgba(0, 0, 0, 0.12)', // 下部に区切り線
-+              '& .MuiAlert-message': {
-+                py: 0,
-+              },
-+              '& .MuiAlert-icon': {
-+                py: 0.5,
-+              },
-+              '& .MuiAlert-action': {
-+                py: 0,
-+                alignItems: 'flex-start',
-+              },
-+            }}
-+          >
-+            <Typography
-+              variant="body2"
-+              sx={{
-+                whiteSpace: 'pre-line', // 改行を反映
-+                wordBreak: 'break-word',
-+              }}
-+            >
-+              {info.message}
-+            </Typography>
-+          </Alert>
-+        ))}
-+      </Stack>
-+    </Box>
-+  );
++export const isValidModelName = (value: string): value is ModelName => {
++  return MODEL_OPTIONS.includes(value as ModelName);
 +};
 +
-+export default InformationBanner;
-diff --git a/src/renderer/components/review/ReviewArea.tsx b/src/renderer/components/review/ReviewArea.tsx
-index 977c8529c..bfaedc42d 100644
---- a/src/renderer/components/review/ReviewArea.tsx
-+++ b/src/renderer/components/review/ReviewArea.tsx
-@@ -705,7 +705,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
-         right: 0,
-         top: 0,
-         bottom: 0,
--        height: '100vh',
-+        height: '100%',
-         overflow: 'hidden',
-       }}
-     >
-diff --git a/src/renderer/service/informationApi.ts b/src/renderer/service/informationApi.ts
++// デフォルトのモデル名
++export const DEFAULT_MODEL: ModelName = 'gpt-4o';
+diff --git a/src/main/lib/csvParser.ts b/src/main/lib/csvParser.ts
+index 9c70c733a..797f02573 100644
+--- a/src/main/lib/csvParser.ts
++++ b/src/main/lib/csvParser.ts
+@@ -1,4 +1,4 @@
+-import type { CsvImportData, CustomEvaluationSettings } from '@/types';
++import type { CsvImportData } from '@/types';
+ import { internalError } from './error';
+ 
+ /**
+@@ -136,7 +136,7 @@ export class CsvParser {
+ 
+   /**
+    * 新フォーマットのCSV/Excelデータをパースする
+-   * ヘッダ行: チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,BPR ID
++   * ヘッダ行: チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID
+    * @param csvText CSVテキスト
+    * @returns パース結果
+    * @throws AppError パースに失敗した場合
+@@ -162,7 +162,8 @@ export class CsvParser {
+       'コメントフォーマット',
+       'AI APIエンドポイント',
+       'AI APIキー',
+-      'BPR ID',
++      'モデル名',
++      'ユーザID',
+     ];
+ 
+     // ヘッダ行の列数検証
+@@ -201,6 +202,7 @@ export class CsvParser {
+     let apiUrl: string | undefined;
+     let apiKey: string | undefined;
+     let apiModel: string | undefined;
++    let apiUserId: string | undefined;
+ 
+     for (const row of dataRows) {
+       // 各列のデータを取得（空の場合はundefined）
+@@ -212,6 +214,7 @@ export class CsvParser {
+       const apiEndpoint = row[5]?.trim() || undefined;
+       const apiKeyValue = row[6]?.trim() || undefined;
+       const apiModelName = row[7]?.trim() || undefined;
++      const apiUserIdValue = row[8]?.trim() || undefined;
+ 
+       // チェックリスト項目の収集
+       if (checklistContent) {
+@@ -242,6 +245,9 @@ export class CsvParser {
+       if (apiModelName && !apiModel) {
+         apiModel = apiModelName;
+       }
++      if (apiUserIdValue && !apiUserId) {
++        apiUserId = apiUserIdValue;
++      }
+     }
+ 
+     // インポートデータの構築
+@@ -265,11 +271,12 @@ export class CsvParser {
+     }
+ 
+     // API設定
+-    if (apiUrl || apiKey || apiModel) {
++    if (apiUrl || apiKey || apiModel || apiUserId) {
+       importData.apiSettings = {
+         url: apiUrl,
+         key: apiKey,
+         model: apiModel,
++        userId: apiUserId,
+       };
+     }
+ 
+diff --git a/src/main/service/chatService.ts b/src/main/service/chatService.ts
+index b1cadf304..cba11d88d 100644
+--- a/src/main/service/chatService.ts
++++ b/src/main/service/chatService.ts
+@@ -186,6 +186,7 @@ export class ChatService implements IChatService {
+           threadId, // チャットルームIDをスレッドIDとして使用
+           maxSteps: 30, // ツールの利用上限
+           abortSignal: controller.signal, // 中断シグナルを設定
++          maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
+           onStepFinish: (stepResult) => {
+             // https://ai-sdk.dev/docs/ai-sdk-ui/stream-protocol
+             // 上記を参考にai-sdkのストリームプロトコルに従ってメッセージを送信
+diff --git a/src/main/service/reviewService.ts b/src/main/service/reviewService.ts
+index 3d8c2a286..b1f3ec3a9 100644
+--- a/src/main/service/reviewService.ts
++++ b/src/main/service/reviewService.ts
+@@ -17,6 +17,7 @@ import {
+   CsvImportData,
+   RetryMode,
+ } from '@/types';
++import { isValidModelName, type ModelName } from '@/config/modelConfig';
+ import { generateReviewTitle } from '@/mastra/workflows/sourceReview/lib';
+ import { RevieHistory } from '@/types';
+ import FileExtractor from '@/main/lib/fileExtractor';
+@@ -321,7 +322,7 @@ export class ReviewService implements IReviewService {
+         // AI API設定の更新（settingsRepositoryに保存）
+         if (importedData.apiSettings) {
+           const currentSettings = await this.settingsRepository.getSettings();
+-          const updates: { url?: string; key?: string; model?: string } = {};
++          const updates: { url?: string; key?: string; model?: ModelName; userId?: string } = {};
+ 
+           if (importedData.apiSettings.url) {
+             updates.url = importedData.apiSettings.url;
+@@ -329,9 +330,16 @@ export class ReviewService implements IReviewService {
+           if (importedData.apiSettings.key) {
+             updates.key = importedData.apiSettings.key;
+           }
+-          if (importedData.apiSettings.model) {
++          // モデル名が有効な場合のみ更新
++          if (
++            importedData.apiSettings.model &&
++            isValidModelName(importedData.apiSettings.model)
++          ) {
+             updates.model = importedData.apiSettings.model;
+           }
++          if (importedData.apiSettings.userId) {
++            updates.userId = importedData.apiSettings.userId;
++          }
+ 
+           if (Object.keys(updates).length > 0) {
+             await this.settingsRepository.saveSettings({
+diff --git a/src/mastra/agents/model/index.ts b/src/mastra/agents/model/index.ts
 new file mode 100644
-index 000000000..4de8ec0c6
+index 000000000..c18d6baf7
 --- /dev/null
-+++ b/src/renderer/service/informationApi.ts
-@@ -0,0 +1,48 @@
-+import { InformationItem } from '@/types';
-+import { invokeApi } from '../lib/apiUtils';
-+import { ApiServiceDefaultOptions } from '../types';
++++ b/src/mastra/agents/model/index.ts
+@@ -0,0 +1,85 @@
++/**
++ * AIモデル取得関数
++ * モデル名に応じて適切なAIモデルを返す
++ */
++import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
++import { createOpenAI, openai } from '@ai-sdk/openai';
++// @ts-ignore
++import { RuntimeContext } from '@mastra/core/runtime-context';
++import type { BaseRuntimeContext } from '../types';
++import { internalError } from '@/main/lib/error';
++import { isValidModelName, type ModelName } from '@/config/modelConfig';
 +
 +/**
-+ * お知らせAPIのインターフェース
++ * モデル名に応じてAIモデルを取得する関数
++ * 現在はgpt-4o/gpt-5共にOpenAICompatibleModelを返す
++ * 将来的に異なるモデルを追加する場合はswitch文で分岐させる
++ *
++ * @param params runtimeContextを含むパラメータ
++ * @returns AIモデルインスタンス
 + */
-+export interface IInformationApi {
-+  /**
-+   * お知らせ情報を取得する
-+   */
-+  getInformations(
-+    options?: ApiServiceDefaultOptions,
-+  ): Promise<InformationItem[] | null>;
-+}
++export const getModel = ({
++  runtimeContext,
++}: {
++  runtimeContext: RuntimeContext<BaseRuntimeContext>;
++}) => {
++  const apiConfig = runtimeContext.get('model');
 +
-+/**
-+ * お知らせAPIの実装
-+ */
-+export class InformationApi implements IInformationApi {
-+  // シングルトン変数
-+  private static instance: InformationApi;
++  if (!apiConfig || !apiConfig.key || !apiConfig.url || !apiConfig.modelName) {
++    throw internalError({
++      expose: true,
++      messageCode: 'VALIDATION_ERROR',
++      messageParams: {
++        detail:
++          'AI APIの設定が正しくありません。APIキー、URL、モデル名を確認してください。',
++      },
++    });
++  }
 +
-+  // コンストラクタをprivateにして外部からのインスタンス化を防止
-+  private constructor() {}
++  // モデル名の検証
++  if (!isValidModelName(apiConfig.modelName)) {
++    throw internalError({
++      expose: true,
++      messageCode: 'VALIDATION_ERROR',
++      messageParams: {
++        detail: `無効なモデル名です: ${apiConfig.modelName}`,
++      },
++    });
++  }
 +
-+  /**
-+   * シングルトンインスタンスを取得するための静的メソッド
-+   */
-+  public static getInstance(): InformationApi {
-+    if (!InformationApi.instance) {
-+      InformationApi.instance = new InformationApi();
++  const modelName: ModelName = apiConfig.modelName;
++
++  // モデル名に応じてモデルを出し分け
++  switch (modelName) {
++    case 'gpt-4.1-mini':
++      return createOpenAICompatible({
++        name: 'openAICompatibleModel_gpt4.1-mini',
++        apiKey: apiConfig.key,
++        baseURL: apiConfig.url,
++      }).chatModel('openai/gpt-4.1-mini');
++    case 'gpt-4o':
++      return createOpenAICompatible({
++        name: 'openAICompatibleModel_gpt4o',
++        apiKey: apiConfig.key,
++        baseURL: apiConfig.url,
++      }).chatModel('openai/gpt-4o');
++    case 'gpt-5':
++      const openai = createOpenAI({
++        name: 'openAI_gpt5',
++        apiKey: apiConfig.key,
++        baseURL: apiConfig.url,
++      });
++      return openai('openai/gpt-5');
++    default: {
++      // TypeScriptによる網羅性チェック
++      const _exhaustiveCheck: never = modelName;
++      throw internalError({
++        expose: true,
++        messageCode: 'VALIDATION_ERROR',
++        messageParams: {
++          detail: `未対応のモデル名です: ${_exhaustiveCheck}`,
++        },
++      });
 +    }
-+    return InformationApi.instance;
 +  }
-+
-+  /**
-+   * お知らせ情報を取得する
-+   */
-+  public async getInformations(
-+    options?: ApiServiceDefaultOptions,
-+  ): Promise<InformationItem[] | null> {
-+    return invokeApi(
-+      () => window.electron.information.getInformations(),
-+      options,
-+    );
-+  }
-+}
-diff --git a/src/renderer/stores/informationStore.ts b/src/renderer/stores/informationStore.ts
-new file mode 100644
-index 000000000..9485655b1
---- /dev/null
-+++ b/src/renderer/stores/informationStore.ts
-@@ -0,0 +1,50 @@
-+import { createStore } from 'zustand/vanilla';
-+import { useStore, type StoreApi } from 'zustand';
-+import type { InformationItem } from '@/types';
-+
-+/**
-+ * お知らせストアの状態
-+ */
-+interface InformationState {
-+  /** お知らせ一覧 */
-+  informations: InformationItem[];
-+  /** 読み込み済みフラグ */
-+  loaded: boolean;
-+}
-+
-+/**
-+ * お知らせストアのアクション
-+ */
-+interface InformationActions {
-+  /** お知らせを設定する */
-+  setInformations: (informations: InformationItem[]) => void;
-+  /** お知らせを削除する（閉じた場合） */
-+  removeInformation: (id: string) => void;
-+}
-+
-+export type InformationStore = InformationState & InformationActions;
-+
-+/**
-+ * お知らせストア
-+ */
-+export const informationStore: StoreApi<InformationStore> =
-+  createStore<InformationStore>()((set) => ({
-+    informations: [],
-+    loaded: false,
-+
-+    setInformations: (informations: InformationItem[]) => {
-+      set({ informations, loaded: true });
-+    },
-+
-+    removeInformation: (id: string) => {
-+      set((state) => ({
-+        informations: state.informations.filter((info) => info.id !== id),
-+      }));
-+    },
-+  }));
-+
-+/**
-+ * お知らせストアを利用するためのフック
-+ */
-+export const useInformationStore = <T>(selector: (s: InformationStore) => T) =>
-+  useStore(informationStore, selector);
-diff --git a/src/types/index.ts b/src/types/index.ts
-index 8c5e546f5..1a5e615e2 100644
---- a/src/types/index.ts
-+++ b/src/types/index.ts
-@@ -6,6 +6,7 @@ export * from './ipc';
- export * from './message';
- export * from './error';
- export * from './eventPush';
-+export * from './information';
- 
- // パス定義
- export const ROUTES = {
-diff --git a/src/types/information.ts b/src/types/information.ts
-new file mode 100644
-index 000000000..d73d4c5f6
---- /dev/null
-+++ b/src/types/information.ts
-@@ -0,0 +1,30 @@
-+import { z } from 'zod';
-+
-+/**
-+ * お知らせ項目のスキーマ
-+ */
-+export const InformationItemSchema = z.object({
-+  /** お知らせの一意識別子 */
-+  id: z.string().min(1, { message: 'IDは必須です' }),
-+  /** お知らせ本文（改行は\nで表現） */
-+  message: z.string().min(1, { message: 'メッセージは必須です' }),
-+  /** 表示順（小さい数字が上に表示） */
-+  order: z.number().int({ message: '表示順は整数である必要があります' }),
-+});
-+
-+/**
-+ * お知らせ全体のスキーマ
-+ */
-+export const InformationSchema = z.object({
-+  informations: z.array(InformationItemSchema),
-+});
-+
-+/**
-+ * お知らせ項目の型
-+ */
-+export type InformationItem = z.infer<typeof InformationItemSchema>;
-+
-+/**
-+ * お知らせ全体の型
-+ */
-+export type Information = z.infer<typeof InformationSchema>;
-diff --git a/src/types/ipc.ts b/src/types/ipc.ts
-index fbbe902ac..0417fd2b1 100644
---- a/src/types/ipc.ts
-+++ b/src/types/ipc.ts
-@@ -14,6 +14,7 @@ import type {
- } from './review';
- import type { SettingsSavingStatus, Settings } from './setting';
- import type { Source, RevieHistory } from '@/types';
-+import type { InformationItem } from './information';
- 
- type IpcSuccess<T> = {
-   success: true;
-@@ -90,6 +91,9 @@ export const IpcChannels = {
-   REVIEW_CHAT_ERROR: 'review-chat-error', // レビューチャットエラー
-   REVIEW_CHAT_ABORT: 'review-chat-abort', // レビューチャット中断
-   REVIEW_FILE_PROCESSING_PROGRESS: 'review-file-processing-progress', // ファイル処理進捗通知
-+
-+  // お知らせ関連
-+  INFORMATION_GET: 'information-get', // お知らせ情報の取得
- } as const;
- 
- export type IpcChannel = (typeof IpcChannels)[keyof typeof IpcChannels];
-@@ -167,6 +171,9 @@ export type IpcRequestPayloadMap = {
-     question: string;
++};
+diff --git a/src/mastra/agents/model/openAICompatible.ts b/src/mastra/agents/model/openAICompatible.ts
+deleted file mode 100644
+index 158e92301..000000000
+--- a/src/mastra/agents/model/openAICompatible.ts
++++ /dev/null
+@@ -1,30 +0,0 @@
+-import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
+-// @ts-ignore
+-import { RuntimeContext } from '@mastra/core/runtime-context';
+-import type { BaseRuntimeContext } from '../types';
+-import { internalError } from '@/main/lib/error';
+-
+-export const getOpenAICompatibleModel = ({
+-  runtimeContext,
+-}: {
+-  runtimeContext: RuntimeContext<BaseRuntimeContext>;
+-}) => {
+-  const apiConfig = runtimeContext.get('model');
+-  if (!apiConfig || !apiConfig.key || !apiConfig.url || !apiConfig.modelName) {
+-    throw internalError({
+-      expose: true,
+-      messageCode: 'VALIDATION_ERROR',
+-      messageParams: {
+-        detail:
+-          'AI APIの設定が正しくありません。APIキー、URL、BPR IDを確認してください。',
+-      },
+-    });
+-  }
+-
+-  const model = createOpenAICompatible({
+-    name: 'openAICompatibleModel',
+-    apiKey: apiConfig.key,
+-    baseURL: apiConfig.url,
+-  }).chatModel(apiConfig.modelName);
+-  return model;
+-};
+diff --git a/src/mastra/agents/orchestrator.ts b/src/mastra/agents/orchestrator.ts
+index 6b85b70c4..a0de0138d 100644
+--- a/src/mastra/agents/orchestrator.ts
++++ b/src/mastra/agents/orchestrator.ts
+@@ -8,7 +8,7 @@ import { TokenLimiter } from '@mastra/memory/processors';
+ import { LibSQLStore } from '@mastra/libsql';
+ import { getStore } from '@/adapter/db/electron-store/store';
+ import { getOrchestratorSystemPrompt } from './prompts';
+-import { getOpenAICompatibleModel } from './model/openAICompatible';
++import { getModel } from './model';
+ import { isPathExists, toAbsoluteFileURL } from '@/main/lib/util';
+ import { CustomToolCallFilter } from '../memory/filter/customToolCallFilter';
+ import { BaseRuntimeContext } from './types';
+@@ -97,6 +97,6 @@ const memory = new Memory({
+ export const orchestrator = new Agent({
+   name: 'orchestrator',
+   instructions: getOrchestratorSystemPrompt,
+-  model: getOpenAICompatibleModel,
++  model: getModel,
+   memory,
+ });
+diff --git a/src/mastra/agents/toolAgents.ts b/src/mastra/agents/toolAgents.ts
+index 089032238..db425e8f5 100644
+--- a/src/mastra/agents/toolAgents.ts
++++ b/src/mastra/agents/toolAgents.ts
+@@ -1,7 +1,7 @@
+ // toolで利用するエージェントをまとめたクラス
+ // @ts-ignore
+ import { Agent } from '@mastra/core/agent';
+-import { getOpenAICompatibleModel } from './model/openAICompatible';
++import { getModel } from './model';
+ // eslint-disable-next-line import/no-cycle
+ import { getDocumentQuerySystemPrompt } from './prompts';
+ import { BaseRuntimeContext } from './types';
+@@ -13,5 +13,5 @@ export type DocumentExpertAgentRuntimeContext = BaseRuntimeContext & {
+ export const documentExpertAgent = new Agent({
+   name: 'documentExpertAgent',
+   instructions: getDocumentQuerySystemPrompt,
+-  model: getOpenAICompatibleModel,
++  model: getModel,
+ });
+diff --git a/src/mastra/agents/types/index.ts b/src/mastra/agents/types/index.ts
+index 188f5c5a7..b929f90ff 100644
+--- a/src/mastra/agents/types/index.ts
++++ b/src/mastra/agents/types/index.ts
+@@ -6,5 +6,6 @@ export type BaseRuntimeContext = {
+     key: string;
+     url: string;
+     modelName: string;
++    userId: string;
    };
-   [IpcChannels.REVIEW_CHAT_ABORT]: string; // review history id
-+
-+  // お知らせ関連
-+  [IpcChannels.INFORMATION_GET]: undefined;
  };
+diff --git a/src/mastra/agents/workflowAgents.ts b/src/mastra/agents/workflowAgents.ts
+index fb515bb38..28da700ec 100644
+--- a/src/mastra/agents/workflowAgents.ts
++++ b/src/mastra/agents/workflowAgents.ts
+@@ -19,7 +19,7 @@ import {
+   getReviewChatResearchPrompt,
+   getReviewChatAnswerPrompt,
+ } from './prompts';
+-import { getOpenAICompatibleModel } from './model/openAICompatible';
++import { getModel } from './model';
+ import { BaseRuntimeContext } from './types';
+ import type { CustomEvaluationSettings } from '@/types';
  
- export type IpcResponsePayloadMap = {
-@@ -222,6 +229,9 @@ export type IpcResponsePayloadMap = {
-   [IpcChannels.REVIEW_EXECUTE_ABORT]: IpcResult;
-   [IpcChannels.REVIEW_CHAT_SEND_MESSAGE]: IpcResult;
-   [IpcChannels.REVIEW_CHAT_ABORT]: IpcResult;
-+
-+  // お知らせ関連
-+  [IpcChannels.INFORMATION_GET]: IpcResult<InformationItem[]>;
- };
+@@ -92,92 +92,92 @@ export type ReviewChatAnswerAgentRuntimeContext = BaseRuntimeContext & {
+ export const summarizeSourceAgent = new Agent({
+   name: 'summarizeSourceAgent',
+   instructions: SOURCE_ANALYSIS_SYSTEM_PROMPT,
+-  model: getOpenAICompatibleModel,
++  model: getModel,
+ });
  
- export type IpcEventPayloadMap = {
-@@ -324,4 +334,7 @@ export const IpcNameMap = {
-   [IpcChannels.REVIEW_CHAT_COMPLETE]: 'レビューチャット完了',
-   [IpcChannels.REVIEW_CHAT_ERROR]: 'レビューチャットエラー',
-   [IpcChannels.REVIEW_CHAT_ABORT]: 'レビューチャット中断',
-+
-+  // お知らせ関連
-+  [IpcChannels.INFORMATION_GET]: 'お知らせ情報の取得',
- };
+ export const summarizeTopicAgent = new Agent({
+   name: 'summarizeTopicAgent',
+   instructions: EXTRACT_TOPIC_AND_SUMMARY_SYSTEM_PROMPT,
+-  model: getOpenAICompatibleModel,
++  model: getModel,
+ });
+ 
+ export const checklistExtractionAgent = new Agent({
+   name: 'checklistExtractionAgent',
+   instructions: getChecklistExtractionPrompt,
+-  model: getOpenAICompatibleModel,
++  model: getModel,
+ });
+ 
+ export const generalDocumentChecklistAgent = new Agent({
+   name: 'generalDocumentChecklistAgent',
+   instructions: getGeneralDocumentChecklistPrompt,
+-  model: getOpenAICompatibleModel,
++  model: getModel,
+ });
+ 
+ export const classifyCategoryAgent = new Agent({
+   name: 'classifyCategoryAgent',
+   instructions: getChecklistCategolizePrompt,
+-  model: getOpenAICompatibleModel,
++  model: getModel,
+ });
+ 
+ export const reviewExecuteAgent = new Agent({
+   name: 'reviewExecuteAgent',
+   instructions: getDocumentReviewExecutionPrompt,
+-  model: getOpenAICompatibleModel,
++  model: getModel,
+ });
+ 
+ export const topicExtractionAgent = new Agent({
+   name: 'topicExtractionAgent',
+   instructions: getTopicExtractionPrompt,
+-  model: getOpenAICompatibleModel,
++  model: getModel,
+ });
+ 
+ export const topicChecklistAgent = new Agent({
+   name: 'topicChecklistAgent',
+   instructions: getTopicChecklistCreationPrompt,
+-  model: getOpenAICompatibleModel,
++  model: getModel,
+ });
+ 
+ // export const checklistIntegrationAgent = new Agent({
+ //   name: 'checklistIntegrationAgent',
+ //   instructions: getChecklistIntegrationPrompt,
+-//   model: getOpenAICompatibleModel,
++//   model: getModel,
+ // });
+ 
+ // チェックリストブラッシュアップ用エージェント
+ export const checklistRefinementAgent = new Agent({
+   name: 'checklistRefinementAgent',
+   instructions: getChecklistRefinementPrompt,
+-  model: getOpenAICompatibleModel,
++  model: getModel,
+ });
+ 
+ // 個別ドキュメントレビュー用エージェント（効率化版）
+ export const individualDocumentReviewAgent = new Agent({
+   name: 'individualDocumentReviewAgent',
+   instructions: getIndividualDocumentReviewPrompt,
+-  model: getOpenAICompatibleModel,
++  model: getModel,
+ });
+ 
+ // レビュー結果統合用エージェント
+ export const consolidateReviewAgent = new Agent({
+   name: 'consolidateReviewAgent',
+   instructions: getConsolidateReviewPrompt,
+-  model: getOpenAICompatibleModel,
++  model: getModel,
+ });
+ 
+ export const reviewChatPlanningAgent = new Agent({
+   name: 'reviewChatPlanningAgent',
+   instructions: getReviewChatPlanningPrompt,
+-  model: getOpenAICompatibleModel,
++  model: getModel,
+ });
+ 
+ export const reviewChatResearchAgent = new Agent({
+   name: 'reviewChatResearchAgent',
+   instructions: getReviewChatResearchPrompt,
+-  model: getOpenAICompatibleModel,
++  model: getModel,
+ });
+ 
+ export const reviewChatAnswerAgent = new Agent({
+   name: 'reviewChatAnswerAgent',
+   instructions: getReviewChatAnswerPrompt,
+-  model: getOpenAICompatibleModel,
++  model: getModel,
+ });
+diff --git a/src/mastra/lib/agentUtils.ts b/src/mastra/lib/agentUtils.ts
+index dbe27fba1..a4d50094b 100644
+--- a/src/mastra/lib/agentUtils.ts
++++ b/src/mastra/lib/agentUtils.ts
+@@ -15,6 +15,7 @@ export async function createRuntimeContext<T extends BaseRuntimeContext>() {
+     key: store.api.key,
+     url: store.api.url,
+     modelName: store.api.model,
++    userId: store.api.userId,
+   });
+   return runtimeContext;
+ }
+diff --git a/src/mastra/tools/sourcesTools.ts b/src/mastra/tools/sourcesTools.ts
+index ea8601bcf..56f5faf41 100644
+--- a/src/mastra/tools/sourcesTools.ts
++++ b/src/mastra/tools/sourcesTools.ts
+@@ -168,6 +168,7 @@ export const documentQueryTool = createTool({
+             const res = await documentExpertAgent.generateLegacy(item.query, {
+               abortSignal: options?.abortSignal,
+               runtimeContext,
++              maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
+             });
+             answer = res.text;
+             const { success, reason } = judgeFinishReason(res.finishReason);
+diff --git a/src/mastra/workflows/reviewChat/generateAnswerStep.ts b/src/mastra/workflows/reviewChat/generateAnswerStep.ts
+index c87dd8d2b..6ac8c0291 100644
+--- a/src/mastra/workflows/reviewChat/generateAnswerStep.ts
++++ b/src/mastra/workflows/reviewChat/generateAnswerStep.ts
+@@ -100,6 +100,7 @@ ${result.researchResult}`;
+       const result = await answerAgent.generateLegacy(promptText, {
+         runtimeContext,
+         abortSignal,
++        maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
+         onStepFinish: (stepResult) => {
+           // AI SDK Data Stream Protocol v1 形式でチャンクを送信
+           // https://sdk.vercel.ai/docs/ai-sdk-ui/stream-protocol
+diff --git a/src/mastra/workflows/reviewChat/planResearchStep.ts b/src/mastra/workflows/reviewChat/planResearchStep.ts
+index 21d360076..e7b22eb20 100644
+--- a/src/mastra/workflows/reviewChat/planResearchStep.ts
++++ b/src/mastra/workflows/reviewChat/planResearchStep.ts
+@@ -89,6 +89,7 @@ export const planResearchStep = createStep({
+       const result = await planningAgent.generateLegacy(question, {
+         runtimeContext,
+         output: researchTasksSchema,
++        maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
+       });
+ 
+       const { success, reason } = judgeFinishReason(result.finishReason);
+diff --git a/src/mastra/workflows/reviewChat/researchDocument/researchDocumentChunk.ts b/src/mastra/workflows/reviewChat/researchDocument/researchDocumentChunk.ts
+index c49b8f97a..2a67dc4fc 100644
+--- a/src/mastra/workflows/reviewChat/researchDocument/researchDocumentChunk.ts
++++ b/src/mastra/workflows/reviewChat/researchDocument/researchDocumentChunk.ts
+@@ -117,6 +117,7 @@ export const researchChunkStep = createStep({
+         },
+         {
+           runtimeContext,
++          maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
+         },
+       );
+ 
+diff --git a/src/mastra/workflows/sourceRegistration/sourceRegistration.ts b/src/mastra/workflows/sourceRegistration/sourceRegistration.ts
+index cae3af6d8..bf3bf5719 100644
+--- a/src/mastra/workflows/sourceRegistration/sourceRegistration.ts
++++ b/src/mastra/workflows/sourceRegistration/sourceRegistration.ts
+@@ -68,6 +68,7 @@ const analyzeSourceStep = createStep({
+         {
+           runtimeContext: await createRuntimeContext(),
+           output: outputSchema,
++          maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
+         },
+       );
+ 
+@@ -160,6 +161,7 @@ const extractTopicAndSummaryStep = createStep({
+       const analysisResult = await summarizeTopicAgent.generateLegacy(content, {
+         runtimeContext: await createRuntimeContext(),
+         output: outputSchema,
++        maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
+       });
+       const { success, reason } = judgeFinishReason(
+         analysisResult.finishReason,
+diff --git a/src/mastra/workflows/sourceReview/checklistExtraction.ts b/src/mastra/workflows/sourceReview/checklistExtraction.ts
+index 03660ee8f..e9a1a65ff 100644
+--- a/src/mastra/workflows/sourceReview/checklistExtraction.ts
++++ b/src/mastra/workflows/sourceReview/checklistExtraction.ts
+@@ -150,6 +150,7 @@ const checklistDocumentExtractionStep = createStep({
+             output: outputSchema,
+             runtimeContext,
+             abortSignal,
++            maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
+             // AIの限界生成トークン数を超えた場合のエラーを回避するための設定
+             experimental_repairText: async (options) => {
+               isCompleted = false;
+@@ -329,6 +330,7 @@ const topicExtractionStep = createStep({
+           output: outputSchema,
+           runtimeContext,
+           abortSignal,
++          maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
+         },
+       );
+ 
+@@ -427,6 +429,7 @@ const topicChecklistCreationStep = createStep({
+         output: outputSchema,
+         runtimeContext,
+         abortSignal,
++        maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
+       });
+       logger.debug(
+         `Combined document topic(${title}) generated checklist items:`,
+@@ -607,6 +610,7 @@ Please continue refining the remaining items, avoiding duplicates with already r
+             output: outputSchema,
+             runtimeContext,
+             abortSignal,
++            maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
+             // AIの限界生成トークン数を超えた場合のエラーを回避するための設定
+             experimental_repairText: async (options) => {
+               isCompleted = false;
+diff --git a/src/mastra/workflows/sourceReview/executeReview/classifyChecklistStep.ts b/src/mastra/workflows/sourceReview/executeReview/classifyChecklistStep.ts
+index e6bb5eab4..f0df44fdf 100644
+--- a/src/mastra/workflows/sourceReview/executeReview/classifyChecklistStep.ts
++++ b/src/mastra/workflows/sourceReview/executeReview/classifyChecklistStep.ts
+@@ -124,6 +124,7 @@ export const classifyChecklistsByCategoryStep = createStep({
+           output: outputSchema,
+           runtimeContext,
+           abortSignal,
++          maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
+         },
+       );
+       // 分類結果の妥当性をチェック
+diff --git a/src/mastra/workflows/sourceReview/executeReview/largeDocumentReview/consolidateReviewStep.ts b/src/mastra/workflows/sourceReview/executeReview/largeDocumentReview/consolidateReviewStep.ts
+index 5574d6b90..8425a1f28 100644
+--- a/src/mastra/workflows/sourceReview/executeReview/largeDocumentReview/consolidateReviewStep.ts
++++ b/src/mastra/workflows/sourceReview/executeReview/largeDocumentReview/consolidateReviewStep.ts
+@@ -176,6 +176,7 @@ Please provide a consolidated review that synthesizes all individual document re
+             output: outputSchema,
+             runtimeContext,
+             abortSignal,
++            maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
+           },
+         );
+ 
+diff --git a/src/mastra/workflows/sourceReview/executeReview/largeDocumentReview/individualDocumentReviewStep.ts b/src/mastra/workflows/sourceReview/executeReview/largeDocumentReview/individualDocumentReviewStep.ts
+index ac4524164..82d71b71f 100644
+--- a/src/mastra/workflows/sourceReview/executeReview/largeDocumentReview/individualDocumentReviewStep.ts
++++ b/src/mastra/workflows/sourceReview/executeReview/largeDocumentReview/individualDocumentReviewStep.ts
+@@ -133,6 +133,7 @@ Checklist Items to Review:\n${checklists.map((item) => `- ID: ${item.id} - ${ite
+           output: outputSchema,
+           runtimeContext,
+           abortSignal,
++          maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
+         });
+ 
+         if (reviewResult.finishReason === 'length') {
+diff --git a/src/mastra/workflows/sourceReview/executeReview/smallDocumentReviewStep.ts b/src/mastra/workflows/sourceReview/executeReview/smallDocumentReviewStep.ts
+index 7e4752e0e..4f7062d92 100644
+--- a/src/mastra/workflows/sourceReview/executeReview/smallDocumentReviewStep.ts
++++ b/src/mastra/workflows/sourceReview/executeReview/smallDocumentReviewStep.ts
+@@ -124,6 +124,7 @@ Please review the document against the above checklist items.`;
+             output: outputSchema,
+             runtimeContext,
+             abortSignal,
++            maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
+           },
+         );
+         const { success, reason } = judgeFinishReason(
+diff --git a/src/renderer/components/common/SettingsModal.tsx b/src/renderer/components/common/SettingsModal.tsx
+index 5f0fa52dc..12fad0cd6 100644
+--- a/src/renderer/components/common/SettingsModal.tsx
++++ b/src/renderer/components/common/SettingsModal.tsx
+@@ -7,10 +7,16 @@ import {
+   Box,
+   CircularProgress,
+   Alert,
++  FormControl,
++  InputLabel,
++  Select,
++  MenuItem,
++  FormHelperText,
+ } from '@mui/material';
+ import Modal from './Modal';
+ import useSettingsStore from '../../hooks/useSettings';
+ import { StoreSchema as Settings } from '../../../adapter/db/electron-store/store';
++import { MODEL_OPTIONS } from '@/config/modelConfig';
+ 
+ interface SettingsModalProps {
+   open: boolean;
+@@ -112,14 +118,41 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
+               margin="normal"
+               variant="outlined"
+             />
++            <FormControl
++              fullWidth
++              margin="normal"
++              variant="outlined"
++              error={!!validationErrors.api?.model}
++              disabled={loading || saving}
++            >
++              <InputLabel id="model-select-label">モデル名</InputLabel>
++              <Select
++                labelId="model-select-label"
++                id="model-select"
++                value={settings.api.model}
++                label="モデル名"
++                onChange={(e) => handleChange('api', 'model', e.target.value)}
++              >
++                {MODEL_OPTIONS.map((option) => (
++                  <MenuItem key={option} value={option}>
++                    {option}
++                  </MenuItem>
++                ))}
++              </Select>
++              {validationErrors.api?.model?.message && (
++                <FormHelperText>
++                  {validationErrors.api.model.message}
++                </FormHelperText>
++              )}
++            </FormControl>
+             <TextField
+               fullWidth
+-              label="BPR ID"
+-              value={settings.api.model}
++              label="ユーザID"
++              value={settings.api.userId}
+               disabled={loading || saving}
+-              onChange={(e) => handleChange('api', 'model', e.target.value)}
+-              error={!!validationErrors.api?.model}
+-              helperText={validationErrors.api?.model?.message}
++              onChange={(e) => handleChange('api', 'userId', e.target.value)}
++              error={!!validationErrors.api?.userId}
++              helperText={validationErrors.api?.userId?.message}
+               margin="normal"
+               variant="outlined"
+             />
+diff --git a/src/renderer/components/review/ReviewChecklistSection.tsx b/src/renderer/components/review/ReviewChecklistSection.tsx
+index a719b60c2..0307424d7 100644
+--- a/src/renderer/components/review/ReviewChecklistSection.tsx
++++ b/src/renderer/components/review/ReviewChecklistSection.tsx
+@@ -52,6 +52,7 @@ const getEvaluationColor = (evaluation: ReviewEvaluation): string => {
+   // 存在しない場合はハッシュ値から色を生成
+   let hash = 0;
+   for (let i = 0; i < evaluation.length; i++) {
++    // eslint-disable-next-line no-bitwise
+     hash = evaluation.charCodeAt(i) + ((hash << 5) - hash);
+   }
+   const hue = hash % 360;
+@@ -135,6 +136,7 @@ const ReviewChecklistSection: React.FC<ReviewChecklistSectionProps> = ({
+             url: settings.api.url,
+             key: settings.api.key,
+             model: settings.api.model,
++            userId: settings.api.userId,
+           }
+         : undefined;
+ 
+@@ -172,9 +174,8 @@ const ReviewChecklistSection: React.FC<ReviewChecklistSectionProps> = ({
+       // 文字列順で比較
+       if (sortDirection === 'desc') {
+         return bEv.localeCompare(aEv);
+-      } else {
+-        return aEv.localeCompare(bEv);
+       }
++      return aEv.localeCompare(bEv);
+     });
+   }, [checklistResults, sortBy, sortDirection]);
+ 
+diff --git a/src/renderer/components/review/ReviewSourceModal.tsx b/src/renderer/components/review/ReviewSourceModal.tsx
+index a1b897e9e..ec8c4e1f4 100644
+--- a/src/renderer/components/review/ReviewSourceModal.tsx
++++ b/src/renderer/components/review/ReviewSourceModal.tsx
+@@ -116,14 +116,14 @@ const getAlertMessage = ({
+             <br />
+             ・追加指示・コメントフォーマット
+             <br />
+-            ・AI API設定（エンドポイント、APIキー、BPR ID）
++            ・AI API設定（エンドポイント、APIキー、モデル名、ユーザID）
+             <br />
+             <br />
+             <strong>ファイル形式:</strong>
+             <br />
+             1行目:
+             ヘッダ行（チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI
+-            APIエンドポイント,AI APIキー,BPR ID）：必須
++            APIエンドポイント,AI APIキー,モデル名,ユーザID）：必須
+             <br />
+             2行目以降: データ行：任意
+             <br />
+@@ -134,7 +134,7 @@ const getAlertMessage = ({
+             ・評定ラベル列＋評定説明列の両方に値がある場合→評定設定値として認識
+             <br />
+             ・追加指示・コメントフォーマット・AI
+-            API・BPR ID列に値がある場合→各種設定値として認識
++            API・モデル名・ユーザID列に値がある場合→各種設定値として認識
+             <br />
+             ・空セルは無視
+             <br />
+@@ -228,12 +228,12 @@ function ReviewSourceModal({
+     // テンプレートCSVの内容を生成
+     const templateLines = [
+       // ヘッダ行
+-      'チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,BPR ID',
++      'チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID',
+       // データ行
+-      'チェックリストサンプル1,A,基準を完全に満たしている,レビューは厳格に実施してください。,"【評価理由・根拠】\n（具体的な理由と根拠を記載）\n\n【改善提案】\n（改善のための具体的な提案を記載）",http://localhost:11434/v1,your-api-key,llama3',
+-      'チェックリストサンプル2,B,基準をある程度満たしている,,,,',
+-      'チェックリストサンプル3,C,基準を満たしていない,,,,',
+-      ',-,評価の対象外、または評価できない,,,,,',
++      'チェックリストサンプル1,A,基準を完全に満たしている,レビューは厳格に実施してください。,"【評価理由・根拠】\n（具体的な理由と根拠を記載）\n\n【改善提案】\n（改善のための具体的な提案を記載）",http://localhost:11434/v1,your-api-key,llama3,user001',
++      'チェックリストサンプル2,B,基準をある程度満たしている,,,,,',
++      'チェックリストサンプル3,C,基準を満たしていない,,,,,',
++      ',-,評価の対象外、または評価できない,,,,,,',
+     ];
+ 
+     const csvContent = templateLines.join('\n');
+diff --git a/src/renderer/hooks/useSettings.ts b/src/renderer/hooks/useSettings.ts
+index a4353d4bb..0d7b2dd64 100644
+--- a/src/renderer/hooks/useSettings.ts
++++ b/src/renderer/hooks/useSettings.ts
+@@ -12,6 +12,7 @@ import { useAgentStatusStore } from '../stores/agentStatusStore';
+ import { useAlertStore } from '../stores/alertStore';
+ import { getSafeErrorMessage, internalError } from '../lib/error';
+ import { usePushChannel } from './usePushChannel';
++import { DEFAULT_MODEL } from '@/config/modelConfig';
+ 
+ type AppSettings = Omit<Settings, 'mcp'> & {
+   mcp: { serverConfig: string | undefined };
+@@ -25,7 +26,7 @@ const useSettingsStore = () => {
+   const [settings, setSettings] = useState<AppSettings>({
+     database: { dir: '' },
+     source: { registerDir: './source' },
+-    api: { key: '', url: '', model: '' },
++    api: { key: '', url: '', model: DEFAULT_MODEL, userId: '' },
+     redmine: { endpoint: '', apiKey: '' },
+     gitlab: { endpoint: '', apiKey: '' },
+     mcp: { serverConfig: undefined },
+diff --git a/src/renderer/lib/csvUtils.ts b/src/renderer/lib/csvUtils.ts
+index bf0b8c305..37b011ac6 100644
+--- a/src/renderer/lib/csvUtils.ts
++++ b/src/renderer/lib/csvUtils.ts
+@@ -1,8 +1,4 @@
+-import {
+-  ReviewChecklistResult,
+-  CustomEvaluationSettings,
+-  RevieHistory,
+-} from '@/types';
++import { ReviewChecklistResult, RevieHistory } from '@/types';
+ 
+ /**
+  * CSV用文字列のエスケープ処理
+@@ -37,7 +33,7 @@ const escapeCSVField = (field: string): string => {
+ export const convertReviewResultsToCSV = (
+   checklistResults: ReviewChecklistResult[],
+   reviewHistory?: RevieHistory | null,
+-  apiSettings?: { url?: string; key?: string; model?: string },
++  apiSettings?: { url?: string; key?: string; model?: string; userId?: string },
+ ): string => {
+   // ヘッダー行を構築
+   const headers = [
+@@ -50,7 +46,8 @@ export const convertReviewResultsToCSV = (
+     'コメントフォーマット',
+     'AI APIエンドポイント',
+     'AI APIキー',
+-    'BPR ID',
++    'モデル名',
++    'ユーザID',
+   ];
+ 
+   const csvRows: string[] = [];
+@@ -67,7 +64,8 @@ export const convertReviewResultsToCSV = (
+   // データ行を構築
+   for (let i = 0; i < maxRows; i++) {
+     const checklist = i < checklistResults.length ? checklistResults[i] : null;
+-    const evaluationItem = i < evaluationItems.length ? evaluationItems[i] : null;
++    // 直ぐに戻せるようにコメントアウト
++    // const evaluationItem = i < evaluationItems.length ? evaluationItems[i] : null;
+ 
+     const row: string[] = [
+       checklist?.content || '', // チェックリスト
+@@ -80,14 +78,16 @@ export const convertReviewResultsToCSV = (
+       // i === 0 ? (reviewHistory?.commentFormat || '') : '', // コメントフォーマット（1行目のみ）
+       // i === 0 ? (apiSettings?.url || '') : '', // AI APIエンドポイント（1行目のみ）
+       // i === 0 ? (apiSettings?.key || '') : '', // AI APIキー（1行目のみ）
+-      // i === 0 ? (apiSettings?.model || '') : '', // BPR ID（1行目のみ）
++      // i === 0 ? (apiSettings?.model || '') : '', // モデル名（1行目のみ）
++      // i === 0 ? (apiSettings?.userId || '') : '', // ユーザID（1行目のみ）
+       '', // 評定ラベル
+       '', // 評定説明
+       '', // 追加指示（1行目のみ）
+       '', // コメントフォーマット（1行目のみ）
+       '', // AI APIエンドポイント（1行目のみ）
+       '', // AI APIキー（1行目のみ）
+-      '', // BPR ID（1行目のみ）
++      '', // モデル名（1行目のみ）
++      '', // ユーザID（1行目のみ）
+     ];
+ 
+     csvRows.push(row.map(escapeCSVField).join(','));
+diff --git a/src/types/review.ts b/src/types/review.ts
+index ea9378048..1897004e4 100644
+--- a/src/types/review.ts
++++ b/src/types/review.ts
+@@ -138,5 +138,6 @@ export interface CsvImportData {
+     url?: string;
+     key?: string;
+     model?: string;
++    userId?: string;
+   };
+ }
+diff --git a/src/types/setting.ts b/src/types/setting.ts
+index a0416b4f4..65f960fc5 100644
+--- a/src/types/setting.ts
++++ b/src/types/setting.ts
+@@ -1,5 +1,6 @@
+ import { z } from 'zod';
+ import { AgentToolStatus } from './chat';
++import { MODEL_OPTIONS } from '@/config/modelConfig';
+ 
+ // 設定状態管理用の型定義
+ export type SettingsSavingState = 'saving' | 'done' | 'error';
+@@ -96,7 +97,8 @@ export const SourceSchema = z.object({
+ export const ApiSchema = z.object({
+   key: z.string().min(1, { message: 'APIキーは必須です' }),
+   url: z.string().url({ message: '有効なURLを入力してください' }),
+-  model: z.string().min(1, { message: 'モデル名は必須です' }),
++  model: z.enum(MODEL_OPTIONS, { message: 'モデル名を選択してください' }),
++  userId: z.string().min(1, { message: 'ユーザIDは必須です' }),
+ });
+ 
+ /**
