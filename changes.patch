@@ -1,445 +1,80 @@
-diff --git a/.claude/commands/ddd_1.md b/.claude/commands/ddd_1.md
-new file mode 100644
-index 000000000..9cb796226
---- /dev/null
-+++ b/.claude/commands/ddd_1.md
-@@ -0,0 +1,4 @@
-+ID:$ARGUMENTS のPBIについて、`next-server`を十分に分析して以下を実行してください。
-+1. 振る舞いを確認するための（ブラックボックス）テストコードの実装
-+  - CLAUDE.mdに記載の注意点を良く確認すること
-+2. プロダクションコードの実装
-diff --git a/.claude/commands/ddd_2.md b/.claude/commands/ddd_2.md
-new file mode 100644
-index 000000000..79e5ee7f1
---- /dev/null
-+++ b/.claude/commands/ddd_2.md
-@@ -0,0 +1,21 @@
-+ID:$ARGUMENTS のPBIについて、プロダクションコードとテストコードの作成が概ね完了（細かいチェックやリファクタリングは未済）しています。
-+コードを十分に分析して以下を実行してください。
-+- コードのレビュー
-+  - 受け入れ基準を満たしているか
-+  - アーキテクチャ戦略に沿って作成されているか
-+  - 例外は方針に沿って正しく処理され、エラーメッセージは正しくユーザに通知されているか
-+  - 冗長な処理はないか
-+    - 共通化できていない処理はないか
-+      - バックエンド、コンポーネントどちらも確認
-+      - コンポーネントはなるべく共通化して保守性を高められているか（必要に応じてshadcn/uiも導入）
-+  - 将来的なバグにつながるようなコードはないか
-+  - mastra関連コードは設計方針に沿って実装できているか
-+- 必要あれば、プロダクションコードの修正・リファクタリング  
-+- 必要あれば、テストコードのリファクタリング
-+  - 受け入れ基準を検査できているか
-+  - テスト観点は足りているか
-+    - ホワイトボックステストをすべき複雑なロジックはないか
-+    - データのバリエーションテストが必要な箇所はないか
-+    - 異常系も漏れなく作成できているか
-+  - 適切にアサーションできているか
-+    - 検査項目不足が散見されるので、注意すること
-diff --git a/.claude/commands/improve_point.md b/.claude/commands/improve_point.md
-new file mode 100644
-index 000000000..c46d65b0b
---- /dev/null
-+++ b/.claude/commands/improve_point.md
-@@ -0,0 +1,2 @@
-+現在、ID:$1のPBIの取り組み中です。
-+これまでの取り組み内容を十分に確認して、指摘事項に対応してください。
-\ No newline at end of file
 diff --git a/CLAUDE.md b/CLAUDE.md
-index d40b682ec..b560ff482 100644
+index b560ff482..6a25278bb 100644
 --- a/CLAUDE.md
 +++ b/CLAUDE.md
-@@ -20,6 +20,9 @@ npm run check # TypeScriptの型チェック
- npm test
- ```
+@@ -251,7 +251,7 @@ ElectronのIPCを使用してフロントエンド・バックエンド間の通
  
-+# アプリの開発方針
-+- TDD
-+
- ## アーキテクチャ概要
- 
- ### プロジェクト構成
-@@ -216,19 +219,53 @@ ElectronのIPCを使用してフロントエンド・バックエンド間の通
- - 新規に追加した機能については明確な理由がない限り、新規テストを作成すること
-   - 前述の通り、古典派的な方針でテストを実装するので、機能が作成完了した段階で新規テストを作成すること
- 
--## 依頼タスク
--- 要件: アプリの運営者がお知らせを配信できるようにする
--- 実装方針
--  - gitlab（社内ホスト版）の特定publicリポジトリにinformation.jsonというファイルを用意して、そこでお知らせ内容を管理する
--    - このファイルをアプリ起動時に確認し、お知らせ内容を表示する
--    - information.jsonではお知らせ内容と表示順を管理できる
--    - ただし、開発環境ではローカルファイル`information/information.json`を見に行くようにする
--      - `information/README.md`にはinfowmation.jsonの記載方法や記載例を書いておくこと
--  - お知らせは画面上部（サイドバー＋メイン画面の上）に表示する
--    - 複数メッセージが表示できるようにする
--    - 改行についても問題なく反映されるようにする
--    - お知らせを確認したら×ボタンで削除できるようにする
--      - ただし、アプリを再起動した場合は、お知らさせは再度表示されるようにする
-+## バックログ
-+雛形
-+```
-+# ID:
-+- PBI名: 
-+- ステータス: [to do/in progress/done]
-+- ユーザストーリー/背景
-+- 受け入れ基準
-+- 注意事項
-+- 指摘事項（in progressの場合のみ）
-+```
-+
-+# ID: 1
-+- PBI名: 設定項目にユーザIDという項目を追加する
+ # ID: 2
+ - PBI名: 設定項目であるモデル名を選択式にする
+-- ステータス: in progress
 +- ステータス: done
+ - 背景
+   - 現状、モデル名は自由記述型である
+   - 利用予定のAIモデルは選択肢が限られているので、選択式としたい
+@@ -266,6 +266,13 @@ ElectronのIPCを使用してフロントエンド・バックエンド間の通
+       - `getModel`ではモデル名に合わせてモデルを出し分ける
+   - 今後、モデル名のオプションを増やす場合のソース変更が一箇所になるように設計されている
+     - configファイル的な形で整備するとスムーズか？
+-- 指摘事項
+-  - `src/mastra/agents/model/openAICompatible.ts`については削除できるはず
+-    - プロダクション・テストコードで利用している場合は適切に`getModel`に置き換える必要もある
++
++# ID: 3
++- PBI名: `generateLegacy`実行時にモデルが`gpt-5`の場合はデフォルトで第二引数のオプションに`temperature:1`を指定する
++- ステータス: to do
 +- 背景
-+  - 現状は、設定項目のモデル名を擬似的にユーザID（BPR ID）として取り扱っている
-+  - 今後、モデル名とユーザ名を明確に区別する必要があるため、明示的にユーザIDの設定項目を追加する必要がある
++  - gpt-5は`temperature:1`を指定しないとエラーになる
 +- 受け入れ基準
-+  - 設定画面からユーザIDとモデル名を設定できる
-+    - ユーザIDは他の設定項目と同様`electron-store`で管理されている
-+  - `settingsRepository`を利用してユーザIDを取得できる
-+  - mastraの基底runtimecontextにユーザIDが含まれており、`createRuntimeContext`関数で実際のユーザIDがセットされる
-+  - レビュー機能のファイルインポート・エクスポートでユーザIDとモデル名が両方インポート・エクスポートできる
-+  - フロントエンド、バックエンドで明確にユーザIDとモデル名が区別されている
-+- 注意事項
-+  - 現状の設定画面やレビュー機能のファイルインポート・エクスポートでは、`BPR ID`という設定項目名としているが`ユーザID`とすること
-+    - コード内も`userId`として変数名等を設定すること
-+  - 影響範囲はかなり幅広いと想定されるので、十分に注意すること
-+
-+# ID: 2
-+- PBI名: 設定項目であるモデル名を選択式にする
-+- ステータス: in progress
-+- 背景
-+  - 現状、モデル名は自由記述型である
-+  - 利用予定のAIモデルは選択肢が限られているので、選択式としたい
-+- 受け入れ基準
-+  - 設定画面でモデル名を選択式で選ぶことができる
-+    - 現状のオプションは以下
-+      - gpt-4.1-mini
-+      - gpt-4o
-+      - gpt-5
-+  - 選択されたモデル名に合わせてAI処理時のAIモデルを出し分けている
-+    - 現状は各Agent引数オプションで`getOpenAICompatibleModel`を与えているが新たに`getModel`関数を作成して与える
-+      - `getModel`ではモデル名に合わせてモデルを出し分ける
-+  - 今後、モデル名のオプションを増やす場合のソース変更が一箇所になるように設計されている
-+    - configファイル的な形で整備するとスムーズか？
- - 指摘事項
--  - お知らせを格納するAlertコンポーネントの角が少し丸くなっているので、直して欲しい
--  - また、同コンポーネントの下部には薄く線を引いて、複数コンポーネントやアプリ画面と視覚的に区分できるようにしたい
-+  - `src/mastra/agents/model/openAICompatible.ts`については削除できるはず
-+    - プロダクション・テストコードで利用している場合は適切に`getModel`に置き換える必要もある
-diff --git a/package-lock.json b/package-lock.json
-index a7d1cfd7c..21dd6f834 100644
---- a/package-lock.json
-+++ b/package-lock.json
-@@ -10,6 +10,7 @@
-       "hasInstallScript": true,
-       "license": "MIT",
-       "dependencies": {
-+        "@ai-sdk/openai": "1.3.24",
-         "@ai-sdk/openai-compatible": "0.2.16",
-         "@electron/notarize": "^3.0.0",
-         "@emotion/react": "^11.14.0",
-@@ -404,6 +405,22 @@
-         "zod": "^3.25.76 || ^4.1.8"
-       }
-     },
-+    "node_modules/@ai-sdk/openai": {
-+      "version": "1.3.24",
-+      "resolved": "https://registry.npmjs.org/@ai-sdk/openai/-/openai-1.3.24.tgz",
-+      "integrity": "sha512-GYXnGJTHRTZc4gJMSmFRgEQudjqd4PUN0ZjQhPwOAYH1yOAvQoG/Ikqs+HyISRbLPCrhbZnPKCNHuRU4OfpW0Q==",
-+      "license": "Apache-2.0",
-+      "dependencies": {
-+        "@ai-sdk/provider": "1.1.3",
-+        "@ai-sdk/provider-utils": "2.2.8"
-+      },
-+      "engines": {
-+        "node": ">=18"
-+      },
-+      "peerDependencies": {
-+        "zod": "^3.0.0"
-+      }
-+    },
-     "node_modules/@ai-sdk/openai-compatible": {
-       "version": "0.2.16",
-       "resolved": "https://registry.npmjs.org/@ai-sdk/openai-compatible/-/openai-compatible-0.2.16.tgz",
-diff --git a/package.json b/package.json
-index 127f6620c..97aa653f1 100644
---- a/package.json
-+++ b/package.json
-@@ -114,6 +114,7 @@
-   },
-   "dependencies": {
-     "@ai-sdk/openai-compatible": "0.2.16",
-+    "@ai-sdk/openai": "1.3.24",
-     "@electron/notarize": "^3.0.0",
-     "@emotion/react": "^11.14.0",
-     "@emotion/styled": "^11.14.0",
-diff --git a/src/__tests__/main/csvParser.test.ts b/src/__tests__/main/csvParser.test.ts
-index ccaa2ef6e..8935feb2c 100644
---- a/src/__tests__/main/csvParser.test.ts
-+++ b/src/__tests__/main/csvParser.test.ts
-@@ -4,13 +4,13 @@ import { AppError } from '@/main/lib/error';
- describe('CsvParser - 新フォーマット対応', () => {
-   describe('parseImportFormat', () => {
-     it('新フォーマットのCSVを正しくパースできること', () => {
--      const csvText = `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,BPR ID
--要件が明確に定義されているか,,,,,,
--設計書に矛盾がないか,,,,,,
--,A,優秀 - 問題なし,,,,,
--,B,良好 - 軽微な改善推奨,,,,,
-+      const csvText = `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID
-+要件が明確に定義されているか,,,,,,,
-+設計書に矛盾がないか,,,,,,,
-+,A,優秀 - 問題なし,,,,,,
-+,B,良好 - 軽微な改善推奨,,,,,,
- ,,,レビューは厳格に実施してください。,"【評価】{evaluation}
--【コメント】{comment}",http://localhost:11434/v1,test-api-key,llama3`;
-+【コメント】{comment}",http://localhost:11434/v1,test-api-key,llama3,user001`;
- 
-       const result = CsvParser.parseImportFormat(csvText);
- 
-@@ -42,14 +42,15 @@ describe('CsvParser - 新フォーマット対応', () => {
-         url: 'http://localhost:11434/v1',
-         key: 'test-api-key',
-         model: 'llama3',
-+        userId: 'user001',
-       });
-     });
- 
-     it('チェックリスト項目のみのCSVを正しくパースできること', () => {
--      const csvText = `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,BPR ID
--項目1,,,,,,
--項目2,,,,,,
--項目3,,,,,,`;
-+      const csvText = `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID
-+項目1,,,,,,,
-+項目2,,,,,,,
-+項目3,,,,,,,`;
- 
-       const result = CsvParser.parseImportFormat(csvText);
- 
-@@ -61,10 +62,10 @@ describe('CsvParser - 新フォーマット対応', () => {
-     });
- 
-     it('評定設定のみのCSVを正しくパースできること', () => {
--      const csvText = `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,BPR ID
--,A,優秀,,,,,
--,B,良好,,,,,
--,C,要改善,,,,,`;
-+      const csvText = `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID
-+,A,優秀,,,,,,
-+,B,良好,,,,,,
-+,C,要改善,,,,,,`;
- 
-       const result = CsvParser.parseImportFormat(csvText);
- 
-@@ -108,8 +109,8 @@ describe('CsvParser - 新フォーマット対応', () => {
-     });
- 
-     it('評定ラベルのみ（説明なし）は無視されること', () => {
--      const csvText = `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,BPR ID
--,A,,,,,,`;
-+      const csvText = `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID
-+,A,,,,,,,`;
- 
-       const result = CsvParser.parseImportFormat(csvText);
- 
-@@ -117,10 +118,10 @@ describe('CsvParser - 新フォーマット対応', () => {
-     });
- 
-     it('空のセルは無視されること', () => {
--      const csvText = `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,BPR ID
--,,,,,,
--項目1,,,,,,
--,,,,,,`;
-+      const csvText = `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID
-+,,,,,,,
-+項目1,,,,,,,
-+,,,,,,,`;
- 
-       const result = CsvParser.parseImportFormat(csvText);
- 
-@@ -128,9 +129,9 @@ describe('CsvParser - 新フォーマット対応', () => {
-     });
- 
-     it('セル内改行を正しく処理できること', () => {
--      const csvText = `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,BPR ID
-+      const csvText = `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID
- "項目1
--改行あり",,,,,,`;
-+改行あり",,,,,,,`;
- 
-       const result = CsvParser.parseImportFormat(csvText);
- 
-@@ -139,9 +140,9 @@ describe('CsvParser - 新フォーマット対応', () => {
- 
-     it('Excelのシート名行（#sheet:で始まる行）を正しくスキップできること', () => {
-       const csvText = `#sheet:Sheet1
--チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,BPR ID
--項目1,,,,,,
--項目2,,,,,,`;
-+チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID
-+項目1,,,,,,,
-+項目2,,,,,,,`;
- 
-       const result = CsvParser.parseImportFormat(csvText);
- 
-@@ -150,12 +151,12 @@ describe('CsvParser - 新フォーマット対応', () => {
- 
-     it('複数シートのシート名行を正しくスキップできること', () => {
-       const csvText = `#sheet:Sheet1
--チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,BPR ID
--項目1,,,,,,
-+チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID
-+項目1,,,,,,,
- 
- #sheet:Sheet2
--チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,BPR ID
--項目2,,,,,,`;
-+チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID
-+項目2,,,,,,,`;
- 
-       const result = CsvParser.parseImportFormat(csvText);
- 
-@@ -166,10 +167,10 @@ describe('CsvParser - 新フォーマット対応', () => {
- 
-     it('シート名行を含む完全なフォーマットのCSVを正しくパースできること', () => {
-       const csvText = `#sheet:Sheet1
--チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,BPR ID
--要件が明確に定義されているか,,,,,,
--,A,優秀,,,,,
--,,,レビューは厳格に。,"【評価】{evaluation}",http://localhost:11434/v1,test-key,llama3`;
-+チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID
-+要件が明確に定義されているか,,,,,,,
-+,A,優秀,,,,,,
-+,,,レビューは厳格に。,"【評価】{evaluation}",http://localhost:11434/v1,test-key,llama3,user001`;
- 
-       const result = CsvParser.parseImportFormat(csvText);
- 
-@@ -183,6 +184,32 @@ describe('CsvParser - 新フォーマット対応', () => {
-         url: 'http://localhost:11434/v1',
-         key: 'test-key',
-         model: 'llama3',
-+        userId: 'user001',
-+      });
-+    });
-+
-+    it('ユーザIDのみがある場合も正しくパースできること', () => {
-+      const csvText = `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID
-+項目1,,,,,,,,user001`;
-+
-+      const result = CsvParser.parseImportFormat(csvText);
-+
-+      expect(result.checklists).toEqual(['項目1']);
-+      expect(result.apiSettings).toEqual({
-+        userId: 'user001',
-+      });
-+    });
-+
-+    it('モデル名とユーザIDの両方がある場合も正しくパースできること', () => {
-+      const csvText = `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID
-+項目1,,,,,,,gpt-4,user001`;
-+
-+      const result = CsvParser.parseImportFormat(csvText);
-+
-+      expect(result.checklists).toEqual(['項目1']);
-+      expect(result.apiSettings).toEqual({
-+        model: 'gpt-4',
-+        userId: 'user001',
-       });
-     });
-   });
-diff --git a/src/__tests__/main/mastra/agents/model/getModel.test.ts b/src/__tests__/main/mastra/agents/model/getModel.test.ts
++  - 既存の`generateLegacy`呼び出しについて、以下が対応されている
++    - gpt-5の場合は`temperature:1`が明示的にしていされる
++    - gpt-5以外の場合は`temperature`は何も指定しない
+diff --git a/src/__tests__/main/mastra/lib/agentUtils.test.ts b/src/__tests__/main/mastra/lib/agentUtils.test.ts
 new file mode 100644
-index 000000000..7f34751d5
+index 000000000..7229a7efb
 --- /dev/null
-+++ b/src/__tests__/main/mastra/agents/model/getModel.test.ts
-@@ -0,0 +1,199 @@
++++ b/src/__tests__/main/mastra/lib/agentUtils.test.ts
+@@ -0,0 +1,123 @@
 +/**
 + * @jest-environment node
 + */
-+import { getModel } from '@/mastra/agents/model';
 +
-+// モック用のchatModelとモデル関数
-+const mockChatModel = jest.fn();
-+const mockOpenAIModel = jest.fn();
++// Electron モックを最初に適用
++jest.mock('electron', () => require('../../test-utils/mockElectron').mockElectron);
++jest.mock('electron-store', () => require('../../test-utils/mockElectron').default);
 +
-+// モック設定
-+jest.mock('@ai-sdk/openai-compatible', () => ({
-+  createOpenAICompatible: jest.fn().mockImplementation(({ name }) => ({
-+    chatModel: mockChatModel.mockReturnValue({ id: `${name}-chat-model` }),
-+  })),
-+}));
++// main.ts の初期化処理をスキップ
++jest.mock('@/main/main', () => {
++  const path = require('path');
++  const os = require('os');
++  const testAppData = path.join(os.tmpdir(), 'ai-notebook-test');
++  return {
++    getCustomAppDataDir: jest.fn(() => testAppData),
++  };
++});
 +
-+jest.mock('@ai-sdk/openai', () => ({
-+  createOpenAI: jest
-+    .fn()
-+    .mockImplementation(({ name }) =>
-+      mockOpenAIModel.mockReturnValue({ id: `${name}-model` }),
++// データベースアダプターのモック
++jest.mock('@/adapter/db', () => ({
++  getSettingsRepository: jest.fn(() => ({
++    getSettings: jest.fn(() =>
++      Promise.resolve({
++        api: {
++          key: 'test-key',
++          url: 'https://api.test.com',
++          model: 'gpt-4o',
++          userId: 'test-user',
++        },
++      }),
 +    ),
++  })),
++  getSourceRepository: jest.fn(),
++  getReviewRepository: jest.fn(),
 +}));
 +
-+// モジュールの再インポートでモックを適用
-+import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
-+import { createOpenAI } from '@ai-sdk/openai';
++import { getTemperatureOption } from '@/mastra/lib/agentUtils';
 +
-+describe('getModel', () => {
-+  beforeEach(() => {
-+    jest.clearAllMocks();
-+  });
-+
++describe('getTemperatureOption', () => {
 +  describe('正常系', () => {
-+    it('gpt-4.1-miniを選択した場合、OpenAICompatibleModelが返される', () => {
-+      // Arrange
-+      const mockRuntimeContext = {
-+        get: jest.fn().mockReturnValue({
-+          key: 'test-api-key',
-+          url: 'https://api.test.com',
-+          modelName: 'gpt-4.1-mini',
-+          userId: 'test-user',
-+        }),
-+      };
-+
-+      // Act
-+      const result = getModel({ runtimeContext: mockRuntimeContext as any });
-+
-+      // Assert
-+      expect(createOpenAICompatible).toHaveBeenCalledWith({
-+        name: 'openAICompatibleModel_gpt4.1-mini',
-+        apiKey: 'test-api-key',
-+        baseURL: 'https://api.test.com',
-+      });
-+      expect(mockChatModel).toHaveBeenCalledWith('openai/gpt-4.1-mini');
-+      expect(result).toEqual({
-+        id: 'openAICompatibleModel_gpt4.1-mini-chat-model',
-+      });
-+    });
-+
-+    it('gpt-4oを選択した場合、OpenAICompatibleModelが返される', () => {
-+      // Arrange
-+      const mockRuntimeContext = {
-+        get: jest.fn().mockReturnValue({
-+          key: 'test-api-key',
-+          url: 'https://api.test.com',
-+          modelName: 'gpt-4o',
-+          userId: 'test-user',
-+        }),
-+      };
-+
-+      // Act
-+      const result = getModel({ runtimeContext: mockRuntimeContext as any });
-+
-+      // Assert
-+      expect(createOpenAICompatible).toHaveBeenCalledWith({
-+        name: 'openAICompatibleModel_gpt4o',
-+        apiKey: 'test-api-key',
-+        baseURL: 'https://api.test.com',
-+      });
-+      expect(mockChatModel).toHaveBeenCalledWith('openai/gpt-4o');
-+      expect(result).toEqual({ id: 'openAICompatibleModel_gpt4o-chat-model' });
-+    });
-+
-+    it('gpt-5を選択した場合、OpenAIモデルが返される', () => {
++    it('gpt-5モデルの場合、temperature:1が返される', () => {
 +      // Arrange
 +      const mockRuntimeContext = {
 +        get: jest.fn().mockReturnValue({
@@ -451,1489 +86,413 @@ index 000000000..7f34751d5
 +      };
 +
 +      // Act
-+      const result = getModel({ runtimeContext: mockRuntimeContext as any });
++      const result = getTemperatureOption(mockRuntimeContext as any);
 +
 +      // Assert
-+      expect(createOpenAI).toHaveBeenCalledWith({
-+        name: 'openAI_gpt5',
-+        apiKey: 'test-api-key',
-+        baseURL: 'https://api.test.com',
-+      });
-+      expect(mockOpenAIModel).toHaveBeenCalledWith('openai/gpt-5');
-+      expect(result).toEqual({ id: 'openAI_gpt5-model' });
++      expect(result).toEqual({ temperature: 1 });
++    });
++
++    it('gpt-4.1-miniモデルの場合、空オブジェクトが返される', () => {
++      // Arrange
++      const mockRuntimeContext = {
++        get: jest.fn().mockReturnValue({
++          key: 'test-api-key',
++          url: 'https://api.test.com',
++          modelName: 'gpt-4.1-mini',
++          userId: 'test-user',
++        }),
++      };
++
++      // Act
++      const result = getTemperatureOption(mockRuntimeContext as any);
++
++      // Assert
++      expect(result).toEqual({});
++    });
++
++    it('gpt-4oモデルの場合、空オブジェクトが返される', () => {
++      // Arrange
++      const mockRuntimeContext = {
++        get: jest.fn().mockReturnValue({
++          key: 'test-api-key',
++          url: 'https://api.test.com',
++          modelName: 'gpt-4o',
++          userId: 'test-user',
++        }),
++      };
++
++      // Act
++      const result = getTemperatureOption(mockRuntimeContext as any);
++
++      // Assert
++      expect(result).toEqual({});
 +    });
 +  });
 +
 +  describe('異常系', () => {
-+    it('モデル設定が不足している場合、エラーがスローされる', () => {
++    it('モデル情報がnullの場合、空オブジェクトが返される', () => {
 +      // Arrange
 +      const mockRuntimeContext = {
 +        get: jest.fn().mockReturnValue(null),
 +      };
 +
-+      // Act & Assert
-+      expect(() =>
-+        getModel({ runtimeContext: mockRuntimeContext as any }),
-+      ).toThrow(
-+        'AI APIの設定が正しくありません。APIキー、URL、モデル名を確認してください。',
-+      );
++      // Act
++      const result = getTemperatureOption(mockRuntimeContext as any);
++
++      // Assert
++      expect(result).toEqual({});
 +    });
 +
-+    it('APIキーが不足している場合、エラーがスローされる', () => {
++    it('モデル情報がundefinedの場合、空オブジェクトが返される', () => {
 +      // Arrange
 +      const mockRuntimeContext = {
-+        get: jest.fn().mockReturnValue({
-+          key: '',
-+          url: 'https://api.test.com',
-+          modelName: 'gpt-4o',
-+          userId: 'test-user',
-+        }),
++        get: jest.fn().mockReturnValue(undefined),
 +      };
 +
-+      // Act & Assert
-+      expect(() =>
-+        getModel({ runtimeContext: mockRuntimeContext as any }),
-+      ).toThrow(
-+        'AI APIの設定が正しくありません。APIキー、URL、モデル名を確認してください。',
-+      );
-+    });
++      // Act
++      const result = getTemperatureOption(mockRuntimeContext as any);
 +
-+    it('URLが不足している場合、エラーがスローされる', () => {
-+      // Arrange
-+      const mockRuntimeContext = {
-+        get: jest.fn().mockReturnValue({
-+          key: 'test-api-key',
-+          url: '',
-+          modelName: 'gpt-4o',
-+          userId: 'test-user',
-+        }),
-+      };
-+
-+      // Act & Assert
-+      expect(() =>
-+        getModel({ runtimeContext: mockRuntimeContext as any }),
-+      ).toThrow(
-+        'AI APIの設定が正しくありません。APIキー、URL、モデル名を確認してください。',
-+      );
-+    });
-+
-+    it('モデル名が不足している場合、エラーがスローされる', () => {
-+      // Arrange
-+      const mockRuntimeContext = {
-+        get: jest.fn().mockReturnValue({
-+          key: 'test-api-key',
-+          url: 'https://api.test.com',
-+          modelName: '',
-+          userId: 'test-user',
-+        }),
-+      };
-+
-+      // Act & Assert
-+      expect(() =>
-+        getModel({ runtimeContext: mockRuntimeContext as any }),
-+      ).toThrow(
-+        'AI APIの設定が正しくありません。APIキー、URL、モデル名を確認してください。',
-+      );
-+    });
-+
-+    it('無効なモデル名の場合、エラーがスローされる', () => {
-+      // Arrange
-+      const mockRuntimeContext = {
-+        get: jest.fn().mockReturnValue({
-+          key: 'test-api-key',
-+          url: 'https://api.test.com',
-+          modelName: 'invalid-model',
-+          userId: 'test-user',
-+        }),
-+      };
-+
-+      // Act & Assert
-+      expect(() =>
-+        getModel({ runtimeContext: mockRuntimeContext as any }),
-+      ).toThrow('無効なモデル名です: invalid-model');
++      // Assert
++      expect(result).toEqual({});
 +    });
 +  });
 +});
-diff --git a/src/__tests__/main/reviewService.test.ts b/src/__tests__/main/reviewService.test.ts
-index 58007555f..4a1d2f7bc 100644
---- a/src/__tests__/main/reviewService.test.ts
-+++ b/src/__tests__/main/reviewService.test.ts
-@@ -61,7 +61,7 @@ describe('ReviewService - extractChecklistFromCsv', () => {
-   let mockSettingsRepository: jest.Mocked<ISettingsRepository>;
- 
-   const defaultSettings: Settings = {
--    api: { key: 'old-key', url: 'http://old.com', model: 'old-model' },
-+    api: { key: 'old-key', url: 'http://old.com', model: 'gpt-4o', userId: 'old-user-id' },
-     database: { dir: '/test/db' },
-     source: { registerDir: './source' },
-     redmine: { endpoint: '', apiKey: '' },
-@@ -117,10 +117,11 @@ describe('ReviewService - extractChecklistFromCsv', () => {
-       }];
- 
-       // FileExtractor.extractText をモック（API設定を含むCSV）
-+      // モデル名は有効なオプション(gpt-5)を指定
-       mockExtractText.mockResolvedValue({
--        content: `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,BPR ID
--項目1,,,,,http://new-api.com,new-key,new-model
--項目2,,,,,,`,
-+        content: `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID
-+項目1,,,,,http://new-api.com,new-key,gpt-5,new-user-id
-+項目2,,,,,,,,`,
-         metadata: {},
-       });
- 
-@@ -138,7 +139,8 @@ describe('ReviewService - extractChecklistFromCsv', () => {
-           api: {
-             key: 'new-key',
-             url: 'http://new-api.com',
--            model: 'new-model',
-+            model: 'gpt-5',
-+            userId: 'new-user-id',
-           },
-         })
-       );
-@@ -163,20 +165,21 @@ describe('ReviewService - extractChecklistFromCsv', () => {
- 
-       // APIキーのみ更新するCSV
-       mockExtractText.mockResolvedValue({
--        content: `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,BPR ID
--項目1,,,,,,new-key-only,`,
-+        content: `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID
-+項目1,,,,,,new-key-only,,`,
-         metadata: {},
-       });
- 
-       await reviewService.extractChecklistFromCsv('review-1', mockFiles);
- 
--      // 既存のURLとmodelは保持され、keyのみ更新されること
-+      // 既存のURLとmodelとuserIdは保持され、keyのみ更新されること
-       expect(mockSettingsRepository.saveSettings).toHaveBeenCalledWith(
-         expect.objectContaining({
-           api: {
-             key: 'new-key-only',
-             url: 'http://old.com', // 既存値を保持
--            model: 'old-model', // 既存値を保持
-+            model: 'gpt-4o', // 既存値を保持
-+            userId: 'old-user-id', // 既存値を保持
-           },
-         })
-       );
-@@ -200,9 +203,9 @@ describe('ReviewService - extractChecklistFromCsv', () => {
- 
-       // API設定を含まないCSV
-       mockExtractText.mockResolvedValue({
--        content: `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,BPR ID
--項目1,,,,,,
--項目2,,,,,,`,
-+        content: `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID
-+項目1,,,,,,,,
-+項目2,,,,,,,,`,
-         metadata: {},
-       });
- 
-@@ -236,10 +239,10 @@ describe('ReviewService - extractChecklistFromCsv', () => {
-       }];
- 
-       mockExtractText.mockResolvedValue({
--        content: `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,BPR ID
--項目1,,,,,,
--項目2,,,,,,
--項目3,,,,,,`,
-+        content: `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID
-+項目1,,,,,,,,
-+項目2,,,,,,,,
-+項目3,,,,,,,,`,
-         metadata: {},
-       });
- 
-@@ -275,10 +278,10 @@ describe('ReviewService - extractChecklistFromCsv', () => {
-       }];
- 
-       mockExtractText.mockResolvedValue({
--        content: `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,BPR ID
--項目1,,,,,,
--,A,優秀,,,,,
--,B,良好,,,,,`,
-+        content: `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID
-+項目1,,,,,,,,
-+,A,優秀,,,,,,
-+,B,良好,,,,,,`,
-         metadata: {},
-       });
- 
-@@ -305,8 +308,8 @@ describe('ReviewService - extractChecklistFromCsv', () => {
-       }];
- 
-       mockExtractText.mockResolvedValue({
--        content: `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,BPR ID
--項目1,,,厳格にレビューしてください,【評価】{evaluation},,`,
-+        content: `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID
-+項目1,,,厳格にレビューしてください,【評価】{evaluation},,,,`,
-         metadata: {},
-       });
- 
-@@ -374,17 +377,17 @@ describe('ReviewService - extractChecklistFromCsv', () => {
-         },
-       ];
- 
--      // 1つ目のファイルにAPI設定あり
-+      // 1つ目のファイルにAPI設定あり（有効なモデル名gpt-5を使用）
-       mockExtractText
-         .mockResolvedValueOnce({
--          content: `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,BPR ID
--項目1,,,,,http://first.com,first-key,first-model`,
-+          content: `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID
-+項目1,,,,,http://first.com,first-key,gpt-5,first-user`,
-           metadata: {},
-         })
-         // 2つ目のファイルにも異なるAPI設定あり（無視されるべき）
-         .mockResolvedValueOnce({
--          content: `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,BPR ID
--項目2,,,,,http://second.com,second-key,second-model`,
-+          content: `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID
-+項目2,,,,,http://second.com,second-key,gpt-4o,second-user`,
-           metadata: {},
-         });
- 
-@@ -396,7 +399,8 @@ describe('ReviewService - extractChecklistFromCsv', () => {
-           api: {
-             key: 'first-key',
-             url: 'http://first.com',
--            model: 'first-model',
-+            model: 'gpt-5',
-+            userId: 'first-user',
-           },
-         })
-       );
-@@ -414,4 +418,35 @@ describe('ReviewService - extractChecklistFromCsv', () => {
-       );
-     });
-   });
-+
-+  describe('ユーザIDを含むCSVインポート', () => {
-+    it('ユーザIDのみ指定された場合も正しく処理されること', async () => {
-+      const mockFiles: UploadFile[] = [{
-+        id: 'file-1',
-+        name: 'import.csv',
-+        path: '/test/import.csv',
-+        type: 'text/csv',
-+      }];
-+
-+      mockExtractText.mockResolvedValue({
-+        content: `チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID
-+項目1,,,,,,,,new-user-id-only`,
-+        metadata: {},
-+      });
-+
-+      await reviewService.extractChecklistFromCsv('review-1', mockFiles);
-+
-+      // ユーザIDのみ更新されること
-+      expect(mockSettingsRepository.saveSettings).toHaveBeenCalledWith(
-+        expect.objectContaining({
-+          api: {
-+            key: 'old-key', // 既存値を保持
-+            url: 'http://old.com', // 既存値を保持
-+            model: 'gpt-4o', // 既存値を保持
-+            userId: 'new-user-id-only',
-+          },
-+        })
-+      );
-+    });
-+  });
- });
-diff --git a/src/__tests__/renderer/SettingsModal.test.tsx b/src/__tests__/renderer/SettingsModal.test.tsx
-index 49cd421a5..4dd164522 100644
---- a/src/__tests__/renderer/SettingsModal.test.tsx
-+++ b/src/__tests__/renderer/SettingsModal.test.tsx
-@@ -67,7 +67,9 @@ describe('SettingsModal Component', () => {
-     expect(screen.getByLabelText('APIエンドポイントURL')).toHaveValue(
-       'https://api.test.com',
-     );
--    expect(screen.getByLabelText('BPR ID')).toHaveValue('test-model');
-+    // モデル名はSelectコンポーネントなのでテキストで確認
-+    expect(screen.getByRole('combobox', { name: 'モデル名' })).toHaveTextContent('gpt-4o');
-+    expect(screen.getByLabelText('ユーザID')).toHaveValue('test-user-id');
- 
-     // Redmine設定
-     const redmineEndpoint = screen.getByLabelText('Redmineエンドポイント');
-@@ -119,14 +121,18 @@ describe('SettingsModal Component', () => {
-     // API設定の更新
-     const apiKeyInput = screen.getByLabelText('APIキー');
-     const apiEndpointInput = screen.getByLabelText('APIエンドポイントURL');
--    const apiModelInput = screen.getByLabelText('BPR ID');
-+    const apiModelSelect = screen.getByRole('combobox', { name: 'モデル名' });
-+    const apiUserIdInput = screen.getByLabelText('ユーザID');
- 
-     await user.clear(apiKeyInput);
-     await user.type(apiKeyInput, 'new-test-api-key');
-     await user.clear(apiEndpointInput);
-     await user.type(apiEndpointInput, 'https://new.api.test.com');
--    await user.clear(apiModelInput);
--    await user.type(apiModelInput, 'new-test-model');
-+    // モデル名をgpt-5に変更（Selectコンポーネント）
-+    await user.click(apiModelSelect);
-+    await user.click(screen.getByRole('option', { name: 'gpt-5' }));
-+    await user.clear(apiUserIdInput);
-+    await user.type(apiUserIdInput, 'new-test-user-id');
- 
-     // データベース設定の更新
-     const dbDirInput = screen.getByLabelText('データベース保存フォルダ');
-@@ -193,7 +199,8 @@ describe('SettingsModal Component', () => {
-       expect(call.api).toEqual({
-         key: 'new-test-api-key',
-         url: 'https://new.api.test.com',
--        model: 'new-test-model',
-+        model: 'gpt-5',
-+        userId: 'new-test-user-id',
-       });
-       expect(call.database).toEqual({ dir: '/new/test/db' });
-       expect(call.source).toEqual({ registerDir: './new/test/source' });
-@@ -259,13 +266,14 @@ describe('SettingsModal Component', () => {
- 
-     const apiKeyInput = screen.getByLabelText('APIキー');
-     const apiEndpointInput = screen.getByLabelText('APIエンドポイントURL');
--    const apiModelInput = screen.getByLabelText('BPR ID');
-+    // モデル名はSelectコンポーネントなのでclearできない（常に選択肢がある）
-+    const apiUserIdInput = screen.getByLabelText('ユーザID');
-     const dbDirInput = screen.getByLabelText('データベース保存フォルダ');
- 
-     // 必須フィールドをクリア
-     await user.clear(apiKeyInput);
-     await user.clear(apiEndpointInput);
--    await user.clear(apiModelInput);
-+    await user.clear(apiUserIdInput);
-     await user.clear(dbDirInput);
- 
-     // 存在しないパスを入力（データベース設定）
-@@ -302,7 +310,7 @@ describe('SettingsModal Component', () => {
-       () => {
-         // 必須フィールドのエラー
-         expect(screen.getByText('APIキーは必須です')).toBeInTheDocument();
--        expect(screen.getByText('モデル名は必須です')).toBeInTheDocument();
-+        // モデル名はSelectコンポーネントなので必須エラーは発生しない（常に選択肢がある）
- 
-         // パス存在エラー（DB + ドキュメント登録フォルダ）
-         expect(
-@@ -332,6 +340,48 @@ describe('SettingsModal Component', () => {
-     jest.restoreAllMocks();
-   }, 60000);
- 
-+  // テスト3.5: モデル名がドロップダウンで選択できること
-+  test('モデル名がドロップダウンで選択できること', async () => {
-+    const user = userEvent.setup({ delay: null });
-+
-+    render(
-+      <SettingsModal
-+        open={defaultProps.open}
-+        onClose={defaultProps.onClose}
-+        onSettingsUpdated={defaultProps.onSettingsUpdated}
-+        onValidChange={defaultProps.onValidChange}
-+      />,
-+    );
-+
-+    await waitFor(() => {
-+      expect(window.electron.settings.getSettings).toHaveBeenCalledTimes(1);
-+    });
-+
-+    // 全てのフィールドが有効になるまで待機
-+    await waitFor(() => {
-+      const apiKeyInput = screen.getByLabelText('APIキー');
-+      expect(apiKeyInput).toBeEnabled();
-+    });
-+
-+    // モデル名のSelectコンポーネントを確認
-+    const modelSelect = screen.getByRole('combobox', { name: 'モデル名' });
-+    expect(modelSelect).toBeInTheDocument();
-+    expect(modelSelect).toHaveTextContent('gpt-4o');
-+
-+    // ドロップダウンを開く
-+    await user.click(modelSelect);
-+
-+    // オプションが表示されることを確認
-+    expect(screen.getByRole('option', { name: 'gpt-4o' })).toBeInTheDocument();
-+    expect(screen.getByRole('option', { name: 'gpt-5' })).toBeInTheDocument();
-+
-+    // gpt-5を選択
-+    await user.click(screen.getByRole('option', { name: 'gpt-5' }));
-+
-+    // 選択が反映されることを確認
-+    expect(modelSelect).toHaveTextContent('gpt-5');
-+  });
-+
-   // テスト4: MCPスキーマのバリデーションエラーが正しく表示されること
-   test('MCPスキーマのバリデーションエラーが正しく表示されること', async () => {
-     const user = userEvent.setup({ delay: null });
-diff --git a/src/__tests__/renderer/csvUtils.test.ts b/src/__tests__/renderer/csvUtils.test.ts
-index 8967731e4..06921998c 100644
---- a/src/__tests__/renderer/csvUtils.test.ts
-+++ b/src/__tests__/renderer/csvUtils.test.ts
-@@ -33,14 +33,14 @@ describe('convertReviewResultsToCSV', () => {
- 
-       // ヘッダー行の確認
-       expect(lines[0]).toBe(
--        'チェックリスト,評定結果,レビュー結果,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,BPR ID',
-+        'チェックリスト,評定結果,レビュー結果,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID',
-       );
- 
-       // 1行目のデータ確認
--      expect(lines[1]).toBe('チェック項目1,A,良好です,,,,,,,');
-+      expect(lines[1]).toBe('チェック項目1,A,良好です,,,,,,,,');
- 
-       // 2行目のデータ確認
--      expect(lines[2]).toBe('チェック項目2,B,改善が必要,,,,,,,');
-+      expect(lines[2]).toBe('チェック項目2,B,改善が必要,,,,,,,,');
-     });
- 
-     test('評定結果がない場合、評定結果とレビュー結果が空文字になること', () => {
-@@ -54,7 +54,7 @@ describe('convertReviewResultsToCSV', () => {
-       const result = convertReviewResultsToCSV(checklistResults);
- 
-       const lines = result.split('\n');
--      expect(lines[1]).toBe('チェック項目1,,,,,,,,,');
-+      expect(lines[1]).toBe('チェック項目1,,,,,,,,,,');
-     });
- 
-     test('評定設定がある場合、各行に分散配置されること', () => {
-@@ -98,15 +98,15 @@ describe('convertReviewResultsToCSV', () => {
- 
-       // 1行目: チェック項目1 + 評定設定A
-       // expect(lines[1]).toBe('チェック項目1,A,良好です,A,基準を満たす,,,,,');
--      expect(lines[1]).toBe('チェック項目1,A,良好です,,,,,,,');
-+      expect(lines[1]).toBe('チェック項目1,A,良好です,,,,,,,,');
- 
-       // 2行目: チェック項目2 + 評定設定B
-       // expect(lines[2]).toBe('チェック項目2,,,B,一部改善が必要,,,,,');
--      expect(lines[2]).toBe('チェック項目2,,,,,,,,,');
-+      expect(lines[2]).toBe('チェック項目2,,,,,,,,,,');
- 
-       // 3行目: 評定設定Cのみ
-       // expect(lines[3]).toBe(',,,C,基準未達,,,,,');
--      expect(lines[3]).toBe(',,,,,,,,,');
-+      expect(lines[3]).toBe(',,,,,,,,,,');
-     });
- 
-     test('追加指示、コメントフォーマット、API設定が1行目に配置されること', () => {
-@@ -161,7 +161,7 @@ describe('convertReviewResultsToCSV', () => {
-       // 2行目以降は設定が空であることを確認
-       const lines = result.split('\n');
-       const lastLine = lines[lines.length - 1];
--      expect(lastLine).toBe('チェック項目2,,,,,,,,,');
-+      expect(lastLine).toBe('チェック項目2,,,,,,,,,,');
-     });
- 
-     test('CSV特殊文字のエスケープが正しく行われること', () => {
-@@ -233,11 +233,11 @@ describe('convertReviewResultsToCSV', () => {
- 
-       // 2行目: 評定Bのみ
-       // expect(lines[2]).toBe(',,,B,良好,,,,,');
--      expect(lines[2]).toBe(',,,,,,,,,');
-+      expect(lines[2]).toBe(',,,,,,,,,,');
- 
-       // 3行目: 評定Cのみ
-       // expect(lines[3]).toBe(',,,C,要改善,,,,,');
--      expect(lines[3]).toBe(',,,,,,,,,');
-+      expect(lines[3]).toBe(',,,,,,,,,,');
- 
-     });
-   });
-@@ -251,7 +251,7 @@ describe('convertReviewResultsToCSV', () => {
-       const lines = result.split('\n');
-       expect(lines).toHaveLength(1);
-       expect(lines[0]).toBe(
--        'チェックリスト,評定結果,レビュー結果,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,BPR ID',
-+        'チェックリスト,評定結果,レビュー結果,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID',
-       );
-     });
- 
-@@ -267,7 +267,7 @@ describe('convertReviewResultsToCSV', () => {
- 
-       const lines = result.split('\n');
-       expect(lines).toHaveLength(2);
--      expect(lines[1]).toBe('チェック項目1,,,,,,,,,');
-+      expect(lines[1]).toBe('チェック項目1,,,,,,,,,,');
-     });
- 
-     test('apiSettingsがundefinedの場合、エラーにならないこと', () => {
-@@ -286,7 +286,7 @@ describe('convertReviewResultsToCSV', () => {
- 
-       const lines = result.split('\n');
-       expect(lines).toHaveLength(2);
--      expect(lines[1]).toBe('チェック項目1,,,,,,,,,');
-+      expect(lines[1]).toBe('チェック項目1,,,,,,,,,,');
-     });
- 
-     test('評定設定が空配列の場合、エラーにならないこと', () => {
-@@ -315,7 +315,7 @@ describe('convertReviewResultsToCSV', () => {
- 
-       const lines = result.split('\n');
-       expect(lines).toHaveLength(2);
--      expect(lines[1]).toBe('チェック項目1,,,,,,,,,');
-+      expect(lines[1]).toBe('チェック項目1,,,,,,,,,,');
-     });
-   });
- 
-@@ -380,7 +380,7 @@ describe('convertReviewResultsToCSV', () => {
- 
-       // ヘッダー確認
-       expect(lines[0]).toBe(
--        'チェックリスト,評定結果,レビュー結果,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,BPR ID',
-+        'チェックリスト,評定結果,レビュー結果,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID',
-       );
- 
-       // 1行目: すべての設定が含まれる
-diff --git a/src/__tests__/renderer/test-utils/mockElectronHandler.ts b/src/__tests__/renderer/test-utils/mockElectronHandler.ts
-index 51d198d1f..dd5ec48cc 100644
---- a/src/__tests__/renderer/test-utils/mockElectronHandler.ts
-+++ b/src/__tests__/renderer/test-utils/mockElectronHandler.ts
-@@ -35,7 +35,8 @@ export const createDefaultMockSettings = (): Settings => ({
-   api: {
-     key: 'test-api-key',
-     url: 'https://api.test.com',
--    model: 'test-model',
-+    model: 'gpt-4o',
-+    userId: 'test-user-id',
-   },
-   redmine: {
-     endpoint: 'https://redmine.test.com',
-diff --git a/src/adapter/db/electron-store/repository/settingsRepository.ts b/src/adapter/db/electron-store/repository/settingsRepository.ts
-index 050b2000b..8efcda318 100644
---- a/src/adapter/db/electron-store/repository/settingsRepository.ts
-+++ b/src/adapter/db/electron-store/repository/settingsRepository.ts
-@@ -3,6 +3,7 @@ import { Settings, SettingsSchema } from '@/types';
- import { getStore } from '@/adapter/db/electron-store/store';
- import { repositoryError } from '@/main/lib/error';
- import { ISettingsRepository } from '@/main/service/port/repository';
-+import { isValidModelName, DEFAULT_MODEL } from '@/config/modelConfig';
- 
- /** undefined を保存したら例外になるため、delete に切り替える */
- function setOrDelete<T>(store: any, key: string, value: T | undefined) {
-@@ -21,7 +22,13 @@ export class ElectronStoreSettingsRepository implements ISettingsRepository {
- 
-   async getSettings(): Promise<Settings> {
-     try {
--      const settings = await SettingsSchema.parseAsync(this.store.store);
-+      // 既存設定との互換性対策：無効なモデル名はデフォルト値にフォールバック
-+      const rawSettings = this.store.store;
-+      if (rawSettings.api?.model && !isValidModelName(rawSettings.api.model)) {
-+        rawSettings.api.model = DEFAULT_MODEL;
-+      }
-+
-+      const settings = await SettingsSchema.parseAsync(rawSettings);
-       return settings;
-     } catch (err) {
-       if (err instanceof z.ZodError) {
-@@ -38,6 +45,7 @@ export class ElectronStoreSettingsRepository implements ISettingsRepository {
-       this.store.set('api.key', settings.api.key);
-       this.store.set('api.model', settings.api.model);
-       this.store.set('api.url', settings.api.url);
-+      this.store.set('api.userId', settings.api.userId);
- 
-       // 任意系は undefined の可能性があるため setOrDelete で処理
-       setOrDelete(
-diff --git a/src/adapter/db/electron-store/store.ts b/src/adapter/db/electron-store/store.ts
-index 68036a088..1ee1cfadb 100644
---- a/src/adapter/db/electron-store/store.ts
-+++ b/src/adapter/db/electron-store/store.ts
-@@ -13,6 +13,7 @@ export interface StoreSchema {
-     key: string;
-     url: string;
-     model: string;
-+    userId: string;
-   };
-   redmine: {
-     endpoint?: string;
-@@ -51,8 +52,9 @@ const schema = {
-       key: { type: 'string' },
-       url: { type: 'string' },
-       model: { type: 'string' },
-+      userId: { type: 'string' },
-     },
--    required: ['key', 'url', 'model'],
-+    required: ['key', 'url', 'model'], // TODO: userIdを必須にする（ユーザのconfig.jsが十分にuserId追加版に置き換わってから）
-   },
-   redmine: {
-     type: 'object',
-@@ -98,7 +100,8 @@ const defaults: StoreSchema = {
-   api: {
-     key: 'aaa',
-     url: 'http://localhost',
--    model: 'aaa',
-+    model: 'gpt-4o',
-+    userId: 'aaa',
-   },
-   redmine: {
-     endpoint: 'http://localhost',
 diff --git a/src/config/modelConfig.ts b/src/config/modelConfig.ts
-new file mode 100644
-index 000000000..86959d610
---- /dev/null
+index 86959d610..f383bff56 100644
+--- a/src/config/modelConfig.ts
 +++ b/src/config/modelConfig.ts
-@@ -0,0 +1,22 @@
-+/**
-+ * AIモデル設定の一元管理
-+ * モデルオプションを追加する場合はこのファイルのMODEL_OPTIONSに追加する
-+ */
-+
-+// 利用可能なAIモデルオプション
-+export const MODEL_OPTIONS = ['gpt-4.1-mini', 'gpt-4o', 'gpt-5'] as const;
-+
-+// モデル名の型定義
-+export type ModelName = (typeof MODEL_OPTIONS)[number];
+@@ -20,3 +20,13 @@ export const isValidModelName = (value: string): value is ModelName => {
+ 
+ // デフォルトのモデル名
+ export const DEFAULT_MODEL: ModelName = 'gpt-4o';
 +
 +/**
-+ * モデル名が有効かどうかを判定する型ガード関数
-+ * @param value 検証する値
-+ * @returns 値が有効なモデル名の場合はtrue
++ * モデル名がgpt-5かどうかを判定する関数
++ * gpt-5はtemperature:1を指定しないとエラーになるため、この判定が必要
++ * @param modelName モデル名
++ * @returns gpt-5の場合はtrue
 + */
-+export const isValidModelName = (value: string): value is ModelName => {
-+  return MODEL_OPTIONS.includes(value as ModelName);
++export const isGpt5Model = (modelName: string): boolean => {
++  return modelName === 'gpt-5';
 +};
-+
-+// デフォルトのモデル名
-+export const DEFAULT_MODEL: ModelName = 'gpt-4o';
-diff --git a/src/main/lib/csvParser.ts b/src/main/lib/csvParser.ts
-index 9c70c733a..797f02573 100644
---- a/src/main/lib/csvParser.ts
-+++ b/src/main/lib/csvParser.ts
-@@ -1,4 +1,4 @@
--import type { CsvImportData, CustomEvaluationSettings } from '@/types';
-+import type { CsvImportData } from '@/types';
- import { internalError } from './error';
- 
- /**
-@@ -136,7 +136,7 @@ export class CsvParser {
- 
-   /**
-    * 新フォーマットのCSV/Excelデータをパースする
--   * ヘッダ行: チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,BPR ID
-+   * ヘッダ行: チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID
-    * @param csvText CSVテキスト
-    * @returns パース結果
-    * @throws AppError パースに失敗した場合
-@@ -162,7 +162,8 @@ export class CsvParser {
-       'コメントフォーマット',
-       'AI APIエンドポイント',
-       'AI APIキー',
--      'BPR ID',
-+      'モデル名',
-+      'ユーザID',
-     ];
- 
-     // ヘッダ行の列数検証
-@@ -201,6 +202,7 @@ export class CsvParser {
-     let apiUrl: string | undefined;
-     let apiKey: string | undefined;
-     let apiModel: string | undefined;
-+    let apiUserId: string | undefined;
- 
-     for (const row of dataRows) {
-       // 各列のデータを取得（空の場合はundefined）
-@@ -212,6 +214,7 @@ export class CsvParser {
-       const apiEndpoint = row[5]?.trim() || undefined;
-       const apiKeyValue = row[6]?.trim() || undefined;
-       const apiModelName = row[7]?.trim() || undefined;
-+      const apiUserIdValue = row[8]?.trim() || undefined;
- 
-       // チェックリスト項目の収集
-       if (checklistContent) {
-@@ -242,6 +245,9 @@ export class CsvParser {
-       if (apiModelName && !apiModel) {
-         apiModel = apiModelName;
-       }
-+      if (apiUserIdValue && !apiUserId) {
-+        apiUserId = apiUserIdValue;
-+      }
-     }
- 
-     // インポートデータの構築
-@@ -265,11 +271,12 @@ export class CsvParser {
-     }
- 
-     // API設定
--    if (apiUrl || apiKey || apiModel) {
-+    if (apiUrl || apiKey || apiModel || apiUserId) {
-       importData.apiSettings = {
-         url: apiUrl,
-         key: apiKey,
-         model: apiModel,
-+        userId: apiUserId,
-       };
-     }
- 
 diff --git a/src/main/service/chatService.ts b/src/main/service/chatService.ts
-index b1cadf304..cba11d88d 100644
+index cba11d88d..ad1cc3579 100644
 --- a/src/main/service/chatService.ts
 +++ b/src/main/service/chatService.ts
-@@ -186,6 +186,7 @@ export class ChatService implements IChatService {
-           threadId, // チャットルームIDをスレッドIDとして使用
+@@ -4,7 +4,10 @@ import { Message, UIMessage, createDataStream } from 'ai';
+ import { mastra } from '@/mastra';
+ import { internalError } from '../lib/error';
+ import { AbortControllerManager } from '../lib/AbortControllerManager';
+-import { judgeFinishReason } from '@/mastra/lib/agentUtils';
++import {
++  judgeFinishReason,
++  getTemperatureOption,
++} from '@/mastra/lib/agentUtils';
+ import { ChatMessage, Feature, IpcChannels } from '@/types';
+ import { getMainLogger } from '../lib/logger';
+ import { formatMessage } from '../lib/messages';
+@@ -187,6 +190,7 @@ export class ChatService implements IChatService {
            maxSteps: 30, // ツールの利用上限
            abortSignal: controller.signal, // 中断シグナルを設定
-+          maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
+           maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
++          ...getTemperatureOption(runtimeContext),
            onStepFinish: (stepResult) => {
              // https://ai-sdk.dev/docs/ai-sdk-ui/stream-protocol
              // 上記を参考にai-sdkのストリームプロトコルに従ってメッセージを送信
-diff --git a/src/main/service/reviewService.ts b/src/main/service/reviewService.ts
-index 3d8c2a286..b1f3ec3a9 100644
---- a/src/main/service/reviewService.ts
-+++ b/src/main/service/reviewService.ts
-@@ -17,6 +17,7 @@ import {
-   CsvImportData,
-   RetryMode,
- } from '@/types';
-+import { isValidModelName, type ModelName } from '@/config/modelConfig';
- import { generateReviewTitle } from '@/mastra/workflows/sourceReview/lib';
- import { RevieHistory } from '@/types';
- import FileExtractor from '@/main/lib/fileExtractor';
-@@ -321,7 +322,7 @@ export class ReviewService implements IReviewService {
-         // AI API設定の更新（settingsRepositoryに保存）
-         if (importedData.apiSettings) {
-           const currentSettings = await this.settingsRepository.getSettings();
--          const updates: { url?: string; key?: string; model?: string } = {};
-+          const updates: { url?: string; key?: string; model?: ModelName; userId?: string } = {};
- 
-           if (importedData.apiSettings.url) {
-             updates.url = importedData.apiSettings.url;
-@@ -329,9 +330,16 @@ export class ReviewService implements IReviewService {
-           if (importedData.apiSettings.key) {
-             updates.key = importedData.apiSettings.key;
-           }
--          if (importedData.apiSettings.model) {
-+          // モデル名が有効な場合のみ更新
-+          if (
-+            importedData.apiSettings.model &&
-+            isValidModelName(importedData.apiSettings.model)
-+          ) {
-             updates.model = importedData.apiSettings.model;
-           }
-+          if (importedData.apiSettings.userId) {
-+            updates.userId = importedData.apiSettings.userId;
-+          }
- 
-           if (Object.keys(updates).length > 0) {
-             await this.settingsRepository.saveSettings({
-diff --git a/src/mastra/agents/model/index.ts b/src/mastra/agents/model/index.ts
-new file mode 100644
-index 000000000..c18d6baf7
---- /dev/null
-+++ b/src/mastra/agents/model/index.ts
-@@ -0,0 +1,85 @@
-+/**
-+ * AIモデル取得関数
-+ * モデル名に応じて適切なAIモデルを返す
-+ */
-+import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
-+import { createOpenAI, openai } from '@ai-sdk/openai';
-+// @ts-ignore
-+import { RuntimeContext } from '@mastra/core/runtime-context';
-+import type { BaseRuntimeContext } from '../types';
-+import { internalError } from '@/main/lib/error';
-+import { isValidModelName, type ModelName } from '@/config/modelConfig';
-+
-+/**
-+ * モデル名に応じてAIモデルを取得する関数
-+ * 現在はgpt-4o/gpt-5共にOpenAICompatibleModelを返す
-+ * 将来的に異なるモデルを追加する場合はswitch文で分岐させる
-+ *
-+ * @param params runtimeContextを含むパラメータ
-+ * @returns AIモデルインスタンス
-+ */
-+export const getModel = ({
-+  runtimeContext,
-+}: {
-+  runtimeContext: RuntimeContext<BaseRuntimeContext>;
-+}) => {
-+  const apiConfig = runtimeContext.get('model');
-+
-+  if (!apiConfig || !apiConfig.key || !apiConfig.url || !apiConfig.modelName) {
-+    throw internalError({
-+      expose: true,
-+      messageCode: 'VALIDATION_ERROR',
-+      messageParams: {
-+        detail:
-+          'AI APIの設定が正しくありません。APIキー、URL、モデル名を確認してください。',
-+      },
-+    });
-+  }
-+
-+  // モデル名の検証
-+  if (!isValidModelName(apiConfig.modelName)) {
-+    throw internalError({
-+      expose: true,
-+      messageCode: 'VALIDATION_ERROR',
-+      messageParams: {
-+        detail: `無効なモデル名です: ${apiConfig.modelName}`,
-+      },
-+    });
-+  }
-+
-+  const modelName: ModelName = apiConfig.modelName;
-+
-+  // モデル名に応じてモデルを出し分け
-+  switch (modelName) {
-+    case 'gpt-4.1-mini':
-+      return createOpenAICompatible({
-+        name: 'openAICompatibleModel_gpt4.1-mini',
-+        apiKey: apiConfig.key,
-+        baseURL: apiConfig.url,
-+      }).chatModel('openai/gpt-4.1-mini');
-+    case 'gpt-4o':
-+      return createOpenAICompatible({
-+        name: 'openAICompatibleModel_gpt4o',
-+        apiKey: apiConfig.key,
-+        baseURL: apiConfig.url,
-+      }).chatModel('openai/gpt-4o');
-+    case 'gpt-5':
-+      const openai = createOpenAI({
-+        name: 'openAI_gpt5',
-+        apiKey: apiConfig.key,
-+        baseURL: apiConfig.url,
-+      });
-+      return openai('openai/gpt-5');
-+    default: {
-+      // TypeScriptによる網羅性チェック
-+      const _exhaustiveCheck: never = modelName;
-+      throw internalError({
-+        expose: true,
-+        messageCode: 'VALIDATION_ERROR',
-+        messageParams: {
-+          detail: `未対応のモデル名です: ${_exhaustiveCheck}`,
-+        },
-+      });
-+    }
-+  }
-+};
-diff --git a/src/mastra/agents/model/openAICompatible.ts b/src/mastra/agents/model/openAICompatible.ts
-deleted file mode 100644
-index 158e92301..000000000
---- a/src/mastra/agents/model/openAICompatible.ts
-+++ /dev/null
-@@ -1,30 +0,0 @@
--import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
--// @ts-ignore
--import { RuntimeContext } from '@mastra/core/runtime-context';
--import type { BaseRuntimeContext } from '../types';
--import { internalError } from '@/main/lib/error';
--
--export const getOpenAICompatibleModel = ({
--  runtimeContext,
--}: {
--  runtimeContext: RuntimeContext<BaseRuntimeContext>;
--}) => {
--  const apiConfig = runtimeContext.get('model');
--  if (!apiConfig || !apiConfig.key || !apiConfig.url || !apiConfig.modelName) {
--    throw internalError({
--      expose: true,
--      messageCode: 'VALIDATION_ERROR',
--      messageParams: {
--        detail:
--          'AI APIの設定が正しくありません。APIキー、URL、BPR IDを確認してください。',
--      },
--    });
--  }
--
--  const model = createOpenAICompatible({
--    name: 'openAICompatibleModel',
--    apiKey: apiConfig.key,
--    baseURL: apiConfig.url,
--  }).chatModel(apiConfig.modelName);
--  return model;
--};
-diff --git a/src/mastra/agents/orchestrator.ts b/src/mastra/agents/orchestrator.ts
-index 6b85b70c4..a0de0138d 100644
---- a/src/mastra/agents/orchestrator.ts
-+++ b/src/mastra/agents/orchestrator.ts
-@@ -8,7 +8,7 @@ import { TokenLimiter } from '@mastra/memory/processors';
- import { LibSQLStore } from '@mastra/libsql';
- import { getStore } from '@/adapter/db/electron-store/store';
- import { getOrchestratorSystemPrompt } from './prompts';
--import { getOpenAICompatibleModel } from './model/openAICompatible';
-+import { getModel } from './model';
- import { isPathExists, toAbsoluteFileURL } from '@/main/lib/util';
- import { CustomToolCallFilter } from '../memory/filter/customToolCallFilter';
- import { BaseRuntimeContext } from './types';
-@@ -97,6 +97,6 @@ const memory = new Memory({
- export const orchestrator = new Agent({
-   name: 'orchestrator',
-   instructions: getOrchestratorSystemPrompt,
--  model: getOpenAICompatibleModel,
-+  model: getModel,
-   memory,
- });
-diff --git a/src/mastra/agents/toolAgents.ts b/src/mastra/agents/toolAgents.ts
-index 089032238..db425e8f5 100644
---- a/src/mastra/agents/toolAgents.ts
-+++ b/src/mastra/agents/toolAgents.ts
-@@ -1,7 +1,7 @@
- // toolで利用するエージェントをまとめたクラス
- // @ts-ignore
- import { Agent } from '@mastra/core/agent';
--import { getOpenAICompatibleModel } from './model/openAICompatible';
-+import { getModel } from './model';
- // eslint-disable-next-line import/no-cycle
- import { getDocumentQuerySystemPrompt } from './prompts';
- import { BaseRuntimeContext } from './types';
-@@ -13,5 +13,5 @@ export type DocumentExpertAgentRuntimeContext = BaseRuntimeContext & {
- export const documentExpertAgent = new Agent({
-   name: 'documentExpertAgent',
-   instructions: getDocumentQuerySystemPrompt,
--  model: getOpenAICompatibleModel,
-+  model: getModel,
- });
-diff --git a/src/mastra/agents/types/index.ts b/src/mastra/agents/types/index.ts
-index 188f5c5a7..b929f90ff 100644
---- a/src/mastra/agents/types/index.ts
-+++ b/src/mastra/agents/types/index.ts
-@@ -6,5 +6,6 @@ export type BaseRuntimeContext = {
-     key: string;
-     url: string;
-     modelName: string;
-+    userId: string;
-   };
- };
-diff --git a/src/mastra/agents/workflowAgents.ts b/src/mastra/agents/workflowAgents.ts
-index fb515bb38..28da700ec 100644
---- a/src/mastra/agents/workflowAgents.ts
-+++ b/src/mastra/agents/workflowAgents.ts
-@@ -19,7 +19,7 @@ import {
-   getReviewChatResearchPrompt,
-   getReviewChatAnswerPrompt,
- } from './prompts';
--import { getOpenAICompatibleModel } from './model/openAICompatible';
-+import { getModel } from './model';
- import { BaseRuntimeContext } from './types';
- import type { CustomEvaluationSettings } from '@/types';
- 
-@@ -92,92 +92,92 @@ export type ReviewChatAnswerAgentRuntimeContext = BaseRuntimeContext & {
- export const summarizeSourceAgent = new Agent({
-   name: 'summarizeSourceAgent',
-   instructions: SOURCE_ANALYSIS_SYSTEM_PROMPT,
--  model: getOpenAICompatibleModel,
-+  model: getModel,
- });
- 
- export const summarizeTopicAgent = new Agent({
-   name: 'summarizeTopicAgent',
-   instructions: EXTRACT_TOPIC_AND_SUMMARY_SYSTEM_PROMPT,
--  model: getOpenAICompatibleModel,
-+  model: getModel,
- });
- 
- export const checklistExtractionAgent = new Agent({
-   name: 'checklistExtractionAgent',
-   instructions: getChecklistExtractionPrompt,
--  model: getOpenAICompatibleModel,
-+  model: getModel,
- });
- 
- export const generalDocumentChecklistAgent = new Agent({
-   name: 'generalDocumentChecklistAgent',
-   instructions: getGeneralDocumentChecklistPrompt,
--  model: getOpenAICompatibleModel,
-+  model: getModel,
- });
- 
- export const classifyCategoryAgent = new Agent({
-   name: 'classifyCategoryAgent',
-   instructions: getChecklistCategolizePrompt,
--  model: getOpenAICompatibleModel,
-+  model: getModel,
- });
- 
- export const reviewExecuteAgent = new Agent({
-   name: 'reviewExecuteAgent',
-   instructions: getDocumentReviewExecutionPrompt,
--  model: getOpenAICompatibleModel,
-+  model: getModel,
- });
- 
- export const topicExtractionAgent = new Agent({
-   name: 'topicExtractionAgent',
-   instructions: getTopicExtractionPrompt,
--  model: getOpenAICompatibleModel,
-+  model: getModel,
- });
- 
- export const topicChecklistAgent = new Agent({
-   name: 'topicChecklistAgent',
-   instructions: getTopicChecklistCreationPrompt,
--  model: getOpenAICompatibleModel,
-+  model: getModel,
- });
- 
- // export const checklistIntegrationAgent = new Agent({
- //   name: 'checklistIntegrationAgent',
- //   instructions: getChecklistIntegrationPrompt,
--//   model: getOpenAICompatibleModel,
-+//   model: getModel,
- // });
- 
- // チェックリストブラッシュアップ用エージェント
- export const checklistRefinementAgent = new Agent({
-   name: 'checklistRefinementAgent',
-   instructions: getChecklistRefinementPrompt,
--  model: getOpenAICompatibleModel,
-+  model: getModel,
- });
- 
- // 個別ドキュメントレビュー用エージェント（効率化版）
- export const individualDocumentReviewAgent = new Agent({
-   name: 'individualDocumentReviewAgent',
-   instructions: getIndividualDocumentReviewPrompt,
--  model: getOpenAICompatibleModel,
-+  model: getModel,
- });
- 
- // レビュー結果統合用エージェント
- export const consolidateReviewAgent = new Agent({
-   name: 'consolidateReviewAgent',
-   instructions: getConsolidateReviewPrompt,
--  model: getOpenAICompatibleModel,
-+  model: getModel,
- });
- 
- export const reviewChatPlanningAgent = new Agent({
-   name: 'reviewChatPlanningAgent',
-   instructions: getReviewChatPlanningPrompt,
--  model: getOpenAICompatibleModel,
-+  model: getModel,
- });
- 
- export const reviewChatResearchAgent = new Agent({
-   name: 'reviewChatResearchAgent',
-   instructions: getReviewChatResearchPrompt,
--  model: getOpenAICompatibleModel,
-+  model: getModel,
- });
- 
- export const reviewChatAnswerAgent = new Agent({
-   name: 'reviewChatAnswerAgent',
-   instructions: getReviewChatAnswerPrompt,
--  model: getOpenAICompatibleModel,
-+  model: getModel,
- });
 diff --git a/src/mastra/lib/agentUtils.ts b/src/mastra/lib/agentUtils.ts
-index dbe27fba1..a4d50094b 100644
+index a4d50094b..cbdae7402 100644
 --- a/src/mastra/lib/agentUtils.ts
 +++ b/src/mastra/lib/agentUtils.ts
-@@ -15,6 +15,7 @@ export async function createRuntimeContext<T extends BaseRuntimeContext>() {
-     key: store.api.key,
-     url: store.api.url,
-     modelName: store.api.model,
-+    userId: store.api.userId,
-   });
-   return runtimeContext;
- }
+@@ -4,6 +4,7 @@ import { getSettingsRepository } from '@/adapter/db';
+ import { BaseRuntimeContext } from '../agents/types';
+ import { AppError, extractAIAPISafeError } from '@/main/lib/error';
+ import { APICallError } from 'ai';
++import { isGpt5Model } from '@/config/modelConfig';
+ 
+ // BaseRuntimeConotextに値を入れた上で、指定したRuntimeContextを返す関数
+ export async function createRuntimeContext<T extends BaseRuntimeContext>() {
+@@ -64,3 +65,20 @@ export const judgeErrorIsContentLengthError = (error: unknown) => {
+   }
+   return false;
+ };
++
++/**
++ * gpt-5モデルの場合にtemperature:1を設定するヘルパー関数
++ * gpt-5はtemperature:1を指定しないとエラーになるため、この関数で適切なオプションを返す
++ * runtimeContextからモデル名を取得し、gpt-5の場合のみtemperature:1を返す
++ * @param runtimeContext RuntimeContextインスタンス
++ * @returns gpt-5の場合は{temperature:1}、それ以外は空オブジェクト
++ */
++export function getTemperatureOption(
++  runtimeContext: RuntimeContext<BaseRuntimeContext>,
++): { temperature?: number } {
++  const model = runtimeContext.get('model');
++  if (model && isGpt5Model(model.modelName)) {
++    return { temperature: 1 };
++  }
++  return {};
++}
 diff --git a/src/mastra/tools/sourcesTools.ts b/src/mastra/tools/sourcesTools.ts
-index ea8601bcf..56f5faf41 100644
+index 56f5faf41..f14429e32 100644
 --- a/src/mastra/tools/sourcesTools.ts
 +++ b/src/mastra/tools/sourcesTools.ts
-@@ -168,6 +168,7 @@ export const documentQueryTool = createTool({
-             const res = await documentExpertAgent.generateLegacy(item.query, {
+@@ -7,7 +7,11 @@ import getDb from '@/adapter/db/drizzle';
+ import FileExtractor from '@/main/lib/fileExtractor';
+ import { createBaseToolResponseSchema, RunToolStatus } from './types';
+ import { DocumentExpertAgentRuntimeContext } from '../agents/toolAgents';
+-import { createRuntimeContext, judgeFinishReason } from '../lib/agentUtils';
++import {
++  createRuntimeContext,
++  judgeFinishReason,
++  getTemperatureOption,
++} from '../lib/agentUtils';
+ import { normalizeUnknownError, internalError } from '@/main/lib/error';
+ 
+ /**
+@@ -169,6 +173,7 @@ export const documentQueryTool = createTool({
                abortSignal: options?.abortSignal,
                runtimeContext,
-+              maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
+               maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
++              ...getTemperatureOption(runtimeContext),
              });
              answer = res.text;
              const { success, reason } = judgeFinishReason(res.finishReason);
 diff --git a/src/mastra/workflows/reviewChat/generateAnswerStep.ts b/src/mastra/workflows/reviewChat/generateAnswerStep.ts
-index c87dd8d2b..6ac8c0291 100644
+index 6ac8c0291..e32a9b4f8 100644
 --- a/src/mastra/workflows/reviewChat/generateAnswerStep.ts
 +++ b/src/mastra/workflows/reviewChat/generateAnswerStep.ts
-@@ -100,6 +100,7 @@ ${result.researchResult}`;
-       const result = await answerAgent.generateLegacy(promptText, {
+@@ -12,6 +12,7 @@ import { ReviewChatAnswerAgentRuntimeContext } from '@/mastra/agents/workflowAge
+ import {
+   createRuntimeContext,
+   judgeFinishReason,
++  getTemperatureOption,
+ } from '@/mastra/lib/agentUtils';
+ import { IpcChannels } from '@/types';
+ import { publishEvent } from '@/main/lib/eventPayloadHelper';
+@@ -101,6 +102,7 @@ ${result.researchResult}`;
          runtimeContext,
          abortSignal,
-+        maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
+         maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
++        ...getTemperatureOption(runtimeContext),
          onStepFinish: (stepResult) => {
            // AI SDK Data Stream Protocol v1 形式でチャンクを送信
            // https://sdk.vercel.ai/docs/ai-sdk-ui/stream-protocol
 diff --git a/src/mastra/workflows/reviewChat/planResearchStep.ts b/src/mastra/workflows/reviewChat/planResearchStep.ts
-index 21d360076..e7b22eb20 100644
+index e7b22eb20..4e6f492b2 100644
 --- a/src/mastra/workflows/reviewChat/planResearchStep.ts
 +++ b/src/mastra/workflows/reviewChat/planResearchStep.ts
-@@ -89,6 +89,7 @@ export const planResearchStep = createStep({
-       const result = await planningAgent.generateLegacy(question, {
+@@ -10,6 +10,7 @@ import { ReviewChatPlanningAgentRuntimeContext } from '@/mastra/agents/workflowA
+ import {
+   createRuntimeContext,
+   judgeFinishReason,
++  getTemperatureOption,
+ } from '@/mastra/lib/agentUtils';
+ import { reviewChatInputSchema } from '.';
+ import { judgeReviewMode, buildPlanningChecklistInfo } from './lib';
+@@ -90,6 +91,7 @@ export const planResearchStep = createStep({
          runtimeContext,
          output: researchTasksSchema,
-+        maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
+         maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
++        ...getTemperatureOption(runtimeContext),
        });
  
        const { success, reason } = judgeFinishReason(result.finishReason);
 diff --git a/src/mastra/workflows/reviewChat/researchDocument/researchDocumentChunk.ts b/src/mastra/workflows/reviewChat/researchDocument/researchDocumentChunk.ts
-index c49b8f97a..2a67dc4fc 100644
+index 2a67dc4fc..efad06d25 100644
 --- a/src/mastra/workflows/reviewChat/researchDocument/researchDocumentChunk.ts
 +++ b/src/mastra/workflows/reviewChat/researchDocument/researchDocumentChunk.ts
-@@ -117,6 +117,7 @@ export const researchChunkStep = createStep({
-         },
+@@ -10,6 +10,7 @@ import {
+   createRuntimeContext,
+   judgeFinishReason,
+   judgeErrorIsContentLengthError,
++  getTemperatureOption,
+ } from '@/mastra/lib/agentUtils';
+ import { getReviewRepository } from '@/adapter/db';
+ import { judgeReviewMode, buildResearchChecklistInfo } from '../lib';
+@@ -118,6 +119,7 @@ export const researchChunkStep = createStep({
          {
            runtimeContext,
-+          maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
+           maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
++          ...getTemperatureOption(runtimeContext),
          },
        );
  
 diff --git a/src/mastra/workflows/sourceRegistration/sourceRegistration.ts b/src/mastra/workflows/sourceRegistration/sourceRegistration.ts
-index cae3af6d8..bf3bf5719 100644
+index bf3bf5719..cdd182c20 100644
 --- a/src/mastra/workflows/sourceRegistration/sourceRegistration.ts
 +++ b/src/mastra/workflows/sourceRegistration/sourceRegistration.ts
-@@ -68,6 +68,7 @@ const analyzeSourceStep = createStep({
+@@ -5,7 +5,11 @@ import { z } from 'zod';
+ import { stepStatus } from '../types';
+ import { baseStepOutputSchema } from '../schema';
+ import { getSourceRepository } from '@/adapter/db';
+-import { createRuntimeContext, judgeFinishReason } from '../../lib/agentUtils';
++import {
++  createRuntimeContext,
++  judgeFinishReason,
++  getTemperatureOption,
++} from '../../lib/agentUtils';
+ import { normalizeUnknownError, internalError } from '@/main/lib/error';
+ import { getMainLogger } from '@/main/lib/logger';
+ import FileExtractor from '@/main/lib/fileExtractor';
+@@ -63,12 +67,14 @@ const analyzeSourceStep = createStep({
+         summary: z.string(),
+       });
+ 
++      const runtimeContext = await createRuntimeContext();
+       const analysisResult = await summarizeSourceAgent.generateLegacy(
+         content,
          {
-           runtimeContext: await createRuntimeContext(),
+-          runtimeContext: await createRuntimeContext(),
++          runtimeContext,
            output: outputSchema,
-+          maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
+           maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
++          ...getTemperatureOption(runtimeContext),
          },
        );
  
-@@ -160,6 +161,7 @@ const extractTopicAndSummaryStep = createStep({
+@@ -158,10 +164,12 @@ const extractTopicAndSummaryStep = createStep({
+         ),
+       });
+ 
++      const runtimeContext = await createRuntimeContext();
        const analysisResult = await summarizeTopicAgent.generateLegacy(content, {
-         runtimeContext: await createRuntimeContext(),
+-        runtimeContext: await createRuntimeContext(),
++        runtimeContext,
          output: outputSchema,
-+        maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
+         maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
++        ...getTemperatureOption(runtimeContext),
        });
        const { success, reason } = judgeFinishReason(
          analysisResult.finishReason,
 diff --git a/src/mastra/workflows/sourceReview/checklistExtraction.ts b/src/mastra/workflows/sourceReview/checklistExtraction.ts
-index 03660ee8f..e9a1a65ff 100644
+index e9a1a65ff..73fb9acba 100644
 --- a/src/mastra/workflows/sourceReview/checklistExtraction.ts
 +++ b/src/mastra/workflows/sourceReview/checklistExtraction.ts
-@@ -150,6 +150,7 @@ const checklistDocumentExtractionStep = createStep({
-             output: outputSchema,
+@@ -12,7 +12,10 @@ import {
+   TopicExtractionAgentRuntimeContext,
+   TopicChecklistAgentRuntimeContext,
+ } from '../../agents/workflowAgents';
+-import { createRuntimeContext } from '../../lib/agentUtils';
++import {
++  createRuntimeContext,
++  getTemperatureOption,
++} from '../../lib/agentUtils';
+ import { normalizeUnknownError, internalError } from '@/main/lib/error';
+ import { getMainLogger } from '@/main/lib/logger';
+ import { publishEvent } from '@/main/lib/eventPayloadHelper';
+@@ -151,6 +154,7 @@ const checklistDocumentExtractionStep = createStep({
              runtimeContext,
              abortSignal,
-+            maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
+             maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
++            ...getTemperatureOption(runtimeContext),
              // AIの限界生成トークン数を超えた場合のエラーを回避するための設定
              experimental_repairText: async (options) => {
                isCompleted = false;
-@@ -329,6 +330,7 @@ const topicExtractionStep = createStep({
-           output: outputSchema,
+@@ -331,6 +335,7 @@ const topicExtractionStep = createStep({
            runtimeContext,
            abortSignal,
-+          maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
+           maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
++          ...getTemperatureOption(runtimeContext),
          },
        );
  
-@@ -427,6 +429,7 @@ const topicChecklistCreationStep = createStep({
-         output: outputSchema,
+@@ -430,6 +435,7 @@ const topicChecklistCreationStep = createStep({
          runtimeContext,
          abortSignal,
-+        maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
+         maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
++        ...getTemperatureOption(runtimeContext),
        });
        logger.debug(
          `Combined document topic(${title}) generated checklist items:`,
-@@ -607,6 +610,7 @@ Please continue refining the remaining items, avoiding duplicates with already r
-             output: outputSchema,
+@@ -611,6 +617,7 @@ Please continue refining the remaining items, avoiding duplicates with already r
              runtimeContext,
              abortSignal,
-+            maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
+             maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
++            ...getTemperatureOption(runtimeContext),
              // AIの限界生成トークン数を超えた場合のエラーを回避するための設定
              experimental_repairText: async (options) => {
                isCompleted = false;
 diff --git a/src/mastra/workflows/sourceReview/executeReview/classifyChecklistStep.ts b/src/mastra/workflows/sourceReview/executeReview/classifyChecklistStep.ts
-index e6bb5eab4..f0df44fdf 100644
+index f0df44fdf..b6d7fd472 100644
 --- a/src/mastra/workflows/sourceReview/executeReview/classifyChecklistStep.ts
 +++ b/src/mastra/workflows/sourceReview/executeReview/classifyChecklistStep.ts
-@@ -124,6 +124,7 @@ export const classifyChecklistsByCategoryStep = createStep({
-           output: outputSchema,
+@@ -14,7 +14,10 @@ import {
+ import { MAX_CATEGORIES, MAX_CHECKLISTS_PER_CATEGORY } from '.';
+ import { stepStatus } from '../../types';
+ import { splitChecklistEquallyByMaxSize } from '../lib';
+-import { createRuntimeContext } from '@/mastra/lib/agentUtils';
++import {
++  createRuntimeContext,
++  getTemperatureOption,
++} from '@/mastra/lib/agentUtils';
+ import { ClassifyCategoryAgentRuntimeContext } from '@/mastra/agents/workflowAgents';
+ import { getMainLogger } from '@/main/lib/logger';
+ 
+@@ -125,6 +128,7 @@ export const classifyChecklistsByCategoryStep = createStep({
            runtimeContext,
            abortSignal,
-+          maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
+           maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
++          ...getTemperatureOption(runtimeContext),
          },
        );
        // 分類結果の妥当性をチェック
 diff --git a/src/mastra/workflows/sourceReview/executeReview/largeDocumentReview/consolidateReviewStep.ts b/src/mastra/workflows/sourceReview/executeReview/largeDocumentReview/consolidateReviewStep.ts
-index 5574d6b90..8425a1f28 100644
+index 8425a1f28..a466d7226 100644
 --- a/src/mastra/workflows/sourceReview/executeReview/largeDocumentReview/consolidateReviewStep.ts
 +++ b/src/mastra/workflows/sourceReview/executeReview/largeDocumentReview/consolidateReviewStep.ts
-@@ -176,6 +176,7 @@ Please provide a consolidated review that synthesizes all individual document re
-             output: outputSchema,
+@@ -10,6 +10,7 @@ import { internalError } from '@/main/lib/error';
+ import {
+   createRuntimeContext,
+   judgeFinishReason,
++  getTemperatureOption,
+ } from '@/mastra/lib/agentUtils';
+ import { getMainLogger } from '@/main/lib/logger';
+ 
+@@ -177,6 +178,7 @@ Please provide a consolidated review that synthesizes all individual document re
              runtimeContext,
              abortSignal,
-+            maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
+             maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
++            ...getTemperatureOption(runtimeContext),
            },
          );
  
 diff --git a/src/mastra/workflows/sourceReview/executeReview/largeDocumentReview/individualDocumentReviewStep.ts b/src/mastra/workflows/sourceReview/executeReview/largeDocumentReview/individualDocumentReviewStep.ts
-index ac4524164..82d71b71f 100644
+index 82d71b71f..cf2a26e24 100644
 --- a/src/mastra/workflows/sourceReview/executeReview/largeDocumentReview/individualDocumentReviewStep.ts
 +++ b/src/mastra/workflows/sourceReview/executeReview/largeDocumentReview/individualDocumentReviewStep.ts
-@@ -133,6 +133,7 @@ Checklist Items to Review:\n${checklists.map((item) => `- ID: ${item.id} - ${ite
-           output: outputSchema,
+@@ -10,6 +10,7 @@ import {
+   createRuntimeContext,
+   judgeErrorIsContentLengthError,
+   judgeFinishReason,
++  getTemperatureOption,
+ } from '@/mastra/lib/agentUtils';
+ import { getMainLogger } from '@/main/lib/logger';
+ import { createCombinedMessageFromExtractedDocument } from '../../lib';
+@@ -134,6 +135,7 @@ Checklist Items to Review:\n${checklists.map((item) => `- ID: ${item.id} - ${ite
            runtimeContext,
            abortSignal,
-+          maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
+           maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
++          ...getTemperatureOption(runtimeContext),
          });
  
          if (reviewResult.finishReason === 'length') {
 diff --git a/src/mastra/workflows/sourceReview/executeReview/smallDocumentReviewStep.ts b/src/mastra/workflows/sourceReview/executeReview/smallDocumentReviewStep.ts
-index 7e4752e0e..4f7062d92 100644
+index 4f7062d92..5c7149fcb 100644
 --- a/src/mastra/workflows/sourceReview/executeReview/smallDocumentReviewStep.ts
 +++ b/src/mastra/workflows/sourceReview/executeReview/smallDocumentReviewStep.ts
-@@ -124,6 +124,7 @@ Please review the document against the above checklist items.`;
-             output: outputSchema,
+@@ -6,6 +6,7 @@ import { createCombinedMessageFromExtractedDocument } from '../lib';
+ import {
+   createRuntimeContext,
+   judgeFinishReason,
++  getTemperatureOption,
+ } from '@/mastra/lib/agentUtils';
+ import { ReviewExecuteAgentRuntimeContext } from '@/mastra/agents/workflowAgents';
+ import { internalError, normalizeUnknownError } from '@/main/lib/error';
+@@ -125,6 +126,7 @@ Please review the document against the above checklist items.`;
              runtimeContext,
              abortSignal,
-+            maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
+             maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
++            ...getTemperatureOption(runtimeContext),
            },
          );
          const { success, reason } = judgeFinishReason(
-diff --git a/src/renderer/components/common/SettingsModal.tsx b/src/renderer/components/common/SettingsModal.tsx
-index 5f0fa52dc..12fad0cd6 100644
---- a/src/renderer/components/common/SettingsModal.tsx
-+++ b/src/renderer/components/common/SettingsModal.tsx
-@@ -7,10 +7,16 @@ import {
-   Box,
-   CircularProgress,
-   Alert,
-+  FormControl,
-+  InputLabel,
-+  Select,
-+  MenuItem,
-+  FormHelperText,
- } from '@mui/material';
- import Modal from './Modal';
- import useSettingsStore from '../../hooks/useSettings';
- import { StoreSchema as Settings } from '../../../adapter/db/electron-store/store';
-+import { MODEL_OPTIONS } from '@/config/modelConfig';
- 
- interface SettingsModalProps {
-   open: boolean;
-@@ -112,14 +118,41 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
-               margin="normal"
-               variant="outlined"
-             />
-+            <FormControl
-+              fullWidth
-+              margin="normal"
-+              variant="outlined"
-+              error={!!validationErrors.api?.model}
-+              disabled={loading || saving}
-+            >
-+              <InputLabel id="model-select-label">モデル名</InputLabel>
-+              <Select
-+                labelId="model-select-label"
-+                id="model-select"
-+                value={settings.api.model}
-+                label="モデル名"
-+                onChange={(e) => handleChange('api', 'model', e.target.value)}
-+              >
-+                {MODEL_OPTIONS.map((option) => (
-+                  <MenuItem key={option} value={option}>
-+                    {option}
-+                  </MenuItem>
-+                ))}
-+              </Select>
-+              {validationErrors.api?.model?.message && (
-+                <FormHelperText>
-+                  {validationErrors.api.model.message}
-+                </FormHelperText>
-+              )}
-+            </FormControl>
-             <TextField
-               fullWidth
--              label="BPR ID"
--              value={settings.api.model}
-+              label="ユーザID"
-+              value={settings.api.userId}
-               disabled={loading || saving}
--              onChange={(e) => handleChange('api', 'model', e.target.value)}
--              error={!!validationErrors.api?.model}
--              helperText={validationErrors.api?.model?.message}
-+              onChange={(e) => handleChange('api', 'userId', e.target.value)}
-+              error={!!validationErrors.api?.userId}
-+              helperText={validationErrors.api?.userId?.message}
-               margin="normal"
-               variant="outlined"
-             />
-diff --git a/src/renderer/components/review/ReviewChecklistSection.tsx b/src/renderer/components/review/ReviewChecklistSection.tsx
-index a719b60c2..0307424d7 100644
---- a/src/renderer/components/review/ReviewChecklistSection.tsx
-+++ b/src/renderer/components/review/ReviewChecklistSection.tsx
-@@ -52,6 +52,7 @@ const getEvaluationColor = (evaluation: ReviewEvaluation): string => {
-   // 存在しない場合はハッシュ値から色を生成
-   let hash = 0;
-   for (let i = 0; i < evaluation.length; i++) {
-+    // eslint-disable-next-line no-bitwise
-     hash = evaluation.charCodeAt(i) + ((hash << 5) - hash);
-   }
-   const hue = hash % 360;
-@@ -135,6 +136,7 @@ const ReviewChecklistSection: React.FC<ReviewChecklistSectionProps> = ({
-             url: settings.api.url,
-             key: settings.api.key,
-             model: settings.api.model,
-+            userId: settings.api.userId,
-           }
-         : undefined;
- 
-@@ -172,9 +174,8 @@ const ReviewChecklistSection: React.FC<ReviewChecklistSectionProps> = ({
-       // 文字列順で比較
-       if (sortDirection === 'desc') {
-         return bEv.localeCompare(aEv);
--      } else {
--        return aEv.localeCompare(bEv);
-       }
-+      return aEv.localeCompare(bEv);
-     });
-   }, [checklistResults, sortBy, sortDirection]);
- 
-diff --git a/src/renderer/components/review/ReviewSourceModal.tsx b/src/renderer/components/review/ReviewSourceModal.tsx
-index a1b897e9e..ec8c4e1f4 100644
---- a/src/renderer/components/review/ReviewSourceModal.tsx
-+++ b/src/renderer/components/review/ReviewSourceModal.tsx
-@@ -116,14 +116,14 @@ const getAlertMessage = ({
-             <br />
-             ・追加指示・コメントフォーマット
-             <br />
--            ・AI API設定（エンドポイント、APIキー、BPR ID）
-+            ・AI API設定（エンドポイント、APIキー、モデル名、ユーザID）
-             <br />
-             <br />
-             <strong>ファイル形式:</strong>
-             <br />
-             1行目:
-             ヘッダ行（チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI
--            APIエンドポイント,AI APIキー,BPR ID）：必須
-+            APIエンドポイント,AI APIキー,モデル名,ユーザID）：必須
-             <br />
-             2行目以降: データ行：任意
-             <br />
-@@ -134,7 +134,7 @@ const getAlertMessage = ({
-             ・評定ラベル列＋評定説明列の両方に値がある場合→評定設定値として認識
-             <br />
-             ・追加指示・コメントフォーマット・AI
--            API・BPR ID列に値がある場合→各種設定値として認識
-+            API・モデル名・ユーザID列に値がある場合→各種設定値として認識
-             <br />
-             ・空セルは無視
-             <br />
-@@ -228,12 +228,12 @@ function ReviewSourceModal({
-     // テンプレートCSVの内容を生成
-     const templateLines = [
-       // ヘッダ行
--      'チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,BPR ID',
-+      'チェックリスト,評定ラベル,評定説明,追加指示,コメントフォーマット,AI APIエンドポイント,AI APIキー,モデル名,ユーザID',
-       // データ行
--      'チェックリストサンプル1,A,基準を完全に満たしている,レビューは厳格に実施してください。,"【評価理由・根拠】\n（具体的な理由と根拠を記載）\n\n【改善提案】\n（改善のための具体的な提案を記載）",http://localhost:11434/v1,your-api-key,llama3',
--      'チェックリストサンプル2,B,基準をある程度満たしている,,,,',
--      'チェックリストサンプル3,C,基準を満たしていない,,,,',
--      ',-,評価の対象外、または評価できない,,,,,',
-+      'チェックリストサンプル1,A,基準を完全に満たしている,レビューは厳格に実施してください。,"【評価理由・根拠】\n（具体的な理由と根拠を記載）\n\n【改善提案】\n（改善のための具体的な提案を記載）",http://localhost:11434/v1,your-api-key,llama3,user001',
-+      'チェックリストサンプル2,B,基準をある程度満たしている,,,,,',
-+      'チェックリストサンプル3,C,基準を満たしていない,,,,,',
-+      ',-,評価の対象外、または評価できない,,,,,,',
-     ];
- 
-     const csvContent = templateLines.join('\n');
-diff --git a/src/renderer/hooks/useSettings.ts b/src/renderer/hooks/useSettings.ts
-index a4353d4bb..0d7b2dd64 100644
---- a/src/renderer/hooks/useSettings.ts
-+++ b/src/renderer/hooks/useSettings.ts
-@@ -12,6 +12,7 @@ import { useAgentStatusStore } from '../stores/agentStatusStore';
- import { useAlertStore } from '../stores/alertStore';
- import { getSafeErrorMessage, internalError } from '../lib/error';
- import { usePushChannel } from './usePushChannel';
-+import { DEFAULT_MODEL } from '@/config/modelConfig';
- 
- type AppSettings = Omit<Settings, 'mcp'> & {
-   mcp: { serverConfig: string | undefined };
-@@ -25,7 +26,7 @@ const useSettingsStore = () => {
-   const [settings, setSettings] = useState<AppSettings>({
-     database: { dir: '' },
-     source: { registerDir: './source' },
--    api: { key: '', url: '', model: '' },
-+    api: { key: '', url: '', model: DEFAULT_MODEL, userId: '' },
-     redmine: { endpoint: '', apiKey: '' },
-     gitlab: { endpoint: '', apiKey: '' },
-     mcp: { serverConfig: undefined },
-diff --git a/src/renderer/lib/csvUtils.ts b/src/renderer/lib/csvUtils.ts
-index bf0b8c305..37b011ac6 100644
---- a/src/renderer/lib/csvUtils.ts
-+++ b/src/renderer/lib/csvUtils.ts
-@@ -1,8 +1,4 @@
--import {
--  ReviewChecklistResult,
--  CustomEvaluationSettings,
--  RevieHistory,
--} from '@/types';
-+import { ReviewChecklistResult, RevieHistory } from '@/types';
- 
- /**
-  * CSV用文字列のエスケープ処理
-@@ -37,7 +33,7 @@ const escapeCSVField = (field: string): string => {
- export const convertReviewResultsToCSV = (
-   checklistResults: ReviewChecklistResult[],
-   reviewHistory?: RevieHistory | null,
--  apiSettings?: { url?: string; key?: string; model?: string },
-+  apiSettings?: { url?: string; key?: string; model?: string; userId?: string },
- ): string => {
-   // ヘッダー行を構築
-   const headers = [
-@@ -50,7 +46,8 @@ export const convertReviewResultsToCSV = (
-     'コメントフォーマット',
-     'AI APIエンドポイント',
-     'AI APIキー',
--    'BPR ID',
-+    'モデル名',
-+    'ユーザID',
-   ];
- 
-   const csvRows: string[] = [];
-@@ -67,7 +64,8 @@ export const convertReviewResultsToCSV = (
-   // データ行を構築
-   for (let i = 0; i < maxRows; i++) {
-     const checklist = i < checklistResults.length ? checklistResults[i] : null;
--    const evaluationItem = i < evaluationItems.length ? evaluationItems[i] : null;
-+    // 直ぐに戻せるようにコメントアウト
-+    // const evaluationItem = i < evaluationItems.length ? evaluationItems[i] : null;
- 
-     const row: string[] = [
-       checklist?.content || '', // チェックリスト
-@@ -80,14 +78,16 @@ export const convertReviewResultsToCSV = (
-       // i === 0 ? (reviewHistory?.commentFormat || '') : '', // コメントフォーマット（1行目のみ）
-       // i === 0 ? (apiSettings?.url || '') : '', // AI APIエンドポイント（1行目のみ）
-       // i === 0 ? (apiSettings?.key || '') : '', // AI APIキー（1行目のみ）
--      // i === 0 ? (apiSettings?.model || '') : '', // BPR ID（1行目のみ）
-+      // i === 0 ? (apiSettings?.model || '') : '', // モデル名（1行目のみ）
-+      // i === 0 ? (apiSettings?.userId || '') : '', // ユーザID（1行目のみ）
-       '', // 評定ラベル
-       '', // 評定説明
-       '', // 追加指示（1行目のみ）
-       '', // コメントフォーマット（1行目のみ）
-       '', // AI APIエンドポイント（1行目のみ）
-       '', // AI APIキー（1行目のみ）
--      '', // BPR ID（1行目のみ）
-+      '', // モデル名（1行目のみ）
-+      '', // ユーザID（1行目のみ）
-     ];
- 
-     csvRows.push(row.map(escapeCSVField).join(','));
-diff --git a/src/types/review.ts b/src/types/review.ts
-index ea9378048..1897004e4 100644
---- a/src/types/review.ts
-+++ b/src/types/review.ts
-@@ -138,5 +138,6 @@ export interface CsvImportData {
-     url?: string;
-     key?: string;
-     model?: string;
-+    userId?: string;
-   };
- }
-diff --git a/src/types/setting.ts b/src/types/setting.ts
-index a0416b4f4..65f960fc5 100644
---- a/src/types/setting.ts
-+++ b/src/types/setting.ts
-@@ -1,5 +1,6 @@
- import { z } from 'zod';
- import { AgentToolStatus } from './chat';
-+import { MODEL_OPTIONS } from '@/config/modelConfig';
- 
- // 設定状態管理用の型定義
- export type SettingsSavingState = 'saving' | 'done' | 'error';
-@@ -96,7 +97,8 @@ export const SourceSchema = z.object({
- export const ApiSchema = z.object({
-   key: z.string().min(1, { message: 'APIキーは必須です' }),
-   url: z.string().url({ message: '有効なURLを入力してください' }),
--  model: z.string().min(1, { message: 'モデル名は必須です' }),
-+  model: z.enum(MODEL_OPTIONS, { message: 'モデル名を選択してください' }),
-+  userId: z.string().min(1, { message: 'ユーザIDは必須です' }),
- });
- 
- /**
