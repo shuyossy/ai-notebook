@@ -17,7 +17,6 @@ import {
   ListItemText,
   IconButton,
   Tooltip,
-  CircularProgress,
   Stack,
   Accordion,
   AccordionSummary,
@@ -36,15 +35,18 @@ import {
   ExpandMore as ExpandMoreIcon,
   Download as DownloadIcon,
 } from '@mui/icons-material';
-import Backdrop from '@mui/material/Backdrop';
 import {
   DocumentType,
   UploadFile,
   ProcessMode,
   ImageMode,
+  BulkProcessMode,
+  ConversionProgress,
   EvaluationItem,
   DocumentMode,
+  supportsImageProcessing,
 } from '@/types';
+import FileConversionProgressOverlay from '../common/FileConversionProgressOverlay';
 import { useAlertStore } from '@/renderer/stores/alertStore';
 import { getSafeErrorMessage } from '../../lib/error';
 import { ReviewSourceModalProps } from './types';
@@ -65,20 +67,6 @@ const getMimeTypeFromExtension = (extension: string): string => {
     txt: 'text/plain',
   };
   return mimeTypes[extension] || 'application/octet-stream';
-};
-
-// ドキュメントが画像化に対応しているかチェック
-const supportsImageProcessing = (mimeType: string): boolean => {
-  const supportedTypes = [
-    'application/pdf',
-    'application/msword',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    'application/vnd.ms-excel',
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    'application/vnd.ms-powerpoint',
-    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-  ];
-  return supportedTypes.includes(mimeType);
 };
 
 const getButtonText = (modalMode: ReviewSourceModalProps['modalMode']) => {
@@ -171,23 +159,6 @@ const getAlertMessage = ({
     );
   }
   return null;
-};
-
-// 一括設定用の処理モード型定義
-type BulkProcessMode = 'text' | 'image-merged' | 'image-pages';
-
-// 変換進捗情報の型定義
-type ConversionProgress = {
-  currentFileName: string;
-  conversionType: 'pdf' | 'image';
-  currentIndex: number;
-  totalCount: number;
-  progressDetail?: {
-    type: 'sheet-setup' | 'pdf-export';
-    sheetName?: string;
-    currentSheet?: number;
-    totalSheets?: number;
-  };
 };
 
 function ReviewSourceModal({
@@ -1261,85 +1232,11 @@ function ReviewSourceModal({
           </Box>
         </Box>
 
-        {/* 変換進捗表示用Backdrop */}
-        <Backdrop
+        {/* 変換進捗表示用Overlay */}
+        <FileConversionProgressOverlay
           open={!!conversionProgress}
-          sx={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            zIndex: (theme) => theme.zIndex.modal + 1,
-            color: '#fff',
-            backgroundColor: 'rgba(0, 0, 0, 0.7)',
-          }}
-        >
-          <Box
-            sx={{
-              textAlign: 'center',
-              p: 4,
-              bgcolor: 'background.paper',
-              borderRadius: 2,
-              minWidth: 300,
-              maxWidth: 500,
-            }}
-          >
-            <CircularProgress size={60} sx={{ mb: 3 }} />
-            <Typography variant="h6" gutterBottom color="text.primary">
-              ファイルを変換しています
-            </Typography>
-            {conversionProgress && (
-              <>
-                <Typography variant="body1" color="text.primary" sx={{ mb: 1 }}>
-                  {conversionProgress.currentFileName}
-                </Typography>
-                <Typography
-                  variant="body2"
-                  color="text.secondary"
-                  sx={{ mb: 2 }}
-                >
-                  {conversionProgress.conversionType === 'pdf' ? (
-                    <>
-                      {conversionProgress.progressDetail?.type ===
-                        'sheet-setup' &&
-                      conversionProgress.progressDetail.sheetName ? (
-                        <>
-                          「{conversionProgress.progressDetail.sheetName}」
-                          シートPDF印刷設定中
-                          {conversionProgress.progressDetail.currentSheet &&
-                          conversionProgress.progressDetail.totalSheets ? (
-                            <>
-                              {' '}
-                              ({conversionProgress.progressDetail.currentSheet}/
-                              {conversionProgress.progressDetail.totalSheets})
-                            </>
-                          ) : null}
-                        </>
-                      ) : conversionProgress.progressDetail?.type ===
-                        'pdf-export' ? (
-                        <>PDFファイルへエクスポート中</>
-                      ) : (
-                        <>PDFに変換中...</>
-                      )}
-                      <br />
-                      ※<br />
-                      変換に時間がかかる場合があります
-                      <br />
-                      変換されたPDFファイルはファイルパス、最終更新時刻をキーにキャッシュされます
-                    </>
-                  ) : (
-                    '画像に変換中...'
-                  )}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  処理済み: {conversionProgress.currentIndex} /{' '}
-                  {conversionProgress.totalCount} ファイル
-                </Typography>
-              </>
-            )}
-          </Box>
-        </Backdrop>
+          progress={conversionProgress}
+        />
       </>
     </Modal>
   );

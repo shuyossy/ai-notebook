@@ -1,3 +1,6 @@
+// 共通型定義のインポート
+import type { ProcessMode, ImageMode } from './fileProcessing';
+
 export interface RevieHistory {
   id: string; // reviewHistoriesのid
   title: string;
@@ -62,12 +65,6 @@ export type DocumentType = 'checklist-ai' | 'checklist-csv' | 'general';
 
 // リトライモードの定義
 export type RetryMode = 'all' | 'uncompleted-only';
-
-// ドキュメント処理方式の定義（PDF, Word, Excel, PowerPoint対応）
-export type ProcessMode = 'text' | 'image';
-
-// ドキュメント画像化方式の定義
-export type ImageMode = 'merged' | 'pages';
 
 // ドキュメントレビューのモード定義
 export type DocumentMode = 'small' | 'large';

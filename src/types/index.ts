@@ -1,4 +1,5 @@
 export * from './chat';
+export * from './fileProcessing';
 export * from './review';
 export * from './setting';
 export * from './sourceRegister';
