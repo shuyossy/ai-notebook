@@ -40,7 +40,9 @@ import { ImageConversionCacheHelper } from '@/main/lib/utils/imageConversionCach
 describe('ImageConversionCacheHelper', () => {
   // テストで使用するサンプルファイルのパス
   const testFilePath = path.join(testTempDir, 'test-document.pdf');
-  const sampleImageData = ['data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='];
+  const sampleImageData = [
+    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+  ];
   const multiPageImageData = [
     'data:image/png;base64,page1_base64_data',
     'data:image/png;base64,page2_base64_data',
@@ -313,7 +315,11 @@ describe('ImageConversionCacheHelper', () => {
         // 不正なメタデータファイルを直接作成
         const cacheDir = ImageConversionCacheHelper.getCacheDir();
         const invalidMetadataPath = path.join(cacheDir, 'invalid.json');
-        await fs.writeFile(invalidMetadataPath, 'invalid json content', 'utf-8');
+        await fs.writeFile(
+          invalidMetadataPath,
+          'invalid json content',
+          'utf-8',
+        );
 
         // 破損したキャッシュを読み込もうとした場合（ここでは直接アクセスは難しいが、異常系として対応）
         const result = await ImageConversionCacheHelper.tryReadCache(
@@ -329,12 +335,10 @@ describe('ImageConversionCacheHelper', () => {
         const stats = await fs.stat(testFilePath);
 
         // 空の画像データを保存しようとする
-        await ImageConversionCacheHelper.saveCache(
-          testFilePath,
-          'merged',
-          [],
-          { mtimeMs: stats.mtimeMs, size: stats.size },
-        );
+        await ImageConversionCacheHelper.saveCache(testFilePath, 'merged', [], {
+          mtimeMs: stats.mtimeMs,
+          size: stats.size,
+        });
 
         // キャッシュが保存されていないこと
         const result = await ImageConversionCacheHelper.tryReadCache(

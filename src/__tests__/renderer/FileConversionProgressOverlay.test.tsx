@@ -27,9 +27,13 @@ describe('FileConversionProgressOverlay Component', () => {
         );
 
         // CircularProgressが表示されている
-        const circularProgress = container.querySelector('.MuiCircularProgress-root');
+        const circularProgress = container.querySelector(
+          '.MuiCircularProgress-root',
+        );
         expect(circularProgress).toBeInTheDocument();
-        expect(screen.getByText('ファイルを変換しています')).toBeInTheDocument();
+        expect(
+          screen.getByText('ファイルを変換しています'),
+        ).toBeInTheDocument();
       });
 
       it('open=falseの場合、オーバーレイが非表示になること', () => {
@@ -84,7 +88,9 @@ describe('FileConversionProgressOverlay Component', () => {
           <FileConversionProgressOverlay open={true} progress={progress} />,
         );
 
-        expect(screen.getByText('ファイルを変換しています')).toBeInTheDocument();
+        expect(
+          screen.getByText('ファイルを変換しています'),
+        ).toBeInTheDocument();
       });
     });
 
@@ -103,7 +109,9 @@ describe('FileConversionProgressOverlay Component', () => {
 
         expect(screen.getByText('document.docx')).toBeInTheDocument();
         expect(screen.getByText(/PDFに変換中\.\.\./)).toBeInTheDocument();
-        expect(screen.getByText(/処理済み: 2 \/ 5 ファイル/)).toBeInTheDocument();
+        expect(
+          screen.getByText(/処理済み: 2 \/ 5 ファイル/),
+        ).toBeInTheDocument();
       });
 
       it('シート設定中の詳細情報が表示されること', () => {
@@ -168,7 +176,9 @@ describe('FileConversionProgressOverlay Component', () => {
         );
 
         expect(screen.getByText('presentation.pptx')).toBeInTheDocument();
-        expect(screen.getByText(/PDFファイルへエクスポート中/)).toBeInTheDocument();
+        expect(
+          screen.getByText(/PDFファイルへエクスポート中/),
+        ).toBeInTheDocument();
       });
 
       it('キャッシュに関する注意事項が表示されること', () => {
@@ -187,7 +197,9 @@ describe('FileConversionProgressOverlay Component', () => {
           screen.getByText(/変換に時間がかかる場合があります/),
         ).toBeInTheDocument();
         expect(
-          screen.getByText(/変換されたPDFファイルはファイルパス、最終更新時刻をキーにキャッシュされます/),
+          screen.getByText(
+            /変換されたPDFファイルはファイルパス、最終更新時刻をキーにキャッシュされます/,
+          ),
         ).toBeInTheDocument();
       });
     });
@@ -207,7 +219,9 @@ describe('FileConversionProgressOverlay Component', () => {
 
         expect(screen.getByText('document.pdf')).toBeInTheDocument();
         expect(screen.getByText('画像に変換中...')).toBeInTheDocument();
-        expect(screen.getByText(/処理済み: 1 \/ 2 ファイル/)).toBeInTheDocument();
+        expect(
+          screen.getByText(/処理済み: 1 \/ 2 ファイル/),
+        ).toBeInTheDocument();
       });
     });
 
@@ -224,7 +238,9 @@ describe('FileConversionProgressOverlay Component', () => {
           <FileConversionProgressOverlay open={true} progress={progress} />,
         );
 
-        expect(screen.getByText(/処理済み: 5 \/ 10 ファイル/)).toBeInTheDocument();
+        expect(
+          screen.getByText(/処理済み: 5 \/ 10 ファイル/),
+        ).toBeInTheDocument();
       });
     });
   });
@@ -263,9 +279,7 @@ describe('FileConversionProgressOverlay Component', () => {
         progressDetail: undefined,
       };
 
-      render(
-        <FileConversionProgressOverlay open={true} progress={progress} />,
-      );
+      render(<FileConversionProgressOverlay open={true} progress={progress} />);
 
       expect(screen.getByText('test.pdf')).toBeInTheDocument();
       expect(screen.getByText(/PDFに変換中\.\.\./)).toBeInTheDocument();

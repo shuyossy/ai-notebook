@@ -107,7 +107,10 @@ export class ImageConversionCacheHelper {
 
       // 画像データを読み込み
       const imageDataDir = this.getImageDataDir(cacheKey);
-      const imageData = await this.loadImageData(imageDataDir, metadata.pageCount);
+      const imageData = await this.loadImageData(
+        imageDataDir,
+        metadata.pageCount,
+      );
 
       if (imageData.length === 0) {
         logger.warn(
@@ -127,7 +130,10 @@ export class ImageConversionCacheHelper {
     } catch (error) {
       // ファイルが存在しない場合やJSONパースエラーの場合は null を返す
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-        logger.error({ error, filePath }, '画像キャッシュの読み込みに失敗しました');
+        logger.error(
+          { error, filePath },
+          '画像キャッシュの読み込みに失敗しました',
+        );
       }
       return null;
     }
@@ -148,10 +154,7 @@ export class ImageConversionCacheHelper {
         const content = await fs.readFile(pagePath, 'utf-8');
         imageData.push(content);
       } catch (error) {
-        logger.error(
-          { error, pagePath },
-          '画像ページの読み込みに失敗しました',
-        );
+        logger.error({ error, pagePath }, '画像ページの読み込みに失敗しました');
         // 一部でも読み込めなければ失敗とする
         return [];
       }
@@ -273,7 +276,10 @@ export class ImageConversionCacheHelper {
       logger.info('画像キャッシュディレクトリをクリーンアップしました');
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-        logger.error(error, '画像キャッシュディレクトリのクリーンアップに失敗しました');
+        logger.error(
+          error,
+          '画像キャッシュディレクトリのクリーンアップに失敗しました',
+        );
       }
     }
   }
