@@ -68,6 +68,7 @@ export const IpcChannels = {
   FS_CHECK_PATH_EXISTS: 'fs-check-path-exists',
   FS_SHOW_OPEN_DIALOG: 'fs-show-open-dialog',
   FS_READ_FILE: 'fs-read-file',
+  FS_EXTRACT_TEXT: 'fs-extract-text',
   FS_CONVERT_OFFICE_TO_PDF: 'fs-convert-office-to-pdf',
   FS_CONVERT_OFFICE_TO_PDF_PROGRESS: 'fs-convert-office-to-pdf-progress',
 
@@ -116,6 +117,7 @@ export type IpcRequestPayloadMap = {
   [IpcChannels.FS_CHECK_PATH_EXISTS]: string;
   [IpcChannels.FS_SHOW_OPEN_DIALOG]: OpenDialogOptions;
   [IpcChannels.FS_READ_FILE]: string; // file path
+  [IpcChannels.FS_EXTRACT_TEXT]: string; // file path
   [IpcChannels.FS_CONVERT_OFFICE_TO_PDF]: string; // file path
 
   // ソース関連
@@ -193,6 +195,7 @@ export type IpcResponsePayloadMap = {
     canceled: boolean;
   }>;
   [IpcChannels.FS_READ_FILE]: IpcResult<Uint8Array>; // ファイルのバイナリデータ
+  [IpcChannels.FS_EXTRACT_TEXT]: IpcResult<string>; // 抽出されたテキスト
   [IpcChannels.FS_CONVERT_OFFICE_TO_PDF]: IpcResult<Uint8Array>; // 変換後のPDFバイナリデータ
 
   // ソース関連
@@ -302,6 +305,7 @@ export const IpcNameMap = {
   [IpcChannels.FS_CHECK_PATH_EXISTS]: 'ファイルパスの存在確認',
   [IpcChannels.FS_SHOW_OPEN_DIALOG]: 'ファイルダイアログ表示',
   [IpcChannels.FS_READ_FILE]: 'ファイル読み込み',
+  [IpcChannels.FS_EXTRACT_TEXT]: 'ファイルテキスト抽出',
   [IpcChannels.FS_CONVERT_OFFICE_TO_PDF]: 'ファイルのPDF変換',
 
   // ソース関連

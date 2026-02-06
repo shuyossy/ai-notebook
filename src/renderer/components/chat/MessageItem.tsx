@@ -13,6 +13,7 @@ import AccordionDetails from '@mui/material/AccordionDetails';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import SearchIcon from '@mui/icons-material/Search';
 import SmartToyOutlinedIcon from '@mui/icons-material/SmartToyOutlined';
+import InsertDriveFileOutlinedIcon from '@mui/icons-material/InsertDriveFileOutlined';
 import {
   Box,
   Typography,
@@ -28,12 +29,14 @@ import {
   Fade,
   TextField,
   Button,
+  Chip,
 } from '@mui/material';
 import { ContentCopy as CopyIcon } from '@mui/icons-material';
 // @ts-ignore
 import type { Components } from 'react-markdown';
 import type { ChatMessage } from '@/types';
 import { TOOL_NAME_DISPLAY_MAP } from '../../../mastra/tools/toolDisplayConfig';
+import FileContentViewerDialog from './FileContentViewerDialog';
 
 // ─────────────── Mermaid 図レンダラー ───────────────
 type MermaidProps = { chart: string };
@@ -263,30 +266,126 @@ const markdownComponents = {
   ...TableRenderers,
 } as Components;
 
+// ─────────────── ファイル添付表示のヘルパー関数 ───────────────
+
+/**
+ * Data URLからテキスト内容をデコードする
+ * エンコード時に btoa(unescape(encodeURIComponent(content))) を使用しているため、
+ * デコード時は逆順でUTF-8文字列を復元する
+ */
+const decodeDataUrlContent = (dataUrl: string): string => {
+  try {
+    // data:text/plain;base64,XXXXX 形式を想定
+    const base64Match = dataUrl.match(/^data:[^;]+;base64,(.+)$/);
+    if (base64Match) {
+      // base64デコード後、UTF-8としてデコード
+      const binaryString = atob(base64Match[1]);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      const decoder = new TextDecoder('utf-8');
+      return decoder.decode(bytes);
+    }
+    // data:text/plain,XXXXX 形式
+    const plainMatch = dataUrl.match(/^data:[^,]+,(.+)$/);
+    if (plainMatch) {
+      return decodeURIComponent(plainMatch[1]);
+    }
+    return dataUrl;
+  } catch {
+    return dataUrl;
+  }
+};
+
+/**
+ * コンテンツタイプが画像かどうかを判定
+ */
+const isImageContentType = (contentType?: string): boolean => {
+  return contentType?.startsWith('image/') ?? false;
+};
+
+// ─────────────── ファイル添付チップコンポーネント ───────────────
+
+interface FileAttachmentChipProps {
+  name: string;
+  onClick: () => void;
+}
+
+const FileAttachmentChip: React.FC<FileAttachmentChipProps> = ({
+  name,
+  onClick,
+}) => (
+  <Chip
+    icon={<InsertDriveFileOutlinedIcon />}
+    label={name}
+    onClick={onClick}
+    size="small"
+    variant="outlined"
+    sx={{
+      cursor: 'pointer',
+      '&:hover': {
+        backgroundColor: 'action.hover',
+      },
+    }}
+  />
+);
+
 // ─────────────── ai-sdk・UIMessageのpartsレンダー用コンポーネント ───────────────
 
-const renderPart = (
-  part: NonNullable<ChatMessage['parts']>[number],
-  attachments?: ChatMessage['experimental_attachments'],
-) => {
+interface RenderPartProps {
+  part: NonNullable<ChatMessage['parts']>[number];
+  attachments?: ChatMessage['experimental_attachments'];
+  onFileClick?: (name: string, content: string) => void;
+}
+
+const RenderPart: React.FC<RenderPartProps> = ({
+  part,
+  attachments,
+  onFileClick,
+}) => {
   if (!part) return null;
   switch (part.type) {
     case 'text': {
       return (
         <Box sx={{ mb: 2, py: 2 }}>
-          {attachments?.map((att, idx) => (
-            <Box
-              key={idx}
-              sx={{ mb: 2, display: 'flex', justifyContent: 'center' }}
-            >
-              <Box
-                component="img"
-                src={att.url}
-                alt={att.name || `att-${idx}`}
-                sx={{ maxWidth: '100%', borderRadius: 1 }}
-              />
+          {attachments && attachments.length > 0 && (
+            <Box sx={{ mb: 2, display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+              {attachments.map((att, idx) => {
+                const isImage = isImageContentType(att.contentType);
+                if (isImage) {
+                  return (
+                    <Box
+                      key={idx}
+                      sx={{ display: 'flex', justifyContent: 'center' }}
+                    >
+                      <Box
+                        component="img"
+                        src={att.url}
+                        alt={att.name || `att-${idx}`}
+                        sx={{
+                          maxWidth: '100%',
+                          maxHeight: 300,
+                          borderRadius: 1,
+                        }}
+                      />
+                    </Box>
+                  );
+                }
+                // 非画像ファイル: クリック可能なチップとして表示
+                return (
+                  <FileAttachmentChip
+                    key={idx}
+                    name={att.name || `file-${idx}`}
+                    onClick={() => {
+                      const content = decodeDataUrlContent(att.url ?? '');
+                      onFileClick?.(att.name || `file-${idx}`, content);
+                    }}
+                  />
+                );
+              })}
             </Box>
-          ))}
+          )}
           <ReactMarkdown
             remarkPlugins={[remarkGfm]}
             components={markdownComponents}
@@ -408,117 +507,156 @@ const MessageItem = forwardRef<HTMLDivElement, MessageProps>(
   ) => {
     const isUser = message.role === 'user';
 
+    // ファイル内容表示ダイアログの状態
+    const [fileDialogOpen, setFileDialogOpen] = useState(false);
+    const [selectedFile, setSelectedFile] = useState<{
+      name: string;
+      content: string;
+    }>({ name: '', content: '' });
+
+    // ファイルクリック時のハンドラ
+    const handleFileClick = (name: string, content: string) => {
+      setSelectedFile({ name, content });
+      setFileDialogOpen(true);
+    };
+
     return (
-      <Fade in timeout={300}>
-        <Box
-          ref={ref}
-          sx={{
-            display: 'flex',
-            justifyContent: isUser ? 'flex-end' : 'flex-start',
-            px: 2,
-          }}
-        >
+      <>
+        <Fade in timeout={300}>
           <Box
+            ref={ref}
             sx={{
-              maxWidth: isUser && !isEditing ? '70%' : '100%',
-              width: isUser && !isEditing ? undefined : '100%',
-              textAlign: 'left',
-              ...(!disableEdit && { '&:hover .editBtn': { opacity: 1 } }),
+              display: 'flex',
+              justifyContent: isUser ? 'flex-end' : 'flex-start',
+              px: 2,
             }}
           >
-            <Paper
-              elevation={isUser ? 1 : 0}
+            <Box
               sx={{
-                px: 2,
-                bgcolor: isUser ? 'grey.100' : 'background.paper',
-                borderRadius: 2,
-                position: 'relative',
+                maxWidth: isUser && !isEditing ? '70%' : '100%',
+                width: isUser && !isEditing ? undefined : '100%',
+                textAlign: 'left',
+                ...(!disableEdit && { '&:hover .editBtn': { opacity: 1 } }),
               }}
             >
-              {isUser &&
-                !message.experimental_attachments &&
-                !isEditing &&
-                !disableEdit && (
-                  <IconButton
-                    className="editBtn"
-                    size="small"
-                    onClick={() => {
-                      onEditStart?.(message.id);
-                      onEditContentChange(message.content ?? '');
-                    }}
-                    sx={{
-                      position: 'absolute',
-                      right: -36,
-                      top: '50%',
-                      transform: 'translateY(-50%)',
-                      opacity: 0,
-                      transition: 'opacity 0.2s',
-                      bgcolor: 'background.paper',
-                    }}
-                    data-testid={`edit-message-button-${message.id}`}
-                  >
-                    <EditIcon fontSize="small" />
-                  </IconButton>
-                )}
-              {/* eslint-disable-next-line */}
-              {isEditing && !message.experimental_attachments && isUser ? (
-                <Box sx={{ p: 1, width: '100%' }}>
-                  <TextField
-                    fullWidth
-                    multiline
-                    variant="standard" // アンダーラインのみのスタイルに
-                    InputProps={{
-                      disableUnderline: true, // アンダーラインも消す
-                    }}
-                    value={editContent}
-                    onChange={(e) => onEditContentChange(e.target.value)}
-                    sx={{ mb: 2 }}
-                    data-testid={`edit-message-input-${message.id}`}
-                  />
-                  <Box
-                    sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}
-                  >
-                    <Button
+              <Paper
+                elevation={isUser ? 1 : 0}
+                sx={{
+                  px: 2,
+                  bgcolor: isUser ? 'grey.100' : 'background.paper',
+                  borderRadius: 2,
+                  position: 'relative',
+                }}
+              >
+                {isUser &&
+                  !message.experimental_attachments &&
+                  !isEditing &&
+                  !disableEdit && (
+                    <IconButton
+                      className="editBtn"
                       size="small"
-                      onClick={onEditCancel}
-                      variant="contained"
-                      sx={{
-                        backgroundColor: 'white',
-                        color: 'black',
+                      onClick={() => {
+                        onEditStart?.(message.id);
+                        onEditContentChange(message.content ?? '');
                       }}
-                      data-testid={`edit-message-cancel-button-${message.id}`}
-                    >
-                      キャンセル
-                    </Button>
-                    <Button
-                      size="small"
-                      onClick={onEditSubmit}
-                      variant="contained"
-                      disabled={disabled || !editContent?.trim()}
                       sx={{
-                        backgroundColor: 'black',
-                        color: 'white',
+                        position: 'absolute',
+                        right: -36,
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        opacity: 0,
+                        transition: 'opacity 0.2s',
+                        bgcolor: 'background.paper',
                       }}
-                      data-testid={`edit-message-send-button-${message.id}`}
+                      data-testid={`edit-message-button-${message.id}`}
                     >
-                      送信
-                    </Button>
+                      <EditIcon fontSize="small" />
+                    </IconButton>
+                  )}
+                {/* eslint-disable-next-line */}
+                {isEditing && !message.experimental_attachments && isUser ? (
+                  <Box sx={{ p: 1, width: '100%' }}>
+                    <TextField
+                      fullWidth
+                      multiline
+                      variant="standard" // アンダーラインのみのスタイルに
+                      slotProps={{
+                        input: {
+                          disableUnderline: true, // アンダーラインも消す
+                        },
+                      }}
+                      value={editContent}
+                      onChange={(e) => onEditContentChange(e.target.value)}
+                      sx={{ mb: 2 }}
+                      data-testid={`edit-message-input-${message.id}`}
+                    />
+                    <Box
+                      sx={{
+                        display: 'flex',
+                        justifyContent: 'flex-end',
+                        gap: 1,
+                      }}
+                    >
+                      <Button
+                        size="small"
+                        onClick={onEditCancel}
+                        variant="contained"
+                        sx={{
+                          backgroundColor: 'white',
+                          color: 'black',
+                        }}
+                        data-testid={`edit-message-cancel-button-${message.id}`}
+                      >
+                        キャンセル
+                      </Button>
+                      <Button
+                        size="small"
+                        onClick={onEditSubmit}
+                        variant="contained"
+                        disabled={disabled || !editContent?.trim()}
+                        sx={{
+                          backgroundColor: 'black',
+                          color: 'white',
+                        }}
+                        data-testid={`edit-message-send-button-${message.id}`}
+                      >
+                        送信
+                      </Button>
+                    </Box>
                   </Box>
-                </Box>
-              ) : message.parts?.length ? (
-                message.parts.map((p) =>
-                  renderPart(p, message.experimental_attachments),
-                )
-              ) : (
-                renderPart(
-                  { type: 'text', text: message.content ?? '' },
-                  message.experimental_attachments,
-                )
-              )}
-            </Paper>
+                ) : message.parts?.length ? (
+                  message.parts.map((p, idx) => (
+                    <RenderPart
+                      key={
+                        p.type === 'tool-invocation'
+                          ? p.toolInvocation.toolCallId
+                          : `${p.type}-${message.id}-${idx}`
+                      }
+                      part={p}
+                      attachments={message.experimental_attachments}
+                      onFileClick={handleFileClick}
+                    />
+                  ))
+                ) : (
+                  <RenderPart
+                    part={{ type: 'text', text: message.content ?? '' }}
+                    attachments={message.experimental_attachments}
+                    onFileClick={handleFileClick}
+                  />
+                )}
+              </Paper>
+            </Box>
           </Box>
-        </Box>
-      </Fade>
+        </Fade>
+
+        {/* ファイル内容表示ダイアログ */}
+        <FileContentViewerDialog
+          open={fileDialogOpen}
+          onClose={() => setFileDialogOpen(false)}
+          fileName={selectedFile.name}
+          content={selectedFile.content}
+        />
+      </>
     );
   },
 );

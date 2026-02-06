@@ -16,6 +16,7 @@ interface MessageListProps {
   onEditCancel: () => void;
   loadingMessage?: string;
   disableEdit?: boolean;
+  isProcessingFiles?: boolean;
 }
 
 const MessageList: React.FC<MessageListProps> = ({
@@ -31,6 +32,7 @@ const MessageList: React.FC<MessageListProps> = ({
   onEditCancel,
   loadingMessage = 'AIKATA作業中…',
   disableEdit = false,
+  isProcessingFiles = false,
 }) => {
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -74,7 +76,9 @@ const MessageList: React.FC<MessageListProps> = ({
         );
       })}
 
-      {(status === 'streaming' || status === 'submitted') && (
+      {(status === 'streaming' ||
+        status === 'submitted' ||
+        isProcessingFiles) && (
         <Box
           sx={{
             display: 'flex',

@@ -1,4 +1,4 @@
-import React, { useRef, useState, useCallback, ClipboardEvent } from 'react';
+import React, { useState, useCallback, ClipboardEvent } from 'react';
 import {
   Box,
   IconButton,
@@ -11,16 +11,21 @@ import {
 import {
   Send as SendIcon,
   StopCircleOutlined as StopIcon,
-  ImageOutlined as ImageIcon,
+  AttachFile as AttachFileIcon,
   Close as CloseIcon,
+  InsertDriveFileOutlined as FileIcon,
 } from '@mui/icons-material';
 
 /* ---------- 型定義 ---------- */
 
 export interface Attachment {
   file: File;
-  /** プレビュー用の ObjectURL（メモリリーク防止のため removeAttachment で revoke） */
+  /** プレビュー用の ObjectURL（画像の場合のみ。メモリリーク防止のため removeAttachment で revoke） */
   preview: string;
+  /** 画像ファイルかどうか */
+  isImage: boolean;
+  /** ファイルパス（Electronダイアログで選択した場合） */
+  path?: string;
 }
 
 interface MessageInputProps {
@@ -32,9 +37,11 @@ interface MessageInputProps {
   isStreaming?: boolean;
   onStop?: () => void;
   attachments: Attachment[];
-  onAddFiles: (files: FileList | File[]) => void;
+  /** ファイル選択ダイアログを開くコールバック */
+  onOpenFileDialog: () => void;
+  /** クリップボードから貼り付けた画像用 */
+  onAddFiles: (files: File[]) => void;
   onRemoveAttachment: (idx: number) => void;
-  maxAttachments?: number;
 }
 
 const MessageInput: React.FC<MessageInputProps> = ({
@@ -46,17 +53,11 @@ const MessageInput: React.FC<MessageInputProps> = ({
   isStreaming = false,
   onStop,
   attachments,
+  onOpenFileDialog,
   onAddFiles,
   onRemoveAttachment,
-  maxAttachments = 3,
 }) => {
   const [isComposing, setIsComposing] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  /* ---------- ファイル選択ダイアログを開く ---------- */
-  const openFileDialog = () => {
-    if (fileInputRef.current) fileInputRef.current.click();
-  };
 
   /* ---------- クリップボード貼り付け ---------- */
   const handlePaste = useCallback(
@@ -91,7 +92,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
 
   return (
     <Box sx={{ p: 2, width: '100%', maxWidth: '900px', mx: 'auto' }}>
-      {/* 添付画像プレビュー ------------------------------------------------ */}
+      {/* 添付ファイルプレビュー ------------------------------------------------ */}
       {attachments.length > 0 && (
         <Paper
           elevation={0}
@@ -113,15 +114,48 @@ const MessageInput: React.FC<MessageInputProps> = ({
                 borderRadius: 1,
                 overflow: 'hidden',
                 flexShrink: 0,
+                ...(att.isImage
+                  ? {}
+                  : {
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      bgcolor: 'grey.100',
+                      border: '1px solid',
+                      borderColor: 'grey.300',
+                    }),
               }}
+              data-testid={att.isImage ? undefined : `file-attachment-${idx}`}
             >
-              {/* サムネイル */}
-              <Box
-                component="img"
-                src={att.preview}
-                alt={`attachment-${idx}`}
-                sx={{ width: '100%', height: '100%', objectFit: 'cover' }}
-              />
+              {att.isImage ? (
+                /* 画像サムネイル */
+                <Box
+                  component="img"
+                  src={att.preview}
+                  alt={`attachment-${idx}`}
+                  sx={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                />
+              ) : (
+                /* 非画像ファイル：アイコン + ファイル名 */
+                <>
+                  <FileIcon sx={{ fontSize: 28, color: 'grey.600' }} />
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      maxWidth: '100%',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      px: 0.5,
+                      textAlign: 'center',
+                    }}
+                    title={att.file.name}
+                  >
+                    {att.file.name}
+                  </Typography>
+                </>
+              )}
               {/* × ボタン */}
               <IconButton
                 size="small"
@@ -155,31 +189,19 @@ const MessageInput: React.FC<MessageInputProps> = ({
           borderRadius: 2,
         }}
       >
-        {/* 画像アイコン & Hidden input */}
-        <Tooltip title="画像を添付 (最大3枚)">
+        {/* ファイル添付アイコン */}
+        <Tooltip title="ファイルを添付">
           <span>
             <IconButton
-              onClick={openFileDialog}
-              disabled={attachments.length >= maxAttachments || disabled}
+              onClick={onOpenFileDialog}
+              disabled={disabled}
               sx={{ alignSelf: 'center' }}
+              data-testid="chat-attach-file-button"
             >
-              <ImageIcon />
+              <AttachFileIcon />
             </IconButton>
           </span>
         </Tooltip>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          multiple
-          hidden
-          onChange={(e) => {
-            if (e.target.files) onAddFiles(e.target.files);
-            // 同じファイルを連続で選択したときの onChange 発火のためリセット
-            if (fileInputRef.current) fileInputRef.current.value = '';
-          }}
-          data-testid="chat-file-input"
-        />
 
         {/* メインのテキストフィールド */}
         <TextField
@@ -227,13 +249,6 @@ const MessageInput: React.FC<MessageInputProps> = ({
           }}
         />
       </Paper>
-
-      {/* 画像枚数が上限の場合の注意書き */}
-      {attachments.length >= maxAttachments && (
-        <Typography variant="caption" color="error">
-          添付は最大 {maxAttachments} 枚までです
-        </Typography>
-      )}
     </Box>
   );
 };

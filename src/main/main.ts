@@ -366,6 +366,11 @@ const setupFsHandlers = () => {
     return result;
   });
 
+  handleIpc(IpcChannels.FS_EXTRACT_TEXT, async (filePath) => {
+    const result = await FileExtractor.extractText(filePath);
+    return result.content;
+  });
+
   handleIpc(IpcChannels.FS_CONVERT_OFFICE_TO_PDF, async (filePath) => {
     // Office ドキュメントを PDF に変換（キャッシュまたは新規変換）
     const pdfPath = await convertOfficeToPdf(filePath);

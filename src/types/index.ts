@@ -18,3 +18,11 @@ export type Feature = keyof typeof ROUTES;
 
 export type MakeOptional<T, K extends keyof T> = Omit<T, K> &
   Partial<Pick<T, K>>;
+
+/**
+ * Electron環境のFile型
+ * pathプロパティを持つ（ファイルのローカルパス）
+ */
+export type ElectronFile = File & {
+  path?: string;
+};

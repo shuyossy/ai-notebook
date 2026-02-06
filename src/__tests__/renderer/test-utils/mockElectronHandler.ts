@@ -171,6 +171,15 @@ export const createMockElectronWithOptions = (
           success: true,
           data: new Uint8Array(),
         }),
+      extractText: jest
+        .fn<
+          Promise<IpcResponsePayloadMap[typeof IpcChannels.FS_EXTRACT_TEXT]>,
+          [string]
+        >()
+        .mockResolvedValue({
+          success: true,
+          data: 'Extracted text content',
+        }),
       convertOfficeToPdf: jest
         .fn<
           Promise<

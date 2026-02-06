@@ -622,16 +622,35 @@ describe('ChatArea Component', () => {
   // テスト14: 画像添付が正しく機能すること
   test('画像添付が正しく機能すること', async () => {
     const user = userEvent.setup();
+
+    // showOpenDialogのモックを設定
+    window.electron.fs.showOpenDialog = jest.fn().mockResolvedValue({
+      success: true,
+      data: {
+        canceled: false,
+        filePaths: ['/path/to/test.png'],
+      },
+    });
+    // readFileのモックも設定（画像プレビュー用）
+    window.electron.fs.readFile = jest.fn().mockResolvedValue({
+      success: true,
+      data: new Uint8Array([0x89, 0x50, 0x4e, 0x47]),
+    });
+
     render(<ChatArea selectedRoomId="1" />);
 
-    // ファイル選択による画像の添付
-    const file = new File(['dummy content'], 'test.png', {
-      type: 'image/png',
+    await waitFor(() => {
+      expect(
+        screen.getByPlaceholderText('メッセージを入力してください'),
+      ).toBeInTheDocument();
     });
-    const fileInput = screen.getByTestId('chat-file-input');
 
-    // 画像を1枚追加
-    await user.upload(fileInput, file);
+    // ファイル添付ボタンをクリック
+    const attachButton = screen.getByTestId('chat-attach-file-button');
+    await user.click(attachButton);
+
+    // showOpenDialogが呼ばれることを確認
+    expect(window.electron.fs.showOpenDialog).toHaveBeenCalled();
 
     // プレビューが表示されることを確認
     await waitFor(() => {
@@ -643,26 +662,46 @@ describe('ChatArea Component', () => {
       );
     });
 
-    // 最大3枚までの制限を確認
-    const files = [
-      new File(['dummy1'], 'test1.png', { type: 'image/png' }),
-      new File(['dummy2'], 'test2.png', { type: 'image/png' }),
-      new File(['dummy3'], 'test3.png', { type: 'image/png' }),
-      new File(['dummy4'], 'test4.png', { type: 'image/png' }),
-    ];
-    await user.upload(fileInput, files);
+    // 複数枚添付の確認（制限なし）
+    window.electron.fs.showOpenDialog = jest.fn().mockResolvedValue({
+      success: true,
+      data: {
+        canceled: false,
+        filePaths: [
+          '/path/to/test1.png',
+          '/path/to/test2.png',
+          '/path/to/test3.png',
+          '/path/to/test4.png',
+        ],
+      },
+    });
+    await user.click(attachButton);
 
-    // プレビューが3枚のみ表示されることを確認
-    const images = screen.getAllByRole('img');
-    expect(images).toHaveLength(3);
-
-    // 上限到達の警告メッセージが表示されることを確認
-    expect(screen.getByText('添付は最大 3 枚までです')).toBeInTheDocument();
+    // 全ての画像（元の1枚 + 追加4枚 = 5枚）が表示されることを確認
+    await waitFor(() => {
+      const images = screen.getAllByRole('img');
+      expect(images).toHaveLength(5);
+    });
   });
 
   // テスト15: 画像付きメッセージの送信が正しく機能すること
   test('画像付きメッセージの送信が正しく機能すること', async () => {
     const user = userEvent.setup();
+
+    // showOpenDialogのモックを設定
+    window.electron.fs.showOpenDialog = jest.fn().mockResolvedValue({
+      success: true,
+      data: {
+        canceled: false,
+        filePaths: ['/path/to/test.png'],
+      },
+    });
+    // readFileのモックも設定（画像プレビュー用＋送信時のbase64変換用）
+    window.electron.fs.readFile = jest.fn().mockResolvedValue({
+      success: true,
+      data: new Uint8Array([0x89, 0x50, 0x4e, 0x47]),
+    });
+
     render(<ChatArea selectedRoomId="1" />);
 
     // 入力フィールドが表示されるまで待機
@@ -672,15 +711,18 @@ describe('ChatArea Component', () => {
       ).toBeInTheDocument();
     });
 
-    const file = new File(['dummy content'], 'test.png', {
-      type: 'image/png',
-    });
-    const fileInput = screen.getByTestId('chat-file-input');
     const textInput =
       screen.getByPlaceholderText('メッセージを入力してください');
 
-    // 画像とテキストを追加
-    await user.upload(fileInput, file);
+    // ファイル添付ボタンをクリックして画像を選択
+    const attachButton = screen.getByTestId('chat-attach-file-button');
+    await user.click(attachButton);
+
+    // 画像プレビューが表示されるまで待機
+    await waitFor(() => {
+      expect(screen.getByAltText('attachment-0')).toBeInTheDocument();
+    });
+
     await user.type(textInput, 'テスト画像付きメッセージ');
 
     // 送信ボタンをクリック
@@ -770,15 +812,32 @@ describe('ChatArea Component', () => {
   // テスト17: 添付画像の削除が正しく機能すること
   test('添付画像の削除が正しく機能すること', async () => {
     const user = userEvent.setup();
+
+    // showOpenDialogのモックを設定
+    window.electron.fs.showOpenDialog = jest.fn().mockResolvedValue({
+      success: true,
+      data: {
+        canceled: false,
+        filePaths: ['/path/to/test.png'],
+      },
+    });
+    // readFileのモックも設定（画像プレビュー用）
+    window.electron.fs.readFile = jest.fn().mockResolvedValue({
+      success: true,
+      data: new Uint8Array([0x89, 0x50, 0x4e, 0x47]),
+    });
+
     render(<ChatArea selectedRoomId="1" />);
 
-    // 画像を添付
-    const file = new File(['dummy content'], 'test.png', {
-      type: 'image/png',
+    await waitFor(() => {
+      expect(
+        screen.getByPlaceholderText('メッセージを入力してください'),
+      ).toBeInTheDocument();
     });
-    const fileInput = screen.getByTestId('chat-file-input');
 
-    await user.upload(fileInput, file);
+    // ファイル添付ボタンをクリック
+    const attachButton = screen.getByTestId('chat-attach-file-button');
+    await user.click(attachButton);
 
     // プレビューと削除ボタンが表示されることを確認
     const image = await screen.findByAltText('attachment-0');
@@ -876,5 +935,762 @@ describe('ChatArea Component', () => {
     expect(
       screen.queryByTestId('edit-message-button-1'),
     ).not.toBeInTheDocument();
+  });
+
+  // テスト20: ファイル添付アイコンの表示が正しいこと
+  test('ファイル添付アイコンの表示が正しいこと', async () => {
+    render(<ChatArea selectedRoomId="1" />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByPlaceholderText('メッセージを入力してください'),
+      ).toBeInTheDocument();
+    });
+
+    // ファイル添付ボタンが存在することを確認（ツールチップで識別）
+    const attachButton = screen.getByTestId('chat-attach-file-button');
+    expect(attachButton).toBeInTheDocument();
+  });
+
+  // テスト21: 非画像ファイル添付が正しく機能すること
+  test('非画像ファイル添付が正しく機能すること', async () => {
+    const user = userEvent.setup();
+
+    // showOpenDialogのモックを設定
+    window.electron.fs.showOpenDialog = jest.fn().mockResolvedValue({
+      success: true,
+      data: {
+        canceled: false,
+        filePaths: ['/path/to/document.txt'],
+      },
+    });
+    // readFileのモックも設定（非画像では使用されないが念のため）
+    window.electron.fs.readFile = jest.fn().mockResolvedValue({
+      success: true,
+      data: new Uint8Array(),
+    });
+
+    render(<ChatArea selectedRoomId="1" />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByPlaceholderText('メッセージを入力してください'),
+      ).toBeInTheDocument();
+    });
+
+    // ファイル添付ボタンをクリック
+    const attachButton = screen.getByTestId('chat-attach-file-button');
+    await user.click(attachButton);
+
+    // showOpenDialogが呼ばれることを確認
+    expect(window.electron.fs.showOpenDialog).toHaveBeenCalled();
+
+    // ファイルアイコンとファイル名が表示されることを確認
+    await waitFor(() => {
+      expect(screen.getByTestId('file-attachment-0')).toBeInTheDocument();
+      expect(screen.getByText('document.txt')).toBeInTheDocument();
+    });
+  });
+
+  // テスト22: 非画像ファイル複数添付が正しく機能すること
+  test('非画像ファイル複数添付が正しく機能すること', async () => {
+    const user = userEvent.setup();
+
+    // showOpenDialogのモックを設定（複数ファイル選択）
+    window.electron.fs.showOpenDialog = jest.fn().mockResolvedValue({
+      success: true,
+      data: {
+        canceled: false,
+        filePaths: [
+          '/path/to/doc1.txt',
+          '/path/to/doc2.docx',
+          '/path/to/doc3.pdf',
+          '/path/to/doc4.xlsx',
+        ],
+      },
+    });
+    window.electron.fs.readFile = jest.fn().mockResolvedValue({
+      success: true,
+      data: new Uint8Array(),
+    });
+
+    render(<ChatArea selectedRoomId="1" />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByPlaceholderText('メッセージを入力してください'),
+      ).toBeInTheDocument();
+    });
+
+    // ファイル添付ボタンをクリック
+    const attachButton = screen.getByTestId('chat-attach-file-button');
+    await user.click(attachButton);
+
+    // 全てのファイル（4件）が表示されることを確認（制限なし）
+    await waitFor(() => {
+      expect(screen.getByTestId('file-attachment-0')).toBeInTheDocument();
+      expect(screen.getByTestId('file-attachment-1')).toBeInTheDocument();
+      expect(screen.getByTestId('file-attachment-2')).toBeInTheDocument();
+      expect(screen.getByTestId('file-attachment-3')).toBeInTheDocument();
+    });
+  });
+
+  // テスト23: 画像と非画像ファイルの混合添付が正しく機能すること
+  test('画像と非画像ファイルの混合添付が正しく機能すること', async () => {
+    const user = userEvent.setup();
+
+    // readFileのモックを設定（画像プレビュー用）
+    window.electron.fs.readFile = jest.fn().mockResolvedValue({
+      success: true,
+      data: new Uint8Array([0x89, 0x50, 0x4e, 0x47]),
+    });
+
+    render(<ChatArea selectedRoomId="1" />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByPlaceholderText('メッセージを入力してください'),
+      ).toBeInTheDocument();
+    });
+
+    // 画像ファイルを選択するモック
+    window.electron.fs.showOpenDialog = jest.fn().mockResolvedValue({
+      success: true,
+      data: {
+        canceled: false,
+        filePaths: ['/path/to/photo.png'],
+      },
+    });
+
+    const attachButton = screen.getByTestId('chat-attach-file-button');
+    await user.click(attachButton);
+
+    // 画像サムネイルが表示されることを確認
+    await waitFor(() => {
+      expect(screen.getByAltText('attachment-0')).toBeInTheDocument();
+    });
+
+    // 非画像ファイルを選択するモック
+    window.electron.fs.showOpenDialog = jest.fn().mockResolvedValue({
+      success: true,
+      data: {
+        canceled: false,
+        filePaths: ['/path/to/report.docx'],
+      },
+    });
+
+    await user.click(attachButton);
+
+    // ファイルアイコンが表示されることを確認
+    await waitFor(() => {
+      expect(screen.getByTestId('file-attachment-1')).toBeInTheDocument();
+      expect(screen.getByText('report.docx')).toBeInTheDocument();
+    });
+  });
+
+  // テスト24: クリップボードからの画像貼り付けが引き続き機能すること
+  test('クリップボードからの画像貼り付けが引き続き機能すること（ファイル添付機能追加後）', async () => {
+    render(<ChatArea selectedRoomId="1" />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByPlaceholderText('メッセージを入力してください'),
+      ).toBeInTheDocument();
+    });
+
+    const input = screen.getByPlaceholderText('メッセージを入力してください');
+
+    // 画像ファイルを含むクリップボードイベントを作成
+    const imageFile = new File(['dummy image'], 'clipboard.png', {
+      type: 'image/png',
+    });
+    const clipboardData = {
+      items: [
+        {
+          kind: 'file',
+          type: 'image/png',
+          getAsFile: () => imageFile,
+        },
+      ],
+    };
+
+    // クリップボードイベントを発火
+    fireEvent.paste(input, {
+      clipboardData,
+    });
+
+    // 画像プレビューが表示されることを確認
+    await waitFor(() => {
+      const image = screen.getByAltText('attachment-0');
+      expect(image).toBeInTheDocument();
+    });
+  });
+
+  // テスト25: ファイル付きメッセージの送信が正しく機能すること
+  test('ファイル付きメッセージの送信が正しく機能すること', async () => {
+    const user = userEvent.setup();
+
+    // showOpenDialogのモックを設定
+    window.electron.fs.showOpenDialog = jest.fn().mockResolvedValue({
+      success: true,
+      data: {
+        canceled: false,
+        filePaths: ['/path/to/report.docx'],
+      },
+    });
+    window.electron.fs.readFile = jest.fn().mockResolvedValue({
+      success: true,
+      data: new Uint8Array(),
+    });
+    // extractTextのモックを設定（ファイル送信時にテキスト抽出される）
+    const extractedText = 'This is the extracted report content.';
+    window.electron.fs.extractText = jest.fn().mockResolvedValue({
+      success: true,
+      data: extractedText,
+    });
+
+    render(<ChatArea selectedRoomId="1" />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByPlaceholderText('メッセージを入力してください'),
+      ).toBeInTheDocument();
+    });
+
+    const textInput =
+      screen.getByPlaceholderText('メッセージを入力してください');
+
+    // ファイル添付ボタンをクリック
+    const attachButton = screen.getByTestId('chat-attach-file-button');
+    await user.click(attachButton);
+
+    // ファイルが添付されるまで待機
+    await waitFor(() => {
+      expect(screen.getByTestId('file-attachment-0')).toBeInTheDocument();
+    });
+
+    await user.type(textInput, 'レポートを添付しました');
+
+    const sendButton = screen.getByTestId('chat-send-button');
+    await user.click(sendButton);
+
+    await waitFor(() => {
+      expect(window.electron.chat.sendMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          roomId: '1',
+          messages: expect.arrayContaining([
+            expect.objectContaining({
+              content: 'レポートを添付しました',
+              experimental_attachments: expect.arrayContaining([
+                expect.objectContaining({
+                  name: 'report.docx',
+                  contentType: 'text/plain', // レンダラー側でテキスト抽出後はtext/plain
+                  url: expect.stringMatching(/^data:text\/plain;base64,/), // Data URL形式
+                }),
+              ]),
+            }),
+          ]),
+        }),
+      );
+    });
+
+    // extractTextが呼ばれたことを確認
+    expect(window.electron.fs.extractText).toHaveBeenCalledWith(
+      '/path/to/report.docx',
+    );
+  });
+
+  // テスト26: ファイル付きメッセージの表示が正しいこと
+  test('ファイル付きメッセージの表示が正しいこと', async () => {
+    const mockFileMessage = [
+      {
+        id: '1',
+        role: 'user',
+        content: 'ファイル添付メッセージ',
+        createdAt: new Date('2025-05-01T12:00:00.000Z'),
+        experimental_attachments: [
+          {
+            name: 'report.docx',
+            contentType:
+              'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            url: 'data:text/plain;base64,dGVzdCBjb250ZW50',
+          },
+        ],
+      },
+    ];
+
+    window.electron.chat.getMessages = jest
+      .fn()
+      .mockResolvedValue({ success: true, data: mockFileMessage });
+
+    render(<ChatArea selectedRoomId="26" />);
+
+    // ファイルアイコンとファイル名が表示されることを確認
+    await waitFor(() => {
+      expect(screen.getByText('ファイル添付メッセージ')).toBeInTheDocument();
+      expect(screen.getByText('report.docx')).toBeInTheDocument();
+    });
+  });
+
+  // テスト27: ファイル内容表示ダイアログが正しく動作すること
+  test('ファイル内容表示ダイアログが正しく動作すること', async () => {
+    const user = userEvent.setup();
+    const testContent = 'This is the file content for testing.';
+    const base64Content = btoa(testContent);
+    const mockFileMessage = [
+      {
+        id: '1',
+        role: 'user',
+        content: 'ファイル添付テスト',
+        createdAt: new Date('2025-05-01T12:00:00.000Z'),
+        experimental_attachments: [
+          {
+            name: 'test.txt',
+            contentType: 'text/plain',
+            url: `data:text/plain;base64,${base64Content}`,
+          },
+        ],
+      },
+    ];
+
+    window.electron.chat.getMessages = jest
+      .fn()
+      .mockResolvedValue({ success: true, data: mockFileMessage });
+
+    render(<ChatArea selectedRoomId="27" />);
+
+    // ファイルチップが表示されるまで待機
+    await waitFor(() => {
+      expect(screen.getByText('test.txt')).toBeInTheDocument();
+    });
+
+    // ファイルチップをクリック
+    const fileChip = screen.getByText('test.txt');
+    await user.click(fileChip);
+
+    // ダイアログが表示され、内容が確認できること
+    await waitFor(() => {
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+      expect(screen.getByText(testContent)).toBeInTheDocument();
+    });
+  });
+
+  // テスト28: ファイル付きメッセージの編集機能が無効化されていること
+  test('ファイル付きメッセージの編集機能が無効化されていること', async () => {
+    const mockFileMessage = [
+      {
+        id: '1',
+        role: 'user',
+        content: 'ファイル付きメッセージ',
+        createdAt: new Date('2025-05-01T12:00:00.000Z'),
+        experimental_attachments: [
+          {
+            name: 'document.pdf',
+            contentType: 'application/pdf',
+            url: 'data:text/plain;base64,dGVzdA==',
+          },
+        ],
+      },
+    ];
+
+    window.electron.chat.getMessages = jest
+      .fn()
+      .mockResolvedValue({ success: true, data: mockFileMessage });
+
+    const user = userEvent.setup();
+    render(<ChatArea selectedRoomId="28" />);
+
+    // メッセージエリアを取得
+    const messageText = await screen.findByText('ファイル付きメッセージ');
+
+    // ホバー時に編集アイコンが表示されないことを確認
+    await user.hover(messageText);
+    expect(
+      screen.queryByTestId('edit-message-button-1'),
+    ).not.toBeInTheDocument();
+  });
+
+  // テスト29: 添付ファイル削除が正しく機能すること
+  test('添付ファイル削除が正しく機能すること', async () => {
+    const user = userEvent.setup();
+
+    // showOpenDialogのモックを設定
+    window.electron.fs.showOpenDialog = jest.fn().mockResolvedValue({
+      success: true,
+      data: {
+        canceled: false,
+        filePaths: ['/path/to/test.txt'],
+      },
+    });
+    window.electron.fs.readFile = jest.fn().mockResolvedValue({
+      success: true,
+      data: new Uint8Array(),
+    });
+
+    render(<ChatArea selectedRoomId="1" />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByPlaceholderText('メッセージを入力してください'),
+      ).toBeInTheDocument();
+    });
+
+    // ファイル添付ボタンをクリック
+    const attachButton = screen.getByTestId('chat-attach-file-button');
+    await user.click(attachButton);
+
+    // ファイルアイコンが表示されることを確認
+    const fileAttachment = await screen.findByTestId('file-attachment-0');
+    expect(fileAttachment).toBeInTheDocument();
+
+    // 削除ボタンをクリック
+    const closeButton = screen.getByTestId('chat-remove-attachment-0');
+    await user.click(closeButton);
+
+    // ファイルアイコンが削除されることを確認
+    expect(fileAttachment).not.toBeInTheDocument();
+  });
+
+  // テスト30: ファイル抽出中にローディングインジケータが表示されること
+  test('ファイル抽出中にローディングインジケータが表示されること', async () => {
+    const user = userEvent.setup();
+
+    // showOpenDialogのモックを設定
+    window.electron.fs.showOpenDialog = jest.fn().mockResolvedValue({
+      success: true,
+      data: {
+        canceled: false,
+        filePaths: ['/path/to/document.pdf'],
+      },
+    });
+    window.electron.fs.readFile = jest.fn().mockResolvedValue({
+      success: true,
+      data: new Uint8Array(),
+    });
+
+    // extractTextのモックを設定（遅延を入れてファイル処理中状態を再現）
+    let resolveExtractText: (value: any) => void;
+    const extractTextPromise = new Promise((resolve) => {
+      resolveExtractText = resolve;
+    });
+    window.electron.fs.extractText = jest
+      .fn()
+      .mockReturnValue(extractTextPromise);
+
+    render(<ChatArea selectedRoomId="1" />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByPlaceholderText('メッセージを入力してください'),
+      ).toBeInTheDocument();
+    });
+
+    const textInput =
+      screen.getByPlaceholderText('メッセージを入力してください');
+
+    // ファイル添付ボタンをクリック
+    const attachButton = screen.getByTestId('chat-attach-file-button');
+    await user.click(attachButton);
+
+    // ファイルが添付されるまで待機
+    await waitFor(() => {
+      expect(screen.getByTestId('file-attachment-0')).toBeInTheDocument();
+    });
+
+    await user.type(textInput, 'ファイル処理テスト');
+
+    const sendButton = screen.getByTestId('chat-send-button');
+    await user.click(sendButton);
+
+    // 「ファイル処理中...」が表示されることを確認
+    await waitFor(() => {
+      expect(screen.getByText('ファイル処理中...')).toBeInTheDocument();
+    });
+
+    // extractTextを解決してファイル処理を完了
+    resolveExtractText!({
+      success: true,
+      data: 'Extracted content',
+    });
+
+    // 「ファイル処理中...」が消えることを確認（AI処理に移行）
+    await waitFor(() => {
+      expect(screen.queryByText('ファイル処理中...')).not.toBeInTheDocument();
+    });
+  });
+
+  // テスト31: ファイル抽出中は入力が無効化されること
+  test('ファイル抽出中は入力が無効化されること', async () => {
+    const user = userEvent.setup();
+
+    // showOpenDialogのモックを設定
+    window.electron.fs.showOpenDialog = jest.fn().mockResolvedValue({
+      success: true,
+      data: {
+        canceled: false,
+        filePaths: ['/path/to/document.pdf'],
+      },
+    });
+    window.electron.fs.readFile = jest.fn().mockResolvedValue({
+      success: true,
+      data: new Uint8Array(),
+    });
+
+    // extractTextのモックを設定（遅延を入れてファイル処理中状態を再現）
+    let resolveExtractText: (value: any) => void;
+    const extractTextPromise = new Promise((resolve) => {
+      resolveExtractText = resolve;
+    });
+    window.electron.fs.extractText = jest
+      .fn()
+      .mockReturnValue(extractTextPromise);
+
+    render(<ChatArea selectedRoomId="1" />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByPlaceholderText('メッセージを入力してください'),
+      ).toBeInTheDocument();
+    });
+
+    const textInput =
+      screen.getByPlaceholderText('メッセージを入力してください');
+
+    // ファイル添付ボタンをクリック
+    const attachButton = screen.getByTestId('chat-attach-file-button');
+    await user.click(attachButton);
+
+    // ファイルが添付されるまで待機
+    await waitFor(() => {
+      expect(screen.getByTestId('file-attachment-0')).toBeInTheDocument();
+    });
+
+    await user.type(textInput, 'テスト');
+
+    const sendButton = screen.getByTestId('chat-send-button');
+    await user.click(sendButton);
+
+    // ファイル処理中に入力欄が無効化されていることを確認
+    await waitFor(() => {
+      expect(screen.getByText('ファイル処理中...')).toBeInTheDocument();
+      const input = screen.getByPlaceholderText('メッセージを入力してください');
+      expect(input).toBeDisabled();
+    });
+
+    // extractTextを解決してファイル処理を完了
+    resolveExtractText!({
+      success: true,
+      data: 'Extracted content',
+    });
+
+    // 入力欄が有効化されることを確認（AI処理後）
+    await waitFor(() => {
+      expect(screen.queryByText('ファイル処理中...')).not.toBeInTheDocument();
+    });
+  });
+
+  // テスト32: メッセージがファイル抽出前に表示されること
+  test('メッセージがファイル抽出前に表示されること', async () => {
+    const user = userEvent.setup();
+
+    // showOpenDialogのモックを設定
+    window.electron.fs.showOpenDialog = jest.fn().mockResolvedValue({
+      success: true,
+      data: {
+        canceled: false,
+        filePaths: ['/path/to/document.pdf'],
+      },
+    });
+    window.electron.fs.readFile = jest.fn().mockResolvedValue({
+      success: true,
+      data: new Uint8Array(),
+    });
+
+    // extractTextのモックを設定（遅延を入れてファイル処理中状態を再現）
+    let resolveExtractText: (value: any) => void;
+    const extractTextPromise = new Promise((resolve) => {
+      resolveExtractText = resolve;
+    });
+    window.electron.fs.extractText = jest
+      .fn()
+      .mockReturnValue(extractTextPromise);
+
+    render(<ChatArea selectedRoomId="1" />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByPlaceholderText('メッセージを入力してください'),
+      ).toBeInTheDocument();
+    });
+
+    const textInput =
+      screen.getByPlaceholderText('メッセージを入力してください');
+
+    // ファイル添付ボタンをクリック
+    const attachButton = screen.getByTestId('chat-attach-file-button');
+    await user.click(attachButton);
+
+    // ファイルが添付されるまで待機
+    await waitFor(() => {
+      expect(screen.getByTestId('file-attachment-0')).toBeInTheDocument();
+    });
+
+    await user.type(textInput, 'プレースホルダーテスト');
+
+    const sendButton = screen.getByTestId('chat-send-button');
+    await user.click(sendButton);
+
+    // ファイル処理中でもメッセージが即座に表示されることを確認
+    await waitFor(() => {
+      // ファイル処理中の表示
+      expect(screen.getByText('ファイル処理中...')).toBeInTheDocument();
+      // メッセージも表示されていること
+      expect(screen.getByText('プレースホルダーテスト')).toBeInTheDocument();
+    });
+
+    // extractTextを解決してファイル処理を完了
+    resolveExtractText!({
+      success: true,
+      data: 'Extracted content',
+    });
+
+    // ファイル処理が完了してもメッセージは表示されたままであること
+    await waitFor(() => {
+      expect(screen.getByText('プレースホルダーテスト')).toBeInTheDocument();
+    });
+  });
+
+  // テスト33: ファイル抽出完了後にAI処理が開始されること
+  test('ファイル抽出完了後にAI処理が開始されること', async () => {
+    const user = userEvent.setup();
+
+    // showOpenDialogのモックを設定
+    window.electron.fs.showOpenDialog = jest.fn().mockResolvedValue({
+      success: true,
+      data: {
+        canceled: false,
+        filePaths: ['/path/to/document.pdf'],
+      },
+    });
+    window.electron.fs.readFile = jest.fn().mockResolvedValue({
+      success: true,
+      data: new Uint8Array(),
+    });
+
+    // extractTextのモックを設定（遅延を入れてファイル処理中状態を再現）
+    let resolveExtractText: (value: any) => void;
+    const extractTextPromise = new Promise((resolve) => {
+      resolveExtractText = resolve;
+    });
+    window.electron.fs.extractText = jest
+      .fn()
+      .mockReturnValue(extractTextPromise);
+
+    render(<ChatArea selectedRoomId="1" />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByPlaceholderText('メッセージを入力してください'),
+      ).toBeInTheDocument();
+    });
+
+    const textInput =
+      screen.getByPlaceholderText('メッセージを入力してください');
+
+    // ファイル添付ボタンをクリック
+    const attachButton = screen.getByTestId('chat-attach-file-button');
+    await user.click(attachButton);
+
+    // ファイルが添付されるまで待機
+    await waitFor(() => {
+      expect(screen.getByTestId('file-attachment-0')).toBeInTheDocument();
+    });
+
+    await user.type(textInput, 'AI処理テスト');
+
+    // sendMessageの呼び出し回数をリセット
+    (window.electron.chat.sendMessage as jest.Mock).mockClear();
+
+    const sendButton = screen.getByTestId('chat-send-button');
+    await user.click(sendButton);
+
+    // ファイル処理中はsendMessageがまだ呼ばれていないことを確認
+    await waitFor(() => {
+      expect(screen.getByText('ファイル処理中...')).toBeInTheDocument();
+    });
+
+    // extractTextを解決してファイル処理を完了
+    resolveExtractText!({
+      success: true,
+      data: 'Extracted content',
+    });
+
+    // ファイル処理完了後にsendMessageが呼ばれることを確認
+    await waitFor(() => {
+      expect(window.electron.chat.sendMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          roomId: '1',
+          messages: expect.arrayContaining([
+            expect.objectContaining({
+              content: 'AI処理テスト',
+              experimental_attachments: expect.arrayContaining([
+                expect.objectContaining({
+                  name: 'document.pdf',
+                  contentType: 'text/plain',
+                  url: expect.stringMatching(/^data:text\/plain;base64,/),
+                }),
+              ]),
+            }),
+          ]),
+        }),
+      );
+    });
+  });
+
+  // テスト34: 画像のみの場合はファイル処理中表示がされないこと
+  test('画像のみの場合はファイル処理中表示がされないこと', async () => {
+    const user = userEvent.setup();
+
+    // showOpenDialogのモックを設定（画像ファイル）
+    window.electron.fs.showOpenDialog = jest.fn().mockResolvedValue({
+      success: true,
+      data: {
+        canceled: false,
+        filePaths: ['/path/to/image.png'],
+      },
+    });
+    window.electron.fs.readFile = jest.fn().mockResolvedValue({
+      success: true,
+      data: new Uint8Array([0x89, 0x50, 0x4e, 0x47]),
+    });
+
+    render(<ChatArea selectedRoomId="1" />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByPlaceholderText('メッセージを入力してください'),
+      ).toBeInTheDocument();
+    });
+
+    const textInput =
+      screen.getByPlaceholderText('メッセージを入力してください');
+
+    // ファイル添付ボタンをクリック
+    const attachButton = screen.getByTestId('chat-attach-file-button');
+    await user.click(attachButton);
+
+    // 画像プレビューが表示されるまで待機
+    await waitFor(() => {
+      expect(screen.getByAltText('attachment-0')).toBeInTheDocument();
+    });
+
+    await user.type(textInput, '画像テスト');
+
+    const sendButton = screen.getByTestId('chat-send-button');
+    await user.click(sendButton);
+
+    // 「ファイル処理中...」が表示されないことを確認
+    // 画像の場合はテキスト抽出が不要なので、すぐにAI処理に進む
+    expect(screen.queryByText('ファイル処理中...')).not.toBeInTheDocument();
   });
 });

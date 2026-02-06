@@ -52,20 +52,7 @@ import { FsApi } from '../../service/fsApi';
 import { ReviewApi } from '../../service/reviewApi';
 
 import { combineImages, convertPdfBytesToImages } from '../../lib/pdfUtils';
-
-const getMimeTypeFromExtension = (extension: string): string => {
-  const mimeTypes: { [key: string]: string } = {
-    pdf: 'application/pdf',
-    doc: 'application/msword',
-    docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    xls: 'application/vnd.ms-excel',
-    xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    ppt: 'application/vnd.ms-powerpoint',
-    pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-    txt: 'text/plain',
-  };
-  return mimeTypes[extension] || 'application/octet-stream';
-};
+import { getMimeTypeFromExtension } from '../../lib/fileUtils';
 
 // ドキュメントが画像化に対応しているかチェック
 const supportsImageProcessing = (mimeType: string): boolean => {

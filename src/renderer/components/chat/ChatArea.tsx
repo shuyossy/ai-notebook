@@ -6,10 +6,16 @@ import { ChatMessage } from '@/types';
 import { IpcRequestPayload, IpcChannels } from '@/types/ipc';
 import { useAlertStore } from '@/renderer/stores/alertStore';
 import { getSafeErrorMessage, internalError } from '@/renderer/lib/error';
+import {
+  fileToDataURL,
+  arrayBufferToBase64,
+  getMimeTypeFromExtension,
+} from '@/renderer/lib/fileUtils';
 import { useAgentStatusStore } from '../../stores/agentStatusStore';
 import MessageList from './MessageList';
 import MessageInput, { Attachment } from './MessageInput';
 import { ChatApi } from '../../service/chatApi';
+import { FsApi } from '../../service/fsApi';
 
 // ai-sdk提供のcreateDataStreamResponseを使ってストリーミングレスポンスを取得する場合の関数
 // なぜか適切なヘッダが付与されないので、利用しない
@@ -131,15 +137,6 @@ const getPlaceholderText = (
   return 'メッセージを入力してください';
 };
 
-const fileToDataURL = (file: File): Promise<string> =>
-  // eslint-disable-next-line
-  new Promise((res, rej) => {
-    const reader = new FileReader();
-    reader.onload = () => res(reader.result as string);
-    reader.onerror = rej;
-    reader.readAsDataURL(file);
-  });
-
 const ChatArea: React.FC<ChatAreaProps> = ({
   selectedRoomId,
   onChatRoomUpdate,
@@ -154,6 +151,8 @@ const ChatArea: React.FC<ChatAreaProps> = ({
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   // メッセージ入力状態
   const [input, setInput] = useState<string>('');
+  // ファイル抽出中フラグ
+  const [isExtractingFiles, setIsExtractingFiles] = useState(false);
   const addAlert = useAlertStore((state) => state.addAlert);
 
   const isAgentInitializing = agentStatus.state === 'saving';
@@ -262,26 +261,111 @@ const ChatArea: React.FC<ChatAreaProps> = ({
     setInput(e.target.value);
   };
 
-  /* ---------- 添付画像操作 ---------- */
-  const addAttachments = async (files: FileList | File[]) => {
-    const fileArr = Array.from(files).filter((f) =>
-      f.type.startsWith('image/'),
-    );
+  /* ---------- 添付ファイル操作 ---------- */
+  // クリップボードから貼り付けた画像用
+  const addAttachments = (files: File[]) => {
+    const fileArr = Array.from(files);
     if (!fileArr.length) return;
 
-    /* 最大 3 枚に抑制 */
-    const newFiles = fileArr.slice(0, 3 - attachments.length);
-    const att: Attachment[] = newFiles.map((file) => ({
-      file,
-      preview: URL.createObjectURL(file),
-    }));
+    const att: Attachment[] = fileArr.map((file) => {
+      const isImage = file.type.startsWith('image/');
+      return {
+        file,
+        preview: isImage ? URL.createObjectURL(file) : '',
+        isImage,
+        // クリップボードからはパスを取得できない
+      };
+    });
     setAttachments((prev) => [...prev, ...att]);
+  };
+
+  // Electronダイアログで選択したファイルからAttachmentを作成
+  const addAttachmentsFromPath = async (filePaths: string[]) => {
+    const fsApi = FsApi.getInstance();
+    const newAttachments: Attachment[] = await Promise.all(
+      filePaths.map(async (filePath) => {
+        const fileName = filePath.split(/[/\\]/).pop() || filePath;
+        const ext = fileName.split('.').pop()?.toLowerCase() || '';
+        const mimeType = getMimeTypeFromExtension(ext);
+        const isImage = mimeType.startsWith('image/');
+
+        // 画像の場合はプレビュー用にファイルを読み込む
+        let preview = '';
+        if (isImage) {
+          const data = await fsApi.readFile(filePath, {
+            showAlert: false,
+            throwError: false,
+          });
+          if (data) {
+            // Uint8Arrayから新しいArrayBufferを作成してBlobを作成（型互換性のため）
+            const buffer = new ArrayBuffer(data.byteLength);
+            const view = new Uint8Array(buffer);
+            view.set(data);
+            const blob = new Blob([buffer], { type: mimeType });
+            preview = URL.createObjectURL(blob);
+          }
+        }
+
+        // ダミーのFileオブジェクトを作成（nameとtypeのみ使用）
+        const file = new File([], fileName, { type: mimeType });
+
+        return { file, preview, isImage, path: filePath };
+      }),
+    );
+    setAttachments((prev) => [...prev, ...newAttachments]);
+  };
+
+  // ファイル選択ダイアログを開く
+  const openFileDialog = async () => {
+    try {
+      const fsApi = FsApi.getInstance();
+      const result = await fsApi.showOpenDialog(
+        {
+          title: 'ファイルを選択',
+          filters: [
+            {
+              name: '対応ファイル',
+              extensions: [
+                'png',
+                'jpg',
+                'jpeg',
+                'gif',
+                'webp',
+                'pdf',
+                'doc',
+                'docx',
+                'xls',
+                'xlsx',
+                'ppt',
+                'pptx',
+                'txt',
+                'csv',
+              ],
+            },
+          ],
+          properties: ['openFile', 'multiSelections'],
+        },
+        { showAlert: true, throwError: true },
+      );
+
+      if (result && !result.canceled && result.filePaths.length > 0) {
+        await addAttachmentsFromPath(result.filePaths);
+      }
+    } catch (err) {
+      addAlert({
+        message: getSafeErrorMessage(err, 'ファイル選択に失敗しました'),
+        severity: 'error',
+      });
+    }
   };
 
   const removeAttachment = (idx: number) => {
     setAttachments((prev) => {
       const target = prev[idx];
-      if (target) URL.revokeObjectURL(target.preview); // メモリ開放
+      // 画像の場合のみメモリ開放
+      if (target && target.isImage && target.preview) {
+        URL.revokeObjectURL(target.preview);
+      }
       return prev.filter((_, i) => i !== idx);
     });
   };
@@ -290,37 +374,140 @@ const ChatArea: React.FC<ChatAreaProps> = ({
     e.preventDefault();
     if (!input.trim() && attachments.length === 0) return;
 
-    /* 添付画像を base64 へ変換しメッセージを追加 */
-    const addAttachment = await Promise.all(
-      attachments.map(async (att) => ({
-        name: att.file.name,
-        contentType: att.file.type,
-        url: await fileToDataURL(att.file), // ObjectURLではなくbase64に変換
-      })),
+    const fsApi = FsApi.getInstance();
+    const hasNonImageFiles = attachments.some(
+      (att) => !att.isImage && att.path,
     );
-    const newMessage: ChatMessage = {
-      id: uuid(),
+    const messageId = uuid();
+
+    // Step 2: プレースホルダーでメッセージを即時表示
+    const placeholderAttachments = attachments.map((att) => ({
+      name: att.file.name,
+      contentType: att.isImage ? att.file.type : 'text/plain',
+      url: '', // 抽出完了まで空
+    }));
+
+    const initialMessage: ChatMessage = {
+      id: messageId,
       role: 'user',
       content: input,
-      parts: [
-        {
-          type: 'text',
-          text: input,
-        },
-      ],
+      parts: [{ type: 'text', text: input }],
       experimental_attachments:
-        addAttachment.length > 0 ? addAttachment : undefined,
+        placeholderAttachments.length > 0 ? placeholderAttachments : undefined,
     };
-    console.log('新規メッセージ: ', newMessage);
 
+    // 入力をクリアしてメッセージを即座に表示
+    const currentInput = input;
+    const currentAttachments = [...attachments];
     setInput('');
-    // appendだと画像が反映されないため、使わない
-    // append(newMessage);
-    setMessages((prev) => [...prev, newMessage]);
-    reload();
-
-    /* 送信後クリーンアップ */
     setAttachments([]);
+    setMessages((prev) => [...prev, initialMessage]);
+
+    // Step 1 & 3: 非画像ファイルがある場合はファイル抽出状態を有効化
+    if (hasNonImageFiles) {
+      setIsExtractingFiles(true);
+    }
+
+    try {
+      /* 添付ファイルを処理
+         - 画像: base64に変換（pathがあればファイルを読み込み、なければFileオブジェクトから変換）
+         - 非画像: IPC経由でテキスト抽出してData URLに変換 */
+
+      // 非画像ファイルのテキスト抽出を先に実行（エラー時は処理を中止）
+      const nonImageAttachments = currentAttachments.filter(
+        (att) => !att.isImage && att.path,
+      );
+      const extractedTexts = new Map<string, string>();
+
+      for (const att of nonImageAttachments) {
+        try {
+          const text = await fsApi.extractText(att.path!, {
+            showAlert: false,
+            throwError: true,
+          });
+          extractedTexts.set(att.path!, text!);
+        } catch (err) {
+          // エラー発生時: 入力状態を復元し、メッセージを削除
+          setInput(currentInput);
+          setAttachments(currentAttachments);
+          setMessages((prev) => prev.filter((msg) => msg.id !== messageId));
+          addAlert({
+            message: getSafeErrorMessage(
+              err,
+              `ファイルの読み込みに失敗しました: ${att.file.name}`,
+            ),
+            severity: 'error',
+          });
+          setIsExtractingFiles(false);
+          return; // 処理を中止
+        }
+      }
+
+      // 全ファイルの抽出成功後、添付ファイルを処理
+      const processedAttachments = await Promise.all(
+        currentAttachments.map(async (att) => {
+          if (att.isImage) {
+            // 画像: pathがあればファイルを読んでbase64化
+            if (att.path) {
+              const data = await fsApi.readFile(att.path, {
+                showAlert: false,
+                throwError: false,
+              });
+              if (data) {
+                const base64 = arrayBufferToBase64(data);
+                return {
+                  name: att.file.name,
+                  contentType: att.file.type,
+                  url: `data:${att.file.type};base64,${base64}`,
+                };
+              }
+            }
+            // クリップボード画像の場合はFileオブジェクトからDataURLに変換
+            return {
+              name: att.file.name,
+              contentType: att.file.type,
+              url: await fileToDataURL(att.file),
+            };
+          }
+          // 非画像ファイル: 事前に抽出済みのテキストを使用
+          if (att.path) {
+            const content = `# File Path: ${att.path}\n${extractedTexts.get(att.path)!}`;
+            const base64 = btoa(unescape(encodeURIComponent(content)));
+            return {
+              name: att.file.name,
+              contentType: 'text/plain',
+              url: `data:text/plain;base64,${base64}`,
+            };
+          }
+          // pathがない場合（通常はあり得ない）
+          return {
+            name: att.file.name,
+            contentType: att.file.type,
+            url: '',
+          };
+        }),
+      );
+
+      // Step 4: メッセージを最新化
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === messageId
+            ? {
+                ...msg,
+                experimental_attachments:
+                  processedAttachments.length > 0
+                    ? processedAttachments
+                    : undefined,
+              }
+            : msg,
+        ),
+      );
+    } finally {
+      setIsExtractingFiles(false);
+    }
+
+    // Step 5: AI処理を実行
+    reload();
   };
 
   const handleEditSubmit = async () => {
@@ -396,13 +583,18 @@ const ChatArea: React.FC<ChatAreaProps> = ({
               status === 'submitted' ||
               status === 'streaming' ||
               isAgentInitializing ||
-              isEditHistory
+              isEditHistory ||
+              isExtractingFiles
             }
             editingMessageId={editMessageId}
             onEditStart={handleEditStart}
             onEditContentChange={handleEditContentChange}
             onEditSubmit={handleEditSubmit}
             onEditCancel={handleEditCancel}
+            isProcessingFiles={isExtractingFiles}
+            loadingMessage={
+              isExtractingFiles ? 'ファイル処理中...' : 'AIKATA作業中…'
+            }
           />
 
           <Divider />
@@ -416,12 +608,14 @@ const ChatArea: React.FC<ChatAreaProps> = ({
               status === 'submitted' ||
               status === 'streaming' ||
               isAgentInitializing ||
-              isEditHistory
+              isEditHistory ||
+              isExtractingFiles
             }
             placeholder={getPlaceholderText(status, isAgentInitializing)}
             isStreaming={status === 'streaming'}
             onStop={stop}
             attachments={attachments}
+            onOpenFileDialog={openFileDialog}
             onAddFiles={addAttachments}
             onRemoveAttachment={removeAttachment}
           />

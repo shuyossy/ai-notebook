@@ -77,6 +77,9 @@ const electronHandler = {
     /** ファイル読み込み（Uint8Array） */
     readFile: (filePath: string) =>
       invokeIpc(IpcChannels.FS_READ_FILE, filePath),
+    /** ファイルからテキスト抽出 */
+    extractText: (filePath: string) =>
+      invokeIpc(IpcChannels.FS_EXTRACT_TEXT, filePath),
     /** Office ドキュメントを PDF に変換（Uint8Array） */
     convertOfficeToPdf: (filePath: string) =>
       invokeIpc(IpcChannels.FS_CONVERT_OFFICE_TO_PDF, filePath),
