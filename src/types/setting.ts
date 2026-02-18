@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { AgentToolStatus } from './chat';
-import { MODEL_OPTIONS } from '@/config/modelConfig';
+import { MODEL_OPTIONS, REASONING_EFFORT_OPTIONS } from '@/config/modelConfig';
 
 // 設定状態管理用の型定義
 export type SettingsSavingState = 'saving' | 'done' | 'error';
@@ -99,6 +99,7 @@ export const ApiSchema = z.object({
   url: z.string().url({ message: '有効なURLを入力してください' }),
   model: z.enum(MODEL_OPTIONS, { message: 'モデル名を選択してください' }),
   userId: z.string().min(1, { message: 'ユーザIDは必須です' }),
+  reasoningEffort: z.enum(REASONING_EFFORT_OPTIONS).optional(),
 });
 
 /**

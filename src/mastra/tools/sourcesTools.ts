@@ -10,7 +10,7 @@ import { DocumentExpertAgentRuntimeContext } from '../agents/toolAgents';
 import {
   createRuntimeContext,
   judgeFinishReason,
-  getTemperatureOption,
+  getModelSpecificGenerateOptions,
 } from '../lib/agentUtils';
 import { normalizeUnknownError, internalError } from '@/main/lib/error';
 
@@ -173,7 +173,7 @@ export const documentQueryTool = createTool({
               abortSignal: options?.abortSignal,
               runtimeContext,
               maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
-              ...getTemperatureOption(runtimeContext),
+              ...getModelSpecificGenerateOptions(runtimeContext),
             });
             answer = res.text;
             const { success, reason } = judgeFinishReason(res.finishReason);

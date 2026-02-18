@@ -16,7 +16,7 @@ import { stepStatus } from '../../types';
 import { splitChecklistEquallyByMaxSize } from '../lib';
 import {
   createRuntimeContext,
-  getTemperatureOption,
+  getModelSpecificGenerateOptions,
 } from '@/mastra/lib/agentUtils';
 import { ClassifyCategoryAgentRuntimeContext } from '@/mastra/agents/workflowAgents';
 import { getMainLogger } from '@/main/lib/logger';
@@ -129,7 +129,7 @@ export const classifyChecklistsByCategoryStep = createStep({
           runtimeContext,
           abortSignal,
           maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
-          ...getTemperatureOption(runtimeContext),
+          ...getModelSpecificGenerateOptions(runtimeContext),
         },
       );
       // 分類結果の妥当性をチェック

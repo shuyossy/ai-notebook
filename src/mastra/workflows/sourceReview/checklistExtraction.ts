@@ -14,7 +14,7 @@ import {
 } from '../../agents/workflowAgents';
 import {
   createRuntimeContext,
-  getTemperatureOption,
+  getModelSpecificGenerateOptions,
 } from '../../lib/agentUtils';
 import { normalizeUnknownError, internalError } from '@/main/lib/error';
 import { getMainLogger } from '@/main/lib/logger';
@@ -154,7 +154,7 @@ const checklistDocumentExtractionStep = createStep({
             runtimeContext,
             abortSignal,
             maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
-            ...getTemperatureOption(runtimeContext),
+            ...getModelSpecificGenerateOptions(runtimeContext),
             // AIの限界生成トークン数を超えた場合のエラーを回避するための設定
             experimental_repairText: async (options) => {
               isCompleted = false;
@@ -335,7 +335,7 @@ const topicExtractionStep = createStep({
           runtimeContext,
           abortSignal,
           maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
-          ...getTemperatureOption(runtimeContext),
+          ...getModelSpecificGenerateOptions(runtimeContext),
         },
       );
 
@@ -435,7 +435,7 @@ const topicChecklistCreationStep = createStep({
         runtimeContext,
         abortSignal,
         maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
-        ...getTemperatureOption(runtimeContext),
+        ...getModelSpecificGenerateOptions(runtimeContext),
       });
       logger.debug(
         `Combined document topic(${title}) generated checklist items:`,
@@ -617,7 +617,7 @@ Please continue refining the remaining items, avoiding duplicates with already r
             runtimeContext,
             abortSignal,
             maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
-            ...getTemperatureOption(runtimeContext),
+            ...getModelSpecificGenerateOptions(runtimeContext),
             // AIの限界生成トークン数を超えた場合のエラーを回避するための設定
             experimental_repairText: async (options) => {
               isCompleted = false;

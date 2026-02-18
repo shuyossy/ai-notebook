@@ -232,22 +232,25 @@ ElectronのIPCを使用してフロントエンド・バックエンド間の通
 ```
 
 # ID: 1
-- PBI名: チャット機能にて、ファイル送信を可能にする
+- PBI名: gpt-5モデルの場合に、reasoningEffortを指定できる様にする
 - ステータス: in progress
 - 背景
-  - 現状、チャット機能ではチャット文言とは別に画像を付与して送信できる
-  - 画像のみならず、他ファイルも付与して送信できる様にしたい
+  - 現状はgpt-5(reasoningモデル)利用時にreasoningEffortを明示的に指定してないため、デフォルトのmediumになっている
+  - ユーザが自由にreasoningEffortを設定できる様にしたい
 - 受け入れ基準
-  - チャット入力欄の画像添付アイコンがファイル添付アイコンに変わっていること
-  - ファイル選択画面では指定可能（画像、テキスト抽出可能なファイル）なファイルのみ選択可能になっていること
-  - 画像については以前と同様に、添付された場合にプレビューが表示され、クリップボードからコピーできること
-  - 画像以外のファイルについては添付された場合に画像プレビュー欄にファイル名と削除アイコン付きのアイコンが表示されること
-    - 削除アイコンの取り扱いは画像と同様
-  - ファイルが添付された状態でチャットを送信する場合はまずmain側でテキスト抽出され、その結果をData URLに変換してexperimental_attachmentsに追加
-  - 送信メッセージやチャット履歴を表示する際、ファイル送信が含まれていた場合は、ファイル名付きのファイルアイコンを表示する
-    - ファイルアイコンをクリックするとファイルのテキスト抽出結果を確認できる様にする（文字化けには注意すること）
-  - ファイルと画像に対する入力数の制限はなしとする（現在は画像3枚まで）
+  - 設定画面にて、gpt-5がモデルとして選択されていた場合、「reasoningレベル」としてminimal,low,medium,highが選択できる
+    - デフォルトはminimal
+    - reasoningレベルが高くなるほど推論能力は高くなるが、処理時間がかかるというトレードオフを説明すること
+    - gpt-5以外が選択されて設定が保存された場合は、reasoningレベルは変更されない
+  - gpt-5がモデルとして選択されていた場合、全てのgenerateLegacy実行時のオプションに、以下の内容が追加されている
+  ```  
+  providerOptions: {
+    openai: {
+      reasoningEffort: 'low',
+    }
+  }
+  ```
 - 注意事項
-  - できる限り既存の画像用処理を活用・共通化すること
-- 指摘事項
-  - 
+  - electron-storeにapi.reasoningEffortを追加するのが良いか？
+  - BaseRuntimeContextにreasoningEffortを追加し、createRuntimeContextでelectron-storeから値をセットする様にすれば、最小の修正でgenerateLegacy実行時にreasoningEffortを得られるか？
+  - 現在、モデル固有の設定をgetTemperatureOptionで取得しているが、reasoningEffortなどもまとめてgetModelSpecificGenerateOptions関数を用意するのが良さそうか？

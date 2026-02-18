@@ -40,11 +40,11 @@ jest.mock('@/adapter/db', () => ({
   getReviewRepository: jest.fn(),
 }));
 
-import { getTemperatureOption } from '@/mastra/lib/agentUtils';
+import { getModelSpecificGenerateOptions } from '@/mastra/lib/agentUtils';
 
-describe('getTemperatureOption', () => {
+describe('getModelSpecificGenerateOptions', () => {
   describe('正常系', () => {
-    it('gpt-5モデルの場合、temperature:1が返される', () => {
+    it('gpt-5モデル + reasoningEffort指定ありの場合、temperature:1とproviderOptionsが返される', () => {
       // Arrange
       const mockRuntimeContext = {
         get: jest.fn().mockReturnValue({
@@ -52,14 +52,59 @@ describe('getTemperatureOption', () => {
           url: 'https://api.test.com',
           modelName: 'gpt-5',
           userId: 'test-user',
+          reasoningEffort: 'high',
         }),
       };
 
       // Act
-      const result = getTemperatureOption(mockRuntimeContext as any);
+      const result = getModelSpecificGenerateOptions(mockRuntimeContext as any);
+
+      // Assert
+      expect(result).toEqual({
+        temperature: 1,
+        providerOptions: {
+          openai: { reasoningEffort: 'high' },
+        },
+      });
+    });
+
+    it('gpt-5モデル + reasoningEffort指定なし（undefined）の場合、temperature:1のみ返される', () => {
+      // Arrange
+      const mockRuntimeContext = {
+        get: jest.fn().mockReturnValue({
+          key: 'test-api-key',
+          url: 'https://api.test.com',
+          modelName: 'gpt-5',
+          userId: 'test-user',
+          reasoningEffort: undefined,
+        }),
+      };
+
+      // Act
+      const result = getModelSpecificGenerateOptions(mockRuntimeContext as any);
 
       // Assert
       expect(result).toEqual({ temperature: 1 });
+      expect(result).not.toHaveProperty('providerOptions');
+    });
+
+    it('gpt-4oモデルの場合、空オブジェクトが返される（reasoningEffort値が存在しても無視）', () => {
+      // Arrange
+      const mockRuntimeContext = {
+        get: jest.fn().mockReturnValue({
+          key: 'test-api-key',
+          url: 'https://api.test.com',
+          modelName: 'gpt-4o',
+          userId: 'test-user',
+          reasoningEffort: 'high',
+        }),
+      };
+
+      // Act
+      const result = getModelSpecificGenerateOptions(mockRuntimeContext as any);
+
+      // Assert
+      expect(result).toEqual({});
     });
 
     it('gpt-4.1-miniモデルの場合、空オブジェクトが返される', () => {
@@ -74,25 +119,7 @@ describe('getTemperatureOption', () => {
       };
 
       // Act
-      const result = getTemperatureOption(mockRuntimeContext as any);
-
-      // Assert
-      expect(result).toEqual({});
-    });
-
-    it('gpt-4oモデルの場合、空オブジェクトが返される', () => {
-      // Arrange
-      const mockRuntimeContext = {
-        get: jest.fn().mockReturnValue({
-          key: 'test-api-key',
-          url: 'https://api.test.com',
-          modelName: 'gpt-4o',
-          userId: 'test-user',
-        }),
-      };
-
-      // Act
-      const result = getTemperatureOption(mockRuntimeContext as any);
+      const result = getModelSpecificGenerateOptions(mockRuntimeContext as any);
 
       // Assert
       expect(result).toEqual({});
@@ -107,7 +134,7 @@ describe('getTemperatureOption', () => {
       };
 
       // Act
-      const result = getTemperatureOption(mockRuntimeContext as any);
+      const result = getModelSpecificGenerateOptions(mockRuntimeContext as any);
 
       // Assert
       expect(result).toEqual({});
@@ -120,7 +147,7 @@ describe('getTemperatureOption', () => {
       };
 
       // Act
-      const result = getTemperatureOption(mockRuntimeContext as any);
+      const result = getModelSpecificGenerateOptions(mockRuntimeContext as any);
 
       // Assert
       expect(result).toEqual({});

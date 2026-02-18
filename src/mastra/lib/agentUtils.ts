@@ -4,7 +4,7 @@ import { getSettingsRepository } from '@/adapter/db';
 import { BaseRuntimeContext } from '../agents/types';
 import { AppError, extractAIAPISafeError } from '@/main/lib/error';
 import { APICallError } from 'ai';
-import { isGpt5Model } from '@/config/modelConfig';
+import { isGpt5Model, ReasoningEffort } from '@/config/modelConfig';
 
 // BaseRuntimeConotextに値を入れた上で、指定したRuntimeContextを返す関数
 export async function createRuntimeContext<T extends BaseRuntimeContext>() {
@@ -17,6 +17,7 @@ export async function createRuntimeContext<T extends BaseRuntimeContext>() {
     url: store.api.url,
     modelName: store.api.model,
     userId: store.api.userId,
+    reasoningEffort: store.api.reasoningEffort,
   });
   return runtimeContext;
 }
@@ -67,18 +68,32 @@ export const judgeErrorIsContentLengthError = (error: unknown) => {
 };
 
 /**
- * gpt-5モデルの場合にtemperature:1を設定するヘルパー関数
- * gpt-5はtemperature:1を指定しないとエラーになるため、この関数で適切なオプションを返す
- * runtimeContextからモデル名を取得し、gpt-5の場合のみtemperature:1を返す
+ * モデル固有のgenerateオプションを返すヘルパー関数
+ * gpt-5の場合: temperature:1 + reasoningEffort指定時はproviderOptionsを返す
+ * それ以外: 空オブジェクト
  * @param runtimeContext RuntimeContextインスタンス
- * @returns gpt-5の場合は{temperature:1}、それ以外は空オブジェクト
+ * @returns モデル固有のgenerateオプション
  */
-export function getTemperatureOption(
+export function getModelSpecificGenerateOptions(
   runtimeContext: RuntimeContext<BaseRuntimeContext>,
-): { temperature?: number } {
+): {
+  temperature?: number;
+  providerOptions?: { openai: { reasoningEffort: ReasoningEffort } };
+} {
   const model = runtimeContext.get('model');
   if (model && isGpt5Model(model.modelName)) {
-    return { temperature: 1 };
+    const options: {
+      temperature: number;
+      providerOptions?: { openai: { reasoningEffort: ReasoningEffort } };
+    } = { temperature: 1 };
+    if (model.reasoningEffort) {
+      options.providerOptions = {
+        openai: {
+          reasoningEffort: model.reasoningEffort as ReasoningEffort,
+        },
+      };
+    }
+    return options;
   }
   return {};
 }

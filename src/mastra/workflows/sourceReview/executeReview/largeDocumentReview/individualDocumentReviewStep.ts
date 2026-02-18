@@ -10,7 +10,7 @@ import {
   createRuntimeContext,
   judgeErrorIsContentLengthError,
   judgeFinishReason,
-  getTemperatureOption,
+  getModelSpecificGenerateOptions,
 } from '@/mastra/lib/agentUtils';
 import { getMainLogger } from '@/main/lib/logger';
 import { createCombinedMessageFromExtractedDocument } from '../../lib';
@@ -135,7 +135,7 @@ Checklist Items to Review:\n${checklists.map((item) => `- ID: ${item.id} - ${ite
           runtimeContext,
           abortSignal,
           maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
-          ...getTemperatureOption(runtimeContext),
+          ...getModelSpecificGenerateOptions(runtimeContext),
         });
 
         if (reviewResult.finishReason === 'length') {

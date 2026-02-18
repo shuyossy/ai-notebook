@@ -10,7 +10,7 @@ import { internalError } from '@/main/lib/error';
 import {
   createRuntimeContext,
   judgeFinishReason,
-  getTemperatureOption,
+  getModelSpecificGenerateOptions,
 } from '@/mastra/lib/agentUtils';
 import { getMainLogger } from '@/main/lib/logger';
 
@@ -178,7 +178,7 @@ Please provide a consolidated review that synthesizes all individual document re
             runtimeContext,
             abortSignal,
             maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
-            ...getTemperatureOption(runtimeContext),
+            ...getModelSpecificGenerateOptions(runtimeContext),
           },
         );
 

@@ -16,7 +16,12 @@ import {
 import Modal from './Modal';
 import useSettingsStore from '../../hooks/useSettings';
 import { StoreSchema as Settings } from '../../../adapter/db/electron-store/store';
-import { MODEL_OPTIONS } from '@/config/modelConfig';
+import {
+  MODEL_OPTIONS,
+  REASONING_EFFORT_OPTIONS,
+  DEFAULT_REASONING_EFFORT,
+  isGpt5Model,
+} from '@/config/modelConfig';
 
 interface SettingsModalProps {
   open: boolean;
@@ -145,6 +150,38 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                 </FormHelperText>
               )}
             </FormControl>
+            {isGpt5Model(settings.api.model) && (
+              <FormControl
+                fullWidth
+                margin="normal"
+                variant="outlined"
+                disabled={loading || saving}
+              >
+                <InputLabel id="reasoning-effort-select-label">
+                  Reasoningレベル
+                </InputLabel>
+                <Select
+                  labelId="reasoning-effort-select-label"
+                  id="reasoning-effort-select"
+                  value={
+                    settings.api.reasoningEffort ?? DEFAULT_REASONING_EFFORT
+                  }
+                  label="Reasoningレベル"
+                  onChange={(e) =>
+                    handleChange('api', 'reasoningEffort', e.target.value)
+                  }
+                >
+                  {REASONING_EFFORT_OPTIONS.map((option) => (
+                    <MenuItem key={option} value={option}>
+                      {option}
+                    </MenuItem>
+                  ))}
+                </Select>
+                <FormHelperText>
+                  Reasoningレベルが高いほど推論能力が向上しますが、処理時間が長くなります
+                </FormHelperText>
+              </FormControl>
+            )}
             <TextField
               fullWidth
               label="ユーザID"

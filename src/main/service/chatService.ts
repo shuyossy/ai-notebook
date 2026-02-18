@@ -6,7 +6,7 @@ import { internalError } from '../lib/error';
 import { AbortControllerManager } from '../lib/AbortControllerManager';
 import {
   judgeFinishReason,
-  getTemperatureOption,
+  getModelSpecificGenerateOptions,
 } from '@/mastra/lib/agentUtils';
 import { ChatMessage, Feature, IpcChannels } from '@/types';
 import { getMainLogger } from '../lib/logger';
@@ -190,7 +190,7 @@ export class ChatService implements IChatService {
           maxSteps: 30, // ツールの利用上限
           abortSignal: controller.signal, // 中断シグナルを設定
           maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
-          ...getTemperatureOption(runtimeContext),
+          ...getModelSpecificGenerateOptions(runtimeContext),
           onStepFinish: (stepResult) => {
             // https://ai-sdk.dev/docs/ai-sdk-ui/stream-protocol
             // 上記を参考にai-sdkのストリームプロトコルに従ってメッセージを送信

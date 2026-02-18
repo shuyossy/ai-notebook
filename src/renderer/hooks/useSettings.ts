@@ -12,7 +12,11 @@ import { useAgentStatusStore } from '../stores/agentStatusStore';
 import { useAlertStore } from '../stores/alertStore';
 import { getSafeErrorMessage, internalError } from '../lib/error';
 import { usePushChannel } from './usePushChannel';
-import { DEFAULT_MODEL } from '@/config/modelConfig';
+import {
+  DEFAULT_MODEL,
+  DEFAULT_REASONING_EFFORT,
+  isGpt5Model,
+} from '@/config/modelConfig';
 
 type AppSettings = Omit<Settings, 'mcp'> & {
   mcp: { serverConfig: string | undefined };
@@ -26,7 +30,13 @@ const useSettingsStore = () => {
   const [settings, setSettings] = useState<AppSettings>({
     database: { dir: '' },
     source: { registerDir: './source' },
-    api: { key: '', url: '', model: DEFAULT_MODEL, userId: '' },
+    api: {
+      key: '',
+      url: '',
+      model: DEFAULT_MODEL,
+      userId: '',
+      reasoningEffort: DEFAULT_REASONING_EFFORT,
+    },
     redmine: { endpoint: '', apiKey: '' },
     gitlab: { endpoint: '', apiKey: '' },
     mcp: { serverConfig: undefined },
@@ -324,6 +334,17 @@ const useSettingsStore = () => {
       }
 
       const parsedSettings = await SettingsSchema.parseAsync(settings);
+
+      // gpt-5モデルでreasoningEffortが未設定の場合、デフォルト値を適用する
+      if (
+        isGpt5Model(parsedSettings.api.model) &&
+        !parsedSettings.api.reasoningEffort
+      ) {
+        parsedSettings.api = {
+          ...parsedSettings.api,
+          reasoningEffort: DEFAULT_REASONING_EFFORT,
+        };
+      }
 
       // 設定を一括保存
       await settingsApi.setSettings(parsedSettings, {

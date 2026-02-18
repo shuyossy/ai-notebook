@@ -6,7 +6,7 @@ import { createCombinedMessageFromExtractedDocument } from '../lib';
 import {
   createRuntimeContext,
   judgeFinishReason,
-  getTemperatureOption,
+  getModelSpecificGenerateOptions,
 } from '@/mastra/lib/agentUtils';
 import { ReviewExecuteAgentRuntimeContext } from '@/mastra/agents/workflowAgents';
 import { internalError, normalizeUnknownError } from '@/main/lib/error';
@@ -126,7 +126,7 @@ Please review the document against the above checklist items.`;
             runtimeContext,
             abortSignal,
             maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
-            ...getTemperatureOption(runtimeContext),
+            ...getModelSpecificGenerateOptions(runtimeContext),
           },
         );
         const { success, reason } = judgeFinishReason(

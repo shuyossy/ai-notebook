@@ -204,6 +204,7 @@ describe('SettingsModal Component', () => {
         url: 'https://new.api.test.com',
         model: 'gpt-5',
         userId: 'new-test-user-id',
+        reasoningEffort: 'minimal',
       });
       expect(call.database).toEqual({ dir: '/new/test/db' });
       expect(call.source).toEqual({ registerDir: './new/test/source' });
@@ -1710,4 +1711,383 @@ describe('SettingsModal Component', () => {
     consoleSpy.mockRestore();
     jest.useRealTimers();
   });
+
+  // テスト21: gpt-5選択時にReasoningレベルセレクトが表示されること
+  test('gpt-5選択時にReasoningレベルセレクトが表示されること', async () => {
+    const user = userEvent.setup({ delay: null });
+
+    // gpt-5が初期値の設定を用意
+    window.electron = createMockElectronWithOptions({
+      initialSettings: {
+        api: {
+          key: 'test-api-key',
+          url: 'https://api.test.com',
+          model: 'gpt-5',
+          userId: 'test-user-id',
+          reasoningEffort: 'minimal',
+        },
+      },
+    });
+
+    render(
+      <SettingsModal
+        open={defaultProps.open}
+        onClose={defaultProps.onClose}
+        onSettingsUpdated={defaultProps.onSettingsUpdated}
+        onValidChange={defaultProps.onValidChange}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(window.electron.settings.getSettings).toHaveBeenCalledTimes(1);
+    });
+
+    // 全てのフィールドが有効になるまで待機
+    await waitFor(() => {
+      const apiKeyInput = screen.getByLabelText('APIキー');
+      expect(apiKeyInput).toBeEnabled();
+    });
+
+    // Reasoningレベルセレクトが表示されることを確認
+    const reasoningSelect = screen.getByRole('combobox', {
+      name: 'Reasoningレベル',
+    });
+    expect(reasoningSelect).toBeInTheDocument();
+    expect(reasoningSelect).toHaveTextContent('minimal');
+
+    // ヘルパーテキストが表示されることを確認
+    expect(
+      screen.getByText(
+        'Reasoningレベルが高いほど推論能力が向上しますが、処理時間が長くなります',
+      ),
+    ).toBeInTheDocument();
+  });
+
+  // テスト22: gpt-4o選択時（デフォルト）にReasoningレベルセレクトが表示されないこと
+  test('gpt-4o選択時にReasoningレベルセレクトが表示されないこと', async () => {
+    render(
+      <SettingsModal
+        open={defaultProps.open}
+        onClose={defaultProps.onClose}
+        onSettingsUpdated={defaultProps.onSettingsUpdated}
+        onValidChange={defaultProps.onValidChange}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(window.electron.settings.getSettings).toHaveBeenCalledTimes(1);
+    });
+
+    await waitFor(() => {
+      const apiKeyInput = screen.getByLabelText('APIキー');
+      expect(apiKeyInput).toBeEnabled();
+    });
+
+    // モデルがgpt-4oであることを確認
+    expect(
+      screen.getByRole('combobox', { name: 'モデル名' }),
+    ).toHaveTextContent('gpt-4o');
+
+    // Reasoningレベルセレクトが表示されないことを確認
+    expect(
+      screen.queryByRole('combobox', { name: 'Reasoningレベル' }),
+    ).not.toBeInTheDocument();
+  });
+
+  // テスト23: gpt-5からgpt-4oに切り替えた場合、Reasoningレベルが非表示になること
+  test('gpt-5からgpt-4oに切り替えた場合、Reasoningレベルが非表示になること', async () => {
+    const user = userEvent.setup({ delay: null });
+
+    // gpt-5が初期値の設定を用意
+    window.electron = createMockElectronWithOptions({
+      initialSettings: {
+        api: {
+          key: 'test-api-key',
+          url: 'https://api.test.com',
+          model: 'gpt-5',
+          userId: 'test-user-id',
+          reasoningEffort: 'high',
+        },
+      },
+    });
+
+    render(
+      <SettingsModal
+        open={defaultProps.open}
+        onClose={defaultProps.onClose}
+        onSettingsUpdated={defaultProps.onSettingsUpdated}
+        onValidChange={defaultProps.onValidChange}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(window.electron.settings.getSettings).toHaveBeenCalledTimes(1);
+    });
+
+    await waitFor(() => {
+      const apiKeyInput = screen.getByLabelText('APIキー');
+      expect(apiKeyInput).toBeEnabled();
+    });
+
+    // Reasoningレベルが表示されていることを確認
+    expect(
+      screen.getByRole('combobox', { name: 'Reasoningレベル' }),
+    ).toBeInTheDocument();
+
+    // gpt-4oに切り替え
+    const modelSelect = screen.getByRole('combobox', { name: 'モデル名' });
+    await user.click(modelSelect);
+    await user.click(screen.getByRole('option', { name: 'gpt-4o' }));
+
+    // Reasoningレベルが非表示になることを確認
+    expect(
+      screen.queryByRole('combobox', { name: 'Reasoningレベル' }),
+    ).not.toBeInTheDocument();
+  });
+
+  // テスト24: gpt-4o（reasoningEffort未設定）からgpt-5に切り替え、reasoningレベルを変更せずに保存した場合にreasoningEffort:'minimal'が保存されること
+  test('gpt-4o（reasoningEffort未設定）からgpt-5に切り替え、reasoningレベルを変更せずに保存した場合にreasoningEffort:minimalが保存されること', async () => {
+    const user = userEvent.setup({ delay: null });
+
+    // gpt-4oでreasoningEffortが未設定の状態（実際のアプリ起動直後の状態を再現）
+    window.electron = createMockElectronWithOptions({
+      initialSettings: {
+        api: {
+          key: 'test-api-key',
+          url: 'https://api.test.com',
+          model: 'gpt-4o',
+          userId: 'test-user-id',
+        },
+      },
+    });
+
+    render(
+      <SettingsModal
+        open={defaultProps.open}
+        onClose={defaultProps.onClose}
+        onSettingsUpdated={defaultProps.onSettingsUpdated}
+        onValidChange={defaultProps.onValidChange}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(window.electron.settings.getSettings).toHaveBeenCalledTimes(1);
+    });
+
+    await waitFor(() => {
+      const apiKeyInput = screen.getByLabelText('APIキー');
+      expect(apiKeyInput).toBeEnabled();
+    });
+
+    // モデルをgpt-5に切り替え
+    const modelSelect = screen.getByRole('combobox', { name: 'モデル名' });
+    await user.click(modelSelect);
+    await user.click(screen.getByRole('option', { name: 'gpt-5' }));
+
+    // Reasoningレベルが表示され、デフォルト値のminimalであることを確認
+    const reasoningSelect = screen.getByRole('combobox', {
+      name: 'Reasoningレベル',
+    });
+    expect(reasoningSelect).toHaveTextContent('minimal');
+
+    // reasoningレベルを変更せずにそのまま保存
+    await waitFor(() => {
+      expect(screen.getByText('保存')).toBeEnabled();
+    });
+    await user.click(screen.getByText('保存'));
+
+    // 保存時にreasoningEffort: 'minimal'が正しく渡されることを確認
+    await waitFor(() => {
+      const call = (window.electron.settings.setSettings as jest.Mock).mock
+        .calls[0][0];
+
+      expect(call.api).toEqual({
+        key: 'test-api-key',
+        url: 'https://api.test.com',
+        model: 'gpt-5',
+        userId: 'test-user-id',
+        reasoningEffort: 'minimal',
+      });
+    });
+  }, 60000);
+
+  // テスト25: gpt-5選択時にreasoningEffortが設定値として保存APIに渡されること
+  test('gpt-5選択時にreasoningEffortが設定値として保存APIに渡されること', async () => {
+    const user = userEvent.setup({ delay: null });
+
+    // gpt-5が初期値の設定を用意
+    window.electron = createMockElectronWithOptions({
+      initialSettings: {
+        api: {
+          key: 'test-api-key',
+          url: 'https://api.test.com',
+          model: 'gpt-5',
+          userId: 'test-user-id',
+          reasoningEffort: 'minimal',
+        },
+      },
+    });
+
+    render(
+      <SettingsModal
+        open={defaultProps.open}
+        onClose={defaultProps.onClose}
+        onSettingsUpdated={defaultProps.onSettingsUpdated}
+        onValidChange={defaultProps.onValidChange}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(window.electron.settings.getSettings).toHaveBeenCalledTimes(1);
+    });
+
+    await waitFor(() => {
+      const apiKeyInput = screen.getByLabelText('APIキー');
+      expect(apiKeyInput).toBeEnabled();
+    });
+
+    // Reasoningレベルをhighに変更
+    const reasoningSelect = screen.getByRole('combobox', {
+      name: 'Reasoningレベル',
+    });
+    await user.click(reasoningSelect);
+    await user.click(screen.getByRole('option', { name: 'high' }));
+
+    // 保存ボタンをクリック
+    await waitFor(() => {
+      expect(screen.getByText('保存')).toBeEnabled();
+    });
+    await user.click(screen.getByText('保存'));
+
+    // 保存時にreasoningEffortが渡されることを確認
+    await waitFor(() => {
+      const call = (window.electron.settings.setSettings as jest.Mock).mock
+        .calls[0][0];
+
+      expect(call.api).toEqual({
+        key: 'test-api-key',
+        url: 'https://api.test.com',
+        model: 'gpt-5',
+        userId: 'test-user-id',
+        reasoningEffort: 'high',
+      });
+    });
+  }, 60000);
+
+  // テスト26: gpt-5がストア保存済みでreasoningEffort未設定の場合、何も変更せず保存するとminimalが保存されること
+  test('gpt-5がストア保存済みでreasoningEffort未設定の場合、何も変更せず保存するとminimalが保存されること', async () => {
+    const user = userEvent.setup({ delay: null });
+
+    // gpt-5でreasoningEffortが未設定の状態
+    window.electron = createMockElectronWithOptions({
+      initialSettings: {
+        api: {
+          key: 'test-api-key',
+          url: 'https://api.test.com',
+          model: 'gpt-5',
+          userId: 'test-user-id',
+        },
+      },
+    });
+
+    render(
+      <SettingsModal
+        open={defaultProps.open}
+        onClose={defaultProps.onClose}
+        onSettingsUpdated={defaultProps.onSettingsUpdated}
+        onValidChange={defaultProps.onValidChange}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(window.electron.settings.getSettings).toHaveBeenCalledTimes(1);
+    });
+
+    await waitFor(() => {
+      const apiKeyInput = screen.getByLabelText('APIキー');
+      expect(apiKeyInput).toBeEnabled();
+    });
+
+    // Reasoningレベルが表示され、デフォルトのminimalが表示されることを確認
+    const reasoningSelect = screen.getByRole('combobox', {
+      name: 'Reasoningレベル',
+    });
+    expect(reasoningSelect).toHaveTextContent('minimal');
+
+    // 何も変更せずにそのまま保存
+    await waitFor(() => {
+      expect(screen.getByText('保存')).toBeEnabled();
+    });
+    await user.click(screen.getByText('保存'));
+
+    // 保存時にreasoningEffort: 'minimal'がsaveSettingsのガードにより設定されることを確認
+    await waitFor(() => {
+      const call = (window.electron.settings.setSettings as jest.Mock).mock
+        .calls[0][0];
+
+      expect(call.api).toEqual({
+        key: 'test-api-key',
+        url: 'https://api.test.com',
+        model: 'gpt-5',
+        userId: 'test-user-id',
+        reasoningEffort: 'minimal',
+      });
+    });
+  }, 60000);
+
+  // テスト27: gpt-5(reasoningEffort:high)からgpt-4oに切り替えて保存した場合、reasoningEffortが保持されること
+  test('gpt-5(reasoningEffort:high)からgpt-4oに切り替えて保存した場合、reasoningEffortが保持されること', async () => {
+    const user = userEvent.setup({ delay: null });
+
+    // gpt-5でreasoningEffort:highの状態
+    window.electron = createMockElectronWithOptions({
+      initialSettings: {
+        api: {
+          key: 'test-api-key',
+          url: 'https://api.test.com',
+          model: 'gpt-5',
+          userId: 'test-user-id',
+          reasoningEffort: 'high',
+        },
+      },
+    });
+
+    render(
+      <SettingsModal
+        open={defaultProps.open}
+        onClose={defaultProps.onClose}
+        onSettingsUpdated={defaultProps.onSettingsUpdated}
+        onValidChange={defaultProps.onValidChange}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(window.electron.settings.getSettings).toHaveBeenCalledTimes(1);
+    });
+
+    await waitFor(() => {
+      const apiKeyInput = screen.getByLabelText('APIキー');
+      expect(apiKeyInput).toBeEnabled();
+    });
+
+    // gpt-4oに切り替え
+    const modelSelect = screen.getByRole('combobox', { name: 'モデル名' });
+    await user.click(modelSelect);
+    await user.click(screen.getByRole('option', { name: 'gpt-4o' }));
+
+    // 保存ボタンをクリック
+    await waitFor(() => {
+      expect(screen.getByText('保存')).toBeEnabled();
+    });
+    await user.click(screen.getByText('保存'));
+
+    // gpt-4oに切り替えてもreasoningEffortが保持されていることを確認
+    await waitFor(() => {
+      const call = (window.electron.settings.setSettings as jest.Mock).mock
+        .calls[0][0];
+
+      expect(call.api.model).toBe('gpt-4o');
+      expect(call.api.reasoningEffort).toBe('high');
+    });
+  }, 60000);
 });

@@ -1,6 +1,7 @@
 // @ts-ignore
 import Store from 'electron-store';
 import { getCustomAppDataDir } from '../../../main/main';
+import { ReasoningEffort } from '@/config/modelConfig';
 // 設定の型定義
 export interface StoreSchema {
   database: {
@@ -14,6 +15,7 @@ export interface StoreSchema {
     url: string;
     model: string;
     userId: string;
+    reasoningEffort?: ReasoningEffort;
   };
   redmine: {
     endpoint?: string;
@@ -53,6 +55,7 @@ const schema = {
       url: { type: 'string' },
       model: { type: 'string' },
       userId: { type: 'string' },
+      reasoningEffort: { type: 'string' },
     },
     required: ['key', 'url', 'model'], // TODO: userIdを必須にする（ユーザのconfig.jsが十分にuserId追加版に置き換わってから）
   },

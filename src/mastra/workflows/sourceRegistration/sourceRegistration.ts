@@ -8,7 +8,7 @@ import { getSourceRepository } from '@/adapter/db';
 import {
   createRuntimeContext,
   judgeFinishReason,
-  getTemperatureOption,
+  getModelSpecificGenerateOptions,
 } from '../../lib/agentUtils';
 import { normalizeUnknownError, internalError } from '@/main/lib/error';
 import { getMainLogger } from '@/main/lib/logger';
@@ -74,7 +74,7 @@ const analyzeSourceStep = createStep({
           runtimeContext,
           output: outputSchema,
           maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
-          ...getTemperatureOption(runtimeContext),
+          ...getModelSpecificGenerateOptions(runtimeContext),
         },
       );
 
@@ -169,7 +169,7 @@ const extractTopicAndSummaryStep = createStep({
         runtimeContext,
         output: outputSchema,
         maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
-        ...getTemperatureOption(runtimeContext),
+        ...getModelSpecificGenerateOptions(runtimeContext),
       });
       const { success, reason } = judgeFinishReason(
         analysisResult.finishReason,

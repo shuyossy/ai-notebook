@@ -21,6 +21,20 @@ export const isValidModelName = (value: string): value is ModelName => {
 // デフォルトのモデル名
 export const DEFAULT_MODEL: ModelName = 'gpt-4o';
 
+// ReasoningEffortの選択肢
+export const REASONING_EFFORT_OPTIONS = [
+  'minimal',
+  'low',
+  'medium',
+  'high',
+] as const;
+
+// ReasoningEffortの型定義
+export type ReasoningEffort = (typeof REASONING_EFFORT_OPTIONS)[number];
+
+// デフォルトのReasoningEffort
+export const DEFAULT_REASONING_EFFORT: ReasoningEffort = 'minimal';
+
 /**
  * モデル名がgpt-5かどうかを判定する関数
  * gpt-5はtemperature:1を指定しないとエラーになるため、この判定が必要
