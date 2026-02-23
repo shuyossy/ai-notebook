@@ -102,6 +102,8 @@ export const reviewDocumentCaches = sqliteTable('review_document_caches', {
   fileName: text('file_name').notNull(), // ワークフロー内での名前（分割時は "xxx (part 1)" など）
   processMode: text('process_mode').notNull(), // 'text' or 'image'
   cachePath: text('cache_path').notNull(), // ファイル/ディレクトリパス
+  formatType: text('format_type'), // テキスト抽出フォーマット識別子
+  includeImages: integer('include_images').default(0), // テキスト抽出時に画像を含めるか (0: false, 1: true)
   createdAt: text('created_at')
     .notNull()
     .default(sql`(current_timestamp)`),

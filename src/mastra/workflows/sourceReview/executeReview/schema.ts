@@ -10,6 +10,13 @@ export const uploadedFileSchema = z.object({
   imageData: z.array(z.string()).optional(),
 });
 
+// 抽出された画像のスキーマ
+export const extractedImageSchema = z.object({
+  referenceId: z.string(),
+  base64Data: z.string(),
+  mimeType: z.string(),
+});
+
 export const extractedDocumentSchema = z.object({
   id: z.string(), // テキスト抽出後、レビュー実行wf内でのみ使用される一時的なID
   cacheId: z.number().optional(),
@@ -20,4 +27,6 @@ export const extractedDocumentSchema = z.object({
   imageMode: z.enum(['merged', 'pages']).optional(),
   textContent: z.string().optional(),
   imageData: z.array(z.string()).optional(),
+  extractedImages: z.array(extractedImageSchema).optional(), // テキスト抽出時に取得された画像データ
+  formatType: z.string().optional(), // テキスト抽出フォーマット識別子
 });

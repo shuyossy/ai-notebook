@@ -140,7 +140,6 @@ const individualDocumentReviewWorkflow = createWorkflow({
 
         if (initData.originalDocument.textContent) {
           // --- テキストドキュメント ---
-          // 絵文字分断を避けたい場合は、下記を Array.from(...) に替える
           const text = initData.originalDocument.textContent;
           const overlapChars = 300;
 
@@ -148,22 +147,33 @@ const individualDocumentReviewWorkflow = createWorkflow({
 
           const chunks = ranges.map(({ start, end }) => text.slice(start, end));
 
+          // 元ドキュメントの画像データ
+          const allImages = initData.originalDocument.extractedImages || [];
+
           return {
             originalDocument: initData.originalDocument,
-            reviewInput: chunks.map((chunk, index) => ({
-              ...initData.reviewInput[0],
-              document: {
-                ...initData.originalDocument,
-                id: `${initData.originalDocument.id}_part${index + 1}`,
-                name: `${initData.originalDocument.name} (part ${index + 1}) (split into parts because the full content did not fit into context)`,
-                originalName:
-                  initData.originalDocument.originalName ||
-                  initData.originalDocument.name,
-                textContent: chunk,
-                totalChunks: splitCount,
-                chunkIndex: index,
-              },
-            })),
+            reviewInput: chunks.map((chunk, index) => {
+              // チャンク内のテキストに含まれる画像リンクのみを紐づけ
+              const chunkImages = allImages.filter((img) =>
+                chunk.includes(img.referenceId),
+              );
+              return {
+                ...initData.reviewInput[0],
+                document: {
+                  ...initData.originalDocument,
+                  id: `${initData.originalDocument.id}_part${index + 1}`,
+                  name: `${initData.originalDocument.name} (part ${index + 1}) (split into parts because the full content did not fit into context)`,
+                  originalName:
+                    initData.originalDocument.originalName ||
+                    initData.originalDocument.name,
+                  textContent: chunk,
+                  extractedImages:
+                    chunkImages.length > 0 ? chunkImages : undefined,
+                  totalChunks: splitCount,
+                  chunkIndex: index,
+                },
+              };
+            }),
             retryCount: nextRetryCount,
             status: 'success' as stepStatus,
             finishReason: 'content_length' as const,

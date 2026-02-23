@@ -1,0 +1,157 @@
+/**
+ * TextExtractorStrategyFactory のテスト
+ * @jest-environment node
+ */
+
+import { TextExtractorStrategyFactory } from '@/main/lib/textExtractor/TextExtractorStrategyFactory';
+
+describe('TextExtractorStrategyFactory', () => {
+  describe('getStrategiesInPriorityOrder', () => {
+    describe('正常系', () => {
+      it('.txt拡張子の戦略リストが正しいこと', () => {
+        const strategies =
+          TextExtractorStrategyFactory.getStrategiesInPriorityOrder('.txt');
+        expect(strategies).toHaveLength(1);
+        expect(strategies[0].getStrategyType()).toBe('txt-default');
+        expect(strategies[0].getFormatType()).toBe('txt-plain');
+      });
+
+      it('.doc拡張子の戦略リストが正しいこと', () => {
+        const strategies =
+          TextExtractorStrategyFactory.getStrategiesInPriorityOrder('.doc');
+        expect(strategies).toHaveLength(1);
+        expect(strategies[0].getStrategyType()).toBe('powershell-word');
+      });
+
+      it('.docx拡張子の戦略リストが正しいこと', () => {
+        const strategies =
+          TextExtractorStrategyFactory.getStrategiesInPriorityOrder('.docx');
+        expect(strategies).toHaveLength(1);
+        expect(strategies[0].getStrategyType()).toBe('powershell-word');
+      });
+
+      it('.xls拡張子の戦略リストが正しいこと', () => {
+        const strategies =
+          TextExtractorStrategyFactory.getStrategiesInPriorityOrder('.xls');
+        expect(strategies).toHaveLength(1);
+        expect(strategies[0].getStrategyType()).toBe('powershell-excel');
+      });
+
+      it('.xlsx拡張子の戦略リストが正しいこと', () => {
+        const strategies =
+          TextExtractorStrategyFactory.getStrategiesInPriorityOrder('.xlsx');
+        expect(strategies).toHaveLength(1);
+        expect(strategies[0].getStrategyType()).toBe('powershell-excel');
+      });
+
+      it('.ppt拡張子の戦略リストが正しいこと', () => {
+        const strategies =
+          TextExtractorStrategyFactory.getStrategiesInPriorityOrder('.ppt');
+        expect(strategies).toHaveLength(1);
+        expect(strategies[0].getStrategyType()).toBe('powershell-ppt');
+      });
+
+      it('.pptx拡張子の戦略リストが正しいこと', () => {
+        const strategies =
+          TextExtractorStrategyFactory.getStrategiesInPriorityOrder('.pptx');
+        expect(strategies).toHaveLength(1);
+        expect(strategies[0].getStrategyType()).toBe('powershell-ppt');
+      });
+
+      it('.pdf拡張子の戦略リストが正しいこと', () => {
+        const strategies =
+          TextExtractorStrategyFactory.getStrategiesInPriorityOrder('.pdf');
+        expect(strategies).toHaveLength(1);
+        expect(strategies[0].getStrategyType()).toBe('pdfjs-dist');
+      });
+
+      it('大文字拡張子でも正しい戦略が取得できること', () => {
+        const strategies =
+          TextExtractorStrategyFactory.getStrategiesInPriorityOrder('.TXT');
+        expect(strategies).toHaveLength(1);
+        expect(strategies[0].getStrategyType()).toBe('txt-default');
+      });
+
+      it('混合ケースの拡張子でも正しい戦略が取得できること', () => {
+        const strategies =
+          TextExtractorStrategyFactory.getStrategiesInPriorityOrder('.Docx');
+        expect(strategies).toHaveLength(1);
+        expect(strategies[0].getStrategyType()).toBe('powershell-word');
+      });
+    });
+
+    describe('異常系', () => {
+      it('サポートされていない拡張子の場合は空配列を返すこと', () => {
+        const strategies =
+          TextExtractorStrategyFactory.getStrategiesInPriorityOrder('.zip');
+        expect(strategies).toHaveLength(0);
+      });
+
+      it('空文字の拡張子の場合は空配列を返すこと', () => {
+        const strategies =
+          TextExtractorStrategyFactory.getStrategiesInPriorityOrder('');
+        expect(strategies).toHaveLength(0);
+      });
+    });
+  });
+
+  describe('getAvailableStrategies', () => {
+    describe('正常系', () => {
+      it('.txt拡張子の戦略タイプ一覧が正しいこと', () => {
+        const types =
+          TextExtractorStrategyFactory.getAvailableStrategies('.txt');
+        expect(types).toEqual(['txt-default']);
+      });
+
+      it('.pdf拡張子の戦略タイプ一覧が正しいこと', () => {
+        const types =
+          TextExtractorStrategyFactory.getAvailableStrategies('.pdf');
+        expect(types).toEqual(['pdfjs-dist']);
+      });
+
+      it('大文字拡張子でも正しい戦略タイプが取得できること', () => {
+        const types =
+          TextExtractorStrategyFactory.getAvailableStrategies('.PDF');
+        expect(types).toEqual(['pdfjs-dist']);
+      });
+    });
+
+    describe('異常系', () => {
+      it('サポートされていない拡張子の場合は空配列を返すこと', () => {
+        const types =
+          TextExtractorStrategyFactory.getAvailableStrategies('.jpg');
+        expect(types).toEqual([]);
+      });
+    });
+  });
+
+  describe('isSupported', () => {
+    describe('正常系', () => {
+      it.each([
+        '.txt',
+        '.doc',
+        '.docx',
+        '.xls',
+        '.xlsx',
+        '.ppt',
+        '.pptx',
+        '.pdf',
+      ])('%s はサポートされていること', (ext) => {
+        expect(TextExtractorStrategyFactory.isSupported(ext)).toBe(true);
+      });
+
+      it('大文字拡張子でもサポート判定ができること', () => {
+        expect(TextExtractorStrategyFactory.isSupported('.XLSX')).toBe(true);
+      });
+    });
+
+    describe('異常系', () => {
+      it.each(['.zip', '.jpg', '.png', '.html', '', '.csv'])(
+        '%s はサポートされていないこと',
+        (ext) => {
+          expect(TextExtractorStrategyFactory.isSupported(ext)).toBe(false);
+        },
+      );
+    });
+  });
+});

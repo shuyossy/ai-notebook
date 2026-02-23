@@ -24,7 +24,6 @@ jest.mock('@/main/main', () => {
 import { checklistExtractionWorkflow } from '@/mastra/workflows/sourceReview/checklistExtraction';
 import { mastra } from '@/mastra';
 import { getReviewRepository } from '@/adapter/db';
-import FileExtractor from '@/main/lib/fileExtractor';
 import { checkWorkflowResult } from '@/mastra/lib/workflowUtils';
 import type { IReviewRepository } from '@/main/service/port/repository';
 import type { UploadFile } from '@/types';
@@ -66,20 +65,13 @@ jest.mock('@/adapter/db', () => ({
     setSettings: jest.fn(),
   })),
 }));
-// FileExtractor のモック（最初に設定）
-const mockExtractText = jest.fn();
-const mockCleanCacheDirectory = jest.fn();
+// FileTextExtractor のモック
+const mockExtract = jest.fn();
 
-jest.mock('@/main/lib/fileExtractor', () => ({
-  __esModule: true,
-  default: {
-    get extractText() {
-      return mockExtractText;
-    },
-    get cleanCacheDirectory() {
-      return mockCleanCacheDirectory;
-    },
-  },
+jest.mock('@/main/lib/textExtractor/FileTextExtractor', () => ({
+  FileTextExtractor: jest.fn().mockImplementation(() => ({
+    extract: (...args: any[]) => mockExtract(...args),
+  })),
 }));
 // イベント発火のモック
 const mockPublishEvent = jest.fn();
@@ -141,9 +133,12 @@ describe('checklistExtractionWorkflow', () => {
     // getChecklistsのデフォルト値を設定（refinementステップでチェックリストがない場合は早期リターン）
     mockRepository.getChecklists.mockResolvedValue([]);
 
-    // FileExtractorのモック
-    mockExtractText.mockResolvedValue({
+    // FileTextExtractorのモック
+    mockExtract.mockResolvedValue({
       content: 'テストファイルの内容',
+      images: [],
+      strategyUsed: 'txt-default',
+      formatType: 'txt-plain',
     });
 
     // Mastraエージェントのモック
@@ -180,7 +175,7 @@ describe('checklistExtractionWorkflow', () => {
 
   afterEach(() => {
     jest.clearAllMocks();
-    mockExtractText.mockReset();
+    mockExtract.mockReset();
   });
 
   describe('チェックリストドキュメント（AI抽出）', () => {
@@ -302,7 +297,7 @@ describe('checklistExtractionWorkflow', () => {
         // Assert
         const checkResult = checkWorkflowResult(result);
         expect(checkResult.status).toBe('success');
-        expect(FileExtractor.extractText).toHaveBeenCalledTimes(2);
+        expect(mockExtract).toHaveBeenCalledTimes(2);
         expect(
           mockChecklistExtractionAgent.generateLegacy,
         ).toHaveBeenCalledTimes(1);
@@ -393,8 +388,8 @@ describe('checklistExtractionWorkflow', () => {
         const checkResult = checkWorkflowResult(result);
         expect(checkResult.status).toBe('success');
 
-        // FileExtractor.extractTextが呼ばれないことを確認
-        expect(FileExtractor.extractText).not.toHaveBeenCalled();
+        // mockExtractが呼ばれないことを確認
+        expect(mockExtract).not.toHaveBeenCalled();
 
         // generateLegacyに画像データが含まれることを確認
         const callArgs =

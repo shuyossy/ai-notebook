@@ -10,8 +10,31 @@ import { smallDocumentReviewExecutionStep } from './smallDocumentReviewStep';
 import { largeDocumentReviewWorkflow } from './largeDocumentReview';
 import { extractedDocumentSchema, uploadedFileSchema } from './schema';
 import { getReviewRepository } from '@/adapter/db';
+import { IReviewRepository } from '@/main/service/port/repository';
 
 const logger = getMainLogger();
+
+/**
+ * キャッシュからロードされたドキュメントにcacheIdを付与するヘルパー
+ * (textExtractionStepでキャッシュからロードした場合、cacheIdは未設定のため)
+ */
+async function assignCacheIdsToDocuments(
+  reviewRepository: IReviewRepository,
+  reviewHistoryId: string,
+  extractedDocuments:
+    | Array<{ cacheId?: number; [key: string]: unknown } | undefined>
+    | undefined,
+): Promise<void> {
+  const cachedDocuments =
+    await reviewRepository.getReviewDocumentCaches(reviewHistoryId);
+  for (let i = 0; i < (extractedDocuments || []).length; i++) {
+    const document = extractedDocuments![i];
+    if (!document) continue;
+    if (cachedDocuments[i]) {
+      document.cacheId = cachedDocuments[i].id;
+    }
+  }
+}
 
 // レビュー機能で利用する定数定義
 
@@ -183,6 +206,11 @@ export const executeReviewWorkflow = createWorkflow({
           processMode: document.processMode || 'text',
           textContent: document.textContent,
           imageData: document.imageData,
+          extractedImages: document.extractedImages,
+          formatType: document.formatType ?? null,
+          includeImages:
+            (document.extractedImages && document.extractedImages.length > 0) ||
+            false,
         });
         // キャッシュIDを付与
         document.cacheId = savedCache.id;
@@ -208,21 +236,11 @@ export const executeReviewWorkflow = createWorkflow({
       await reviewRepository.deleteAllReviewResults(initData.reviewHistoryId);
 
       // キャッシュからロードされたドキュメントにcacheIdを付与
-      // (textExtractionStepでキャッシュからロードした場合、cacheIdは未設定)
-      const cachedDocuments = await reviewRepository.getReviewDocumentCaches(
+      await assignCacheIdsToDocuments(
+        reviewRepository,
         initData.reviewHistoryId,
+        textExtractionResult.extractedDocuments,
       );
-      for (
-        let i = 0;
-        i < (textExtractionResult.extractedDocuments || []).length;
-        i++
-      ) {
-        const document = textExtractionResult.extractedDocuments![i];
-        if (!document) continue;
-        if (cachedDocuments[i]) {
-          document.cacheId = cachedDocuments[i].id;
-        }
-      }
     } else if (initData.retryMode === 'uncompleted-only') {
       // シナリオ3: 未完了チェックリストのみリトライ
       // 未完了チェックリストの大量ドキュメントキャッシュのみ削除
@@ -238,20 +256,11 @@ export const executeReviewWorkflow = createWorkflow({
       }
 
       // キャッシュからロードされたドキュメントにcacheIdを付与
-      const cachedDocuments = await reviewRepository.getReviewDocumentCaches(
+      await assignCacheIdsToDocuments(
+        reviewRepository,
         initData.reviewHistoryId,
+        textExtractionResult.extractedDocuments,
       );
-      for (
-        let i = 0;
-        i < (textExtractionResult.extractedDocuments || []).length;
-        i++
-      ) {
-        const document = textExtractionResult.extractedDocuments![i];
-        if (!document) continue;
-        if (cachedDocuments[i]) {
-          document.cacheId = cachedDocuments[i].id;
-        }
-      }
     }
 
     return classifyChecklistsResult.categories!.map((category) => {

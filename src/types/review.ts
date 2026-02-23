@@ -113,6 +113,9 @@ export interface ReviewDocumentCache {
   processMode: ProcessMode;
   textContent?: string; // processMode='text'の場合
   imageData?: string[]; // processMode='image'の場合
+  extractedImages?: ExtractedImage[]; // テキスト抽出時に取得された画像データ
+  formatType?: string | null; // テキスト抽出フォーマット識別子
+  includeImages?: boolean; // テキスト抽出時に画像を含めるか
   createdAt: string;
   updatedAt: string;
 }
@@ -125,6 +128,45 @@ export interface ReviewLargedocumentResultCache {
   totalChunks: number; // ドキュメント分割総数
   chunkIndex: number; // 何番目のチャンクか（0から始まる）
   individualFileName: string; // 分割後の個別ドキュメント名（"xxx (part 1)" など）
+}
+
+// テキスト抽出方式の識別子
+export type TextExtractorType =
+  | 'txt-default'
+  | 'powershell-word'
+  | 'powershell-excel'
+  | 'powershell-ppt'
+  | 'pdfjs-dist';
+
+// テキスト抽出フォーマット識別子
+export type TextExtractionFormatType =
+  | 'txt-plain'
+  | 'docx-plain'
+  | 'xlsx-csv-v1'
+  | 'pptx-plain'
+  | 'pdf-text-v1'
+  | 'image-pages';
+
+// テキスト抽出時に取得された画像データ
+export interface ExtractedImage {
+  /** テキスト内の参照ID（例: "image_1.png"） */
+  referenceId: string;
+  /** Base64エンコード済み画像データ（Data URL形式） */
+  base64Data: string;
+  /** MIMEタイプ */
+  mimeType: string;
+}
+
+// ファイルテキスト抽出結果
+export interface FileTextExtractionResult {
+  /** 抽出されたテキスト（画像リンク埋め込み済み） */
+  content: string;
+  /** 抽出された画像データ */
+  images: ExtractedImage[];
+  /** 使用された抽出方式 */
+  strategyUsed: TextExtractorType;
+  /** テキスト抽出フォーマット識別子 */
+  formatType: TextExtractionFormatType;
 }
 
 // CSV/Excelインポートデータの型定義

@@ -26,7 +26,10 @@ import type {
 import { AppError, internalError } from '@/main/lib/error';
 import { repositoryError } from '@/main/lib/error';
 import { IReviewRepository } from '@/main/service/port/repository';
-import { ReviewCacheHelper } from '@/main/lib/utils/reviewCacheHelper';
+import {
+  ReviewCacheHelper,
+  CacheLoadError,
+} from '@/main/lib/utils/reviewCacheHelper';
 
 /**
  * Drizzle ORM を使用したレビューリポジトリの実装
@@ -555,6 +558,8 @@ export class DrizzleReviewRepository implements IReviewRepository {
       reviewHistoryId: entity.reviewHistoryId,
       fileName: entity.fileName,
       processMode: entity.processMode as ProcessMode,
+      formatType: entity.formatType ?? null,
+      includeImages: entity.includeImages === 1,
       createdAt: entity.createdAt,
       updatedAt: entity.updatedAt,
     };
@@ -565,7 +570,15 @@ export class DrizzleReviewRepository implements IReviewRepository {
         const textContent = await ReviewCacheHelper.loadTextCache(
           entity.cachePath,
         );
-        return { ...base, textContent };
+        // テキストモード時は画像キャッシュも読み込み
+        const extractedImages =
+          await ReviewCacheHelper.loadExtractedImagesCache(entity.cachePath);
+        return {
+          ...base,
+          textContent,
+          extractedImages:
+            extractedImages.length > 0 ? extractedImages : undefined,
+        };
       } else if (entity.processMode === 'image') {
         const imageData = await ReviewCacheHelper.loadImageCache(
           entity.cachePath,
@@ -576,7 +589,7 @@ export class DrizzleReviewRepository implements IReviewRepository {
       throw repositoryError('無効なprocessModeです', null);
     } catch (error) {
       // キャッシュファイル読み込みエラーの場合は専用のエラーメッセージを返す
-      if (error instanceof Error && error.message.includes('Failed to load')) {
+      if (error instanceof CacheLoadError) {
         throw internalError({
           expose: true,
           messageCode: 'REVIEW_DOCUMENT_CACHE_NOT_FOUND',
@@ -602,6 +615,8 @@ export class DrizzleReviewRepository implements IReviewRepository {
           fileName: cache.fileName,
           processMode: cache.processMode,
           cachePath: '', // 一時的に空文字列を設定
+          formatType: cache.formatType ?? null,
+          includeImages: cache.includeImages ? 1 : 0,
         })
         .returning();
 
@@ -609,11 +624,21 @@ export class DrizzleReviewRepository implements IReviewRepository {
       let cachePath: string;
 
       if (cache.processMode === 'text' && cache.textContent) {
-        cachePath = await ReviewCacheHelper.saveTextCache(
-          cache.reviewHistoryId,
-          entity.id,
-          cache.textContent,
-        );
+        // 画像データがある場合は画像込みで保存
+        if (cache.extractedImages && cache.extractedImages.length > 0) {
+          cachePath = await ReviewCacheHelper.saveTextWithImagesCache(
+            cache.reviewHistoryId,
+            entity.id,
+            cache.textContent,
+            cache.extractedImages,
+          );
+        } else {
+          cachePath = await ReviewCacheHelper.saveTextCache(
+            cache.reviewHistoryId,
+            entity.id,
+            cache.textContent,
+          );
+        }
       } else if (cache.processMode === 'image' && cache.imageData) {
         cachePath = await ReviewCacheHelper.saveImageCache(
           cache.reviewHistoryId,

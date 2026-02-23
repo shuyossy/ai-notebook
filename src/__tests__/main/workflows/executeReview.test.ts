@@ -24,7 +24,6 @@ jest.mock('@/main/main', () => {
 import { executeReviewWorkflow } from '@/mastra/workflows/sourceReview/executeReview';
 import { mastra } from '@/mastra';
 import { getReviewRepository } from '@/adapter/db';
-import FileExtractor from '@/main/lib/fileExtractor';
 import { checkWorkflowResult } from '@/mastra/lib/workflowUtils';
 import type { IReviewRepository } from '@/main/service/port/repository/IReviewRepository';
 import type { UploadFile, ReviewChecklist } from '@/types';
@@ -65,20 +64,13 @@ jest.mock('@/adapter/db', () => ({
   })),
 }));
 
-// FileExtractor のモック
-const mockExtractText = jest.fn();
-const mockCleanCacheDirectory = jest.fn();
+// FileTextExtractor のモック
+const mockExtract = jest.fn();
 
-jest.mock('@/main/lib/fileExtractor', () => ({
-  __esModule: true,
-  default: {
-    get extractText() {
-      return mockExtractText;
-    },
-    get cleanCacheDirectory() {
-      return mockCleanCacheDirectory;
-    },
-  },
+jest.mock('@/main/lib/textExtractor/FileTextExtractor', () => ({
+  FileTextExtractor: jest.fn().mockImplementation(() => ({
+    extract: (...args: any[]) => mockExtract(...args),
+  })),
 }));
 
 // イベント発火のモック
@@ -144,9 +136,12 @@ describe('executeReviewWorkflow', () => {
 
     (getReviewRepository as jest.Mock).mockReturnValue(mockRepository);
 
-    // FileExtractorのモック
-    mockExtractText.mockResolvedValue({
+    // FileTextExtractorのモック
+    mockExtract.mockResolvedValue({
       content: 'テストファイルの内容',
+      images: [],
+      strategyUsed: 'txt-default',
+      formatType: 'txt-plain',
     });
 
     // Mastraエージェントのモック
@@ -183,7 +178,7 @@ describe('executeReviewWorkflow', () => {
 
   afterEach(() => {
     jest.clearAllMocks();
-    mockExtractText.mockReset();
+    mockExtract.mockReset();
   });
 
   describe('少量ドキュメントモード（small）', () => {
@@ -396,7 +391,7 @@ describe('executeReviewWorkflow', () => {
         // Assert
         const checkResult = checkWorkflowResult(result);
         expect(checkResult.status).toBe('success');
-        expect(FileExtractor.extractText).toHaveBeenCalledTimes(2);
+        expect(mockExtract).toHaveBeenCalledTimes(2);
         expect(mockRepository.createReviewDocumentCache).toHaveBeenCalledTimes(
           2,
         );
@@ -504,7 +499,7 @@ describe('executeReviewWorkflow', () => {
         // Assert
         const checkResult = checkWorkflowResult(result);
         expect(checkResult.status).toBe('success');
-        expect(FileExtractor.extractText).not.toHaveBeenCalled();
+        expect(mockExtract).not.toHaveBeenCalled();
 
         // reviewExecuteAgentに画像データが渡されることを確認
         const callArgs = mockReviewExecuteAgent.generateLegacy.mock.calls[0];
@@ -810,7 +805,7 @@ describe('executeReviewWorkflow', () => {
           },
         ];
 
-        mockExtractText.mockRejectedValue(
+        mockExtract.mockRejectedValue(
           internalError({
             expose: true,
             messageCode: 'PLAIN_MESSAGE',
@@ -1158,7 +1153,7 @@ describe('executeReviewWorkflow', () => {
         // Assert
         const checkResult = checkWorkflowResult(result);
         expect(checkResult.status).toBe('success');
-        expect(FileExtractor.extractText).not.toHaveBeenCalled();
+        expect(mockExtract).not.toHaveBeenCalled();
 
         // reviewExecuteAgentに統合画像データが渡されることを確認
         const callArgs = mockReviewExecuteAgent.generateLegacy.mock.calls[0];
@@ -1376,7 +1371,7 @@ describe('executeReviewWorkflow', () => {
           mockRepository.deleteReviewLargedocumentResultCachesByChecklistIds,
         ).not.toHaveBeenCalled();
         expect(mockRepository.upsertReviewResult).toHaveBeenCalled();
-        expect(mockExtractText).not.toHaveBeenCalled();
+        expect(mockExtract).not.toHaveBeenCalled();
       });
 
       it('retryMode=uncompleted-onlyで未済チェックリストのみを再実行できること', async () => {
@@ -1461,7 +1456,7 @@ describe('executeReviewWorkflow', () => {
         );
         expect(mockRepository.getChecklists).not.toHaveBeenCalled();
         expect(mockRepository.upsertReviewResult).toHaveBeenCalled();
-        expect(mockExtractText).not.toHaveBeenCalled();
+        expect(mockExtract).not.toHaveBeenCalled();
       });
     });
   });
@@ -1669,8 +1664,11 @@ describe('executeReviewWorkflow', () => {
         ];
 
         mockRepository.getChecklists.mockResolvedValue(checklists);
-        mockExtractText.mockResolvedValue({
+        mockExtract.mockResolvedValue({
           content: 'A'.repeat(10000), // 長いテキスト
+          images: [],
+          strategyUsed: 'txt-default',
+          formatType: 'txt-plain',
         });
         let cacheIdCounter = 1;
         mockRepository.createReviewDocumentCache.mockImplementation(
@@ -2174,7 +2172,7 @@ describe('executeReviewWorkflow', () => {
         // Assert
         const checkResult = checkWorkflowResult(result);
         expect(checkResult.status).toBe('success');
-        expect(FileExtractor.extractText).not.toHaveBeenCalled();
+        expect(mockExtract).not.toHaveBeenCalled();
 
         // individualDocumentReviewAgentに統合画像データが渡されることを確認
         const callArgs =
@@ -2234,8 +2232,11 @@ describe('executeReviewWorkflow', () => {
         ];
 
         mockRepository.getChecklists.mockResolvedValue(checklists);
-        mockExtractText.mockResolvedValueOnce({
+        mockExtract.mockResolvedValueOnce({
           content: 'テキストドキュメントの内容',
+          images: [],
+          strategyUsed: 'txt-default',
+          formatType: 'txt-plain',
         });
 
         mockRepository.createReviewDocumentCache
@@ -2302,7 +2303,7 @@ describe('executeReviewWorkflow', () => {
         // Assert
         const checkResult = checkWorkflowResult(result);
         expect(checkResult.status).toBe('success');
-        expect(mockExtractText).toHaveBeenCalledTimes(1);
+        expect(mockExtract).toHaveBeenCalledTimes(1);
         expect(mockRepository.createReviewDocumentCache).toHaveBeenCalledTimes(
           2,
         );
@@ -2404,7 +2405,7 @@ describe('executeReviewWorkflow', () => {
         // Assert
         const checkResult = checkWorkflowResult(result);
         expect(checkResult.status).toBe('success');
-        expect(mockExtractText).not.toHaveBeenCalled();
+        expect(mockExtract).not.toHaveBeenCalled();
         expect(mockRepository.createReviewDocumentCache).not.toHaveBeenCalled();
         expect(
           mockRepository.deleteReviewLargedocumentResultCaches,
@@ -2519,7 +2520,7 @@ describe('executeReviewWorkflow', () => {
         // Assert
         const checkResult = checkWorkflowResult(result);
         expect(checkResult.status).toBe('success');
-        expect(mockExtractText).not.toHaveBeenCalled();
+        expect(mockExtract).not.toHaveBeenCalled();
         expect(mockRepository.createReviewDocumentCache).not.toHaveBeenCalled();
         expect(
           mockRepository.deleteReviewLargedocumentResultCachesByChecklistIds,
@@ -3361,8 +3362,11 @@ describe('executeReviewWorkflow', () => {
         },
       ];
 
-      mockExtractText.mockResolvedValue({
+      mockExtract.mockResolvedValue({
         content: '',
+        images: [],
+        strategyUsed: 'txt-default',
+        formatType: 'txt-plain',
       });
 
       mockRepository.getChecklists.mockResolvedValue(checklists);

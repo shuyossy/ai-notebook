@@ -77,7 +77,7 @@ export const individualDocumentReviewStep = createStep({
       const reviewAgent = mastra.getAgent('individualDocumentReviewAgent');
 
       // ドキュメント内容を構築
-      const message = await createCombinedMessageFromExtractedDocument(
+      const message = createCombinedMessageFromExtractedDocument(
         [document],
         'Please review this document against the provided checklist items',
       );

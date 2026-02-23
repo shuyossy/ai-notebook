@@ -45,7 +45,7 @@ export const smallDocumentReviewExecutionStep = createStep({
       const reviewAgent = mastra.getAgent('reviewExecuteAgent');
 
       // 複数ファイルを統合してメッセージを作成（一度だけ）
-      const message = await createCombinedMessageFromExtractedDocument(
+      const message = createCombinedMessageFromExtractedDocument(
         documents,
         'Please review this document against the provided checklist items',
       );

@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { stepStatus } from '../../types';
 import { baseStepOutputSchema } from '../../schema';
 import { normalizeUnknownError, internalError } from '@/main/lib/error';
-import FileExtractor from '@/main/lib/fileExtractor';
+import { FileTextExtractor } from '@/main/lib/textExtractor/FileTextExtractor';
 import { getMainLogger } from '@/main/lib/logger';
 import { extractedDocumentSchema, uploadedFileSchema } from './schema';
 import { getReviewRepository } from '@/adapter/db';
@@ -71,6 +71,8 @@ export const textExtractionStep = createStep({
             textContent: cache.textContent,
             imageData: cache.imageData,
             imageMode: undefined, // キャッシュにはimageModeが保存されていない
+            extractedImages: cache.extractedImages,
+            formatType: cache.formatType ?? undefined,
           });
         }
 
@@ -81,6 +83,8 @@ export const textExtractionStep = createStep({
       }
 
       // 初回レビュー: ファイルからテキスト抽出
+      const fileTextExtractor = new FileTextExtractor();
+
       // 各ファイルからテキストを抽出
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
@@ -115,18 +119,21 @@ export const textExtractionStep = createStep({
             imageData: file.imageData,
           });
         } else {
-          // テキスト抽出処理
-          const { content } = await FileExtractor.extractText(file.path);
+          // FileTextExtractorを使用したテキスト抽出処理
+          const result = await fileTextExtractor.extract(file.path, file.name);
 
           extractedDocuments.push({
             id,
             name: file.name,
             path: file.path,
             type: file.type,
-            textContent: content,
+            textContent: result.content,
             processMode: file.processMode as 'text' | 'image' | undefined,
             imageMode: file.imageMode as 'merged' | 'pages' | undefined,
             imageData: undefined,
+            extractedImages:
+              result.images.length > 0 ? result.images : undefined,
+            formatType: result.formatType,
           });
         }
       }

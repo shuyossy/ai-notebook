@@ -39,4 +39,5 @@ export const template = {
   AI_MESSAGE_TOO_LARGE: `AIへの入力データが大きすぎます。入力データを減らしてください。`,
   AI_INVALID_RESPONSE: `AIから予期せぬ応答が返されました`,
   REVIEW_DOCUMENT_CACHE_NOT_FOUND: `レビュー時にアップロードしたドキュメント情報が失われています。レビューを再実行してください`,
+  FILE_TEXT_EXTRACTION_STRATEGY_ERROR: `テキスト抽出戦略でエラーが発生しました。別の戦略にフォールバックします`,
 } as const;

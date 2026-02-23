@@ -1,6 +1,6 @@
 import { format } from 'date-fns';
-import { ReviewChecklist, UploadFile } from '@/types';
-import FileExtractor from '@/main/lib/fileExtractor';
+import { ReviewChecklist, UploadFile, ExtractedImage } from '@/types';
+import { FileTextExtractor } from '@/main/lib/textExtractor/FileTextExtractor';
 
 export function generateReviewTitle(sourceTitles: string[] = []): string {
   const now = format(new Date(), 'yyyy-MM-dd HH:mm:ss');
@@ -98,6 +98,9 @@ export async function createCombinedMessage(
     },
   ];
 
+  // FileTextExtractorはステートレスなので1インスタンスで十分
+  const fileTextExtractor = new FileTextExtractor();
+
   // ファイル選択順に処理
   for (let i = 0; i < files.length; i++) {
     const file = files[i];
@@ -130,16 +133,27 @@ export async function createCombinedMessage(
         });
       }
     } else {
-      // テキスト抽出処理
-      const { content: fileContent } = await FileExtractor.extractText(
-        file.path,
-      );
+      // FileTextExtractorを使用したテキスト抽出処理
+      const result = await fileTextExtractor.extract(file.path, file.name);
 
       // ファイルごとに個別のcontent要素として追加
       content.push({
         type: 'text',
-        text: `# ${file.name}\n${fileContent}`,
+        text: `# ${file.name}\n${result.content}`,
       });
+
+      // 抽出された画像があれば追加
+      for (const image of result.images) {
+        content.push({
+          type: 'text',
+          text: `[Image: ${image.referenceId}]`,
+        });
+        content.push({
+          type: 'image',
+          image: image.base64Data,
+          mimeType: image.mimeType,
+        });
+      }
     }
   }
 
@@ -157,6 +171,7 @@ export interface ExtractedDocument {
   type: string;
   textContent?: string;
   imageData?: string[];
+  extractedImages?: ExtractedImage[];
 }
 
 /**
@@ -218,6 +233,21 @@ export function createCombinedMessageFromExtractedDocument(
         type: 'text',
         text: `# ${document.name}\n${document.textContent}`,
       });
+
+      // 抽出された画像があれば追加
+      if (document.extractedImages && document.extractedImages.length > 0) {
+        for (const image of document.extractedImages) {
+          content.push({
+            type: 'text',
+            text: `[Image: ${image.referenceId}]`,
+          });
+          content.push({
+            type: 'image',
+            image: image.base64Data,
+            mimeType: image.mimeType,
+          });
+        }
+      }
     }
   }
 
