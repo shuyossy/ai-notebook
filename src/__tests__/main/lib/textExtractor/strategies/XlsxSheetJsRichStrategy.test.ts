@@ -1,0 +1,1052 @@
+/**
+ * XlsxSheetJsRichStrategy のテスト
+ * @jest-environment node
+ */
+
+// ---------- モック定義（importより前に配置） ----------
+
+// fs/promises モック
+const mockReadFile = jest.fn();
+jest.mock('fs/promises', () => ({
+  readFile: (...args: any[]) => mockReadFile(...args),
+}));
+
+// logger モック（electron依存を回避）
+const mockLoggerWarn = jest.fn();
+const mockLoggerDebug = jest.fn();
+jest.mock('@/main/lib/logger', () => ({
+  getMainLogger: () => ({
+    warn: (...args: any[]) => mockLoggerWarn(...args),
+    debug: (...args: any[]) => mockLoggerDebug(...args),
+    info: jest.fn(),
+    error: jest.fn(),
+  }),
+}));
+
+// XlsxDrawingParser クラスモック
+const mockParseRelationships = jest.fn();
+const mockResolveRelativePath = jest.fn();
+const mockParseImages = jest.fn();
+const mockParseShapeTexts = jest.fn();
+const mockParseConnectors = jest.fn();
+const mockResolveImagePaths = jest.fn();
+
+// XlsxDrawingParser ユーティリティ関数モック
+const mockFormatImageTag = jest.fn();
+const mockFormatDrawingTagFull = jest.fn();
+const mockFormatDrawingTagShort = jest.fn();
+const mockGetArrowSymbol = jest.fn();
+const mockResolveConnectorEndpoints = jest.fn();
+
+jest.mock('@/main/lib/textExtractor/XlsxDrawingParser', () => ({
+  DRAWING_RELATIONSHIP_TYPE:
+    'http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing',
+  XlsxDrawingParser: jest.fn().mockImplementation(() => ({
+    parseRelationships: (...args: any[]) => mockParseRelationships(...args),
+    resolveRelativePath: (...args: any[]) => mockResolveRelativePath(...args),
+    parseImages: (...args: any[]) => mockParseImages(...args),
+    parseShapeTexts: (...args: any[]) => mockParseShapeTexts(...args),
+    parseConnectors: (...args: any[]) => mockParseConnectors(...args),
+    resolveImagePaths: (...args: any[]) => mockResolveImagePaths(...args),
+  })),
+  formatImageTag: (...args: any[]) => mockFormatImageTag(...args),
+  formatDrawingTagFull: (...args: any[]) => mockFormatDrawingTagFull(...args),
+  formatDrawingTagShort: (...args: any[]) => mockFormatDrawingTagShort(...args),
+  getArrowSymbol: (...args: any[]) => mockGetArrowSymbol(...args),
+  resolveConnectorEndpoints: (...args: any[]) =>
+    mockResolveConnectorEndpoints(...args),
+}));
+
+// mimeUtils モック
+const mockGetMimeFromExt = jest.fn();
+jest.mock('@/main/lib/textExtractor/mimeUtils', () => ({
+  getMimeFromExt: (...args: any[]) => mockGetMimeFromExt(...args),
+}));
+
+// JSZip モック
+const mockZipFile = jest.fn();
+const mockZipFolder = jest.fn();
+const mockZipLoadAsync = jest.fn();
+jest.mock('jszip', () => ({
+  __esModule: true,
+  default: {
+    loadAsync: (...args: any[]) => mockZipLoadAsync(...args),
+  },
+}));
+
+// XLSX モック
+const mockXlsxRead = jest.fn();
+const mockSheetToCsv = jest.fn();
+const mockDecodeRange = jest.fn();
+jest.mock('xlsx', () => ({
+  read: (...args: any[]) => mockXlsxRead(...args),
+  utils: {
+    sheet_to_csv: (...args: any[]) => mockSheetToCsv(...args),
+    decode_range: (...args: any[]) => mockDecodeRange(...args),
+  },
+}));
+
+// cheerio モック（buildSheetFileMappingFromWorkbook内で利用）
+const mockCheerioLoad = jest.fn();
+jest.mock('cheerio', () => ({
+  load: (...args: any[]) => mockCheerioLoad(...args),
+}));
+
+// ---------- テスト対象のインポート ----------
+import { XlsxSheetJsRichStrategy } from '@/main/lib/textExtractor/strategies/XlsxSheetJsRichStrategy';
+import { TextExtractorStrategyError } from '@/main/service/port/textExtractor';
+
+// ---------- ヘルパー ----------
+
+/** 最小限のJSZipオブジェクトを生成するヘルパー */
+function createMockZip(overrides?: { file?: jest.Mock; folder?: jest.Mock }) {
+  const file = overrides?.file ?? mockZipFile;
+  const folder = overrides?.folder ?? mockZipFolder;
+  return { file, folder };
+}
+
+/** forEach付きフォルダオブジェクトのヘルパー */
+function createMockFolder(files: { relativePath: string; dir: boolean }[]) {
+  return {
+    forEach: (cb: (relativePath: string, file: { dir: boolean }) => void) => {
+      for (const f of files) {
+        cb(f.relativePath, { dir: f.dir });
+      }
+    },
+  };
+}
+
+/** ZIP内のasyncを返すファイルオブジェクトのヘルパー */
+function createMockZipFileEntry(
+  content: string | Buffer,
+  _type: 'string' | 'nodebuffer' = 'string',
+) {
+  return {
+    async: jest.fn((t: string) => {
+      if (t === 'string') {
+        return Promise.resolve(
+          typeof content === 'string' ? content : content.toString(),
+        );
+      }
+      if (t === 'nodebuffer') {
+        return Promise.resolve(
+          Buffer.isBuffer(content) ? content : Buffer.from(content),
+        );
+      }
+      return Promise.resolve(content);
+    }),
+    dir: false,
+  };
+}
+
+// ---------- テスト ----------
+
+describe('XlsxSheetJsRichStrategy', () => {
+  let strategy: XlsxSheetJsRichStrategy;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    strategy = new XlsxSheetJsRichStrategy();
+
+    // デフォルトのモック設定
+    mockGetMimeFromExt.mockReturnValue('image/png');
+    mockFormatImageTag.mockImplementation((refId: string, cellRange?: any) =>
+      cellRange ? `![image at A1-C3](${refId})` : `![image](${refId})`,
+    );
+    mockFormatDrawingTagFull.mockImplementation((id: string) => `[${id}]`);
+    mockFormatDrawingTagShort.mockImplementation((id: string) => `[${id}]`);
+    mockGetArrowSymbol.mockReturnValue('->');
+    mockDecodeRange.mockReturnValue({ s: { r: 0 }, e: { r: 10 } });
+  });
+
+  describe('メタ情報', () => {
+    it('サポートする拡張子が.xlsxであること', () => {
+      expect(strategy.getSupportedExtensions()).toEqual(['.xlsx']);
+    });
+
+    it('戦略タイプがxlsx-sheetjs-richであること', () => {
+      expect(strategy.getStrategyType()).toBe('xlsx-sheetjs-rich');
+    });
+
+    it('フォーマットタイプがxlsx-rich-v1であること', () => {
+      expect(strategy.getFormatType()).toBe('xlsx-rich-v1');
+    });
+  });
+
+  describe('extract', () => {
+    describe('正常系', () => {
+      it('基本的なCSV抽出が成功すること（描画情報なし）', async () => {
+        // Arrange
+        const fileBuffer = Buffer.from('dummy-xlsx');
+        mockReadFile.mockResolvedValue(fileBuffer);
+
+        // JSZip: 描画なしの最小構成
+        const zip = createMockZip();
+        zip.folder.mockReturnValue(null); // シートリレーションフォルダなし
+        zip.file.mockReturnValue(null);
+        mockZipLoadAsync.mockResolvedValue(zip);
+
+        // XLSX
+        const sheetData = { '!ref': 'A1:C3' };
+        mockXlsxRead.mockReturnValue({
+          SheetNames: ['Sheet1'],
+          Sheets: { Sheet1: sheetData },
+        });
+        mockSheetToCsv.mockReturnValue('A,B,C\n1,2,3\n,,');
+        mockDecodeRange.mockReturnValue({ s: { r: 0 }, e: { r: 2 } });
+
+        // Act
+        const result = await strategy.extract('/path/to/test.xlsx');
+
+        // Assert
+        expect(result.content).toContain('#sheet:Sheet1');
+        expect(result.content).toContain('[row:1] A,B,C');
+        expect(result.content).toContain('[row:2] 1,2,3');
+        expect(result.images).toEqual([]);
+        expect(mockReadFile).toHaveBeenCalledWith('/path/to/test.xlsx');
+      });
+
+      it('画像付きシートの抽出が成功すること', async () => {
+        // Arrange
+        const fileBuffer = Buffer.from('dummy-xlsx');
+        mockReadFile.mockResolvedValue(fileBuffer);
+
+        // JSZip
+        const relsFileEntry = createMockZipFileEntry(
+          '<Relationships><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing1.xml"/></Relationships>',
+        );
+        const drawingFileEntry = createMockZipFileEntry('<drawing/>');
+        const drawingRelsFileEntry = createMockZipFileEntry(
+          '<Relationships><Relationship Id="rId1" Target="../media/image1.png"/></Relationships>',
+        );
+        const imageFileEntry = createMockZipFileEntry(
+          Buffer.from('PNG_DATA'),
+          'nodebuffer',
+        );
+
+        const zipFileMap: Record<string, any> = {
+          'xl/worksheets/_rels/sheet1.xml.rels': relsFileEntry,
+          'xl/drawings/drawing1.xml': drawingFileEntry,
+          'xl/drawings/_rels/drawing1.xml.rels': drawingRelsFileEntry,
+          'xl/media/image1.png': imageFileEntry,
+          'xl/workbook.xml': null,
+          'xl/_rels/workbook.xml.rels': null,
+        };
+        const zip = {
+          file: jest.fn((path: string) => zipFileMap[path] ?? null),
+          folder: jest.fn(() =>
+            createMockFolder([{ relativePath: 'sheet1.xml.rels', dir: false }]),
+          ),
+        };
+        mockZipLoadAsync.mockResolvedValue(zip);
+
+        // XLSX
+        const sheetData = { '!ref': 'A1:C5' };
+        mockXlsxRead.mockReturnValue({
+          SheetNames: ['Sheet1'],
+          Sheets: { Sheet1: sheetData },
+        });
+        mockSheetToCsv.mockReturnValue('A,B,C\n1,2,3');
+        mockDecodeRange.mockReturnValue({ s: { r: 0 }, e: { r: 1 } });
+
+        // DrawingParser
+        mockParseRelationships.mockImplementation((xml: string) => {
+          if (xml.includes('drawing')) {
+            return [
+              {
+                rId: 'rId1',
+                target: '../drawings/drawing1.xml',
+                type: 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing',
+              },
+            ];
+          }
+          return [{ rId: 'rId1', target: '../media/image1.png' }];
+        });
+        mockResolveRelativePath.mockReturnValue('xl/drawings/drawing1.xml');
+        mockParseImages.mockReturnValue([
+          {
+            rId: 'rId1',
+            rowIndex: 0,
+            cellRange: { fromCol: 0, fromRow: 0, toCol: 2, toRow: 2 },
+          },
+        ]);
+        mockResolveImagePaths.mockReturnValue(
+          new Map([['rId1', 'xl/media/image1.png']]),
+        );
+        mockParseShapeTexts.mockReturnValue([]);
+        mockParseConnectors.mockReturnValue([]);
+        mockFormatImageTag.mockReturnValue('![image at A1-C3](image_1.png)');
+
+        // Act
+        const result = await strategy.extract('/path/to/test.xlsx');
+
+        // Assert
+        expect(result.content).toContain('#sheet:Sheet1');
+        expect(result.content).toContain('![image at A1-C3](image_1.png)');
+        expect(result.images).toHaveLength(1);
+        expect(result.images[0].referenceId).toBe('image_1.png');
+        expect(result.images[0].mimeType).toBe('image/png');
+        expect(result.images[0].base64Data).toContain('data:image/png;base64,');
+      });
+
+      it('図形テキスト付きシートの抽出が成功すること', async () => {
+        // Arrange
+        const fileBuffer = Buffer.from('dummy-xlsx');
+        mockReadFile.mockResolvedValue(fileBuffer);
+
+        // JSZip
+        const relsFileEntry = createMockZipFileEntry('<rels/>');
+        const drawingFileEntry = createMockZipFileEntry('<drawing/>');
+
+        const zipFileMap: Record<string, any> = {
+          'xl/worksheets/_rels/sheet1.xml.rels': relsFileEntry,
+          'xl/drawings/drawing1.xml': drawingFileEntry,
+          'xl/workbook.xml': null,
+          'xl/_rels/workbook.xml.rels': null,
+        };
+        const zip = {
+          file: jest.fn((path: string) => zipFileMap[path] ?? null),
+          folder: jest.fn(() =>
+            createMockFolder([{ relativePath: 'sheet1.xml.rels', dir: false }]),
+          ),
+        };
+        mockZipLoadAsync.mockResolvedValue(zip);
+
+        // XLSX
+        const sheetData = { '!ref': 'A1:C3' };
+        mockXlsxRead.mockReturnValue({
+          SheetNames: ['Sheet1'],
+          Sheets: { Sheet1: sheetData },
+        });
+        mockSheetToCsv.mockReturnValue('A,B,C');
+        mockDecodeRange.mockReturnValue({ s: { r: 0 }, e: { r: 0 } });
+
+        // DrawingParser
+        mockParseRelationships.mockReturnValue([
+          {
+            rId: 'rId1',
+            target: '../drawings/drawing1.xml',
+            type: 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing',
+          },
+        ]);
+        mockResolveRelativePath.mockReturnValue('xl/drawings/drawing1.xml');
+        mockParseImages.mockReturnValue([]);
+        mockResolveImagePaths.mockReturnValue(new Map());
+        mockParseShapeTexts.mockReturnValue([
+          {
+            text: 'Shape Text',
+            rowIndex: 0,
+            metadata: {
+              presetGeometry: 'rect',
+              cellRange: { fromCol: 0, fromRow: 0, toCol: 2, toRow: 2 },
+            },
+            drawingObjectId: 5,
+          },
+        ]);
+        mockParseConnectors.mockReturnValue([]);
+        mockFormatDrawingTagFull.mockReturnValue('[shape_1:rect cell:A1-C3]');
+
+        // Act
+        const result = await strategy.extract('/path/to/test.xlsx');
+
+        // Assert
+        expect(result.content).toContain(
+          '[shape_1:rect cell:A1-C3] Shape Text',
+        );
+        expect(result.images).toEqual([]);
+      });
+
+      it('複数行の図形テキストが正しくフォーマットされること', async () => {
+        // Arrange
+        const fileBuffer = Buffer.from('dummy-xlsx');
+        mockReadFile.mockResolvedValue(fileBuffer);
+
+        const relsFileEntry = createMockZipFileEntry('<rels/>');
+        const drawingFileEntry = createMockZipFileEntry('<drawing/>');
+
+        const zipFileMap: Record<string, any> = {
+          'xl/worksheets/_rels/sheet1.xml.rels': relsFileEntry,
+          'xl/drawings/drawing1.xml': drawingFileEntry,
+          'xl/workbook.xml': null,
+          'xl/_rels/workbook.xml.rels': null,
+        };
+        const zip = {
+          file: jest.fn((path: string) => zipFileMap[path] ?? null),
+          folder: jest.fn(() =>
+            createMockFolder([{ relativePath: 'sheet1.xml.rels', dir: false }]),
+          ),
+        };
+        mockZipLoadAsync.mockResolvedValue(zip);
+
+        const sheetData = { '!ref': 'A1:A1' };
+        mockXlsxRead.mockReturnValue({
+          SheetNames: ['Sheet1'],
+          Sheets: { Sheet1: sheetData },
+        });
+        mockSheetToCsv.mockReturnValue('Data');
+        mockDecodeRange.mockReturnValue({ s: { r: 0 }, e: { r: 0 } });
+
+        mockParseRelationships.mockReturnValue([
+          {
+            rId: 'rId1',
+            target: '../drawings/drawing1.xml',
+            type: 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing',
+          },
+        ]);
+        mockResolveRelativePath.mockReturnValue('xl/drawings/drawing1.xml');
+        mockParseImages.mockReturnValue([]);
+        mockResolveImagePaths.mockReturnValue(new Map());
+        mockParseShapeTexts.mockReturnValue([
+          {
+            text: 'Line1\nLine2\nLine3',
+            rowIndex: 0,
+            metadata: { presetGeometry: 'rect' },
+          },
+        ]);
+        mockParseConnectors.mockReturnValue([]);
+        mockFormatDrawingTagFull.mockReturnValue('[shape_1:rect]');
+        mockFormatDrawingTagShort.mockReturnValue('[shape_1]');
+
+        // Act
+        const result = await strategy.extract('/path/to/test.xlsx');
+
+        // Assert
+        expect(result.content).toContain('[shape_1:rect] Line1');
+        expect(result.content).toContain('[shape_1] Line2');
+        expect(result.content).toContain('[shape_1] Line3');
+      });
+
+      it('コネクタ付きシートの抽出が成功すること', async () => {
+        // Arrange
+        const fileBuffer = Buffer.from('dummy-xlsx');
+        mockReadFile.mockResolvedValue(fileBuffer);
+
+        const relsFileEntry = createMockZipFileEntry('<rels/>');
+        const drawingFileEntry = createMockZipFileEntry('<drawing/>');
+
+        const zipFileMap: Record<string, any> = {
+          'xl/worksheets/_rels/sheet1.xml.rels': relsFileEntry,
+          'xl/drawings/drawing1.xml': drawingFileEntry,
+          'xl/workbook.xml': null,
+          'xl/_rels/workbook.xml.rels': null,
+        };
+        const zip = {
+          file: jest.fn((path: string) => zipFileMap[path] ?? null),
+          folder: jest.fn(() =>
+            createMockFolder([{ relativePath: 'sheet1.xml.rels', dir: false }]),
+          ),
+        };
+        mockZipLoadAsync.mockResolvedValue(zip);
+
+        const sheetData = { '!ref': 'A1:C3' };
+        mockXlsxRead.mockReturnValue({
+          SheetNames: ['Sheet1'],
+          Sheets: { Sheet1: sheetData },
+        });
+        mockSheetToCsv.mockReturnValue('A,B,C');
+        mockDecodeRange.mockReturnValue({ s: { r: 0 }, e: { r: 0 } });
+
+        mockParseRelationships.mockReturnValue([
+          {
+            rId: 'rId1',
+            target: '../drawings/drawing1.xml',
+            type: 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing',
+          },
+        ]);
+        mockResolveRelativePath.mockReturnValue('xl/drawings/drawing1.xml');
+        mockParseImages.mockReturnValue([]);
+        mockResolveImagePaths.mockReturnValue(new Map());
+        // 先に図形を登録してdrawingObjectIdをマッピングに登録
+        mockParseShapeTexts.mockReturnValue([
+          {
+            text: 'Start',
+            rowIndex: 0,
+            metadata: { presetGeometry: 'rect' },
+            drawingObjectId: 10,
+          },
+          {
+            text: 'End',
+            rowIndex: 0,
+            metadata: { presetGeometry: 'rect' },
+            drawingObjectId: 20,
+          },
+        ]);
+        mockParseConnectors.mockReturnValue([
+          {
+            rowIndex: 0,
+            metadata: { presetGeometry: 'straightConnector1' },
+            startConnection: { drawingObjectId: 10, connectionSiteIndex: 0 },
+            endConnection: { drawingObjectId: 20, connectionSiteIndex: 0 },
+            headEndType: 'none',
+            tailEndType: 'triangle',
+          },
+        ]);
+        mockGetArrowSymbol.mockReturnValue('->');
+        mockFormatDrawingTagFull.mockImplementation(
+          (id: string, _meta?: any, connPart?: string) =>
+            connPart ? `[${id} ${connPart}]` : `[${id}]`,
+        );
+
+        // Act
+        const result = await strategy.extract('/path/to/test.xlsx');
+
+        // Assert
+        // shape_1(Start), shape_2(End), connector_3のコネクタが生成される
+        expect(result.content).toContain('#sheet:Sheet1');
+        expect(mockGetArrowSymbol).toHaveBeenCalledWith('none', 'triangle');
+        expect(mockFormatDrawingTagFull).toHaveBeenCalledWith(
+          'connector_3',
+          { presetGeometry: 'straightConnector1' },
+          'shape_1->shape_2',
+        );
+      });
+
+      it('コネクタの接続先が未解決の場合セル範囲から算出されること', async () => {
+        // Arrange
+        const fileBuffer = Buffer.from('dummy-xlsx');
+        mockReadFile.mockResolvedValue(fileBuffer);
+
+        const relsFileEntry = createMockZipFileEntry('<rels/>');
+        const drawingFileEntry = createMockZipFileEntry('<drawing/>');
+
+        const zipFileMap: Record<string, any> = {
+          'xl/worksheets/_rels/sheet1.xml.rels': relsFileEntry,
+          'xl/drawings/drawing1.xml': drawingFileEntry,
+          'xl/workbook.xml': null,
+          'xl/_rels/workbook.xml.rels': null,
+        };
+        const zip = {
+          file: jest.fn((path: string) => zipFileMap[path] ?? null),
+          folder: jest.fn(() =>
+            createMockFolder([{ relativePath: 'sheet1.xml.rels', dir: false }]),
+          ),
+        };
+        mockZipLoadAsync.mockResolvedValue(zip);
+
+        const sheetData = { '!ref': 'A1:C3' };
+        mockXlsxRead.mockReturnValue({
+          SheetNames: ['Sheet1'],
+          Sheets: { Sheet1: sheetData },
+        });
+        mockSheetToCsv.mockReturnValue('A,B,C');
+        mockDecodeRange.mockReturnValue({ s: { r: 0 }, e: { r: 0 } });
+
+        mockParseRelationships.mockReturnValue([
+          {
+            rId: 'rId1',
+            target: '../drawings/drawing1.xml',
+            type: 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing',
+          },
+        ]);
+        mockResolveRelativePath.mockReturnValue('xl/drawings/drawing1.xml');
+        mockParseImages.mockReturnValue([]);
+        mockResolveImagePaths.mockReturnValue(new Map());
+        mockParseShapeTexts.mockReturnValue([]);
+        mockParseConnectors.mockReturnValue([
+          {
+            rowIndex: 0,
+            metadata: {
+              presetGeometry: 'straightConnector1',
+              cellRange: { fromCol: 0, fromRow: 2, toCol: 3, toRow: 5 },
+            },
+            headEndType: 'none',
+            tailEndType: 'triangle',
+          },
+        ]);
+        mockGetArrowSymbol.mockReturnValue('->');
+        mockResolveConnectorEndpoints.mockReturnValue(['A3', 'D6']);
+        mockFormatDrawingTagFull.mockImplementation(
+          (id: string, _meta?: any, connPart?: string) =>
+            connPart ? `[${id} ${connPart}]` : `[${id}]`,
+        );
+
+        // Act
+        await strategy.extract('/path/to/test.xlsx');
+
+        // Assert
+        expect(mockResolveConnectorEndpoints).toHaveBeenCalledWith(
+          { fromCol: 0, fromRow: 2, toCol: 3, toRow: 5 },
+          undefined,
+          undefined,
+        );
+        expect(mockFormatDrawingTagFull).toHaveBeenCalledWith(
+          'connector_1',
+          {
+            presetGeometry: 'straightConnector1',
+            cellRange: { fromCol: 0, fromRow: 2, toCol: 3, toRow: 5 },
+          },
+          'A3->D6',
+        );
+      });
+
+      it('コネクタの片方のみ接続先が解決できる場合、未解決側がセル範囲から算出されること', async () => {
+        // Arrange
+        const fileBuffer = Buffer.from('dummy-xlsx');
+        mockReadFile.mockResolvedValue(fileBuffer);
+
+        const relsFileEntry = createMockZipFileEntry('<rels/>');
+        const drawingFileEntry = createMockZipFileEntry('<drawing/>');
+
+        const zipFileMap: Record<string, any> = {
+          'xl/worksheets/_rels/sheet1.xml.rels': relsFileEntry,
+          'xl/drawings/drawing1.xml': drawingFileEntry,
+          'xl/workbook.xml': null,
+          'xl/_rels/workbook.xml.rels': null,
+        };
+        const zip = {
+          file: jest.fn((path: string) => zipFileMap[path] ?? null),
+          folder: jest.fn(() =>
+            createMockFolder([{ relativePath: 'sheet1.xml.rels', dir: false }]),
+          ),
+        };
+        mockZipLoadAsync.mockResolvedValue(zip);
+
+        const sheetData = { '!ref': 'A1:C3' };
+        mockXlsxRead.mockReturnValue({
+          SheetNames: ['Sheet1'],
+          Sheets: { Sheet1: sheetData },
+        });
+        mockSheetToCsv.mockReturnValue('A,B,C');
+        mockDecodeRange.mockReturnValue({ s: { r: 0 }, e: { r: 0 } });
+
+        mockParseRelationships.mockReturnValue([
+          {
+            rId: 'rId1',
+            target: '../drawings/drawing1.xml',
+            type: 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing',
+          },
+        ]);
+        mockResolveRelativePath.mockReturnValue('xl/drawings/drawing1.xml');
+        mockParseImages.mockReturnValue([]);
+        mockResolveImagePaths.mockReturnValue(new Map());
+        // shape_1を登録（drawingObjectId=10）
+        mockParseShapeTexts.mockReturnValue([
+          {
+            text: 'Start',
+            rowIndex: 0,
+            metadata: { presetGeometry: 'rect' },
+            drawingObjectId: 10,
+          },
+        ]);
+        // startConnectionのみ解決可能、endConnectionは未設定
+        mockParseConnectors.mockReturnValue([
+          {
+            rowIndex: 0,
+            metadata: {
+              presetGeometry: 'straightConnector1',
+              cellRange: { fromCol: 0, fromRow: 2, toCol: 3, toRow: 5 },
+            },
+            startConnection: { drawingObjectId: 10, connectionSiteIndex: 0 },
+            headEndType: 'none',
+            tailEndType: 'triangle',
+          },
+        ]);
+        mockGetArrowSymbol.mockReturnValue('->');
+        mockResolveConnectorEndpoints.mockReturnValue(['A3', 'D6']);
+        mockFormatDrawingTagFull.mockImplementation(
+          (id: string, _meta?: any, connPart?: string) =>
+            connPart ? `[${id} ${connPart}]` : `[${id}]`,
+        );
+
+        // Act
+        await strategy.extract('/path/to/test.xlsx');
+
+        // Assert
+        // startLabel=shape_1（解決済み）、endLabel=D6（セル範囲から）
+        expect(mockFormatDrawingTagFull).toHaveBeenCalledWith(
+          'connector_2',
+          {
+            presetGeometry: 'straightConnector1',
+            cellRange: { fromCol: 0, fromRow: 2, toCol: 3, toRow: 5 },
+          },
+          'shape_1->D6',
+        );
+      });
+
+      it('[row:N]マーカーが正しく付与されること', async () => {
+        // Arrange
+        const fileBuffer = Buffer.from('dummy-xlsx');
+        mockReadFile.mockResolvedValue(fileBuffer);
+
+        const zip = createMockZip();
+        zip.folder.mockReturnValue(null);
+        zip.file.mockReturnValue(null);
+        mockZipLoadAsync.mockResolvedValue(zip);
+
+        const sheetData = { '!ref': 'A3:C5' };
+        mockXlsxRead.mockReturnValue({
+          SheetNames: ['Sheet1'],
+          Sheets: { Sheet1: sheetData },
+        });
+        // rangeStartRowが2（A3の0ベース行インデックス）
+        mockDecodeRange.mockReturnValue({ s: { r: 2 }, e: { r: 4 } });
+        mockSheetToCsv.mockReturnValue('X,Y,Z\n1,2,3\n4,5,6');
+
+        // Act
+        const result = await strategy.extract('/path/to/test.xlsx');
+
+        // Assert
+        // rangeStartRow=2なので、行番号はExcel行3,4,5になる
+        expect(result.content).toContain('[row:3] X,Y,Z');
+        expect(result.content).toContain('[row:4] 1,2,3');
+        expect(result.content).toContain('[row:5] 4,5,6');
+      });
+
+      it('空行にはマーカーが付与されないこと', async () => {
+        // Arrange
+        const fileBuffer = Buffer.from('dummy-xlsx');
+        mockReadFile.mockResolvedValue(fileBuffer);
+
+        const zip = createMockZip();
+        zip.folder.mockReturnValue(null);
+        zip.file.mockReturnValue(null);
+        mockZipLoadAsync.mockResolvedValue(zip);
+
+        const sheetData = { '!ref': 'A1:C3' };
+        mockXlsxRead.mockReturnValue({
+          SheetNames: ['Sheet1'],
+          Sheets: { Sheet1: sheetData },
+        });
+        mockDecodeRange.mockReturnValue({ s: { r: 0 }, e: { r: 2 } });
+        // 2行目がカンマのみの空行
+        mockSheetToCsv.mockReturnValue('A,B,C\n,,\n1,2,3');
+
+        // Act
+        const result = await strategy.extract('/path/to/test.xlsx');
+
+        // Assert
+        const lines = result.content.split('\n');
+        // #sheet:Sheet1, [row:1] A,B,C, (空行), [row:3] 1,2,3
+        expect(lines).toContain('[row:1] A,B,C');
+        expect(lines).toContain(',,');
+        expect(lines).toContain('[row:3] 1,2,3');
+        // 空行には[row:N]が付与されていないことを確認
+        expect(lines.find((l) => l.includes('[row:2]'))).toBeUndefined();
+      });
+
+      it('シートにsheetデータがnullの場合スキップされること', async () => {
+        // Arrange
+        const fileBuffer = Buffer.from('dummy-xlsx');
+        mockReadFile.mockResolvedValue(fileBuffer);
+
+        const zip = createMockZip();
+        zip.folder.mockReturnValue(null);
+        zip.file.mockReturnValue(null);
+        mockZipLoadAsync.mockResolvedValue(zip);
+
+        mockXlsxRead.mockReturnValue({
+          SheetNames: ['Sheet1', 'Sheet2'],
+          Sheets: { Sheet1: null, Sheet2: { '!ref': 'A1:A1' } },
+        });
+        mockDecodeRange.mockReturnValue({ s: { r: 0 }, e: { r: 0 } });
+        mockSheetToCsv.mockReturnValue('Data');
+
+        // Act
+        const result = await strategy.extract('/path/to/test.xlsx');
+
+        // Assert
+        expect(result.content).not.toContain('#sheet:Sheet1');
+        expect(result.content).toContain('#sheet:Sheet2');
+      });
+
+      it('!refが未設定の場合rangeStartRowが0になること', async () => {
+        // Arrange
+        const fileBuffer = Buffer.from('dummy-xlsx');
+        mockReadFile.mockResolvedValue(fileBuffer);
+
+        const zip = createMockZip();
+        zip.folder.mockReturnValue(null);
+        zip.file.mockReturnValue(null);
+        mockZipLoadAsync.mockResolvedValue(zip);
+
+        // !refなしのシート
+        const sheetData = {};
+        mockXlsxRead.mockReturnValue({
+          SheetNames: ['Sheet1'],
+          Sheets: { Sheet1: sheetData },
+        });
+        mockSheetToCsv.mockReturnValue('A,B');
+
+        // Act
+        const result = await strategy.extract('/path/to/test.xlsx');
+
+        // Assert
+        // rangeStartRow=0のため、行番号は1から開始
+        expect(result.content).toContain('[row:1] A,B');
+        // decode_rangeは呼ばれないこと
+        expect(mockDecodeRange).not.toHaveBeenCalled();
+      });
+
+      it('描画要素がCSV範囲外の場合末尾に追記されること', async () => {
+        // Arrange
+        const fileBuffer = Buffer.from('dummy-xlsx');
+        mockReadFile.mockResolvedValue(fileBuffer);
+
+        const relsFileEntry = createMockZipFileEntry('<rels/>');
+        const drawingFileEntry = createMockZipFileEntry('<drawing/>');
+
+        const zipFileMap: Record<string, any> = {
+          'xl/worksheets/_rels/sheet1.xml.rels': relsFileEntry,
+          'xl/drawings/drawing1.xml': drawingFileEntry,
+          'xl/workbook.xml': null,
+          'xl/_rels/workbook.xml.rels': null,
+        };
+        const zip = {
+          file: jest.fn((path: string) => zipFileMap[path] ?? null),
+          folder: jest.fn(() =>
+            createMockFolder([{ relativePath: 'sheet1.xml.rels', dir: false }]),
+          ),
+        };
+        mockZipLoadAsync.mockResolvedValue(zip);
+
+        const sheetData = { '!ref': 'A1:A1' };
+        mockXlsxRead.mockReturnValue({
+          SheetNames: ['Sheet1'],
+          Sheets: { Sheet1: sheetData },
+        });
+        mockSheetToCsv.mockReturnValue('A');
+        mockDecodeRange.mockReturnValue({ s: { r: 0 }, e: { r: 0 } });
+
+        mockParseRelationships.mockReturnValue([
+          {
+            rId: 'rId1',
+            target: '../drawings/drawing1.xml',
+            type: 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing',
+          },
+        ]);
+        mockResolveRelativePath.mockReturnValue('xl/drawings/drawing1.xml');
+        mockParseImages.mockReturnValue([]);
+        mockResolveImagePaths.mockReturnValue(new Map());
+        // rowIndex=100 はCSV範囲外
+        mockParseShapeTexts.mockReturnValue([
+          {
+            text: 'OutOfRange',
+            rowIndex: 100,
+            metadata: { presetGeometry: 'rect' },
+          },
+        ]);
+        mockParseConnectors.mockReturnValue([]);
+        mockFormatDrawingTagFull.mockReturnValue('[shape_1:rect]');
+
+        // Act
+        const result = await strategy.extract('/path/to/test.xlsx');
+
+        // Assert
+        const lines = result.content.split('\n');
+        // CSV範囲外の描画要素が末尾に配置されること
+        const lastNonEmptyLine = lines.filter((l) => l.trim()).pop();
+        expect(lastNonEmptyLine).toBe('[shape_1:rect] OutOfRange');
+      });
+
+      it('描画情報ありだがdrawingsByRowが空の場合、CSV行マーカーのみ出力されること', async () => {
+        // Arrange
+        const fileBuffer = Buffer.from('dummy-xlsx');
+        mockReadFile.mockResolvedValue(fileBuffer);
+
+        const relsFileEntry = createMockZipFileEntry('<rels/>');
+        const drawingFileEntry = createMockZipFileEntry('<drawing/>');
+
+        const zipFileMap: Record<string, any> = {
+          'xl/worksheets/_rels/sheet1.xml.rels': relsFileEntry,
+          'xl/drawings/drawing1.xml': drawingFileEntry,
+          'xl/workbook.xml': null,
+          'xl/_rels/workbook.xml.rels': null,
+        };
+        const zip = {
+          file: jest.fn((path: string) => zipFileMap[path] ?? null),
+          folder: jest.fn(() =>
+            createMockFolder([{ relativePath: 'sheet1.xml.rels', dir: false }]),
+          ),
+        };
+        mockZipLoadAsync.mockResolvedValue(zip);
+
+        const sheetData = { '!ref': 'A1:A1' };
+        mockXlsxRead.mockReturnValue({
+          SheetNames: ['Sheet1'],
+          Sheets: { Sheet1: sheetData },
+        });
+        mockSheetToCsv.mockReturnValue('A');
+        mockDecodeRange.mockReturnValue({ s: { r: 0 }, e: { r: 0 } });
+
+        mockParseRelationships.mockReturnValue([
+          {
+            rId: 'rId1',
+            target: '../drawings/drawing1.xml',
+            type: 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing',
+          },
+        ]);
+        mockResolveRelativePath.mockReturnValue('xl/drawings/drawing1.xml');
+        // 画像・図形・コネクタ全て空
+        mockParseImages.mockReturnValue([]);
+        mockResolveImagePaths.mockReturnValue(new Map());
+        mockParseShapeTexts.mockReturnValue([]);
+        mockParseConnectors.mockReturnValue([]);
+
+        // Act
+        const result = await strategy.extract('/path/to/test.xlsx');
+
+        // Assert
+        // 描画要素がないためCSVに[row:N]マーカーが付与される
+        expect(result.content).toContain('[row:1] A');
+      });
+    });
+
+    describe('異常系', () => {
+      it('ファイル読み込みエラーはそのまま伝播すること', async () => {
+        // Arrange
+        const ioError = new Error('ENOENT: no such file');
+        mockReadFile.mockRejectedValue(ioError);
+
+        // Act & Assert
+        await expect(
+          strategy.extract('/path/to/nonexistent.xlsx'),
+        ).rejects.toThrow(ioError);
+      });
+
+      it('画像解析失敗時はTextExtractorStrategyErrorでフォールバックすること', async () => {
+        // Arrange
+        const fileBuffer = Buffer.from('dummy-xlsx');
+        mockReadFile.mockResolvedValue(fileBuffer);
+
+        const relsFileEntry = createMockZipFileEntry('<rels/>');
+        const drawingFileEntry = createMockZipFileEntry('<drawing/>');
+
+        const zipFileMap: Record<string, any> = {
+          'xl/worksheets/_rels/sheet1.xml.rels': relsFileEntry,
+          'xl/drawings/drawing1.xml': drawingFileEntry,
+          'xl/workbook.xml': null,
+          'xl/_rels/workbook.xml.rels': null,
+        };
+        const zip = {
+          file: jest.fn((path: string) => zipFileMap[path] ?? null),
+          folder: jest.fn(() =>
+            createMockFolder([{ relativePath: 'sheet1.xml.rels', dir: false }]),
+          ),
+        };
+        mockZipLoadAsync.mockResolvedValue(zip);
+
+        const sheetData = { '!ref': 'A1:C3' };
+        mockXlsxRead.mockReturnValue({
+          SheetNames: ['Sheet1'],
+          Sheets: { Sheet1: sheetData },
+        });
+
+        mockParseRelationships.mockReturnValue([
+          {
+            rId: 'rId1',
+            target: '../drawings/drawing1.xml',
+            type: 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing',
+          },
+        ]);
+        mockResolveRelativePath.mockReturnValue('xl/drawings/drawing1.xml');
+        // 画像解析でエラー発生
+        mockParseImages.mockImplementation(() => {
+          throw new Error('画像解析エラー');
+        });
+        mockParseShapeTexts.mockReturnValue([]);
+        mockParseConnectors.mockReturnValue([]);
+
+        // Act & Assert
+        await expect(strategy.extract('/path/to/test.xlsx')).rejects.toThrow(
+          TextExtractorStrategyError,
+        );
+        expect(mockLoggerWarn).toHaveBeenCalled();
+      });
+
+      it('図形解析失敗時はTextExtractorStrategyErrorでフォールバックすること', async () => {
+        // Arrange
+        const fileBuffer = Buffer.from('dummy-xlsx');
+        mockReadFile.mockResolvedValue(fileBuffer);
+
+        const relsFileEntry = createMockZipFileEntry('<rels/>');
+        const drawingFileEntry = createMockZipFileEntry('<drawing/>');
+
+        const zipFileMap: Record<string, any> = {
+          'xl/worksheets/_rels/sheet1.xml.rels': relsFileEntry,
+          'xl/drawings/drawing1.xml': drawingFileEntry,
+          'xl/workbook.xml': null,
+          'xl/_rels/workbook.xml.rels': null,
+        };
+        const zip = {
+          file: jest.fn((path: string) => zipFileMap[path] ?? null),
+          folder: jest.fn(() =>
+            createMockFolder([{ relativePath: 'sheet1.xml.rels', dir: false }]),
+          ),
+        };
+        mockZipLoadAsync.mockResolvedValue(zip);
+
+        const sheetData = { '!ref': 'A1:C3' };
+        mockXlsxRead.mockReturnValue({
+          SheetNames: ['Sheet1'],
+          Sheets: { Sheet1: sheetData },
+        });
+
+        mockParseRelationships.mockReturnValue([
+          {
+            rId: 'rId1',
+            target: '../drawings/drawing1.xml',
+            type: 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing',
+          },
+        ]);
+        mockResolveRelativePath.mockReturnValue('xl/drawings/drawing1.xml');
+        mockParseImages.mockReturnValue([]);
+        mockResolveImagePaths.mockReturnValue(new Map());
+        // 図形解析でエラー発生
+        mockParseShapeTexts.mockImplementation(() => {
+          throw new Error('図形解析エラー');
+        });
+
+        // Act & Assert
+        await expect(strategy.extract('/path/to/test.xlsx')).rejects.toThrow(
+          TextExtractorStrategyError,
+        );
+        expect(mockLoggerWarn).toHaveBeenCalled();
+      });
+
+      it('ZIP解析エラーはTextExtractorStrategyErrorでラップされること', async () => {
+        // Arrange
+        const fileBuffer = Buffer.from('dummy-xlsx');
+        mockReadFile.mockResolvedValue(fileBuffer);
+        mockZipLoadAsync.mockRejectedValue(new Error('Invalid ZIP'));
+
+        // Act & Assert
+        await expect(strategy.extract('/path/to/test.xlsx')).rejects.toThrow(
+          TextExtractorStrategyError,
+        );
+      });
+
+      it('XLSX.readエラーはTextExtractorStrategyErrorでラップされること', async () => {
+        // Arrange
+        const fileBuffer = Buffer.from('dummy-xlsx');
+        mockReadFile.mockResolvedValue(fileBuffer);
+
+        const zip = createMockZip();
+        mockZipLoadAsync.mockResolvedValue(zip);
+        mockXlsxRead.mockImplementation(() => {
+          throw new Error('Invalid XLSX');
+        });
+
+        // Act & Assert
+        await expect(strategy.extract('/path/to/test.xlsx')).rejects.toThrow(
+          TextExtractorStrategyError,
+        );
+      });
+
+      it('TextExtractorStrategyErrorはそのまま再スローされること', async () => {
+        // Arrange
+        const fileBuffer = Buffer.from('dummy-xlsx');
+        mockReadFile.mockResolvedValue(fileBuffer);
+
+        const originalError = new TextExtractorStrategyError(
+          'xlsx-sheetjs-rich',
+        );
+        mockZipLoadAsync.mockRejectedValue(originalError);
+
+        // Act & Assert
+        await expect(strategy.extract('/path/to/test.xlsx')).rejects.toBe(
+          originalError,
+        );
+      });
+    });
+  });
+});

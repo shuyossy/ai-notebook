@@ -136,7 +136,11 @@ export type TextExtractorType =
   | 'powershell-word'
   | 'powershell-excel'
   | 'powershell-ppt'
-  | 'pdfjs-dist';
+  | 'pdfjs-dist'
+  | 'docx-mammoth-rich'
+  | 'xlsx-sheetjs-rich'
+  | 'pptx-rich'
+  | 'pdfjs-rich';
 
 // テキスト抽出フォーマット識別子
 export type TextExtractionFormatType =
@@ -145,7 +149,11 @@ export type TextExtractionFormatType =
   | 'xlsx-csv-v1'
   | 'pptx-plain'
   | 'pdf-text-v1'
-  | 'image-pages';
+  | 'image-pages'
+  | 'docx-rich-v1'
+  | 'xlsx-rich-v1'
+  | 'pptx-rich-v1'
+  | 'pdf-rich-v1';
 
 // テキスト抽出時に取得された画像データ
 export interface ExtractedImage {

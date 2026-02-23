@@ -3,6 +3,22 @@
  * @jest-environment node
  */
 
+// Electron モックを最初に適用
+jest.mock(
+  'electron',
+  () => require('../../test-utils/mockElectron').mockElectron,
+);
+jest.mock(
+  'electron-store',
+  () => require('../../test-utils/mockElectron').default,
+);
+jest.mock('@/main/main', () => {
+  const path = require('path');
+  const os = require('os');
+  const testAppData = path.join(os.tmpdir(), 'ai-notebook-test');
+  return { getCustomAppDataDir: jest.fn(() => testAppData) };
+});
+
 import { TextExtractorStrategyFactory } from '@/main/lib/textExtractor/TextExtractorStrategyFactory';
 
 describe('TextExtractorStrategyFactory', () => {
@@ -23,11 +39,14 @@ describe('TextExtractorStrategyFactory', () => {
         expect(strategies[0].getStrategyType()).toBe('powershell-word');
       });
 
-      it('.docx拡張子の戦略リストが正しいこと', () => {
+      it('.docx拡張子の戦略リストが正しいこと（リッチ優先→フォールバック）', () => {
         const strategies =
           TextExtractorStrategyFactory.getStrategiesInPriorityOrder('.docx');
-        expect(strategies).toHaveLength(1);
-        expect(strategies[0].getStrategyType()).toBe('powershell-word');
+        expect(strategies).toHaveLength(2);
+        expect(strategies[0].getStrategyType()).toBe('docx-mammoth-rich');
+        expect(strategies[0].getFormatType()).toBe('docx-rich-v1');
+        expect(strategies[1].getStrategyType()).toBe('powershell-word');
+        expect(strategies[1].getFormatType()).toBe('docx-plain');
       });
 
       it('.xls拡張子の戦略リストが正しいこと', () => {
@@ -37,11 +56,14 @@ describe('TextExtractorStrategyFactory', () => {
         expect(strategies[0].getStrategyType()).toBe('powershell-excel');
       });
 
-      it('.xlsx拡張子の戦略リストが正しいこと', () => {
+      it('.xlsx拡張子の戦略リストが正しいこと（リッチ優先→フォールバック）', () => {
         const strategies =
           TextExtractorStrategyFactory.getStrategiesInPriorityOrder('.xlsx');
-        expect(strategies).toHaveLength(1);
-        expect(strategies[0].getStrategyType()).toBe('powershell-excel');
+        expect(strategies).toHaveLength(2);
+        expect(strategies[0].getStrategyType()).toBe('xlsx-sheetjs-rich');
+        expect(strategies[0].getFormatType()).toBe('xlsx-rich-v1');
+        expect(strategies[1].getStrategyType()).toBe('powershell-excel');
+        expect(strategies[1].getFormatType()).toBe('xlsx-csv-v1');
       });
 
       it('.ppt拡張子の戦略リストが正しいこと', () => {
@@ -51,18 +73,24 @@ describe('TextExtractorStrategyFactory', () => {
         expect(strategies[0].getStrategyType()).toBe('powershell-ppt');
       });
 
-      it('.pptx拡張子の戦略リストが正しいこと', () => {
+      it('.pptx拡張子の戦略リストが正しいこと（リッチ優先→フォールバック）', () => {
         const strategies =
           TextExtractorStrategyFactory.getStrategiesInPriorityOrder('.pptx');
-        expect(strategies).toHaveLength(1);
-        expect(strategies[0].getStrategyType()).toBe('powershell-ppt');
+        expect(strategies).toHaveLength(2);
+        expect(strategies[0].getStrategyType()).toBe('pptx-rich');
+        expect(strategies[0].getFormatType()).toBe('pptx-rich-v1');
+        expect(strategies[1].getStrategyType()).toBe('powershell-ppt');
+        expect(strategies[1].getFormatType()).toBe('pptx-plain');
       });
 
-      it('.pdf拡張子の戦略リストが正しいこと', () => {
+      it('.pdf拡張子の戦略リストが正しいこと（リッチ優先→フォールバック）', () => {
         const strategies =
           TextExtractorStrategyFactory.getStrategiesInPriorityOrder('.pdf');
-        expect(strategies).toHaveLength(1);
-        expect(strategies[0].getStrategyType()).toBe('pdfjs-dist');
+        expect(strategies).toHaveLength(2);
+        expect(strategies[0].getStrategyType()).toBe('pdfjs-rich');
+        expect(strategies[0].getFormatType()).toBe('pdf-rich-v1');
+        expect(strategies[1].getStrategyType()).toBe('pdfjs-dist');
+        expect(strategies[1].getFormatType()).toBe('pdf-text-v1');
       });
 
       it('大文字拡張子でも正しい戦略が取得できること', () => {
@@ -75,8 +103,8 @@ describe('TextExtractorStrategyFactory', () => {
       it('混合ケースの拡張子でも正しい戦略が取得できること', () => {
         const strategies =
           TextExtractorStrategyFactory.getStrategiesInPriorityOrder('.Docx');
-        expect(strategies).toHaveLength(1);
-        expect(strategies[0].getStrategyType()).toBe('powershell-word');
+        expect(strategies).toHaveLength(2);
+        expect(strategies[0].getStrategyType()).toBe('docx-mammoth-rich');
       });
     });
 
@@ -103,16 +131,34 @@ describe('TextExtractorStrategyFactory', () => {
         expect(types).toEqual(['txt-default']);
       });
 
-      it('.pdf拡張子の戦略タイプ一覧が正しいこと', () => {
+      it('.pdf拡張子の戦略タイプ一覧が正しいこと（リッチ＋プレーン）', () => {
         const types =
           TextExtractorStrategyFactory.getAvailableStrategies('.pdf');
-        expect(types).toEqual(['pdfjs-dist']);
+        expect(types).toEqual(['pdfjs-rich', 'pdfjs-dist']);
+      });
+
+      it('.docx拡張子の戦略タイプ一覧が正しいこと（リッチ＋プレーン）', () => {
+        const types =
+          TextExtractorStrategyFactory.getAvailableStrategies('.docx');
+        expect(types).toEqual(['docx-mammoth-rich', 'powershell-word']);
+      });
+
+      it('.xlsx拡張子の戦略タイプ一覧が正しいこと（リッチ＋プレーン）', () => {
+        const types =
+          TextExtractorStrategyFactory.getAvailableStrategies('.xlsx');
+        expect(types).toEqual(['xlsx-sheetjs-rich', 'powershell-excel']);
+      });
+
+      it('.pptx拡張子の戦略タイプ一覧が正しいこと（リッチ＋プレーン）', () => {
+        const types =
+          TextExtractorStrategyFactory.getAvailableStrategies('.pptx');
+        expect(types).toEqual(['pptx-rich', 'powershell-ppt']);
       });
 
       it('大文字拡張子でも正しい戦略タイプが取得できること', () => {
         const types =
           TextExtractorStrategyFactory.getAvailableStrategies('.PDF');
-        expect(types).toEqual(['pdfjs-dist']);
+        expect(types).toEqual(['pdfjs-rich', 'pdfjs-dist']);
       });
     });
 

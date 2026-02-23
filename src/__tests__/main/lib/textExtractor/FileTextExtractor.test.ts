@@ -19,7 +19,7 @@ jest.mock('@/main/main', () => {
   return { getCustomAppDataDir: jest.fn(() => testAppData) };
 });
 
-// extractionUtils のモック
+// extractionUtils のモック（プレーン戦略が内部で使用）
 const mockExtractFromTxt = jest.fn();
 const mockExtractViaPowerShell = jest.fn();
 const mockExtractFromPdf = jest.fn();
@@ -32,6 +32,57 @@ jest.mock('@/main/lib/textExtractor/extractionUtils', () => ({
   DEFAULT_POST_PROCESS_POLICY: {},
 }));
 
+// リッチ戦略のモック（各戦略の extract メソッドを制御可能にする）
+const mockDocxRichExtract = jest.fn();
+const mockXlsxRichExtract = jest.fn();
+const mockPptxRichExtract = jest.fn();
+const mockPdfRichExtract = jest.fn();
+
+jest.mock(
+  '@/main/lib/textExtractor/strategies/DocxMammothRichStrategy',
+  () => ({
+    DocxMammothRichStrategy: jest.fn().mockImplementation(() => ({
+      getSupportedExtensions: () => ['.docx'],
+      getStrategyType: () => 'docx-mammoth-rich',
+      getFormatType: () => 'docx-rich-v1',
+      extract: mockDocxRichExtract,
+    })),
+  }),
+);
+
+jest.mock(
+  '@/main/lib/textExtractor/strategies/XlsxSheetJsRichStrategy',
+  () => ({
+    XlsxSheetJsRichStrategy: jest.fn().mockImplementation(() => ({
+      getSupportedExtensions: () => ['.xlsx'],
+      getStrategyType: () => 'xlsx-sheetjs-rich',
+      getFormatType: () => 'xlsx-rich-v1',
+      extract: mockXlsxRichExtract,
+    })),
+  }),
+);
+
+jest.mock(
+  '@/main/lib/textExtractor/strategies/PptxRichExtractorStrategy',
+  () => ({
+    PptxRichExtractorStrategy: jest.fn().mockImplementation(() => ({
+      getSupportedExtensions: () => ['.pptx'],
+      getStrategyType: () => 'pptx-rich',
+      getFormatType: () => 'pptx-rich-v1',
+      extract: mockPptxRichExtract,
+    })),
+  }),
+);
+
+jest.mock('@/main/lib/textExtractor/strategies/PdfjsRichStrategy', () => ({
+  PdfjsRichStrategy: jest.fn().mockImplementation(() => ({
+    getSupportedExtensions: () => ['.pdf'],
+    getStrategyType: () => 'pdfjs-rich',
+    getFormatType: () => 'pdf-rich-v1',
+    extract: mockPdfRichExtract,
+  })),
+}));
+
 import { FileTextExtractor } from '@/main/lib/textExtractor/FileTextExtractor';
 import { TextExtractorStrategyError } from '@/main/service/port/textExtractor';
 import { AppError } from '@/main/lib/error';
@@ -42,6 +93,20 @@ describe('FileTextExtractor', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     extractor = new FileTextExtractor();
+
+    // デフォルト: リッチ戦略は TextExtractorStrategyError を投げる（フォールバック発動）
+    mockDocxRichExtract.mockRejectedValue(
+      new TextExtractorStrategyError('docx-mammoth-rich'),
+    );
+    mockXlsxRichExtract.mockRejectedValue(
+      new TextExtractorStrategyError('xlsx-sheetjs-rich'),
+    );
+    mockPptxRichExtract.mockRejectedValue(
+      new TextExtractorStrategyError('pptx-rich'),
+    );
+    mockPdfRichExtract.mockRejectedValue(
+      new TextExtractorStrategyError('pdfjs-rich'),
+    );
   });
 
   describe('extract', () => {
@@ -61,8 +126,93 @@ describe('FileTextExtractor', () => {
         expect(mockExtractFromTxt).toHaveBeenCalledWith('/test/file.txt');
       });
 
-      it('Wordファイルの抽出が成功すること', async () => {
+      it('Wordファイルのリッチ抽出が成功すること', async () => {
         // Arrange
+        mockDocxRichExtract.mockResolvedValue({
+          content: 'リッチWord内容',
+          images: [
+            {
+              referenceId: 'img1.png',
+              base64Data: 'data:image/png;base64,abc',
+              mimeType: 'image/png',
+            },
+          ],
+        });
+
+        // Act
+        const result = await extractor.extract('/test/doc.docx', 'doc.docx');
+
+        // Assert
+        expect(result.content).toBe('リッチWord内容');
+        expect(result.images).toHaveLength(1);
+        expect(result.strategyUsed).toBe('docx-mammoth-rich');
+        expect(result.formatType).toBe('docx-rich-v1');
+        expect(mockExtractViaPowerShell).not.toHaveBeenCalled();
+      });
+
+      it('Excelファイルのリッチ抽出が成功すること', async () => {
+        // Arrange
+        mockXlsxRichExtract.mockResolvedValue({
+          content: 'リッチExcel内容',
+          images: [],
+        });
+
+        // Act
+        const result = await extractor.extract(
+          '/test/sheet.xlsx',
+          'sheet.xlsx',
+        );
+
+        // Assert
+        expect(result.content).toBe('リッチExcel内容');
+        expect(result.strategyUsed).toBe('xlsx-sheetjs-rich');
+        expect(result.formatType).toBe('xlsx-rich-v1');
+        expect(mockExtractViaPowerShell).not.toHaveBeenCalled();
+      });
+
+      it('PowerPointファイルのリッチ抽出が成功すること', async () => {
+        // Arrange
+        mockPptxRichExtract.mockResolvedValue({
+          content: 'リッチPPTX内容',
+          images: [],
+        });
+
+        // Act
+        const result = await extractor.extract('/test/pres.pptx', 'pres.pptx');
+
+        // Assert
+        expect(result.content).toBe('リッチPPTX内容');
+        expect(result.strategyUsed).toBe('pptx-rich');
+        expect(result.formatType).toBe('pptx-rich-v1');
+        expect(mockExtractViaPowerShell).not.toHaveBeenCalled();
+      });
+
+      it('PDFファイルのリッチ抽出が成功すること', async () => {
+        // Arrange
+        mockPdfRichExtract.mockResolvedValue({
+          content: 'リッチPDF内容',
+          images: [
+            {
+              referenceId: 'img1.png',
+              base64Data: 'data:image/png;base64,xyz',
+              mimeType: 'image/png',
+            },
+          ],
+        });
+
+        // Act
+        const result = await extractor.extract('/test/doc.pdf', 'doc.pdf');
+
+        // Assert
+        expect(result.content).toBe('リッチPDF内容');
+        expect(result.images).toHaveLength(1);
+        expect(result.strategyUsed).toBe('pdfjs-rich');
+        expect(result.formatType).toBe('pdf-rich-v1');
+        expect(mockExtractFromPdf).not.toHaveBeenCalled();
+      });
+
+      it('Wordファイルのリッチ抽出が失敗した場合にプレーン戦略にフォールバックすること', async () => {
+        // Arrange: リッチ戦略はデフォルトで失敗する（beforeEachで設定済み）
         mockExtractViaPowerShell.mockResolvedValue('Word文書の内容');
 
         // Act
@@ -78,7 +228,7 @@ describe('FileTextExtractor', () => {
         );
       });
 
-      it('Excelファイルの抽出が成功すること', async () => {
+      it('Excelファイルのリッチ抽出が失敗した場合にプレーン戦略にフォールバックすること', async () => {
         // Arrange
         mockExtractViaPowerShell.mockResolvedValue('Excel内容');
 
@@ -97,7 +247,7 @@ describe('FileTextExtractor', () => {
         );
       });
 
-      it('PowerPointファイルの抽出が成功すること', async () => {
+      it('PowerPointファイルのリッチ抽出が失敗した場合にプレーン戦略にフォールバックすること', async () => {
         // Arrange
         mockExtractViaPowerShell.mockResolvedValue('スライド内容');
 
@@ -113,7 +263,7 @@ describe('FileTextExtractor', () => {
         );
       });
 
-      it('PDFファイルの抽出が成功すること', async () => {
+      it('PDFファイルのリッチ抽出が失敗した場合にプレーン戦略にフォールバックすること', async () => {
         // Arrange
         mockExtractFromPdf.mockResolvedValue('PDF内容');
 
@@ -202,15 +352,40 @@ describe('FileTextExtractor', () => {
         ).rejects.toThrow(ioError);
       });
 
+      it('リッチ戦略でI/Oエラーが発生した場合はフォールバックせず即座にスローされること', async () => {
+        // Arrange
+        const ioError = new Error('ENOENT: file not found');
+        mockDocxRichExtract.mockRejectedValue(ioError);
+
+        // Act & Assert
+        await expect(
+          extractor.extract('/test/doc.docx', 'doc.docx'),
+        ).rejects.toThrow(ioError);
+        // プレーン戦略は呼ばれないこと
+        expect(mockExtractViaPowerShell).not.toHaveBeenCalled();
+      });
+
       it('戦略固有エラー（TextExtractorStrategyError）の場合はフォールバックを試みること', async () => {
         // Arrange
-        // この時点ではtxtには1つしか戦略がないので、全戦略失敗→AppErrorスロー
+        // txtには1つしか戦略がないので、全戦略失敗→AppErrorスロー
         const strategyError = new TextExtractorStrategyError('txt-default');
         mockExtractFromTxt.mockRejectedValue(strategyError);
 
         // Act & Assert
         await expect(
           extractor.extract('/test/file.txt', 'file.txt'),
+        ).rejects.toThrow(AppError);
+      });
+
+      it('リッチ戦略とプレーン戦略両方が戦略固有エラーで失敗した場合はAppErrorがスローされること', async () => {
+        // Arrange: リッチ戦略はデフォルトで失敗する（beforeEachで設定済み）
+        mockExtractViaPowerShell.mockRejectedValue(
+          new TextExtractorStrategyError('powershell-word'),
+        );
+
+        // Act & Assert
+        await expect(
+          extractor.extract('/test/doc.docx', 'doc.docx'),
         ).rejects.toThrow(AppError);
       });
     });

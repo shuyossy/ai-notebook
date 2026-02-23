@@ -5,20 +5,24 @@ import { PowerShellWordStrategy } from './strategies/PowerShellWordStrategy';
 import { PowerShellExcelStrategy } from './strategies/PowerShellExcelStrategy';
 import { PowerShellPptStrategy } from './strategies/PowerShellPptStrategy';
 import { PdfjsDistStrategy } from './strategies/PdfjsDistStrategy';
+import { DocxMammothRichStrategy } from './strategies/DocxMammothRichStrategy';
+import { XlsxSheetJsRichStrategy } from './strategies/XlsxSheetJsRichStrategy';
+import { PptxRichExtractorStrategy } from './strategies/PptxRichExtractorStrategy';
+import { PdfjsRichStrategy } from './strategies/PdfjsRichStrategy';
 
 /**
  * 拡張子ごとの戦略優先度マップ
- * 先頭が最も優先度が高い。PBI#2-5でリッチ戦略が先頭に追加される。
+ * 先頭が最も優先度が高い。リッチ戦略が先頭に配置され、失敗時にプレーン戦略にフォールバックする。
  */
 const STRATEGY_PRIORITY_MAP: Record<string, TextExtractorType[]> = {
   '.txt': ['txt-default'],
   '.doc': ['powershell-word'],
-  '.docx': ['powershell-word'],
+  '.docx': ['docx-mammoth-rich', 'powershell-word'],
   '.xls': ['powershell-excel'],
-  '.xlsx': ['powershell-excel'],
+  '.xlsx': ['xlsx-sheetjs-rich', 'powershell-excel'],
   '.ppt': ['powershell-ppt'],
-  '.pptx': ['powershell-ppt'],
-  '.pdf': ['pdfjs-dist'],
+  '.pptx': ['pptx-rich', 'powershell-ppt'],
+  '.pdf': ['pdfjs-rich', 'pdfjs-dist'],
 };
 
 /**
@@ -33,6 +37,10 @@ const STRATEGY_REGISTRY: Record<
   'powershell-excel': () => new PowerShellExcelStrategy(),
   'powershell-ppt': () => new PowerShellPptStrategy(),
   'pdfjs-dist': () => new PdfjsDistStrategy(),
+  'docx-mammoth-rich': () => new DocxMammothRichStrategy(),
+  'xlsx-sheetjs-rich': () => new XlsxSheetJsRichStrategy(),
+  'pptx-rich': () => new PptxRichExtractorStrategy(),
+  'pdfjs-rich': () => new PdfjsRichStrategy(),
 };
 
 /**
