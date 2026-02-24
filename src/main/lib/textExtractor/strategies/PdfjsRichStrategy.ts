@@ -1,4 +1,5 @@
 import { readFileSync } from 'fs';
+import { createCanvas, ImageData } from '@napi-rs/canvas';
 import type {
   ITextExtractorStrategy,
   TextExtractionResult,
@@ -11,6 +12,48 @@ import type {
 } from '@/types';
 import { formatImageTag } from '../XlsxDrawingParser';
 import { getMainLogger } from '@/main/lib/logger';
+
+/**
+ * 可変チャネル数のピクセルデータをRGBA形式に正規化する
+ */
+function rawPixelDataToRgba(
+  data: Uint8ClampedArray,
+  width: number,
+  height: number,
+  channels: number,
+): Uint8ClampedArray {
+  if (channels === 4) return data;
+
+  const rgba = new Uint8ClampedArray(width * height * 4);
+  const pixelCount = width * height;
+
+  for (let i = 0; i < pixelCount; i++) {
+    const srcIdx = i * channels;
+    const dstIdx = i * 4;
+
+    if (channels === 1) {
+      // Grayscale → RGBA
+      rgba[dstIdx] = data[srcIdx];
+      rgba[dstIdx + 1] = data[srcIdx];
+      rgba[dstIdx + 2] = data[srcIdx];
+      rgba[dstIdx + 3] = 255;
+    } else if (channels === 2) {
+      // Grayscale + Alpha → RGBA
+      rgba[dstIdx] = data[srcIdx];
+      rgba[dstIdx + 1] = data[srcIdx];
+      rgba[dstIdx + 2] = data[srcIdx];
+      rgba[dstIdx + 3] = data[srcIdx + 1];
+    } else if (channels === 3) {
+      // RGB → RGBA
+      rgba[dstIdx] = data[srcIdx];
+      rgba[dstIdx + 1] = data[srcIdx + 1];
+      rgba[dstIdx + 2] = data[srcIdx + 2];
+      rgba[dstIdx + 3] = 255;
+    }
+  }
+
+  return rgba;
+}
 
 // Y座標が近いアイテムを同一行とみなす閾値
 const Y_GROUP_THRESHOLD = 2;
@@ -246,6 +289,8 @@ export class PdfjsRichStrategy implements ITextExtractorStrategy {
       const allImages: ExtractedImage[] = [];
       let imageCounter = 0;
       let anyImagesFailed = false;
+      let totalImagesFound = 0;
+      let totalImagesConverted = 0;
 
       for (let pageNum = 1; pageNum <= numPages; pageNum++) {
         parts.push(`#page:${pageNum}`);
@@ -276,6 +321,8 @@ export class PdfjsRichStrategy implements ITextExtractorStrategy {
           logger.warn(`ページ${pageNum}の画像解析に失敗しました: ${error}`);
         }
 
+        totalImagesFound += positionedImages.length;
+
         // テキストと画像をY座標でインターリーブ
         const elements = interleaveByPosition(textLines, positionedImages);
 
@@ -287,24 +334,22 @@ export class PdfjsRichStrategy implements ITextExtractorStrategy {
               imageCounter++;
               const rawData = element.image.rawData;
 
-              // sharpでPNG変換
-              const sharp = (await import('sharp')).default;
-              const pngBuffer = await sharp(
-                Buffer.from(
-                  rawData.data.buffer,
-                  rawData.data.byteOffset,
-                  rawData.data.byteLength,
-                ),
-                {
-                  raw: {
-                    width: rawData.width,
-                    height: rawData.height,
-                    channels: rawData.channels as 1 | 2 | 3 | 4,
-                  },
-                },
-              )
-                .png()
-                .toBuffer();
+              // @napi-rs/canvasでPNG変換
+              const rgbaData = rawPixelDataToRgba(
+                rawData.data,
+                rawData.width,
+                rawData.height,
+                rawData.channels,
+              );
+              const imageData = new ImageData(
+                rgbaData,
+                rawData.width,
+                rawData.height,
+              );
+              const canvas = createCanvas(rawData.width, rawData.height);
+              const ctx = canvas.getContext('2d');
+              ctx.putImageData(imageData, 0, 0);
+              const pngBuffer = canvas.encodeSync('png');
 
               const referenceId = `image_${imageCounter}.png`;
               allImages.push({
@@ -313,8 +358,9 @@ export class PdfjsRichStrategy implements ITextExtractorStrategy {
                 mimeType: 'image/png',
               });
               parts.push(formatImageTag(referenceId));
+              totalImagesConverted++;
             } catch (sharpError) {
-              // sharp変換失敗: 該当画像をスキップ（フォールバックしない）
+              // sharp変換失敗: 該当画像をスキップ
               logger.warn(
                 `ページ${pageNum}の画像${imageCounter}のPNG変換に失敗しました: ${sharpError}`,
               );
@@ -325,6 +371,14 @@ export class PdfjsRichStrategy implements ITextExtractorStrategy {
 
       // 1ページでも画像解析に失敗した場合はフォールバック
       if (anyImagesFailed) {
+        throw new TextExtractorStrategyError('pdfjs-rich');
+      }
+
+      // 画像が検出されたが全てのsharp変換に失敗した場合はフォールバック
+      if (totalImagesFound > 0 && totalImagesConverted === 0) {
+        logger.warn(
+          '画像が検出されましたが、全ての画像のPNG変換に失敗したためフォールバックします',
+        );
         throw new TextExtractorStrategyError('pdfjs-rich');
       }
 

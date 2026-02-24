@@ -1014,9 +1014,7 @@ describe('XlsxSheetJsRichStrategy', () => {
         const zip = {
           file: jest.fn((path: string) => zipFileMap[path] ?? null),
           folder: jest.fn(() =>
-            createMockFolder([
-              { relativePath: 'sheet1.xml.rels', dir: false },
-            ]),
+            createMockFolder([{ relativePath: 'sheet1.xml.rels', dir: false }]),
           ),
         };
         mockZipLoadAsync.mockResolvedValue(zip);
@@ -1028,9 +1026,7 @@ describe('XlsxSheetJsRichStrategy', () => {
         });
 
         // セル内改行を含むCSV
-        mockSheetToCsv.mockReturnValue(
-          '"改行\nあり",値1\n行2,値2',
-        );
+        mockSheetToCsv.mockReturnValue('"改行\nあり",値1\n行2,値2');
 
         mockParseRelationships.mockReturnValue([
           {

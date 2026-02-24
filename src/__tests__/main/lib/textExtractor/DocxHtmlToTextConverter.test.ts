@@ -177,8 +177,7 @@ describe('DocxHtmlToTextConverter', () => {
         });
 
         it('セル内改行をダブルクォートで囲んで保持する', () => {
-          const html =
-            '<table><tr><td>行1\n行2</td><td>値2</td></tr></table>';
+          const html = '<table><tr><td>行1\n行2</td><td>値2</td></tr></table>';
           const result = converter.convert(html);
           expect(result).toBe('"行1\n行2",値2\n\n');
         });

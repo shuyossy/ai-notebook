@@ -25,19 +25,28 @@ jest.mock('pdfjs-dist/legacy/build/pdf.mjs', () => ({
   OPS: mockOPS,
 }));
 
-// sharp のモック
-const mockSharpPng = jest.fn();
-const mockSharpToBuffer = jest.fn();
-const mockSharpInstance = {
-  png: () => {
-    mockSharpPng();
-    return { toBuffer: () => mockSharpToBuffer() };
+// @napi-rs/canvas のモック
+const mockEncodeSync = jest.fn<any, any[]>();
+const mockPutImageData = jest.fn<any, any[]>();
+const mockGetContext = jest.fn<any, any[]>().mockReturnValue({
+  putImageData: (...args: any[]) => mockPutImageData(...args),
+});
+const mockCreateCanvas = jest.fn<any, any[]>().mockReturnValue({
+  getContext: (...args: any[]) => mockGetContext(...args),
+  encodeSync: (...args: any[]) => mockEncodeSync(...args),
+});
+jest.mock('@napi-rs/canvas', () => ({
+  createCanvas: (...args: any[]) => mockCreateCanvas(...args),
+  ImageData: class MockImageData {
+    data: Uint8ClampedArray;
+    width: number;
+    height: number;
+    constructor(data: Uint8ClampedArray, width: number, height: number) {
+      this.data = data;
+      this.width = width;
+      this.height = height;
+    }
   },
-};
-const mockSharp = jest.fn<any, any[]>(() => mockSharpInstance);
-jest.mock('sharp', () => ({
-  __esModule: true,
-  default: (...args: any[]) => mockSharp(...(args as [])),
 }));
 
 // XlsxDrawingParser のモック
@@ -128,7 +137,7 @@ describe('PdfjsRichStrategy', () => {
     mockFormatImageTag.mockImplementation(
       (refId: string) => `![image](${refId})`,
     );
-    mockSharpToBuffer.mockResolvedValue(Buffer.from('fake-png-data'));
+    mockEncodeSync.mockReturnValue(Buffer.from('fake-png-data'));
   });
 
   describe('メタ情報', () => {
@@ -212,7 +221,7 @@ describe('PdfjsRichStrategy', () => {
         createMockPdfDocument([page]);
 
         const pngBuffer = Buffer.from('png-image-data');
-        mockSharpToBuffer.mockResolvedValue(pngBuffer);
+        mockEncodeSync.mockReturnValue(pngBuffer);
 
         // Act
         const result = await strategy.extract('/path/to/doc_with_image.pdf');
@@ -233,14 +242,8 @@ describe('PdfjsRichStrategy', () => {
           `data:image/png;base64,${pngBuffer.toString('base64')}`,
         );
 
-        // sharpが正しいパラメータで呼ばれていること
-        expect(mockSharp).toHaveBeenCalledWith(expect.any(Buffer), {
-          raw: {
-            width: 100,
-            height: 50,
-            channels: 3,
-          },
-        });
+        // @napi-rs/canvasが正しいパラメータで呼ばれていること
+        expect(mockCreateCanvas).toHaveBeenCalledWith(100, 50);
       });
 
       it('複数ページの処理が成功すること', async () => {
@@ -406,7 +409,7 @@ describe('PdfjsRichStrategy', () => {
         );
       });
 
-      it('sharp変換失敗時は該当画像をスキップし、フォールバックしないこと', async () => {
+      it('PNG変換が部分的に失敗した場合は成功した画像のみ含めて結果を返すこと', async () => {
         // Arrange
         const fileData = Buffer.from('fake-pdf-data');
         mockReadFileSync.mockReturnValue(fileData);
@@ -427,11 +430,13 @@ describe('PdfjsRichStrategy', () => {
         });
         createMockPdfDocument([page]);
 
-        // 1つ目の画像はsharp変換失敗、2つ目は成功
+        // 1つ目の画像はcanvas変換失敗、2つ目は成功
         const pngBuffer = Buffer.from('png-data');
-        mockSharpToBuffer
-          .mockRejectedValueOnce(new Error('sharp conversion failed'))
-          .mockResolvedValueOnce(pngBuffer);
+        mockEncodeSync
+          .mockImplementationOnce(() => {
+            throw new Error('canvas conversion failed');
+          })
+          .mockReturnValueOnce(pngBuffer);
 
         // Act
         const result = await strategy.extract('/path/to/doc.pdf');
@@ -444,6 +449,100 @@ describe('PdfjsRichStrategy', () => {
         expect(mockWarn).toHaveBeenCalledWith(
           expect.stringContaining('PNG変換に失敗しました'),
         );
+      });
+
+      it('全画像のPNG変換が失敗した場合はTextExtractorStrategyErrorでフォールバックすること', async () => {
+        // Arrange
+        const fileData = Buffer.from('fake-pdf-data');
+        mockReadFileSync.mockReturnValue(fileData);
+
+        const imageData1 = new Uint8ClampedArray(10 * 10 * 3);
+        const imageData2 = new Uint8ClampedArray(10 * 10 * 3);
+        const page = createMockPage({
+          viewportHeight: 800,
+          textItems: [{ str: 'テキスト', transform: [1, 0, 0, 1, 50, 750] }],
+          operatorList: {
+            fnArray: [mockOPS.paintImageXObject, mockOPS.paintImageXObject],
+            argsArray: [['img_1'], ['img_2']],
+          },
+          objs: {
+            img_1: { data: imageData1, width: 10, height: 10 },
+            img_2: { data: imageData2, width: 10, height: 10 },
+          },
+        });
+        createMockPdfDocument([page]);
+
+        // 全てのcanvas変換を失敗させる
+        mockEncodeSync
+          .mockImplementationOnce(() => {
+            throw new Error('canvas conversion failed');
+          })
+          .mockImplementationOnce(() => {
+            throw new Error('canvas conversion failed');
+          });
+
+        // Act & Assert
+        await expect(strategy.extract('/path/to/doc.pdf')).rejects.toThrow(
+          TextExtractorStrategyError,
+        );
+
+        // 警告ログが出力されていること
+        expect(mockWarn).toHaveBeenCalledWith(
+          expect.stringContaining(
+            '全ての画像のPNG変換に失敗したためフォールバックします',
+          ),
+        );
+      });
+
+      it('画像1つでPNG変換失敗した場合はTextExtractorStrategyErrorでフォールバックすること', async () => {
+        // Arrange
+        const fileData = Buffer.from('fake-pdf-data');
+        mockReadFileSync.mockReturnValue(fileData);
+
+        const imageData = new Uint8ClampedArray(10 * 10 * 3);
+        const page = createMockPage({
+          viewportHeight: 800,
+          textItems: [{ str: 'テキスト', transform: [1, 0, 0, 1, 50, 750] }],
+          operatorList: {
+            fnArray: [mockOPS.paintImageXObject],
+            argsArray: [['img_1']],
+          },
+          objs: {
+            img_1: { data: imageData, width: 10, height: 10 },
+          },
+        });
+        createMockPdfDocument([page]);
+
+        // canvas変換を失敗させる
+        mockEncodeSync.mockImplementationOnce(() => {
+          throw new Error('canvas conversion failed');
+        });
+
+        // Act & Assert
+        await expect(strategy.extract('/path/to/doc.pdf')).rejects.toThrow(
+          TextExtractorStrategyError,
+        );
+      });
+
+      it('画像なしPDFでは全画像変換失敗フォールバックが誤発火しないこと', async () => {
+        // Arrange
+        const fileData = Buffer.from('fake-pdf-data');
+        mockReadFileSync.mockReturnValue(fileData);
+
+        const page = createMockPage({
+          viewportHeight: 800,
+          textItems: [
+            { str: 'テキストのみ', transform: [1, 0, 0, 1, 50, 750] },
+          ],
+        });
+        createMockPdfDocument([page]);
+
+        // Act
+        const result = await strategy.extract('/path/to/doc.pdf');
+
+        // Assert: フォールバックせず正常に返ること
+        expect(result.content).toContain('テキストのみ');
+        expect(result.images).toEqual([]);
       });
 
       it('PDF解析エラーはTextExtractorStrategyErrorでラップされること', async () => {

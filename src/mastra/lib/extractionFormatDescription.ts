@@ -122,6 +122,8 @@ export function getFormatDescription(
         '  [connector_N:<Type> <endpointA>-><endpointB> pos:<X>cm,<Y>cm size:<W>cm,<H>cm]',
         '  Arrow notation: -> (one-way), <- (reverse), <-> (bidirectional), -- (no arrow).',
         '- Coordinate and size values are in cm (converted from EMU, 1 cm = 360,000 EMU, rounded to 1 decimal place).',
+        '- NOTE: Within each slide, elements appear in category order (tables, images, text, shapes, connectors) — not in spatial order.',
+        '  Shapes and connectors have pos/size metadata for inferring spatial layout; tables, images, and text boxes do not.',
       );
       return pptxLines.join('\n');
     }

@@ -1,4 +1,7 @@
-import { escapeCsvCell, splitCsvIntoLogicalRows } from '@/main/lib/textExtractor/csvUtils';
+import {
+  escapeCsvCell,
+  splitCsvIntoLogicalRows,
+} from '@/main/lib/textExtractor/csvUtils';
 
 describe('csvUtils', () => {
   describe('escapeCsvCell', () => {
