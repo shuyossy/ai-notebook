@@ -1,4 +1,5 @@
 import * as cheerio from 'cheerio';
+import { escapeCsvCell as escapeCsvCellUtil } from './csvUtils';
 
 /**
  * mammothのHTML出力をプレーンテキストに変換するユーティリティクラス
@@ -123,7 +124,9 @@ export class DocxHtmlToTextConverter {
       $(tr)
         .children('td, th')
         .each((_, cell) => {
-          const cellText = this.processChildren($, cell);
+          let cellText = this.processChildren($, cell);
+          // 末尾改行除去 + 連続改行を単一改行に圧縮
+          cellText = cellText.replace(/\n+$/, '').replace(/\n{2,}/g, '\n');
           cells.push(this.escapeCsvCell(cellText));
         });
 
@@ -135,21 +138,12 @@ export class DocxHtmlToTextConverter {
   }
 
   /**
-   * CSVセルをエスケープする
-   * - 改行をスペースに置換
-   * - カンマまたはダブルクォートを含む場合はダブルクォートで囲む
+   * CSVセルをRFC 4180準拠でエスケープする
+   * - 改行・カンマ・ダブルクォートを含む場合はダブルクォートで囲む
+   * - 改行はそのまま保持する
    */
   private escapeCsvCell(value: string): string {
-    // 改行をスペースに置換
-    let escaped = value.replace(/[\r\n]+/g, ' ');
-
-    // ダブルクォートまたはカンマを含む場合はCSVエスケープ
-    if (escaped.includes('"') || escaped.includes(',')) {
-      escaped = escaped.replace(/"/g, '""');
-      escaped = `"${escaped}"`;
-    }
-
-    return escaped;
+    return escapeCsvCellUtil(value);
   }
 
   /**

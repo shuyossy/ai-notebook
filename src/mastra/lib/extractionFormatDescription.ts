@@ -53,7 +53,9 @@ export function getFormatDescription(
         'Excel spreadsheet content represented in the following format:',
         '- Each sheet is separated by a header line: #sheet:<SheetName>',
         '- Non-empty rows are prefixed with a row marker: [row:N] (N is the 1-based Excel row number).',
-        '- Cell contents within each sheet are represented in CSV (comma-separated) format.',
+        '- Cell contents within each sheet are represented in CSV (comma-separated, RFC 4180) format.',
+        '  Cells containing commas, double quotes, or line breaks are enclosed in double quotes.',
+        '  Line breaks within quoted cells are preserved as-is.',
       ];
       if (includeImages) {
         xlsxLines.push(
@@ -81,9 +83,9 @@ export function getFormatDescription(
         'Word document content represented in the following format:',
         '- Headings are represented using Markdown header syntax (# through ######).',
         '- Lists are represented using Markdown list syntax (- for unordered, 1. for ordered).',
-        '- Tables are represented in CSV format (comma-separated).',
-        '  Cells containing commas are enclosed in double quotes with internal quotes escaped.',
-        '  Internal line breaks within cells are converted to spaces.',
+        '- Tables are represented in CSV format (comma-separated, RFC 4180).',
+        '  Cells containing commas, double quotes, or line breaks are enclosed in double quotes.',
+        '  Line breaks within quoted cells are preserved as-is.',
       ];
       if (includeImages) {
         docxLines.push(
@@ -105,7 +107,9 @@ export function getFormatDescription(
         '  [shape_N:<GeometryType> pos:<X>cm,<Y>cm size:<W>cm,<H>cm]',
         '  Text content follows on the same line. For multi-line text, subsequent lines use [shape_N] prefix.',
         '  Text boxes and placeholders do not have the shape_ prefix.',
-        '- Tables are represented in CSV format (comma-separated).',
+        '- Tables are represented in CSV format (comma-separated, RFC 4180).',
+        '  Cells containing commas, double quotes, or line breaks are enclosed in double quotes.',
+        '  Line breaks within quoted cells are preserved as-is.',
       ];
       if (includeImages) {
         pptxLines.push(

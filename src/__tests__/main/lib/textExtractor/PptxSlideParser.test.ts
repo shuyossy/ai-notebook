@@ -873,6 +873,64 @@ describe('PptxSlideParser', () => {
         expect(result).toHaveLength(1);
         expect(result[0].rows).toEqual([['Data', '']]);
       });
+
+      it('セル内に複数段落がある場合に改行で結合される', () => {
+        const xml = `
+<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+       xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+  <p:cSld><p:spTree>
+    <a:tbl>
+      <a:tr>
+        <a:tc><a:txBody>
+          <a:p><a:r><a:t>段落1</a:t></a:r></a:p>
+          <a:p><a:r><a:t>段落2</a:t></a:r></a:p>
+        </a:txBody></a:tc>
+        <a:tc><a:txBody><a:p><a:r><a:t>値2</a:t></a:r></a:p></a:txBody></a:tc>
+      </a:tr>
+    </a:tbl>
+  </p:spTree></p:cSld>
+</p:sld>`;
+
+        const result = parser.parseTables(xml);
+        expect(result).toHaveLength(1);
+        expect(result[0].rows).toEqual([['段落1\n段落2', '値2']]);
+      });
+
+      it('表のCSV化統合テスト: parseTables + escapeCsvCellで改行やカンマを含むセルが正しくCSV化される', () => {
+        const xml = `
+<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+       xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+  <p:cSld><p:spTree>
+    <a:tbl>
+      <a:tr>
+        <a:tc><a:txBody>
+          <a:p><a:r><a:t>段落1</a:t></a:r></a:p>
+          <a:p><a:r><a:t>段落2</a:t></a:r></a:p>
+        </a:txBody></a:tc>
+        <a:tc><a:txBody><a:p><a:r><a:t>値2</a:t></a:r></a:p></a:txBody></a:tc>
+      </a:tr>
+      <a:tr>
+        <a:tc><a:txBody><a:p><a:r><a:t>通常</a:t></a:r></a:p></a:txBody></a:tc>
+        <a:tc><a:txBody>
+          <a:p><a:r><a:t>カンマ,あり</a:t></a:r></a:p>
+          <a:p><a:r><a:t>改行あり</a:t></a:r></a:p>
+        </a:txBody></a:tc>
+      </a:tr>
+    </a:tbl>
+  </p:spTree></p:cSld>
+</p:sld>`;
+
+        const tables = parser.parseTables(xml);
+        // parseTables + escapeCsvCellの統合結果を検証
+        const csvLines = tables[0].rows.map((row) =>
+          row.map((cell) => parser.escapeCsvCell(cell)).join(','),
+        );
+
+        // 1行目: 改行を含むセルがダブルクォートで囲まれる
+        expect(csvLines[0]).toBe('"段落1\n段落2",値2');
+        // 2行目: カンマと改行の両方を含むセルがダブルクォートで囲まれ、通常セルはそのまま
+        expect(csvLines[1]).toBe('通常,"カンマ,あり\n改行あり"');
+      });
     });
 
     describe('異常系', () => {
@@ -971,20 +1029,12 @@ describe('PptxSlideParser', () => {
         expect(parser.escapeCsvCell('a,"b"')).toBe('"a,""b"""');
       });
 
-      it('改行が半角スペースに変換されること', () => {
-        expect(parser.escapeCsvCell('line1\nline2')).toBe('line1 line2');
+      it('改行を含む場合はダブルクォートで囲んで保持する', () => {
+        expect(parser.escapeCsvCell('line1\nline2')).toBe('"line1\nline2"');
       });
 
-      it('CRLFが半角スペースに変換されること', () => {
-        expect(parser.escapeCsvCell('line1\r\nline2')).toBe('line1 line2');
-      });
-
-      it('連続改行が1つのスペースに変換されること', () => {
-        expect(parser.escapeCsvCell('line1\n\n\nline2')).toBe('line1 line2');
-      });
-
-      it('改行変換後にカンマがある場合、ダブルクォートで囲まれること', () => {
-        expect(parser.escapeCsvCell('a\nb,c')).toBe('"a b,c"');
+      it('改行とカンマの両方を含む場合', () => {
+        expect(parser.escapeCsvCell('a,b\nc')).toBe('"a,b\nc"');
       });
 
       it('空文字列がそのまま返ること', () => {

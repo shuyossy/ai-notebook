@@ -28,7 +28,7 @@ describe('extractionFormatDescription', () => {
       },
     );
 
-    it('xlsx-rich-v1の説明にシート区切り・行マーカー・画像リンク・図形タグ・コネクタの記載がある（includeImages=true）', () => {
+    it('xlsx-rich-v1の説明にシート区切り・行マーカー・画像リンク・図形タグ・コネクタ・RFC 4180の記載がある（includeImages=true）', () => {
       const description = getFormatDescription('xlsx-rich-v1', true);
       expect(description).toContain('#sheet:');
       expect(description).toContain('[row:');
@@ -36,16 +36,18 @@ describe('extractionFormatDescription', () => {
       expect(description).toContain('shape_N');
       expect(description).toContain('connector_N');
       expect(description).toContain('cell:');
+      expect(description).toContain('RFC 4180');
       // Excelにはpos/sizeがないことを確認
       expect(description).not.toContain('pos:');
       expect(description).not.toContain('EMU');
     });
 
-    it('docx-rich-v1の説明にMarkdownヘッダ・画像リンク・CSV表の記載がある（includeImages=true）', () => {
+    it('docx-rich-v1の説明にMarkdownヘッダ・画像リンク・CSV表・RFC 4180の記載がある（includeImages=true）', () => {
       const description = getFormatDescription('docx-rich-v1', true);
       expect(description).toContain('#');
       expect(description).toContain('![image]');
       expect(description).toContain('CSV');
+      expect(description).toContain('RFC 4180');
     });
 
     it('pdf-rich-v1の説明にページ区切り・画像リンクの記載がある（includeImages=true）', () => {
@@ -55,7 +57,7 @@ describe('extractionFormatDescription', () => {
       expect(description).toContain('referenceId');
     });
 
-    it('pptx-rich-v1の説明にスライド区切り・図形タグ・CSV表・画像リンク・コネクタ・座標の記載がある（includeImages=true）', () => {
+    it('pptx-rich-v1の説明にスライド区切り・図形タグ・CSV表・画像リンク・コネクタ・座標・RFC 4180の記載がある（includeImages=true）', () => {
       const description = getFormatDescription('pptx-rich-v1', true);
       expect(description).toContain('#slide:');
       expect(description).toContain('shape_N');
@@ -64,6 +66,7 @@ describe('extractionFormatDescription', () => {
       expect(description).toContain('![image]');
       expect(description).toContain('connector_N');
       expect(description).toContain('EMU');
+      expect(description).toContain('RFC 4180');
     });
 
     describe('includeImages=falseの場合、リッチフォーマットの説明に画像関連の記載が含まれない', () => {

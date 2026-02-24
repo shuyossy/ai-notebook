@@ -10,6 +10,7 @@ import {
   type ConnectionInfo,
   type RelationshipEntry,
 } from './XlsxDrawingParser';
+import { escapeCsvCell as escapeCsvCellUtil } from './csvUtils';
 
 /**
  * PPTXスライド内の画像情報
@@ -198,16 +199,23 @@ export class PptxSlideParser {
         const cells: string[] = [];
         const tcs = $(tr).find('a\\:tc, tc');
         tcs.each((_, tc) => {
-          const texts: string[] = [];
+          // セル内の段落ごとにテキストを抽出し、段落間を改行で結合
+          const paragraphs: string[] = [];
           $(tc)
-            .find('a\\:t, t')
-            .each((_, t) => {
-              const text = $(t).text();
-              if (text) {
-                texts.push(text);
-              }
+            .find('a\\:p, p')
+            .each((_, p) => {
+              const texts: string[] = [];
+              $(p)
+                .find('a\\:t, t')
+                .each((_, t) => {
+                  const text = $(t).text();
+                  if (text) {
+                    texts.push(text);
+                  }
+                });
+              paragraphs.push(texts.join(''));
             });
-          cells.push(texts.join(''));
+          cells.push(paragraphs.join('\n'));
         });
         rows.push(cells);
       });
@@ -239,14 +247,12 @@ export class PptxSlideParser {
   }
 
   /**
-   * CSVセルの値をエスケープする
+   * CSVセルをRFC 4180準拠でエスケープする
+   * - 改行・カンマ・ダブルクォートを含む場合はダブルクォートで囲む
+   * - 改行はそのまま保持する
    */
   escapeCsvCell(value: string): string {
-    const normalized = value.replace(/[\r\n]+/g, ' ');
-    if (normalized.includes(',') || normalized.includes('"')) {
-      return `"${normalized.replace(/"/g, '""')}"`;
-    }
-    return normalized;
+    return escapeCsvCellUtil(value);
   }
 
   /**

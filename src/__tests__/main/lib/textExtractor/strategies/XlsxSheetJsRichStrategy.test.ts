@@ -891,6 +891,188 @@ describe('XlsxSheetJsRichStrategy', () => {
       });
     });
 
+    describe('セル内改行の[row:N]マーカー付与', () => {
+      it('セル内改行を含むCSVで行ごとに正しく[row:N]マーカーが付与される', async () => {
+        // Arrange
+        const fileBuffer = Buffer.from('dummy-xlsx');
+        mockReadFile.mockResolvedValue(fileBuffer);
+
+        const zip = createMockZip();
+        mockZipLoadAsync.mockResolvedValue(zip);
+
+        const sheetData = { '!ref': 'A1:B2' };
+        mockXlsxRead.mockReturnValue({
+          SheetNames: ['Sheet1'],
+          Sheets: { Sheet1: sheetData },
+        });
+
+        // SheetJSのsheet_to_csvがセル内改行を含むRFC 4180形式のCSVを返す
+        mockSheetToCsv.mockReturnValue(
+          '通常セル,"改行\nあり"\n行2セル1,行2セル2',
+        );
+
+        zip.file.mockReturnValue(null);
+        zip.folder.mockReturnValue(createMockFolder([]));
+
+        // Act
+        const result = await strategy.extract('/path/to/test.xlsx');
+        const lines = result.content.split('\n');
+
+        // Assert
+        const rowLines = lines.filter((l: string) => l.startsWith('[row:'));
+        // セル内改行があっても行ごとに1つの[row:N]マーカーが付与される（2行分）
+        expect(rowLines).toHaveLength(2);
+        expect(rowLines[0]).toMatch(/^\[row:1\]/);
+        expect(rowLines[1]).toMatch(/^\[row:2\]/);
+      });
+
+      it('セル内改行を含むセルがRFC 4180形式（ダブルクォート囲み）で出力される', async () => {
+        // Arrange
+        const fileBuffer = Buffer.from('dummy-xlsx');
+        mockReadFile.mockResolvedValue(fileBuffer);
+
+        const zip = createMockZip();
+        mockZipLoadAsync.mockResolvedValue(zip);
+
+        const sheetData = { '!ref': 'A1:B2' };
+        mockXlsxRead.mockReturnValue({
+          SheetNames: ['Sheet1'],
+          Sheets: { Sheet1: sheetData },
+        });
+
+        mockSheetToCsv.mockReturnValue(
+          '通常セル,"改行\nあり"\n行2セル1,行2セル2',
+        );
+
+        zip.file.mockReturnValue(null);
+        zip.folder.mockReturnValue(createMockFolder([]));
+
+        // Act
+        const result = await strategy.extract('/path/to/test.xlsx');
+
+        // Assert
+        // 改行を含むセルがダブルクォートで囲まれていること
+        expect(result.content).toContain('[row:1] 通常セル,"改行\nあり"');
+        // 通常セルはダブルクォートで囲まれない
+        expect(result.content).toMatch(/\[row:1\] 通常セル,/);
+      });
+
+      it('同一行の複数セルが全て改行を含むケース', async () => {
+        // Arrange
+        const fileBuffer = Buffer.from('dummy-xlsx');
+        mockReadFile.mockResolvedValue(fileBuffer);
+
+        const zip = createMockZip();
+        mockZipLoadAsync.mockResolvedValue(zip);
+
+        const sheetData = { '!ref': 'A1:C1' };
+        mockXlsxRead.mockReturnValue({
+          SheetNames: ['Sheet1'],
+          Sheets: { Sheet1: sheetData },
+        });
+
+        mockSheetToCsv.mockReturnValue(
+          '"セル1行1\nセル1行2","セル2行1\nセル2行2","セル3行1\nセル3行2"',
+        );
+
+        zip.file.mockReturnValue(null);
+        zip.folder.mockReturnValue(createMockFolder([]));
+
+        // Act
+        const result = await strategy.extract('/path/to/test.xlsx');
+
+        // Assert
+        // [row:N]マーカーは1行分のみ
+        const rowMarkerCount = (result.content.match(/\[row:\d+\]/g) || [])
+          .length;
+        expect(rowMarkerCount).toBe(1);
+        // 全セルがダブルクォートで囲まれ、改行が保持されていること
+        expect(result.content).toContain('"セル1行1\nセル1行2"');
+        expect(result.content).toContain('"セル2行1\nセル2行2"');
+        expect(result.content).toContain('"セル3行1\nセル3行2"');
+      });
+
+      it('描画情報とのインターリーブ時もセル内改行が正しく処理される', async () => {
+        // Arrange
+        const fileBuffer = Buffer.from('dummy-xlsx');
+        mockReadFile.mockResolvedValue(fileBuffer);
+
+        const relsFileEntry = createMockZipFileEntry(
+          '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+            '<Relationship Id="rId1" Target="../drawings/drawing1.xml" ' +
+            'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing"/>' +
+            '</Relationships>',
+        );
+        const drawingFileEntry = createMockZipFileEntry('<drawing/>');
+
+        const zipFileMap: Record<string, any> = {
+          'xl/worksheets/_rels/sheet1.xml.rels': relsFileEntry,
+          'xl/drawings/drawing1.xml': drawingFileEntry,
+          'xl/workbook.xml': null,
+          'xl/_rels/workbook.xml.rels': null,
+        };
+        const zip = {
+          file: jest.fn((path: string) => zipFileMap[path] ?? null),
+          folder: jest.fn(() =>
+            createMockFolder([
+              { relativePath: 'sheet1.xml.rels', dir: false },
+            ]),
+          ),
+        };
+        mockZipLoadAsync.mockResolvedValue(zip);
+
+        const sheetData = { '!ref': 'A1:B2' };
+        mockXlsxRead.mockReturnValue({
+          SheetNames: ['Sheet1'],
+          Sheets: { Sheet1: sheetData },
+        });
+
+        // セル内改行を含むCSV
+        mockSheetToCsv.mockReturnValue(
+          '"改行\nあり",値1\n行2,値2',
+        );
+
+        mockParseRelationships.mockReturnValue([
+          {
+            rId: 'rId1',
+            target: '../drawings/drawing1.xml',
+            type: 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing',
+          },
+        ]);
+        mockResolveRelativePath.mockReturnValue('xl/drawings/drawing1.xml');
+        mockParseImages.mockReturnValue([]);
+        mockResolveImagePaths.mockReturnValue(new Map());
+        mockParseShapeTexts.mockReturnValue([
+          {
+            text: '図形テキスト',
+            metadata: {
+              presetGeometry: 'rect',
+              position: {
+                fromCol: 0,
+                fromRow: 0,
+                toCol: 2,
+                toRow: 2,
+              },
+            },
+          },
+        ]);
+        mockParseConnectors.mockReturnValue([]);
+        mockFormatDrawingTagFull.mockReturnValue(
+          '[shape_1:rect cell:A1-C3] 図形テキスト',
+        );
+        mockDecodeRange.mockReturnValue({ s: { r: 0 }, e: { r: 1 } });
+
+        // Act
+        const result = await strategy.extract('/path/to/test.xlsx');
+        const lines = result.content.split('\n');
+
+        // Assert
+        // [row:N]マーカーの数をチェック（セル内改行を論理行として扱うので2つ）
+        const rowLines = lines.filter((l: string) => l.startsWith('[row:'));
+        expect(rowLines).toHaveLength(2);
+      });
+    });
+
     describe('異常系', () => {
       it('ファイル読み込みエラーはそのまま伝播すること', async () => {
         // Arrange

@@ -27,6 +27,7 @@ import type {
   DrawingShapeText,
   DrawingConnector,
 } from '../XlsxDrawingParser';
+import { splitCsvIntoLogicalRows } from '../csvUtils';
 import { getMimeFromExt } from '../mimeUtils';
 import { getMainLogger } from '@/main/lib/logger';
 
@@ -251,7 +252,7 @@ export class XlsxSheetJsRichStrategy implements ITextExtractorStrategy {
         }
 
         // CSVを行単位に分割してインターリーブ
-        const csvLines = csv.split('\n');
+        const csvLines = splitCsvIntoLogicalRows(csv);
         const consumedRows = new Set<number>();
 
         for (let i = 0; i < csvLines.length; i++) {
@@ -314,7 +315,7 @@ export class XlsxSheetJsRichStrategy implements ITextExtractorStrategy {
     rangeStartRow: number,
     parts: string[],
   ): void {
-    const csvLines = csv.split('\n');
+    const csvLines = splitCsvIntoLogicalRows(csv);
     for (let i = 0; i < csvLines.length; i++) {
       const csvLine = csvLines[i];
       const isNonEmpty = csvLine.replace(/,/g, '').trim().length > 0;

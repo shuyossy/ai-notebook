@@ -176,16 +176,26 @@ describe('DocxHtmlToTextConverter', () => {
           expect(result).toContain('"A,""B"""\n');
         });
 
-        it('セル内に改行を含む場合、スペースに置換されること', () => {
+        it('セル内改行をダブルクォートで囲んで保持する', () => {
           const html =
-            '<table><tr><td><p>Line1</p><p>Line2</p></td></tr></table>';
+            '<table><tr><td>行1\n行2</td><td>値2</td></tr></table>';
           const result = converter.convert(html);
-          // 段落はテキスト+\n\nに変換され、その後改行がスペースに置換される
-          expect(result).not.toContain('Line1\n');
-          // セル内の改行がスペースに置換されていることを確認
-          const lines = result.trim().split('\n');
-          expect(lines[0]).toContain('Line1');
-          expect(lines[0]).toContain('Line2');
+          expect(result).toBe('"行1\n行2",値2\n\n');
+        });
+
+        it('セル内に複数段落がある場合に改行が保持される', () => {
+          const html =
+            '<table><tr><td><p>段落1</p><p>段落2</p></td><td>値2</td></tr></table>';
+          const result = converter.convert(html);
+          expect(result).toBe('"段落1\n段落2",値2\n\n');
+        });
+
+        it('セル内に改行とカンマの両方を含む場合にダブルクォートで囲んで保持する', () => {
+          const html =
+            '<table><tr><td><p>項目A,項目B</p><p>項目C</p></td><td>値2</td></tr></table>';
+          const result = converter.convert(html);
+          // 改行とカンマの両方を含むセルがダブルクォートで囲まれ、改行・カンマがそのまま保持される
+          expect(result).toBe('"項目A,項目B\n項目C",値2\n\n');
         });
       });
 
