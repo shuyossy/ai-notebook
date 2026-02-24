@@ -21,6 +21,7 @@ import { getMainLogger } from '@/main/lib/logger';
 import { publishEvent } from '@/main/lib/eventPayloadHelper';
 import { IpcChannels } from '@/types';
 import { createCombinedMessage } from './lib';
+import { buildDocumentFormatContext } from '../../lib/extractionFormatDescription';
 
 const logger = getMainLogger();
 
@@ -99,7 +100,7 @@ const checklistDocumentExtractionStep = createStep({
       await reviewRepository.deleteSystemCreatedChecklists(reviewHistoryId);
 
       // 複数ファイルを統合してメッセージを作成
-      const message = await createCombinedMessage(
+      const { fileFormatInfos, ...message } = await createCombinedMessage(
         files,
         'Please extract checklist items from this document',
         (currentIndex, fileName) => {
@@ -112,6 +113,9 @@ const checklistDocumentExtractionStep = createStep({
           });
         },
       );
+
+      // ドキュメントフォーマットコンテキストを構築
+      const documentFormatContext = buildDocumentFormatContext(fileFormatInfos);
 
       // ファイル処理完了を通知
       publishEvent(IpcChannels.REVIEW_FILE_PROCESSING_PROGRESS, {
@@ -147,6 +151,10 @@ const checklistDocumentExtractionStep = createStep({
           await createRuntimeContext<ChecklistExtractionAgentRuntimeContext>();
         // これまでに抽出したチェックリスト項目
         runtimeContext.set('extractedItems', accumulated);
+        // ドキュメントフォーマットコンテキストを設定
+        if (documentFormatContext) {
+          runtimeContext.set('documentFormatContext', documentFormatContext);
+        }
         const extractionResult = await checklistExtractionAgent.generateLegacy(
           message,
           {
@@ -284,7 +292,7 @@ const topicExtractionStep = createStep({
 
     try {
       // 複数ファイルを統合してトピックを抽出
-      const message = await createCombinedMessage(
+      const { fileFormatInfos, ...message } = await createCombinedMessage(
         files,
         'Please extract topics from this document',
         (currentIndex, fileName) => {
@@ -326,6 +334,12 @@ const topicExtractionStep = createStep({
         await createRuntimeContext<TopicExtractionAgentRuntimeContext>();
       if (checklistRequirements) {
         runtimeContext.set('checklistRequirements', checklistRequirements);
+      }
+
+      // ドキュメントフォーマットコンテキストを設定
+      const documentFormatContext = buildDocumentFormatContext(fileFormatInfos);
+      if (documentFormatContext) {
+        runtimeContext.set('documentFormatContext', documentFormatContext);
       }
 
       const extractionResult = await topicExtractionAgent.generateLegacy(
@@ -382,7 +396,7 @@ const topicChecklistCreationStep = createStep({
 
     try {
       // 複数ファイルを統合してメッセージを作成
-      const message = await createCombinedMessage(
+      const { fileFormatInfos, ...message } = await createCombinedMessage(
         files,
         `Please create checklist items from this document for topic: ${title}`,
         (currentIndex, fileName) => {
@@ -428,6 +442,12 @@ const topicChecklistCreationStep = createStep({
       runtimeContext.set('topic', { title });
       if (checklistRequirements) {
         runtimeContext.set('checklistRequirements', checklistRequirements);
+      }
+
+      // ドキュメントフォーマットコンテキストを設定
+      const documentFormatContext = buildDocumentFormatContext(fileFormatInfos);
+      if (documentFormatContext) {
+        runtimeContext.set('documentFormatContext', documentFormatContext);
       }
 
       const result = await topicChecklistAgent.generateLegacy(message, {

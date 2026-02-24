@@ -19,6 +19,7 @@ import {
   documentReviewExecutionOutputSchema,
 } from '.';
 import { getChecklistsErrorMessage } from './lib';
+import { buildDocumentFormatContext } from '@/mastra/lib/extractionFormatDescription';
 
 const logger = getMainLogger();
 
@@ -99,6 +100,20 @@ export const smallDocumentReviewExecutionStep = createStep({
         runtimeContext.set('additionalInstructions', additionalInstructions);
         runtimeContext.set('commentFormat', commentFormat);
         runtimeContext.set('evaluationSettings', evaluationSettings);
+
+        // ドキュメントフォーマットコンテキストを設定
+        const documentFormatContext = buildDocumentFormatContext(
+          documents.map((doc) => ({
+            name: doc.name,
+            formatType: doc.formatType,
+            processMode: doc.processMode || 'text',
+            includeImages:
+              (doc.extractedImages && doc.extractedImages.length > 0) || false,
+          })),
+        );
+        if (documentFormatContext) {
+          runtimeContext.set('documentFormatContext', documentFormatContext);
+        }
 
         // チェックリスト一覧をメッセージの最後にリマインドとして追加
         const checklistReminder = `## Checklist Items to Review:

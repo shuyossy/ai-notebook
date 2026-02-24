@@ -68,6 +68,16 @@ export function splitChecklistEquallyByMaxSize(
 }
 
 /**
+ * ファイルのフォーマット情報（フォーマットコンテキスト構築用）
+ */
+export interface FileFormatInfo {
+  name: string;
+  formatType?: string;
+  processMode: string;
+  includeImages: boolean;
+}
+
+/**
  * 複数ファイルを統合したメッセージオブジェクトを作成する
  * @param files ファイルリスト
  * @param promptText プロンプトテキスト
@@ -83,6 +93,7 @@ export async function createCombinedMessage(
     | { type: 'text'; text: string }
     | { type: 'image'; image: string; mimeType: string }
   >;
+  fileFormatInfos: FileFormatInfo[];
 }> {
   // ファイル名一覧を作成
   const fileNames = files.map((file) => file.name).join(', ');
@@ -97,6 +108,9 @@ export async function createCombinedMessage(
       text: `${promptText}: ${fileNames}`,
     },
   ];
+
+  // ファイルフォーマット情報を収集
+  const fileFormatInfos: FileFormatInfo[] = [];
 
   // FileTextExtractorはステートレスなので1インスタンスで十分
   const fileTextExtractor = new FileTextExtractor();
@@ -132,6 +146,13 @@ export async function createCombinedMessage(
           mimeType: 'image/png',
         });
       }
+
+      // 画像モードのフォーマット情報を追加
+      fileFormatInfos.push({
+        name: file.name,
+        processMode: 'image',
+        includeImages: false,
+      });
     } else {
       // FileTextExtractorを使用したテキスト抽出処理
       const result = await fileTextExtractor.extract(file.path, file.name);
@@ -154,12 +175,21 @@ export async function createCombinedMessage(
           mimeType: image.mimeType,
         });
       }
+
+      // テキスト抽出モードのフォーマット情報を追加
+      fileFormatInfos.push({
+        name: file.name,
+        formatType: result.formatType,
+        processMode: 'text',
+        includeImages: result.images.length > 0,
+      });
     }
   }
 
   return {
     role: 'user',
     content,
+    fileFormatInfos,
   };
 }
 

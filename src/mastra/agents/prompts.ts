@@ -213,6 +213,8 @@ export function getChecklistExtractionPrompt({
   runtimeContext: RuntimeContext<ChecklistExtractionAgentRuntimeContext>;
 }): string {
   const extractedItems = runtimeContext.get('extractedItems');
+  const documentFormatContext =
+    runtimeContext.get('documentFormatContext') ?? '';
   return `
 You are a specialist in extracting checklist items from documents.
 Additionally, if you determine the document is not a checklist document, explicitly set isChecklistDocument to false.
@@ -229,6 +231,7 @@ ${runtimeContext
 
 ${extractedItems.length > 0 ? 'From' : 'Then, from'} the full document text, please find ${extractedItems.length > 0 ? '**additional checklist items that have not yet been captured**' : '**every checklist item**'} exactly as written, **without changing or paraphrasing**.
 Ensure you never omit or alter any checklist text.
+${documentFormatContext ? `\n${documentFormatContext}\n` : ''}
 **Important:** Only output the checklist items (and the isChecklistDocument flag). Do not extract or include any other parts of the document that are not actual checklist entries.
 `;
 }
@@ -278,6 +281,7 @@ export function getTopicExtractionPrompt({
   runtimeContext?: RuntimeContext<TopicExtractionAgentRuntimeContext>;
 } = {}): string {
   const checklistRequirements = runtimeContext?.get('checklistRequirements');
+  const documentFormatContext = runtimeContext?.get('documentFormatContext');
 
   return `
 You are a professional document analysis specialist who extracts independent topics from documents.
@@ -304,7 +308,7 @@ Please prioritize topics that align with these requirements when extracting topi
 
 `
     : ''
-}**Important:**
+}${documentFormatContext ? `\n${documentFormatContext}\n` : ''}**Important:**
 - Extract topics that represent different aspects or areas of the document
 - Avoid overlapping or redundant topics
 - Each topic should be substantial enough to warrant dedicated checklist items
@@ -319,6 +323,7 @@ export function getTopicChecklistCreationPrompt({
 }): string {
   const title = runtimeContext.get('topic').title;
   const checklistRequirements = runtimeContext.get('checklistRequirements');
+  const documentFormatContext = runtimeContext.get('documentFormatContext');
 
   return `
 You are a senior "Document Review Checklist Designer" specialized in turning a **specific topic** into **practical, verifiable checklist items**.
@@ -369,7 +374,7 @@ ${checklistRequirements ? '- **Requirements-aligned**: Prioritize aspects that a
 - **Be concise but unambiguous**. Prefer checkability over prose.
 - **Reference ALL relevant parts of the topic**: Ensure you consider every portion of the topic's description and implied scope so that **no important aspect is omitted** when creating checklist items.
 
-Now produce the checklist items **only for the topic: ${title}**, following all requirements${checklistRequirements ? ' and ensuring alignment with the user-specified requirements' : ''}.
+${documentFormatContext ? `\n${documentFormatContext}\n` : ''}Now produce the checklist items **only for the topic: ${title}**, following all requirements${checklistRequirements ? ' and ensuring alignment with the user-specified requirements' : ''}.
 `;
 }
 
@@ -488,6 +493,7 @@ export function getDocumentReviewExecutionPrompt({
   const additionalInstructions = runtimeContext.get('additionalInstructions');
   const commentFormat = runtimeContext.get('commentFormat');
   const evaluationSettings = runtimeContext.get('evaluationSettings');
+  const documentFormatContext = runtimeContext.get('documentFormatContext');
 
   // Build a human-readable list of checklist items
   const formattedList = checklists
@@ -554,7 +560,7 @@ Special Instructions:
 ${additionalInstructions}
 `
     : ``
-}
+}${documentFormatContext ? `\n${documentFormatContext}\n` : ''}
 Please ensure clarity, conciseness, and a professional tone.`;
 }
 
@@ -567,6 +573,7 @@ export function getIndividualDocumentReviewPrompt({
   const checklistItems = runtimeContext.get('checklistItems');
   const additionalInstructions = runtimeContext.get('additionalInstructions');
   const commentFormat = runtimeContext.get('commentFormat');
+  const documentFormatContext = runtimeContext.get('documentFormatContext');
 
   // Build a human-readable list of checklist items
   const formattedList = checklistItems
@@ -629,7 +636,7 @@ ${additionalInstructions}
 `
     : ``
 }
-
+${documentFormatContext ? `\n${documentFormatContext}\n` : ''}
 Remember: Your thorough analysis of this document part is crucial for achieving an excellent final consolidated review. Include all relevant details that will contribute to the overall document assessment.`;
 }
 
@@ -736,6 +743,7 @@ export function getReviewChatResearchPrompt({
   const checklistInfo = runtimeContext.get('checklistInfo');
   const userQuestion = runtimeContext.get('userQuestion');
   const reviewMode = runtimeContext.get('reviewMode');
+  const documentFormatContext = runtimeContext.get('documentFormatContext');
 
   // ドキュメントが分割されているかどうかで異なるプロンプトを生成
   const isChunked = totalChunks > 1;
@@ -815,7 +823,7 @@ OUTPUT REQUIREMENTS:
 - If requested information is not present, state naturally like "この点については確認できませんでした"`
       : ''
   }
-- Focus on WHAT you found and WHERE in the document (using natural references), not on HOW the analysis was conducted`;
+${documentFormatContext ? `\n${documentFormatContext}\n` : ''}- Focus on WHAT you found and WHERE in the document (using natural references), not on HOW the analysis was conducted`;
 }
 
 // レビューチャット：最終回答生成用のプロンプト

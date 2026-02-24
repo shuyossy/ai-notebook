@@ -321,7 +321,6 @@ export class PdfjsRichStrategy implements ITextExtractorStrategy {
             }
           }
         }
-
       }
 
       // 1ページでも画像解析に失敗した場合はフォールバック

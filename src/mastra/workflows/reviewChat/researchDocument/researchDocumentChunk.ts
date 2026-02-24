@@ -14,6 +14,7 @@ import {
 } from '@/mastra/lib/agentUtils';
 import { getReviewRepository } from '@/adapter/db';
 import { judgeReviewMode, buildResearchChecklistInfo } from '../lib';
+import { buildDocumentFormatContext } from '@/mastra/lib/extractionFormatDescription';
 
 const logger = getMainLogger();
 
@@ -53,6 +54,7 @@ export const researchChunkStep = createStep({
         totalChunks,
         fileName,
         reviewHistoryId,
+        documentCacheId,
         checklistIds,
         question,
         reasoning,
@@ -83,6 +85,23 @@ export const researchChunkStep = createStep({
       runtimeContext.set('userQuestion', question);
       runtimeContext.set('reasoning', reasoning);
       runtimeContext.set('reviewMode', reviewMode);
+
+      // ドキュメントキャッシュからフォーマット情報を取得してコンテキストを設定
+      const documentCache =
+        await reviewRepository.getReviewDocumentCacheById(documentCacheId);
+      if (documentCache) {
+        const documentFormatContext = buildDocumentFormatContext([
+          {
+            name: documentCache.fileName,
+            formatType: documentCache.formatType ?? undefined,
+            processMode: documentCache.processMode,
+            includeImages: documentCache.includeImages ?? false,
+          },
+        ]);
+        if (documentFormatContext) {
+          runtimeContext.set('documentFormatContext', documentFormatContext);
+        }
+      }
 
       // メッセージを作成
       const messageContent = [];

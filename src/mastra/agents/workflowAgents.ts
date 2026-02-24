@@ -25,6 +25,7 @@ import type { CustomEvaluationSettings } from '@/types';
 
 export type ChecklistExtractionAgentRuntimeContext = BaseRuntimeContext & {
   extractedItems: string[];
+  documentFormatContext?: string;
 };
 
 export type ClassifyCategoryAgentRuntimeContext = BaseRuntimeContext & {
@@ -37,15 +38,18 @@ export type ReviewExecuteAgentRuntimeContext = BaseRuntimeContext & {
   additionalInstructions?: string;
   commentFormat?: string;
   evaluationSettings?: CustomEvaluationSettings;
+  documentFormatContext?: string;
 };
 
 export type TopicExtractionAgentRuntimeContext = BaseRuntimeContext & {
   checklistRequirements?: string;
+  documentFormatContext?: string;
 };
 
 export type TopicChecklistAgentRuntimeContext = BaseRuntimeContext & {
   topic: { title: string };
   checklistRequirements?: string;
+  documentFormatContext?: string;
 };
 
 export type ChecklistRefinementAgentRuntimeContext = BaseRuntimeContext & {
@@ -56,6 +60,7 @@ export type IndividualDocumentReviewAgentRuntimeContext = BaseRuntimeContext & {
   checklistItems: { id: number; content: string }[];
   additionalInstructions?: string;
   commentFormat?: string;
+  documentFormatContext?: string;
 };
 
 export type ConsolidateReviewAgentRuntimeContext = BaseRuntimeContext & {
@@ -81,6 +86,7 @@ export type ReviewChatResearchAgentRuntimeContext = BaseRuntimeContext & {
   userQuestion: string; // ユーザからの質問
   reasoning?: string; // 調査計画の理由
   reviewMode: 'large' | 'small'; // レビュー方式（大量レビュー/少量レビュー）
+  documentFormatContext?: string;
 };
 
 export type ReviewChatAnswerAgentRuntimeContext = BaseRuntimeContext & {

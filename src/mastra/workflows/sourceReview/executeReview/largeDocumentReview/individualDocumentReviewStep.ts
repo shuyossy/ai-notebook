@@ -17,6 +17,7 @@ import { createCombinedMessageFromExtractedDocument } from '../../lib';
 import { getChecklistsErrorMessage } from '../lib';
 import { extractedDocumentSchema } from '../schema';
 import { getReviewRepository } from '@/adapter/db';
+import { buildDocumentFormatContext } from '@/mastra/lib/extractionFormatDescription';
 
 const logger = getMainLogger();
 
@@ -128,6 +129,22 @@ Checklist Items to Review:\n${checklists.map((item) => `- ID: ${item.id} - ${ite
         runtimeContext.set('checklistItems', targetChecklists);
         runtimeContext.set('additionalInstructions', additionalInstructions);
         runtimeContext.set('commentFormat', commentFormat);
+
+        // ドキュメントフォーマットコンテキストを設定
+        const documentFormatContext = buildDocumentFormatContext([
+          {
+            name: document.name,
+            formatType: document.formatType,
+            processMode: document.processMode || 'text',
+            includeImages:
+              (document.extractedImages &&
+                document.extractedImages.length > 0) ||
+              false,
+          },
+        ]);
+        if (documentFormatContext) {
+          runtimeContext.set('documentFormatContext', documentFormatContext);
+        }
 
         // レビューエージェントを使用してレビューを実行
         const reviewResult = await reviewAgent.generateLegacy(reviewMessage, {
