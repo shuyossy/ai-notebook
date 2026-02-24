@@ -22,6 +22,7 @@ import type {
   ReviewDocumentCache,
   ReviewLargedocumentResultCache,
   ProcessMode,
+  DocumentCacheInfo,
 } from '@/types';
 import { AppError, internalError } from '@/main/lib/error';
 import { repositoryError } from '@/main/lib/error';
@@ -728,6 +729,37 @@ export class DrizzleReviewRepository implements IReviewRepository {
       );
     } catch (err) {
       throw repositoryError('ドキュメントキャッシュの取得に失敗しました', err);
+    }
+  }
+
+  // ドキュメントキャッシュのメタデータのみ取得（軽量版: ファイル読み込みなし）
+  async getReviewDocumentCacheInfos(
+    reviewHistoryId: string,
+  ): Promise<DocumentCacheInfo[]> {
+    try {
+      const db = await getDb();
+      const entities = await db
+        .select({
+          fileName: reviewDocumentCaches.fileName,
+          processMode: reviewDocumentCaches.processMode,
+          formatType: reviewDocumentCaches.formatType,
+          includeImages: reviewDocumentCaches.includeImages,
+        })
+        .from(reviewDocumentCaches)
+        .where(eq(reviewDocumentCaches.reviewHistoryId, reviewHistoryId))
+        .orderBy(reviewDocumentCaches.createdAt);
+
+      return entities.map((entity) => ({
+        fileName: entity.fileName,
+        processMode: entity.processMode as ProcessMode,
+        formatType: entity.formatType ?? null,
+        includeImages: entity.includeImages === 1,
+      }));
+    } catch (err) {
+      throw repositoryError(
+        'ドキュメントキャッシュ情報の取得に失敗しました',
+        err,
+      );
     }
   }
 

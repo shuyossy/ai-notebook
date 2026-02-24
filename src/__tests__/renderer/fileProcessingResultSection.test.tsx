@@ -1,0 +1,391 @@
+/**
+ * @jest-environment jsdom
+ */
+import React from 'react';
+import { render, screen, fireEvent } from '@testing-library/react';
+import '@testing-library/jest-dom';
+import FileProcessingResultSection from '@/renderer/components/review/FileProcessingResultSection';
+import type { DocumentCacheInfo } from '@/types';
+
+describe('FileProcessingResultSection', () => {
+  const createCache = (
+    overrides: Partial<DocumentCacheInfo> = {},
+  ): DocumentCacheInfo => ({
+    fileName: 'test.xlsx',
+    processMode: 'text',
+    formatType: 'xlsx-rich-v1',
+    includeImages: true,
+    ...overrides,
+  });
+
+  describe('折りたたみ動作', () => {
+    it('デフォルトで折りたたまれていること', () => {
+      render(<FileProcessingResultSection documentCaches={[createCache()]} />);
+
+      // トリガーは表示されている
+      expect(screen.getByText('ファイル処理結果')).toBeInTheDocument();
+      // MUI Collapseはin=falseでもDOMにはレンダリングするが、非表示になる
+      expect(screen.getByText('ファイル名')).not.toBeVisible();
+    });
+
+    it('クリックで展開できること', () => {
+      render(<FileProcessingResultSection documentCaches={[createCache()]} />);
+
+      fireEvent.click(screen.getByText('ファイル処理結果'));
+
+      // テーブルが表示される
+      expect(screen.getByText('ファイル名')).toBeVisible();
+      expect(screen.getByText('処理モード')).toBeVisible();
+      expect(screen.getByText('test.xlsx')).toBeVisible();
+    });
+  });
+
+  describe('リッチ戦略成功パターン', () => {
+    it('xlsx-rich-v1のファイルで「成功」バッジが表示される', () => {
+      render(
+        <FileProcessingResultSection
+          documentCaches={[
+            createCache({
+              fileName: 'report.xlsx',
+              formatType: 'xlsx-rich-v1',
+              includeImages: true,
+            }),
+          ]}
+        />,
+      );
+
+      fireEvent.click(screen.getByText('ファイル処理結果'));
+
+      expect(screen.getByText('report.xlsx')).toBeInTheDocument();
+      expect(screen.getByText('テキスト抽出')).toBeInTheDocument();
+      expect(screen.getByText('あり')).toBeInTheDocument();
+      expect(screen.getByText('成功')).toBeInTheDocument();
+    });
+
+    it('docx-rich-v1のファイルで「成功」バッジが表示される', () => {
+      render(
+        <FileProcessingResultSection
+          documentCaches={[
+            createCache({
+              fileName: 'document.docx',
+              formatType: 'docx-rich-v1',
+              includeImages: true,
+            }),
+          ]}
+        />,
+      );
+
+      fireEvent.click(screen.getByText('ファイル処理結果'));
+
+      expect(screen.getByText('document.docx')).toBeInTheDocument();
+      expect(screen.getByText('テキスト抽出')).toBeInTheDocument();
+      expect(screen.getByText('あり')).toBeInTheDocument();
+      expect(screen.getByText('成功')).toBeInTheDocument();
+    });
+
+    it('pptx-rich-v1のファイルで「成功」バッジが表示される', () => {
+      render(
+        <FileProcessingResultSection
+          documentCaches={[
+            createCache({
+              fileName: 'presentation.pptx',
+              formatType: 'pptx-rich-v1',
+              includeImages: true,
+            }),
+          ]}
+        />,
+      );
+
+      fireEvent.click(screen.getByText('ファイル処理結果'));
+
+      expect(screen.getByText('presentation.pptx')).toBeInTheDocument();
+      expect(screen.getByText('テキスト抽出')).toBeInTheDocument();
+      expect(screen.getByText('あり')).toBeInTheDocument();
+      expect(screen.getByText('成功')).toBeInTheDocument();
+    });
+
+    it('pdf-rich-v1のファイルで「成功」バッジが表示される', () => {
+      render(
+        <FileProcessingResultSection
+          documentCaches={[
+            createCache({
+              fileName: 'report.pdf',
+              formatType: 'pdf-rich-v1',
+              includeImages: true,
+            }),
+          ]}
+        />,
+      );
+
+      fireEvent.click(screen.getByText('ファイル処理結果'));
+
+      expect(screen.getByText('report.pdf')).toBeInTheDocument();
+      expect(screen.getByText('テキスト抽出')).toBeInTheDocument();
+      expect(screen.getByText('あり')).toBeInTheDocument();
+      expect(screen.getByText('成功')).toBeInTheDocument();
+    });
+
+    it('リッチ成功+画像なし（includeImages=false）で「なし」が表示される', () => {
+      render(
+        <FileProcessingResultSection
+          documentCaches={[
+            createCache({
+              fileName: 'report.xlsx',
+              formatType: 'xlsx-rich-v1',
+              includeImages: false,
+            }),
+          ]}
+        />,
+      );
+
+      fireEvent.click(screen.getByText('ファイル処理結果'));
+
+      expect(screen.getByText('report.xlsx')).toBeInTheDocument();
+      expect(screen.getByText('成功')).toBeInTheDocument();
+      expect(screen.getByText('なし')).toBeInTheDocument();
+    });
+  });
+
+  describe('フォールバックパターン', () => {
+    it('xlsx-csv-v1にフォールバックしたファイルで「失敗」バッジと画像列ハイフンが表示される', () => {
+      render(
+        <FileProcessingResultSection
+          documentCaches={[
+            createCache({
+              fileName: 'report.xlsx',
+              formatType: 'xlsx-csv-v1',
+              includeImages: false,
+            }),
+          ]}
+        />,
+      );
+
+      fireEvent.click(screen.getByText('ファイル処理結果'));
+
+      expect(screen.getByText('失敗')).toBeInTheDocument();
+      // フォールバック時はファイル内画像もハイフン表示（画像は抽出されていないため）
+      const dashes = screen.getAllByText('-');
+      expect(dashes).toHaveLength(1);
+    });
+
+    it('docx-plainにフォールバックしたファイルで「失敗」バッジと画像列ハイフンが表示される', () => {
+      render(
+        <FileProcessingResultSection
+          documentCaches={[
+            createCache({
+              fileName: 'memo.docx',
+              formatType: 'docx-plain',
+              includeImages: false,
+            }),
+          ]}
+        />,
+      );
+
+      fireEvent.click(screen.getByText('ファイル処理結果'));
+
+      expect(screen.getByText('memo.docx')).toBeInTheDocument();
+      expect(screen.getByText('失敗')).toBeInTheDocument();
+      const dashes = screen.getAllByText('-');
+      expect(dashes).toHaveLength(1);
+    });
+
+    it('pptx-plainにフォールバックしたファイルで「失敗」バッジと画像列ハイフンが表示される', () => {
+      render(
+        <FileProcessingResultSection
+          documentCaches={[
+            createCache({
+              fileName: 'slide.pptx',
+              formatType: 'pptx-plain',
+              includeImages: false,
+            }),
+          ]}
+        />,
+      );
+
+      fireEvent.click(screen.getByText('ファイル処理結果'));
+
+      expect(screen.getByText('slide.pptx')).toBeInTheDocument();
+      expect(screen.getByText('失敗')).toBeInTheDocument();
+      const dashes = screen.getAllByText('-');
+      expect(dashes).toHaveLength(1);
+    });
+
+    it('pdf-text-v1にフォールバックしたファイルで「失敗」バッジと画像列ハイフンが表示される', () => {
+      render(
+        <FileProcessingResultSection
+          documentCaches={[
+            createCache({
+              fileName: 'document.pdf',
+              formatType: 'pdf-text-v1',
+              includeImages: false,
+            }),
+          ]}
+        />,
+      );
+
+      fireEvent.click(screen.getByText('ファイル処理結果'));
+
+      expect(screen.getByText('document.pdf')).toBeInTheDocument();
+      expect(screen.getByText('失敗')).toBeInTheDocument();
+      const dashes = screen.getAllByText('-');
+      expect(dashes).toHaveLength(1);
+    });
+
+    it('リッチ戦略対象ファイルでformatTypeがnullの場合「失敗」バッジが表示される', () => {
+      render(
+        <FileProcessingResultSection
+          documentCaches={[
+            createCache({
+              fileName: 'report.xlsx',
+              formatType: null,
+              includeImages: false,
+            }),
+          ]}
+        />,
+      );
+
+      fireEvent.click(screen.getByText('ファイル処理結果'));
+
+      expect(screen.getByText('report.xlsx')).toBeInTheDocument();
+      expect(screen.getByText('失敗')).toBeInTheDocument();
+      const dashes = screen.getAllByText('-');
+      expect(dashes).toHaveLength(1);
+    });
+  });
+
+  describe('対象外パターン', () => {
+    it('画像変換モードの場合、ファイル内画像と画像・図形抽出がハイフンで表示される', () => {
+      render(
+        <FileProcessingResultSection
+          documentCaches={[
+            createCache({
+              fileName: 'scan.pdf',
+              processMode: 'image',
+              formatType: 'image-pages',
+              includeImages: false,
+            }),
+          ]}
+        />,
+      );
+
+      fireEvent.click(screen.getByText('ファイル処理結果'));
+
+      expect(screen.getByText('scan.pdf')).toBeInTheDocument();
+      expect(screen.getByText('画像変換')).toBeInTheDocument();
+      // ハイフンが2つ表示される（ファイル内画像列と画像・図形抽出列）
+      const dashes = screen.getAllByText('-');
+      expect(dashes).toHaveLength(2);
+    });
+
+    it('txtファイルの場合、ファイル内画像と画像・図形抽出がハイフンで表示される', () => {
+      render(
+        <FileProcessingResultSection
+          documentCaches={[
+            createCache({
+              fileName: 'readme.txt',
+              processMode: 'text',
+              formatType: 'txt-plain',
+              includeImages: false,
+            }),
+          ]}
+        />,
+      );
+
+      fireEvent.click(screen.getByText('ファイル処理結果'));
+
+      expect(screen.getByText('readme.txt')).toBeInTheDocument();
+      const dashes = screen.getAllByText('-');
+      expect(dashes).toHaveLength(2);
+    });
+
+    it('csvファイルの場合、ファイル内画像と画像・図形抽出がハイフンで表示される', () => {
+      render(
+        <FileProcessingResultSection
+          documentCaches={[
+            createCache({
+              fileName: 'data.csv',
+              processMode: 'text',
+              formatType: 'csv-plain',
+              includeImages: false,
+            }),
+          ]}
+        />,
+      );
+
+      fireEvent.click(screen.getByText('ファイル処理結果'));
+
+      expect(screen.getByText('data.csv')).toBeInTheDocument();
+      const dashes = screen.getAllByText('-');
+      expect(dashes).toHaveLength(2);
+    });
+  });
+
+  describe('複数ファイルの表示', () => {
+    it('複数ファイルが正しく表示される', () => {
+      const caches: DocumentCacheInfo[] = [
+        createCache({
+          fileName: 'report.xlsx',
+          formatType: 'xlsx-rich-v1',
+          includeImages: true,
+        }),
+        createCache({
+          fileName: 'memo.docx',
+          formatType: 'docx-plain',
+          includeImages: false,
+        }),
+        createCache({
+          fileName: 'scan.pdf',
+          processMode: 'image',
+          formatType: 'image-pages',
+        }),
+        createCache({
+          fileName: 'readme.txt',
+          formatType: 'txt-plain',
+        }),
+      ];
+
+      render(<FileProcessingResultSection documentCaches={caches} />);
+
+      fireEvent.click(screen.getByText('ファイル処理結果'));
+
+      expect(screen.getByText('report.xlsx')).toBeInTheDocument();
+      expect(screen.getByText('memo.docx')).toBeInTheDocument();
+      expect(screen.getByText('scan.pdf')).toBeInTheDocument();
+      expect(screen.getByText('readme.txt')).toBeInTheDocument();
+
+      // リッチ成功
+      expect(screen.getByText('成功')).toBeInTheDocument();
+      // フォールバック
+      expect(screen.getByText('失敗')).toBeInTheDocument();
+    });
+  });
+
+  describe('説明ボックス', () => {
+    it('展開時に説明ボックスが表示される', () => {
+      render(<FileProcessingResultSection documentCaches={[createCache()]} />);
+
+      fireEvent.click(screen.getByText('ファイル処理結果'));
+
+      expect(
+        screen.getByText(
+          '画像・図形処理についてはファイル形式ごとに処理方法が異なります',
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          /貼り付けられた画像と図形情報（図形内テキスト情報）を抽出する/,
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          /貼り付けられた画像と図形情報（図形内テキスト情報・種類・座標・大きさ）を抽出する/,
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          /ファイル内画像を含めないよう選択している場合は図形情報のみ利用/,
+        ),
+      ).toBeInTheDocument();
+    });
+  });
+});

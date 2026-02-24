@@ -11,6 +11,7 @@ import type {
   CustomEvaluationSettings,
   DocumentMode,
   RetryMode,
+  DocumentCacheInfo,
 } from './review';
 import type { SettingsSavingStatus, Settings } from './setting';
 import type { Source, RevieHistory } from '@/types';
@@ -218,6 +219,7 @@ export type IpcResponsePayloadMap = {
   [IpcChannels.REVIEW_GET_HISTORY_DETAIL]: IpcResult<{
     checklistResults?: ReviewChecklistResult[];
     targetDocumentName?: string | null;
+    documentCaches?: DocumentCacheInfo[];
   }>;
   [IpcChannels.REVIEW_GET_HISTORY_INSTRUCTION]: IpcResult<{
     additionalInstructions?: string;

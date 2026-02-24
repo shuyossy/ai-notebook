@@ -8,6 +8,7 @@ import {
   CustomEvaluationSettings,
   DocumentMode,
   RetryMode,
+  DocumentCacheInfo,
 } from '@/types';
 import { ApiServiceDefaultOptions } from '../types';
 import { invokeApi } from '../lib/apiUtils';
@@ -33,6 +34,7 @@ export interface IReviewApi {
   ): Promise<{
     checklistResults?: ReviewChecklistResult[];
     targetDocumentName?: string | null;
+    documentCaches?: DocumentCacheInfo[];
   } | null>;
   getReviewInstruction(
     historyId: string,
@@ -145,6 +147,7 @@ export class ReviewApi implements IReviewApi {
   ): Promise<{
     checklistResults?: ReviewChecklistResult[];
     targetDocumentName?: string | null;
+    documentCaches?: DocumentCacheInfo[];
   } | null> {
     return invokeApi(
       () => window.electron.review.getHistoryDetail(historyId),

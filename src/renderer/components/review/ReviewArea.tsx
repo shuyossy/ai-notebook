@@ -23,12 +23,14 @@ import {
   DocumentMode,
   ProcessingStatus,
   RetryMode,
+  DocumentCacheInfo,
 } from '@/types';
 import { ReviewAreaProps } from './types';
 import ReviewChecklistSection from './ReviewChecklistSection';
 import ReviewSourceModal from './ReviewSourceModal';
 import ReviewChatPanel from './ReviewChatPanel';
 import RetryModeSelectionModal from './RetryModeSelectionModal';
+import FileProcessingResultSection from './FileProcessingResultSection';
 import { ReviewApi } from '../../service/reviewApi';
 import { useAlertStore } from '../../stores/alertStore';
 import { getSafeErrorMessage } from '../../lib/error';
@@ -54,6 +56,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
   const [targetDocumentName, setTargetDocumentName] = useState<string | null>(
     null,
   );
+  const [documentCaches, setDocumentCaches] = useState<DocumentCacheInfo[]>([]);
   // チェックリスト更新処理中であるかどうか
   const [isSaving, setIsSaving] = useState(false);
   const [isExtracting, setIsExtracting] = useState(false);
@@ -98,6 +101,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
     );
     setChecklistResults(result?.checklistResults || []);
     setTargetDocumentName(result?.targetDocumentName || null);
+    setDocumentCaches(result?.documentCaches || []);
 
     // processingStatusも取得して更新
     const currentHistory = await reviewApi.getHistoryById(
@@ -246,6 +250,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
 
     // 状態リセット
     setChecklistResults([]);
+    setDocumentCaches([]);
     setIsExtracting(false);
     setIsReviewing(false);
     setProcessingStatus('idle');
@@ -828,6 +833,9 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
                 overflow: 'hidden',
               }}
             >
+              {documentCaches.length > 0 && (
+                <FileProcessingResultSection documentCaches={documentCaches} />
+              )}
               <ReviewChecklistSection
                 checklistResults={checklistResults}
                 isLoading={isExtracting || isReviewing}

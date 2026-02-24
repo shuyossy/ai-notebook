@@ -164,6 +164,7 @@ describe('reviewChatWorkflow', () => {
           individualResults: undefined,
         },
       ]),
+      getReviewDocumentCacheInfos: jest.fn(),
     } as jest.Mocked<IReviewRepository>;
 
     (getReviewRepository as jest.Mock).mockReturnValue(mockRepository);

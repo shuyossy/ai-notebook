@@ -178,6 +178,14 @@ export interface FileTextExtractionResult {
   formatType: TextExtractionFormatType;
 }
 
+// ドキュメントキャッシュ情報（ファイル処理結果表示用）
+export interface DocumentCacheInfo {
+  fileName: string;
+  processMode: ProcessMode;
+  formatType: string | null;
+  includeImages: boolean;
+}
+
 // CSV/Excelインポートデータの型定義
 export interface CsvImportData {
   checklists: string[]; // チェックリスト項目の配列

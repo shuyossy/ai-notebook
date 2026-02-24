@@ -1,5 +1,6 @@
 import {
   CustomEvaluationSettings,
+  DocumentCacheInfo,
   DocumentMode,
   ProcessingStatus,
   RevieHistory,
@@ -92,6 +93,10 @@ export interface IReviewRepository {
   ): Promise<ReviewDocumentCache[]>;
   getReviewDocumentCacheById(id: number): Promise<ReviewDocumentCache | null>;
   getReviewDocumentCacheByIds(ids: number[]): Promise<ReviewDocumentCache[]>;
+  // ドキュメントキャッシュのメタデータのみ取得（軽量版）
+  getReviewDocumentCacheInfos(
+    reviewHistoryId: string,
+  ): Promise<DocumentCacheInfo[]>;
 
   // 大量ドキュメント結果キャッシュ管理
   createReviewLargedocumentResultCache(

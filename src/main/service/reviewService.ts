@@ -16,6 +16,7 @@ import {
   ProcessingStatus,
   CsvImportData,
   RetryMode,
+  DocumentCacheInfo,
 } from '@/types';
 import { isValidModelName, type ModelName } from '@/config/modelConfig';
 import { generateReviewTitle } from '@/mastra/workflows/sourceReview/lib';
@@ -38,6 +39,7 @@ export interface IReviewService {
   getReviewHistoryDetail(reviewHistoryId: string): Promise<{
     checklistResults: ReviewChecklistResult[];
     targetDocumentName?: string | null;
+    documentCaches?: DocumentCacheInfo[];
   }>;
   getReviewInstruction(reviewHistoryId: string): Promise<{
     additionalInstructions?: string;
@@ -120,9 +122,12 @@ export class ReviewService implements IReviewService {
       await this.reviewRepository.getReviewChecklistResults(reviewHistoryId);
     const reviewHistory =
       await this.reviewRepository.getReviewHistory(reviewHistoryId);
+    const documentCaches =
+      await this.reviewRepository.getReviewDocumentCacheInfos(reviewHistoryId);
     return {
       checklistResults: checklistResults,
       targetDocumentName: reviewHistory?.targetDocumentName,
+      documentCaches,
     };
   }
 
