@@ -19,6 +19,13 @@ jest.mock('electron', () => ({
 
 import { ReviewCacheHelper } from '@/main/lib/utils/reviewCacheHelper';
 
+// テスト用の有効なBase64データ（1x1 PNG画像）
+const VALID_PNG_BASE64 =
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+const VALID_JPEG_BASE64 = '/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAFA=';
+const VALID_GIF_BASE64 =
+  'R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==';
+
 describe('ReviewCacheHelper', () => {
   const reviewHistoryId = 'test-review-history';
 
@@ -29,6 +36,86 @@ describe('ReviewCacheHelper', () => {
 
   afterAll(async () => {
     await fs.rm(testUserData, { recursive: true, force: true });
+  });
+
+  describe('saveImageCache', () => {
+    describe('正常系', () => {
+      it('画像データがバイナリ.pngファイルとして保存されること', async () => {
+        // Arrange
+        const id = 1;
+        const imageData = [
+          `data:image/png;base64,${VALID_PNG_BASE64}`,
+          `data:image/png;base64,${VALID_PNG_BASE64}`,
+        ];
+
+        // Act
+        const cacheDir = await ReviewCacheHelper.saveImageCache(
+          reviewHistoryId,
+          id,
+          imageData,
+        );
+
+        // Assert
+        // 1-basedインデックスの.pngファイルが作成されていること
+        const files = await fs.readdir(cacheDir);
+        expect(files.sort()).toEqual(['page_1.png', 'page_2.png']);
+
+        // バイナリデータとして正しく書き込まれていること
+        const buffer1 = await fs.readFile(path.join(cacheDir, 'page_1.png'));
+        expect(buffer1).toEqual(Buffer.from(VALID_PNG_BASE64, 'base64'));
+
+        const buffer2 = await fs.readFile(path.join(cacheDir, 'page_2.png'));
+        expect(buffer2).toEqual(Buffer.from(VALID_PNG_BASE64, 'base64'));
+      });
+    });
+  });
+
+  describe('loadImageCache', () => {
+    describe('正常系', () => {
+      it('バイナリ.pngファイルからData URL形式で正しく読み込めること', async () => {
+        // Arrange: 先にバイナリで保存
+        const id = 1;
+        const originalData = [
+          `data:image/png;base64,${VALID_PNG_BASE64}`,
+          `data:image/png;base64,${VALID_PNG_BASE64}`,
+        ];
+        const cacheDir = await ReviewCacheHelper.saveImageCache(
+          reviewHistoryId,
+          id,
+          originalData,
+        );
+
+        // Act
+        const loaded = await ReviewCacheHelper.loadImageCache(cacheDir);
+
+        // Assert
+        expect(loaded).toHaveLength(2);
+        expect(loaded[0]).toBe(`data:image/png;base64,${VALID_PNG_BASE64}`);
+        expect(loaded[1]).toBe(`data:image/png;base64,${VALID_PNG_BASE64}`);
+      });
+    });
+  });
+
+  describe('saveImageCache → loadImageCache の往復', () => {
+    it('保存→読込でData URLデータが完全に復元されること', async () => {
+      // Arrange
+      const id = 2;
+      const originalData = [
+        `data:image/png;base64,${VALID_PNG_BASE64}`,
+        `data:image/png;base64,${VALID_PNG_BASE64}`,
+      ];
+
+      // Act
+      const cacheDir = await ReviewCacheHelper.saveImageCache(
+        reviewHistoryId,
+        id,
+        originalData,
+      );
+      const loaded = await ReviewCacheHelper.loadImageCache(cacheDir);
+
+      // Assert
+      expect(loaded).toEqual(originalData);
+    });
   });
 
   describe('saveTextWithImagesCache', () => {
@@ -58,19 +145,19 @@ describe('ReviewCacheHelper', () => {
         await expect(fs.access(imageDirPath)).rejects.toThrow();
       });
 
-      it('テキスト＋画像がある場合、テキストファイルと画像ファイルが保存されること', async () => {
+      it('テキスト＋画像がある場合、テキストファイルと画像ファイルがバイナリで保存されること', async () => {
         // Arrange
         const id = 2;
         const content = 'テキスト with ![image](image_1.png)';
         const images: ExtractedImage[] = [
           {
             referenceId: 'image_1.png',
-            base64Data: 'data:image/png;base64,iVBORw0KGgo=',
+            base64Data: `data:image/png;base64,${VALID_PNG_BASE64}`,
             mimeType: 'image/png',
           },
           {
             referenceId: 'image_2.jpg',
-            base64Data: 'data:image/jpeg;base64,/9j/4AAQ=',
+            base64Data: `data:image/jpeg;base64,${VALID_JPEG_BASE64}`,
             mimeType: 'image/jpeg',
           },
         ];
@@ -92,17 +179,16 @@ describe('ReviewCacheHelper', () => {
         const baseDir = path.dirname(textCachePath);
         const imageDirPath = path.join(baseDir, `${id}_images`);
 
-        const image1Data = await fs.readFile(
+        // バイナリデータとして正しく保存されていること
+        const image1Buffer = await fs.readFile(
           path.join(imageDirPath, 'image_1.png'),
-          'utf-8',
         );
-        expect(image1Data).toBe('data:image/png;base64,iVBORw0KGgo=');
+        expect(image1Buffer).toEqual(Buffer.from(VALID_PNG_BASE64, 'base64'));
 
-        const image2Data = await fs.readFile(
+        const image2Buffer = await fs.readFile(
           path.join(imageDirPath, 'image_2.jpg'),
-          'utf-8',
         );
-        expect(image2Data).toBe('data:image/jpeg;base64,/9j/4AAQ=');
+        expect(image2Buffer).toEqual(Buffer.from(VALID_JPEG_BASE64, 'base64'));
 
         // メタデータが保存されていること
         const metadataContent = await fs.readFile(
@@ -115,18 +201,45 @@ describe('ReviewCacheHelper', () => {
           { referenceId: 'image_2.jpg', mimeType: 'image/jpeg' },
         ]);
       });
+
+      it('パストラバーサル攻撃を含むreferenceIdが無害化されること', async () => {
+        // Arrange
+        const id = 3;
+        const images: ExtractedImage[] = [
+          {
+            referenceId: '../../../etc/passwd',
+            base64Data: `data:image/png;base64,${VALID_PNG_BASE64}`,
+            mimeType: 'image/png',
+          },
+        ];
+
+        // Act
+        const textCachePath = await ReviewCacheHelper.saveTextWithImagesCache(
+          reviewHistoryId,
+          id,
+          'test',
+          images,
+        );
+
+        // Assert: ファイルが画像ディレクトリ内に安全に保存されていること
+        const baseDir = path.dirname(textCachePath);
+        const imageDirPath = path.join(baseDir, `${id}_images`);
+        const files = await fs.readdir(imageDirPath);
+        // path.basename('../../../etc/passwd') = 'passwd'
+        expect(files.filter((f) => f !== '_metadata.json')).toEqual(['passwd']);
+      });
     });
   });
 
   describe('loadExtractedImagesCache', () => {
     describe('正常系', () => {
-      it('画像キャッシュが存在する場合、正しく読み込めること', async () => {
+      it('画像キャッシュが存在する場合、正しくData URL形式で読み込めること', async () => {
         // Arrange: 先に保存
         const id = 3;
         const images: ExtractedImage[] = [
           {
             referenceId: 'img_a.png',
-            base64Data: 'data:image/png;base64,AAA=',
+            base64Data: `data:image/png;base64,${VALID_PNG_BASE64}`,
             mimeType: 'image/png',
           },
         ];
@@ -144,7 +257,9 @@ describe('ReviewCacheHelper', () => {
         // Assert
         expect(loadedImages).toHaveLength(1);
         expect(loadedImages[0].referenceId).toBe('img_a.png');
-        expect(loadedImages[0].base64Data).toBe('data:image/png;base64,AAA=');
+        expect(loadedImages[0].base64Data).toBe(
+          `data:image/png;base64,${VALID_PNG_BASE64}`,
+        );
         expect(loadedImages[0].mimeType).toBe('image/png');
       });
 
@@ -154,17 +269,17 @@ describe('ReviewCacheHelper', () => {
         const images: ExtractedImage[] = [
           {
             referenceId: 'img_1.png',
-            base64Data: 'base64data1',
+            base64Data: `data:image/png;base64,${VALID_PNG_BASE64}`,
             mimeType: 'image/png',
           },
           {
             referenceId: 'img_2.jpg',
-            base64Data: 'base64data2',
+            base64Data: `data:image/jpeg;base64,${VALID_JPEG_BASE64}`,
             mimeType: 'image/jpeg',
           },
           {
             referenceId: 'img_3.gif',
-            base64Data: 'base64data3',
+            base64Data: `data:image/gif;base64,${VALID_GIF_BASE64}`,
             mimeType: 'image/gif',
           },
         ];
@@ -233,12 +348,12 @@ describe('ReviewCacheHelper', () => {
       const originalImages: ExtractedImage[] = [
         {
           referenceId: 'chart_1.png',
-          base64Data: 'data:image/png;base64,longbase64string==',
+          base64Data: `data:image/png;base64,${VALID_PNG_BASE64}`,
           mimeType: 'image/png',
         },
         {
           referenceId: 'photo_1.jpg',
-          base64Data: 'data:image/jpeg;base64,anotherlongstring==',
+          base64Data: `data:image/jpeg;base64,${VALID_JPEG_BASE64}`,
           mimeType: 'image/jpeg',
         },
       ];
@@ -289,7 +404,7 @@ describe('ReviewCacheHelper', () => {
         const images: ExtractedImage[] = [
           {
             referenceId: 'img.png',
-            base64Data: 'data:image/png;base64,AAA=',
+            base64Data: `data:image/png;base64,${VALID_PNG_BASE64}`,
             mimeType: 'image/png',
           },
         ];

@@ -27,6 +27,15 @@ interface ImageMetadataEntry {
  */
 export class ReviewCacheHelper {
   /**
+   * Data URLプレフィックス（data:xxx;base64,）を除去する
+   * @param data Base64データ（Data URLプレフィックス付きまたはなし）
+   * @returns プレフィックスを除去した純粋なBase64文字列
+   */
+  private static stripDataUrlPrefix(data: string): string {
+    return data.replace(/^data:[^;]+;base64,/, '');
+  }
+
+  /**
    * キャッシュベースディレクトリ取得
    */
   private static getCacheBaseDir(reviewHistoryId: string): string {
@@ -76,8 +85,11 @@ export class ReviewCacheHelper {
     await fs.mkdir(imageCacheDir, { recursive: true });
 
     for (let i = 0; i < imageData.length; i++) {
-      const pagePath = path.join(imageCacheDir, `page_${i}.b64`);
-      await fs.writeFile(pagePath, imageData[i], 'utf-8');
+      const pagePath = path.join(imageCacheDir, `page_${i + 1}.png`);
+      // Data URLプレフィックスを削除してからデコード
+      const base64Data = this.stripDataUrlPrefix(imageData[i]);
+      const buffer = Buffer.from(base64Data, 'base64');
+      await fs.writeFile(pagePath, buffer);
     }
 
     return imageCacheDir;
@@ -111,17 +123,18 @@ export class ReviewCacheHelper {
     try {
       const files = await fs.readdir(cacheDir);
       const imageFiles = files
-        .filter((f) => f.endsWith('.b64'))
+        .filter((f) => f.endsWith('.png'))
         .sort((a, b) => {
-          const aNum = parseInt(a.match(/page_(\d+)\.b64/)?.[1] || '0');
-          const bNum = parseInt(b.match(/page_(\d+)\.b64/)?.[1] || '0');
+          const aNum = parseInt(a.match(/page_(\d+)\.png/)?.[1] || '0');
+          const bNum = parseInt(b.match(/page_(\d+)\.png/)?.[1] || '0');
           return aNum - bNum;
         });
 
       const imageData: string[] = [];
       for (const file of imageFiles) {
-        const content = await fs.readFile(path.join(cacheDir, file), 'utf-8');
-        imageData.push(content);
+        const buffer = await fs.readFile(path.join(cacheDir, file));
+        // Data URLプレフィックスを付加して返す
+        imageData.push(`data:image/png;base64,${buffer.toString('base64')}`);
       }
 
       return imageData;
@@ -162,11 +175,17 @@ export class ReviewCacheHelper {
       const imageCacheDir = path.join(baseDir, `${id}_images`);
       await fs.mkdir(imageCacheDir, { recursive: true });
 
-      // 各画像をファイルとして保存
+      // 各画像をバイナリファイルとして保存
       for (const image of images) {
-        const imagePath = path.join(imageCacheDir, image.referenceId);
-        // base64データを保存（Data URL形式のままファイルに書き出す）
-        await fs.writeFile(imagePath, image.base64Data, 'utf-8');
+        // パストラバーサル対策: referenceIdからファイル名部分のみ使用
+        const safeFileName = path.basename(image.referenceId);
+        const imagePath = path.join(imageCacheDir, safeFileName);
+        // Data URLプレフィックスを削除してからデコード
+        const base64Data = ReviewCacheHelper.stripDataUrlPrefix(
+          image.base64Data,
+        );
+        const buffer = Buffer.from(base64Data, 'base64');
+        await fs.writeFile(imagePath, buffer);
       }
 
       // メタデータJSON保存
@@ -176,7 +195,7 @@ export class ReviewCacheHelper {
       }));
       await fs.writeFile(
         path.join(imageCacheDir, '_metadata.json'),
-        JSON.stringify(metadata, null, 2),
+        JSON.stringify(metadata),
         'utf-8',
       );
     }
@@ -211,11 +230,16 @@ export class ReviewCacheHelper {
       const metadataContent = await fs.readFile(metadataPath, 'utf-8');
       const metadata: ImageMetadataEntry[] = JSON.parse(metadataContent);
 
-      // 各画像ファイルを読み込み
+      // 各画像ファイルをバイナリとして読み込み
       const images: ExtractedImage[] = [];
       for (const entry of metadata) {
-        const imagePath = path.join(imageCacheDir, entry.referenceId);
-        const base64Data = await fs.readFile(imagePath, 'utf-8');
+        // パストラバーサル対策: referenceIdからファイル名部分のみ使用
+        const imagePath = path.join(
+          imageCacheDir,
+          path.basename(entry.referenceId),
+        );
+        const buffer = await fs.readFile(imagePath);
+        const base64Data = `data:${entry.mimeType};base64,${buffer.toString('base64')}`;
         images.push({
           referenceId: entry.referenceId,
           base64Data,
