@@ -10,6 +10,7 @@ import {
   fireEvent,
   within,
 } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import ReviewSourceModal from '@/renderer/components/review/ReviewSourceModal';
 import { createMockElectronWithOptions } from './test-utils/mockElectronHandler';
@@ -64,6 +65,21 @@ const uploadFiles = async (filePaths: string[]) => {
     // ファイル名（パスの末尾）が表示されていることを確認
     const fileName = filePaths[0].split(/[/\\]/).pop() || filePaths[0];
     expect(screen.getByText(fileName)).toBeInTheDocument();
+  });
+};
+
+// Selectの値を変更するヘルパー（MUI Selectはmousedownで開く）
+const changeSelectValue = async (
+  selectElement: HTMLElement,
+  optionName: string,
+) => {
+  await act(async () => {
+    fireEvent.mouseDown(selectElement);
+  });
+  const listbox = await screen.findByRole('listbox');
+  const option = within(listbox).getByText(optionName);
+  await act(async () => {
+    fireEvent.click(option);
   });
 };
 
@@ -164,7 +180,7 @@ describe('ReviewSourceModal - includeImages機能', () => {
       expect(screen.queryByText('画像を含める')).not.toBeInTheDocument();
     });
 
-    it('画像モードに切り替えた場合、「画像を含める」チェックボックスが表示されないこと', async () => {
+    it('画像化モードに切り替えた場合、「画像を含める」チェックボックスが表示されないこと', async () => {
       const mockShowOpenDialog = jest.fn().mockResolvedValue({
         success: true,
         data: {
@@ -182,12 +198,12 @@ describe('ReviewSourceModal - includeImages機能', () => {
       // 最初は「画像を含める」が表示されている
       expect(screen.getByText('画像を含める')).toBeInTheDocument();
 
-      // ファイルのリストアイテムを取得し、その中の「画像」ラジオを探す
+      // ファイルの処理方法Selectを「画像化」に変更
       const listItem = screen.getByText('document.pdf').closest('li')!;
-      const imageRadio = within(listItem).getByRole('radio', { name: /^画像/ });
-      await act(async () => {
-        fireEvent.click(imageRadio);
+      const processSelect = within(listItem).getByRole('combobox', {
+        name: /document\.pdfの処理方法/,
       });
+      await changeSelectValue(processSelect, '画像化');
 
       // 「画像を含める」が非表示になる
       expect(screen.queryByText('画像を含める')).not.toBeInTheDocument();
@@ -245,7 +261,7 @@ describe('ReviewSourceModal - includeImages機能', () => {
   });
 
   describe('一括操作', () => {
-    it('「一括: 画像を含める」ボタンで全対応ファイルのincludeImagesをtrueに変更できること', async () => {
+    it('一括設定で「画像を含める」を選択し適用すると、全対応ファイルのincludeImagesがtrueになること', async () => {
       const mockShowOpenDialog = jest.fn().mockResolvedValue({
         success: true,
         data: {
@@ -270,12 +286,16 @@ describe('ReviewSourceModal - includeImages機能', () => {
         expect(checkbox).not.toBeChecked();
       });
 
-      // 「一括: 画像を含める」ボタンをクリック
-      const bulkIncludeButton = screen.getByRole('button', {
-        name: '一括: 画像を含める',
+      // 一括設定の画像オプションSelectを「画像を含める」に変更
+      const bulkImageOptionSelect = screen.getByLabelText('画像オプション');
+      await changeSelectValue(bulkImageOptionSelect, '画像を含める');
+
+      // 「すべてに適用」ボタンをクリック
+      const applyButton = screen.getByRole('button', {
+        name: 'すべてに適用',
       });
       await act(async () => {
-        fireEvent.click(bulkIncludeButton);
+        fireEvent.click(applyButton);
       });
 
       // 対応ファイルのチェックボックスがチェックされる
@@ -285,7 +305,7 @@ describe('ReviewSourceModal - includeImages機能', () => {
       });
     });
 
-    it('「一括: 画像を含めない」ボタンで全対応ファイルのincludeImagesをfalseに変更できること', async () => {
+    it('一括設定で「画像を含めない」を選択し適用すると、全対応ファイルのincludeImagesがfalseになること', async () => {
       const mockShowOpenDialog = jest.fn().mockResolvedValue({
         success: true,
         data: {
@@ -300,12 +320,14 @@ describe('ReviewSourceModal - includeImages機能', () => {
       render(<ReviewSourceModal {...createDefaultProps()} />);
       await uploadFiles(['/test/file1.pdf', '/test/file2.xlsx']);
 
-      // まず「一括: 画像を含める」で全てチェック
-      const bulkIncludeButton = screen.getByRole('button', {
-        name: '一括: 画像を含める',
+      // まず「画像を含める」で全てチェック
+      const bulkImageOptionSelect = screen.getByLabelText('画像オプション');
+      await changeSelectValue(bulkImageOptionSelect, '画像を含める');
+      const applyButton = screen.getByRole('button', {
+        name: 'すべてに適用',
       });
       await act(async () => {
-        fireEvent.click(bulkIncludeButton);
+        fireEvent.click(applyButton);
       });
 
       // 全チェック済み確認
@@ -314,12 +336,11 @@ describe('ReviewSourceModal - includeImages機能', () => {
         expect(checkbox).toBeChecked();
       });
 
-      // 「一括: 画像を含めない」ボタンをクリック
-      const bulkExcludeButton = screen.getByRole('button', {
-        name: '一括: 画像を含めない',
-      });
+      // 「画像を含めない」に変更して再適用
+      const bulkImageOptionSelect2 = screen.getByLabelText('画像オプション');
+      await changeSelectValue(bulkImageOptionSelect2, '画像を含めない');
       await act(async () => {
-        fireEvent.click(bulkExcludeButton);
+        fireEvent.click(screen.getByRole('button', { name: 'すべてに適用' }));
       });
 
       // 全チェック解除確認
@@ -485,7 +506,7 @@ describe('ReviewSourceModal - includeImages機能', () => {
       });
       expect(checkbox).toBeChecked();
 
-      // 一括設定でテキストモードを適用
+      // 一括設定でテキストモード（デフォルト・画像を含めない）を適用
       const applyButton = screen.getByRole('button', { name: 'すべてに適用' });
       await act(async () => {
         fireEvent.click(applyButton);

@@ -23,20 +23,19 @@ import {
   AccordionSummary,
   AccordionDetails,
   Checkbox,
-  Chip,
+  Select,
+  MenuItem,
+  InputLabel,
 } from '@mui/material';
 import {
   CloudUpload as UploadIcon,
   Delete as DeleteIcon,
   Edit as EditIcon,
-  Image as ImageIcon,
-  Description as TextIcon,
   Help as HelpIcon,
-  ViewAgenda as MergedIcon,
-  ViewStream as PagesIcon,
   Add as AddIcon,
   ExpandMore as ExpandMoreIcon,
   Download as DownloadIcon,
+  InfoOutlined as InfoOutlinedIcon,
 } from '@mui/icons-material';
 import Backdrop from '@mui/material/Backdrop';
 import {
@@ -165,8 +164,8 @@ const getAlertMessage = ({
   return null;
 };
 
-// 一括設定用の処理モード型定義
-type BulkProcessMode = 'text' | 'image-merged' | 'image-pages';
+// 一括設定用の処理モード型定義（2択: テキスト抽出 / 画像化）
+type BulkProcessMode = 'text' | 'image';
 
 // 変換進捗情報の型定義
 type ConversionProgress = {
@@ -212,6 +211,8 @@ function ReviewSourceModal({
   });
   const [bulkProcessMode, setBulkProcessMode] =
     useState<BulkProcessMode>('text');
+  const [bulkImageMode, setBulkImageMode] = useState<ImageMode>('pages');
+  const [bulkIncludeImages, setBulkIncludeImages] = useState<boolean>(false);
 
   const addAlert = useAlertStore((state) => state.addAlert);
 
@@ -385,34 +386,31 @@ function ReviewSourceModal({
 
     setUploadedFiles((prev) =>
       prev.map((file) => {
-        // 画像化非対応ファイルはスキップ
-        if (!supportsImageProcessing(file.type)) {
-          return file;
-        }
-
         if (bulkProcessMode === 'text') {
+          // テキストモード: 画像化非対応ファイルでもincludeImages適用
+          if (!supportsImageProcessing(file.type)) {
+            if (supportsImageExtraction(file.name)) {
+              return { ...file, includeImages: bulkIncludeImages };
+            }
+            return file;
+          }
           return {
             ...file,
             processMode: 'text',
             imageData: undefined,
             includeImages: supportsImageExtraction(file.name)
-              ? false
+              ? bulkIncludeImages
               : undefined,
           };
-        } else if (bulkProcessMode === 'image-merged') {
-          return {
-            ...file,
-            processMode: 'image',
-            imageMode: 'merged',
-            imageData: undefined,
-            includeImages: undefined,
-          };
         } else {
-          // image-pages
+          // 画像化モード: 画像化非対応ファイルはスキップ
+          if (!supportsImageProcessing(file.type)) {
+            return file;
+          }
           return {
             ...file,
             processMode: 'image',
-            imageMode: 'pages',
+            imageMode: bulkImageMode,
             imageData: undefined,
             includeImages: undefined,
           };
@@ -1030,10 +1028,32 @@ function ReviewSourceModal({
                 選択済みファイル ({uploadedFiles.length}件)
               </Typography>
 
+              {/* テキスト抽出の説明 */}
+              {documentType !== 'checklist-csv' && (
+                <Alert severity="info" sx={{ mb: 2 }}>
+                  <Typography
+                    variant="body2"
+                    sx={{ fontWeight: 'bold', mb: 0.5 }}
+                  >
+                    テキスト抽出について
+                  </Typography>
+                  <Typography variant="body2">
+                    テキスト情報に加えて、以下の情報を取得可能な場合は自動的に取得します：
+                  </Typography>
+                  <Box component="ul" sx={{ m: 0, pl: 2.5 }}>
+                    <Typography component="li" variant="body2">
+                      Word・PDF：貼り付けられた画像、図形内のテキスト情報
+                    </Typography>
+                    <Typography component="li" variant="body2">
+                      Excel・PowerPoint：貼り付けられた画像、図形情報（種類・大きさ・座標を含む）
+                    </Typography>
+                  </Box>
+                </Alert>
+              )}
+
               {/* 一括設定セクション */}
               {documentType !== 'checklist-csv' && (
                 <Paper
-                  // variant="outlined"
                   sx={{
                     p: 2,
                     mb: 2,
@@ -1041,125 +1061,113 @@ function ReviewSourceModal({
                     border: '1px solid',
                   }}
                 >
-                  <Stack spacing={2}>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>
-                      一括設定
-                    </Typography>
-                    <FormControl component="fieldset">
-                      <RadioGroup
+                  <Typography
+                    variant="subtitle2"
+                    sx={{ fontWeight: 'bold', mb: 1.5 }}
+                  >
+                    一括設定
+                  </Typography>
+                  <Stack
+                    direction="row"
+                    spacing={2}
+                    alignItems="center"
+                    flexWrap="wrap"
+                  >
+                    {/* 処理方法Select */}
+                    <FormControl size="small" sx={{ minWidth: 160 }}>
+                      <InputLabel id="bulk-process-mode-label">
+                        処理方法
+                      </InputLabel>
+                      <Select
+                        labelId="bulk-process-mode-label"
+                        label="処理方法"
                         value={bulkProcessMode}
                         onChange={(e) =>
                           setBulkProcessMode(e.target.value as BulkProcessMode)
                         }
+                        disabled={processing}
                       >
-                        <FormControlLabel
-                          value="text"
-                          control={<Radio size="small" />}
-                          label={
-                            <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                              <TextIcon fontSize="small" sx={{ mr: 0.5 }} />
-                              テキスト抽出
-                            </Box>
-                          }
-                          disabled={processing}
-                        />
-                        <FormControlLabel
-                          value="image-merged"
-                          control={<Radio size="small" />}
-                          label={
-                            <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                              <ImageIcon fontSize="small" sx={{ mr: 0.5 }} />
-                              <MergedIcon fontSize="small" sx={{ mr: 0.5 }} />
-                              画像化（統合）
-                              <Tooltip title="全ページを1つの縦長画像として統合します。AIモデルは画像を一定の大きさに圧縮して読み込むので、ページ数が多い場合は利用しないでください。office文書の場合はPDFに変換してから画像化します。">
-                                <HelpIcon
-                                  fontSize="small"
-                                  sx={{ ml: 0.5, color: 'text.secondary' }}
-                                />
-                              </Tooltip>
-                            </Box>
-                          }
-                          disabled={processing}
-                        />
-                        <FormControlLabel
-                          value="image-pages"
-                          control={<Radio size="small" />}
-                          label={
-                            <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                              <ImageIcon fontSize="small" sx={{ mr: 0.5 }} />
-                              <PagesIcon fontSize="small" sx={{ mr: 0.5 }} />
-                              画像化（ページ毎）
-                              <Tooltip title="各ページを個別の画像として処理します。office文書の場合はPDFに変換してから画像化します。">
-                                <HelpIcon
-                                  fontSize="small"
-                                  sx={{ ml: 0.5, color: 'text.secondary' }}
-                                />
-                              </Tooltip>
-                            </Box>
-                          }
-                          disabled={processing}
-                        />
-                      </RadioGroup>
+                        <MenuItem value="text">テキスト抽出</MenuItem>
+                        <MenuItem value="image">画像化</MenuItem>
+                      </Select>
                     </FormControl>
+
+                    {/* サブオプションSelect（条件付き表示） */}
+                    {bulkProcessMode === 'text' ? (
+                      <Stack direction="row" spacing={0.5} alignItems="center">
+                        <FormControl size="small" sx={{ minWidth: 160 }}>
+                          <InputLabel id="bulk-include-images-label">
+                            画像オプション
+                          </InputLabel>
+                          <Select
+                            labelId="bulk-include-images-label"
+                            label="画像オプション"
+                            value={bulkIncludeImages ? 'include' : 'exclude'}
+                            onChange={(e) =>
+                              setBulkIncludeImages(e.target.value === 'include')
+                            }
+                            disabled={processing}
+                          >
+                            <MenuItem value="exclude">画像を含めない</MenuItem>
+                            <MenuItem value="include">画像を含める</MenuItem>
+                          </Select>
+                        </FormControl>
+                        <Tooltip title="テキスト抽出時にファイル内の画像も含めます。画像が多いファイルではコンテキスト消費量が増え、精度が低下する場合があります。">
+                          <InfoOutlinedIcon
+                            fontSize="small"
+                            sx={{
+                              color: 'text.secondary',
+                              cursor: 'help',
+                            }}
+                            data-testid="bulk-image-option-info"
+                          />
+                        </Tooltip>
+                      </Stack>
+                    ) : (
+                      <Stack direction="row" spacing={0.5} alignItems="center">
+                        <FormControl size="small" sx={{ minWidth: 160 }}>
+                          <InputLabel id="bulk-image-mode-label">
+                            画像化方式
+                          </InputLabel>
+                          <Select
+                            labelId="bulk-image-mode-label"
+                            label="画像化方式"
+                            value={bulkImageMode}
+                            onChange={(e) =>
+                              setBulkImageMode(e.target.value as ImageMode)
+                            }
+                            disabled={processing}
+                          >
+                            <MenuItem value="pages">ページごと</MenuItem>
+                            <MenuItem value="merged">統合</MenuItem>
+                          </Select>
+                        </FormControl>
+                        <Tooltip title="「統合」: 全ページを1つの縦長画像として統合します。AIモデルは画像を一定の大きさに圧縮して読み込むので、ページ数が多い場合は利用しないでください。「ページごと」: 各ページを個別の画像として処理します。office文書の場合はPDFに変換してから画像化します。">
+                          <InfoOutlinedIcon
+                            fontSize="small"
+                            sx={{
+                              color: 'text.secondary',
+                              cursor: 'help',
+                            }}
+                            data-testid="bulk-image-mode-info"
+                          />
+                        </Tooltip>
+                      </Stack>
+                    )}
+
                     <Button
                       variant="contained"
                       size="small"
                       onClick={handleApplyBulkSettings}
                       disabled={processing}
-                      sx={{ alignSelf: 'flex-start' }}
                     >
                       すべてに適用
                     </Button>
-
-                    {/* テキスト抽出時の画像一括設定 */}
-                    <Box>
-                      <Typography
-                        variant="body2"
-                        color="text.secondary"
-                        sx={{ mb: 1 }}
-                      >
-                        テキスト抽出時の画像設定（対応ファイルのみ）
-                      </Typography>
-                      <Stack direction="row" spacing={1}>
-                        <Button
-                          variant="outlined"
-                          size="small"
-                          onClick={() => {
-                            setUploadedFiles((prev) =>
-                              prev.map((file) =>
-                                supportsImageExtraction(file.name) &&
-                                file.processMode !== 'image'
-                                  ? { ...file, includeImages: true }
-                                  : file,
-                              ),
-                            );
-                          }}
-                          disabled={processing}
-                        >
-                          一括: 画像を含める
-                        </Button>
-                        <Button
-                          variant="outlined"
-                          size="small"
-                          onClick={() => {
-                            setUploadedFiles((prev) =>
-                              prev.map((file) =>
-                                supportsImageExtraction(file.name) &&
-                                file.processMode !== 'image'
-                                  ? { ...file, includeImages: false }
-                                  : file,
-                              ),
-                            );
-                          }}
-                          disabled={processing}
-                        >
-                          一括: 画像を含めない
-                        </Button>
-                      </Stack>
-                    </Box>
                   </Stack>
                 </Paper>
               )}
+
+              {/* ファイルリスト */}
               <List dense>
                 {uploadedFiles.map((file) => (
                   <ListItem
@@ -1174,72 +1182,47 @@ function ReviewSourceModal({
                       </IconButton>
                     }
                   >
-                    <ListItemText primary={file.name} />
+                    <ListItemText
+                      primary={file.name}
+                      sx={{ flex: '0 1 auto', mr: 2 }}
+                    />
                     {supportsImageProcessing(file.type) &&
-                      documentType !== 'checklist-csv' && (
-                        <Box sx={{ mr: 2 }}>
-                          <FormControl size="small">
-                            <RadioGroup
-                              row
-                              value={file.processMode}
-                              onChange={(e) =>
-                                handleProcessModeChange(
-                                  file.id,
-                                  e.target.value as ProcessMode,
-                                )
-                              }
-                            >
-                              <FormControlLabel
-                                value="text"
-                                control={<Radio size="small" />}
-                                label={
-                                  <Box
-                                    sx={{
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                    }}
-                                  >
-                                    <TextIcon
-                                      fontSize="small"
-                                      sx={{ mr: 0.5 }}
-                                    />
-                                    テキスト
-                                  </Box>
-                                }
-                              />
-                              <FormControlLabel
-                                value="image"
-                                control={<Radio size="small" />}
-                                label={
-                                  <Box
-                                    sx={{
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                    }}
-                                  >
-                                    <ImageIcon
-                                      fontSize="small"
-                                      sx={{ mr: 0.5 }}
-                                    />
-                                    画像
-                                    <Tooltip title="図形オブジェクトが多いドキュメントは画像化で精度が上がる場合があります">
-                                      <HelpIcon
-                                        fontSize="small"
-                                        sx={{
-                                          ml: 0.5,
-                                          color: 'text.secondary',
-                                        }}
-                                      />
-                                    </Tooltip>
-                                  </Box>
-                                }
-                              />
-                            </RadioGroup>
-                          </FormControl>
-                          {file.processMode === 'image' && (
-                            <FormControl size="small" sx={{ ml: 1 }}>
-                              <RadioGroup
-                                row
+                    documentType !== 'checklist-csv' ? (
+                      <Stack
+                        direction="row"
+                        spacing={1.5}
+                        alignItems="center"
+                        sx={{ mr: 2 }}
+                      >
+                        {/* 処理方法Select */}
+                        <FormControl size="small" sx={{ minWidth: 140 }}>
+                          <Select
+                            value={file.processMode}
+                            onChange={(e) =>
+                              handleProcessModeChange(
+                                file.id,
+                                e.target.value as ProcessMode,
+                              )
+                            }
+                            disabled={processing}
+                            inputProps={{
+                              'aria-label': `${file.name}の処理方法`,
+                            }}
+                          >
+                            <MenuItem value="text">テキスト抽出</MenuItem>
+                            <MenuItem value="image">画像化</MenuItem>
+                          </Select>
+                        </FormControl>
+
+                        {/* サブオプション（条件付き表示） */}
+                        {file.processMode === 'image' && (
+                          <Stack
+                            direction="row"
+                            spacing={0.5}
+                            alignItems="center"
+                          >
+                            <FormControl size="small" sx={{ minWidth: 130 }}>
+                              <Select
                                 value={file.imageMode}
                                 onChange={(e) =>
                                   handleImageModeChange(
@@ -1247,104 +1230,80 @@ function ReviewSourceModal({
                                     e.target.value as ImageMode,
                                   )
                                 }
+                                disabled={processing}
+                                inputProps={{
+                                  'aria-label': `${file.name}の画像化方式`,
+                                }}
                               >
-                                <FormControlLabel
-                                  value="merged"
-                                  control={<Radio size="small" />}
-                                  label={
-                                    <Box
-                                      sx={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                      }}
-                                    >
-                                      <MergedIcon
-                                        fontSize="small"
-                                        sx={{ mr: 0.5 }}
-                                      />
-                                      統合画像
-                                      <Tooltip title="全ページを1つの縦長画像として統合します。AIモデルは画像を一定の大きさに圧縮して読み込むので、ページ数が多い場合は利用しないでください。office文書の場合はPDFに変換してから画像化します。">
-                                        <HelpIcon
-                                          fontSize="small"
-                                          sx={{
-                                            ml: 0.5,
-                                            color: 'text.secondary',
-                                          }}
-                                        />
-                                      </Tooltip>
-                                    </Box>
-                                  }
-                                />
-                                <FormControlLabel
-                                  value="pages"
-                                  control={<Radio size="small" />}
-                                  label={
-                                    <Box
-                                      sx={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                      }}
-                                    >
-                                      <PagesIcon
-                                        fontSize="small"
-                                        sx={{ mr: 0.5 }}
-                                      />
-                                      ページ別画像
-                                      <Tooltip title="各ページを個別の画像として処理します。office文書の場合はPDFに変換してから画像化します。">
-                                        <HelpIcon
-                                          fontSize="small"
-                                          sx={{
-                                            ml: 0.5,
-                                            color: 'text.secondary',
-                                          }}
-                                        />
-                                      </Tooltip>
-                                    </Box>
-                                  }
-                                />
-                              </RadioGroup>
+                                <MenuItem value="pages">ページごと</MenuItem>
+                                <MenuItem value="merged">統合</MenuItem>
+                              </Select>
                             </FormControl>
-                          )}
-                          {/* テキストモードかつ画像抽出対応ファイルの場合、画像を含めるチェックボックスを表示 */}
-                          {file.processMode !== 'image' &&
-                            supportsImageExtraction(file.name) && (
-                              <FormControlLabel
-                                control={
-                                  <Checkbox
-                                    size="small"
-                                    checked={file.includeImages ?? false}
-                                    onChange={(e) =>
-                                      handleIncludeImagesChange(
-                                        file.id,
-                                        e.target.checked,
-                                      )
-                                    }
-                                    disabled={processing}
-                                  />
-                                }
-                                label={
-                                  <Tooltip title="テキスト抽出時にファイル内の画像も含めます。画像が多いファイルではコンテキスト消費量が増え、精度が低下する場合があります。">
-                                    <Box
-                                      sx={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                      }}
-                                    >
-                                      <ImageIcon
-                                        fontSize="small"
-                                        sx={{ mr: 0.5 }}
-                                      />
-                                      <Typography variant="body2">
-                                        画像を含める
-                                      </Typography>
-                                    </Box>
-                                  </Tooltip>
-                                }
-                                sx={{ ml: 0 }}
+                            <Tooltip title="「統合」: 全ページを1つの縦長画像として統合します。AIモデルは画像を一定の大きさに圧縮して読み込むので、ページ数が多い場合は利用しないでください。「ページごと」: 各ページを個別の画像として処理します。office文書の場合はPDFに変換してから画像化します。">
+                              <InfoOutlinedIcon
+                                fontSize="small"
+                                sx={{
+                                  color: 'text.secondary',
+                                  cursor: 'help',
+                                }}
+                                data-testid="file-image-mode-info"
                               />
-                            )}
-                        </Box>
-                      )}
+                            </Tooltip>
+                          </Stack>
+                        )}
+
+                        {/* テキストモードかつ画像抽出対応ファイルの場合 */}
+                        {file.processMode !== 'image' &&
+                          supportsImageExtraction(file.name) && (
+                            <FormControlLabel
+                              control={
+                                <Checkbox
+                                  size="small"
+                                  checked={file.includeImages ?? false}
+                                  onChange={(e) =>
+                                    handleIncludeImagesChange(
+                                      file.id,
+                                      e.target.checked,
+                                    )
+                                  }
+                                  disabled={processing}
+                                />
+                              }
+                              label={
+                                <Box
+                                  sx={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                  }}
+                                >
+                                  <Typography variant="body2">
+                                    画像を含める
+                                  </Typography>
+                                  <Tooltip title="テキスト抽出時にファイル内の画像も含めます。画像が多いファイルではコンテキスト消費量が増え、精度が低下する場合があります。">
+                                    <InfoOutlinedIcon
+                                      fontSize="small"
+                                      sx={{
+                                        ml: 0.5,
+                                        color: 'text.secondary',
+                                        cursor: 'help',
+                                      }}
+                                    />
+                                  </Tooltip>
+                                </Box>
+                              }
+                              sx={{ ml: 0 }}
+                            />
+                          )}
+                      </Stack>
+                    ) : documentType !== 'checklist-csv' ? (
+                      <Typography
+                        variant="body2"
+                        color="text.secondary"
+                        sx={{ mr: 2 }}
+                      >
+                        テキスト抽出
+                      </Typography>
+                    ) : null}
                   </ListItem>
                 ))}
               </List>
