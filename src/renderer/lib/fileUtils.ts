@@ -44,6 +44,16 @@ export const arrayBufferToBase64 = (buffer: Uint8Array): string => {
 };
 
 /**
+ * ファイルがテキスト抽出時の画像抽出（リッチ戦略）に対応しているか判定する
+ * @param fileName ファイル名
+ * @returns 画像抽出対応の場合 true
+ */
+export const supportsImageExtraction = (fileName: string): boolean => {
+  const ext = fileName.split('.').pop()?.toLowerCase() || '';
+  return ['pdf', 'docx', 'xlsx', 'pptx'].includes(ext);
+};
+
+/**
  * FileオブジェクトをData URL形式に変換する
  * @param file 変換対象のFileオブジェクト
  * @returns Data URL形式の文字列を解決するPromise

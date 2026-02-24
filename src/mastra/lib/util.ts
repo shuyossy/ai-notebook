@@ -1,3 +1,5 @@
+import type { ExtractedImage } from '@/types/review';
+
 /**
  * 文書を等分ベースで分割し、指定のオーバーラップを安全に付与する関数
  * - テキスト: overlapChars 文字
@@ -50,4 +52,33 @@ export function makeChunksByCount<T extends { length: number }>(
   ranges[ranges.length - 1].end = total;
 
   return ranges;
+}
+
+/**
+ * テキスト中の画像リンク（![...](...)形式）を除去し、余分な空行を圧縮する
+ */
+export function removeImageLinks(text: string): string {
+  return text.replace(/!\[.*?\]\([^)]+\)\n?/g, '').replace(/\n{3,}/g, '\n\n');
+}
+
+/**
+ * テキスト内の画像リンクを解析し、参照されている画像のみを抽出する
+ * テキスト内のマークダウン画像リンク ![image](referenceId) を検出し、
+ * allImagesから該当するreferenceIdの画像のみ返す
+ *
+ * @param text テキストチャンク
+ * @param allImages 全画像データ配列
+ * @returns テキスト内で参照されている画像のみ
+ */
+export function filterReferencedImages(
+  text: string,
+  allImages: ExtractedImage[],
+): ExtractedImage[] {
+  const imageRefs = new Set<string>();
+  const regex = /!\[.*?\]\((.+?)\)/g;
+  let match;
+  while ((match = regex.exec(text)) !== null) {
+    imageRefs.add(match[1]);
+  }
+  return allImages.filter((img) => imageRefs.has(img.referenceId));
 }

@@ -107,8 +107,7 @@ export const smallDocumentReviewExecutionStep = createStep({
             name: doc.name,
             formatType: doc.formatType,
             processMode: doc.processMode || 'text',
-            includeImages:
-              (doc.extractedImages && doc.extractedImages.length > 0) || false,
+            includeImages: doc.includeImages ?? false,
           })),
         );
         if (documentFormatContext) {

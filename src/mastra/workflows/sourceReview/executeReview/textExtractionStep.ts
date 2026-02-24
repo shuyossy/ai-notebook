@@ -7,6 +7,7 @@ import { normalizeUnknownError, internalError } from '@/main/lib/error';
 import { FileTextExtractor } from '@/main/lib/textExtractor/FileTextExtractor';
 import { getMainLogger } from '@/main/lib/logger';
 import { extractedDocumentSchema, uploadedFileSchema } from './schema';
+import { removeImageLinks } from '@/mastra/lib/util';
 import { getReviewRepository } from '@/adapter/db';
 import { publishEvent } from '@/main/lib/eventPayloadHelper';
 import { IpcChannels } from '@/types';
@@ -73,6 +74,7 @@ export const textExtractionStep = createStep({
             imageMode: undefined, // キャッシュにはimageModeが保存されていない
             extractedImages: cache.extractedImages,
             formatType: cache.formatType ?? undefined,
+            includeImages: cache.includeImages ?? false,
           });
         }
 
@@ -122,18 +124,28 @@ export const textExtractionStep = createStep({
           // FileTextExtractorを使用したテキスト抽出処理
           const result = await fileTextExtractor.extract(file.path, file.name);
 
+          // includeImages=falseの場合は画像リンクを除去し、画像データを除外
+          const shouldIncludeImages = file.includeImages === true;
+          const textContent = shouldIncludeImages
+            ? result.content
+            : removeImageLinks(result.content);
+          const extractedImages =
+            shouldIncludeImages && result.images.length > 0
+              ? result.images
+              : undefined;
+
           extractedDocuments.push({
             id,
             name: file.name,
             path: file.path,
             type: file.type,
-            textContent: result.content,
+            textContent,
             processMode: file.processMode as 'text' | 'image' | undefined,
             imageMode: file.imageMode as 'merged' | 'pages' | undefined,
             imageData: undefined,
-            extractedImages:
-              result.images.length > 0 ? result.images : undefined,
+            extractedImages,
             formatType: result.formatType,
+            includeImages: shouldIncludeImages,
           });
         }
       }

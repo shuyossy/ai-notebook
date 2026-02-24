@@ -25,6 +25,15 @@ export const researchChunkStepInputSchema = z.object({
   chunkContent: z.object({
     text: z.string().optional(),
     images: z.array(z.string()).optional(),
+    extractedImages: z
+      .array(
+        z.object({
+          referenceId: z.string(),
+          base64Data: z.string(),
+          mimeType: z.string(),
+        }),
+      )
+      .optional(),
   }),
   chunkIndex: z.number(),
   totalChunks: z.number(),
@@ -90,12 +99,17 @@ export const researchChunkStep = createStep({
       const documentCache =
         await reviewRepository.getReviewDocumentCacheById(documentCacheId);
       if (documentCache) {
+        // includeImagesはこのチャンクに実際にextractedImagesがあるかどうかで判定
+        const hasExtractedImages = !!(
+          chunkContent?.extractedImages &&
+          chunkContent.extractedImages.length > 0
+        );
         const documentFormatContext = buildDocumentFormatContext([
           {
             name: documentCache.fileName,
             formatType: documentCache.formatType ?? undefined,
             processMode: documentCache.processMode,
-            includeImages: documentCache.includeImages ?? false,
+            includeImages: hasExtractedImages,
           },
         ]);
         if (documentFormatContext) {
@@ -112,6 +126,23 @@ export const researchChunkStep = createStep({
           type: 'text' as const,
           text: `Document: ${fileName}\n\nResearch Instructions: ${researchContent}\n\nDocument Content:\n${chunkContent.text}`,
         });
+        // テキスト抽出時の画像がある場合は参照IDラベル付きで追加
+        if (
+          chunkContent.extractedImages &&
+          chunkContent.extractedImages.length > 0
+        ) {
+          for (const img of chunkContent.extractedImages) {
+            messageContent.push({
+              type: 'text' as const,
+              text: `[Image: ${img.referenceId}]`,
+            });
+            messageContent.push({
+              type: 'image' as const,
+              image: img.base64Data,
+              mimeType: img.mimeType,
+            });
+          }
+        }
       } else if (chunkContent.images && chunkContent.images.length > 0) {
         // 画像チャンクの場合
         messageContent.push({

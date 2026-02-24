@@ -8,6 +8,7 @@ export const uploadedFileSchema = z.object({
   processMode: z.string().optional(),
   imageMode: z.string().optional(),
   imageData: z.array(z.string()).optional(),
+  includeImages: z.boolean().optional(), // テキスト抽出時にファイル内画像を含めるか
 });
 
 // 抽出された画像のスキーマ
@@ -29,4 +30,5 @@ export const extractedDocumentSchema = z.object({
   imageData: z.array(z.string()).optional(),
   extractedImages: z.array(extractedImageSchema).optional(), // テキスト抽出時に取得された画像データ
   formatType: z.string().optional(), // テキスト抽出フォーマット識別子
+  includeImages: z.boolean().optional(), // テキスト抽出時にファイル内画像を含めるか
 });

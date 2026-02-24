@@ -22,6 +22,8 @@ import {
   Accordion,
   AccordionSummary,
   AccordionDetails,
+  Checkbox,
+  Chip,
 } from '@mui/material';
 import {
   CloudUpload as UploadIcon,
@@ -52,7 +54,10 @@ import { FsApi } from '../../service/fsApi';
 import { ReviewApi } from '../../service/reviewApi';
 
 import { combineImages, convertPdfBytesToImages } from '../../lib/pdfUtils';
-import { getMimeTypeFromExtension } from '../../lib/fileUtils';
+import {
+  getMimeTypeFromExtension,
+  supportsImageExtraction,
+} from '../../lib/fileUtils';
 
 // ドキュメントが画像化に対応しているかチェック
 const supportsImageProcessing = (mimeType: string): boolean => {
@@ -300,6 +305,10 @@ function ReviewSourceModal({
               // 常にtextをデフォルトに; ユーザーは対応ファイルなら画像に変更可能
               processMode: 'text',
               imageMode: 'pages', // デフォルトはページ単位
+              // 画像抽出対応ファイルの場合、デフォルトは画像を含めない
+              includeImages: supportsImageExtraction(fileName)
+                ? false
+                : undefined,
             };
           },
         );
@@ -322,10 +331,33 @@ function ReviewSourceModal({
   // ドキュメント処理モード切替ハンドラー
   const handleProcessModeChange = (fileId: string, mode: ProcessMode) => {
     setUploadedFiles((prev) =>
+      prev.map((file) => {
+        if (file.id !== fileId) return file;
+        if (mode === 'image') {
+          // 画像モードに切り替え時はincludeImagesをundefinedにリセット
+          return {
+            ...file,
+            processMode: mode,
+            imageData: undefined,
+            includeImages: undefined,
+          };
+        }
+        // テキストモードに切り替え時はincludeImagesをfalseにリセット
+        return {
+          ...file,
+          processMode: mode,
+          imageData: undefined,
+          includeImages: supportsImageExtraction(file.name) ? false : undefined,
+        };
+      }),
+    );
+  };
+
+  // テキスト抽出時の画像を含めるかどうかの切替ハンドラー
+  const handleIncludeImagesChange = (fileId: string, checked: boolean) => {
+    setUploadedFiles((prev) =>
       prev.map((file) =>
-        file.id === fileId
-          ? { ...file, processMode: mode, imageData: undefined }
-          : file,
+        file.id === fileId ? { ...file, includeImages: checked } : file,
       ),
     );
   };
@@ -363,6 +395,9 @@ function ReviewSourceModal({
             ...file,
             processMode: 'text',
             imageData: undefined,
+            includeImages: supportsImageExtraction(file.name)
+              ? false
+              : undefined,
           };
         } else if (bulkProcessMode === 'image-merged') {
           return {
@@ -370,6 +405,7 @@ function ReviewSourceModal({
             processMode: 'image',
             imageMode: 'merged',
             imageData: undefined,
+            includeImages: undefined,
           };
         } else {
           // image-pages
@@ -378,6 +414,7 @@ function ReviewSourceModal({
             processMode: 'image',
             imageMode: 'pages',
             imageData: undefined,
+            includeImages: undefined,
           };
         }
       }),
@@ -1073,6 +1110,53 @@ function ReviewSourceModal({
                     >
                       すべてに適用
                     </Button>
+
+                    {/* テキスト抽出時の画像一括設定 */}
+                    <Box>
+                      <Typography
+                        variant="body2"
+                        color="text.secondary"
+                        sx={{ mb: 1 }}
+                      >
+                        テキスト抽出時の画像設定（対応ファイルのみ）
+                      </Typography>
+                      <Stack direction="row" spacing={1}>
+                        <Button
+                          variant="outlined"
+                          size="small"
+                          onClick={() => {
+                            setUploadedFiles((prev) =>
+                              prev.map((file) =>
+                                supportsImageExtraction(file.name) &&
+                                file.processMode !== 'image'
+                                  ? { ...file, includeImages: true }
+                                  : file,
+                              ),
+                            );
+                          }}
+                          disabled={processing}
+                        >
+                          一括: 画像を含める
+                        </Button>
+                        <Button
+                          variant="outlined"
+                          size="small"
+                          onClick={() => {
+                            setUploadedFiles((prev) =>
+                              prev.map((file) =>
+                                supportsImageExtraction(file.name) &&
+                                file.processMode !== 'image'
+                                  ? { ...file, includeImages: false }
+                                  : file,
+                              ),
+                            );
+                          }}
+                          disabled={processing}
+                        >
+                          一括: 画像を含めない
+                        </Button>
+                      </Stack>
+                    </Box>
                   </Stack>
                 </Paper>
               )}
@@ -1221,6 +1305,44 @@ function ReviewSourceModal({
                               </RadioGroup>
                             </FormControl>
                           )}
+                          {/* テキストモードかつ画像抽出対応ファイルの場合、画像を含めるチェックボックスを表示 */}
+                          {file.processMode !== 'image' &&
+                            supportsImageExtraction(file.name) && (
+                              <FormControlLabel
+                                control={
+                                  <Checkbox
+                                    size="small"
+                                    checked={file.includeImages ?? false}
+                                    onChange={(e) =>
+                                      handleIncludeImagesChange(
+                                        file.id,
+                                        e.target.checked,
+                                      )
+                                    }
+                                    disabled={processing}
+                                  />
+                                }
+                                label={
+                                  <Tooltip title="テキスト抽出時にファイル内の画像も含めます。画像が多いファイルではコンテキスト消費量が増え、精度が低下する場合があります。">
+                                    <Box
+                                      sx={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                      }}
+                                    >
+                                      <ImageIcon
+                                        fontSize="small"
+                                        sx={{ mr: 0.5 }}
+                                      />
+                                      <Typography variant="body2">
+                                        画像を含める
+                                      </Typography>
+                                    </Box>
+                                  </Tooltip>
+                                }
+                                sx={{ ml: 0 }}
+                              />
+                            )}
                         </Box>
                       )}
                   </ListItem>

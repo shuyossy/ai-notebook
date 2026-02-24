@@ -81,6 +81,7 @@ export interface UploadFile {
   processMode?: ProcessMode; // ドキュメントファイル（PDF, Office）の処理方式
   imageMode?: ImageMode; // 画像化の場合のモード (merged: 統合画像, pages: ページ別画像)
   imageData?: string[]; // 画像変換時のBase64データ配列 (merged: 長さ1, pages: 各ページ)
+  includeImages?: boolean; // テキスト抽出時にファイル内画像を含めるか（テキストモード時のみ有効）
 }
 
 export type ChecklistExtractionResultStatus =

@@ -136,10 +136,7 @@ Checklist Items to Review:\n${checklists.map((item) => `- ID: ${item.id} - ${ite
             name: document.name,
             formatType: document.formatType,
             processMode: document.processMode || 'text',
-            includeImages:
-              (document.extractedImages &&
-                document.extractedImages.length > 0) ||
-              false,
+            includeImages: document.includeImages ?? false,
           },
         ]);
         if (documentFormatContext) {

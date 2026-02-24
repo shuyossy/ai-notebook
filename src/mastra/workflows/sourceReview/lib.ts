@@ -1,6 +1,7 @@
 import { format } from 'date-fns';
 import { ReviewChecklist, UploadFile, ExtractedImage } from '@/types';
 import { FileTextExtractor } from '@/main/lib/textExtractor/FileTextExtractor';
+import { removeImageLinks } from '@/mastra/lib/util';
 
 export function generateReviewTitle(sourceTitles: string[] = []): string {
   const now = format(new Date(), 'yyyy-MM-dd HH:mm:ss');
@@ -157,23 +158,35 @@ export async function createCombinedMessage(
       // FileTextExtractorを使用したテキスト抽出処理
       const result = await fileTextExtractor.extract(file.path, file.name);
 
+      // includeImages=falseの場合は画像リンクを除去し、画像データを除外
+      const shouldIncludeImages = file.includeImages === true;
+      const textContent = shouldIncludeImages
+        ? result.content
+        : removeImageLinks(result.content);
+      const extractedImages =
+        shouldIncludeImages && result.images.length > 0
+          ? result.images
+          : undefined;
+
       // ファイルごとに個別のcontent要素として追加
       content.push({
         type: 'text',
-        text: `# ${file.name}\n${result.content}`,
+        text: `# ${file.name}\n${textContent}`,
       });
 
       // 抽出された画像があれば追加
-      for (const image of result.images) {
-        content.push({
-          type: 'text',
-          text: `[Image: ${image.referenceId}]`,
-        });
-        content.push({
-          type: 'image',
-          image: image.base64Data,
-          mimeType: image.mimeType,
-        });
+      if (extractedImages) {
+        for (const image of extractedImages) {
+          content.push({
+            type: 'text',
+            text: `[Image: ${image.referenceId}]`,
+          });
+          content.push({
+            type: 'image',
+            image: image.base64Data,
+            mimeType: image.mimeType,
+          });
+        }
       }
 
       // テキスト抽出モードのフォーマット情報を追加
@@ -181,7 +194,7 @@ export async function createCombinedMessage(
         name: file.name,
         formatType: result.formatType,
         processMode: 'text',
-        includeImages: result.images.length > 0,
+        includeImages: shouldIncludeImages,
       });
     }
   }

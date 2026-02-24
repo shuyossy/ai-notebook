@@ -208,9 +208,7 @@ export const executeReviewWorkflow = createWorkflow({
           imageData: document.imageData,
           extractedImages: document.extractedImages,
           formatType: document.formatType ?? null,
-          includeImages:
-            (document.extractedImages && document.extractedImages.length > 0) ||
-            false,
+          includeImages: document.includeImages ?? false,
         });
         // キャッシュIDを付与
         document.cacheId = savedCache.id;

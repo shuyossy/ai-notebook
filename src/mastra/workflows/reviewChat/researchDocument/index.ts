@@ -5,7 +5,7 @@ import { baseStepOutputSchema } from '../../schema';
 import { stepStatus } from '../../types';
 import { getReviewRepository } from '@/adapter/db';
 import { getMainLogger } from '@/main/lib/logger';
-import { makeChunksByCount } from '@/mastra/lib/util';
+import { makeChunksByCount, filterReferencedImages } from '@/mastra/lib/util';
 import {
   getTotalChunksStep,
   getTotalChunksStepInputSchema,
@@ -97,7 +97,21 @@ export const researchDocumentWithRetryWorkflow = createWorkflow({
         }
 
         // ドキュメントをtotalChunks分に分割
-        const chunks: Array<{ text?: string; images?: string[] }> = [];
+        const chunks: Array<{
+          text?: string;
+          images?: string[];
+          extractedImages?: Array<{
+            referenceId: string;
+            base64Data: string;
+            mimeType: string;
+          }>;
+        }> = [];
+
+        // extractedImagesを取得（includeImages=trueの場合のみ）
+        const extractedImages =
+          documentCache.includeImages && documentCache.extractedImages
+            ? documentCache.extractedImages
+            : [];
 
         if (documentCache.processMode === 'text' && documentCache.textContent) {
           // テキストをチャンク分割
@@ -107,11 +121,19 @@ export const researchDocumentWithRetryWorkflow = createWorkflow({
             300,
           );
           chunkRanges.forEach((range) => {
+            const chunkText = documentCache.textContent!.substring(
+              range.start,
+              range.end,
+            );
+            // チャンクテキスト内の画像リンクに対応する画像のみをフィルタリング
+            const chunkImages =
+              extractedImages.length > 0
+                ? filterReferencedImages(chunkText, extractedImages)
+                : undefined;
             chunks.push({
-              text: documentCache.textContent!.substring(
-                range.start,
-                range.end,
-              ),
+              text: chunkText,
+              extractedImages:
+                chunkImages && chunkImages.length > 0 ? chunkImages : undefined,
             });
           });
         } else if (
@@ -136,7 +158,11 @@ export const researchDocumentWithRetryWorkflow = createWorkflow({
           reviewHistoryId,
           documentCacheId,
           researchContent,
-          chunkContent: chunk,
+          chunkContent: {
+            text: chunk.text,
+            images: chunk.images,
+            extractedImages: chunk.extractedImages,
+          },
           chunkIndex: index,
           totalChunks,
           fileName: documentCache.fileName,

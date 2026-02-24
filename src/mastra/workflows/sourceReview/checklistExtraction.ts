@@ -38,6 +38,7 @@ const triggerSchema = z.object({
         processMode: z.enum(['text', 'image']).optional(),
         imageMode: z.enum(['merged', 'pages']).optional(),
         imageData: z.array(z.string()).optional(),
+        includeImages: z.boolean().optional(), // テキスト抽出時にファイル内画像を含めるか
       }),
     )
     .describe('アップロードファイルのリスト'),
