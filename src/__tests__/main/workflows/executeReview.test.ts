@@ -3409,4 +3409,348 @@ describe('executeReviewWorkflow', () => {
       expect(checkResult.status).toBe('success');
     });
   });
+
+  describe('自動判定モード（auto）', () => {
+    describe('正常系', () => {
+      it('試行レビューが成功した場合、smallモードでレビューが実行されること', async () => {
+        // Arrange
+        const reviewHistoryId = 'review-1';
+        const files: UploadFile[] = [
+          {
+            id: 'file-1',
+            name: 'document.txt',
+            path: '/test/document.txt',
+            type: 'text/plain',
+            processMode: 'text',
+          },
+        ];
+        const checklists: ReviewChecklist[] = [
+          {
+            id: 1,
+            content: 'チェック項目1',
+            createdBy: 'user',
+            reviewHistoryId,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          },
+        ];
+
+        mockRepository.getChecklists.mockResolvedValue(checklists);
+        mockRepository.createReviewDocumentCache.mockResolvedValue({
+          id: 1,
+          reviewHistoryId,
+          fileName: 'document.txt',
+          processMode: 'text',
+          textContent: 'テストファイルの内容',
+          imageData: undefined,
+          createdAt: '2024-01-01',
+          updatedAt: '2024-01-01',
+        });
+
+        // 自動判定の試行レビュー（1回目）と本番レビュー（2回目以降）両方成功
+        mockReviewExecuteAgent.generateLegacy.mockResolvedValue({
+          object: [
+            {
+              checklistId: 1,
+              reviewSections: [],
+              comment: 'コメント1',
+              evaluation: 'A',
+            },
+          ],
+          finishReason: 'stop',
+        });
+
+        // Act
+        const run = await executeReviewWorkflow.createRunAsync();
+        const result = await run.start({
+          inputData: {
+            reviewHistoryId,
+            files,
+            documentMode: 'auto',
+          },
+        });
+
+        // Assert
+        const checkResult = checkWorkflowResult(result);
+        expect(checkResult.status).toBe('success');
+
+        // smallモードとしてDBに保存されること
+        expect(
+          mockRepository.updateReviewHistoryDocumentMode,
+        ).toHaveBeenCalledWith(reviewHistoryId, 'small');
+
+        // reviewExecuteAgentが呼ばれること（試行 + 本番レビュー）
+        expect(mockReviewExecuteAgent.generateLegacy).toHaveBeenCalled();
+
+        // upsertReviewResultが呼ばれること（本番レビューの結果保存）
+        expect(mockRepository.upsertReviewResult).toHaveBeenCalled();
+      });
+
+      it('試行レビューがコンテキスト長超過エラーの場合、largeモードでレビューが実行されること', async () => {
+        // Arrange
+        const reviewHistoryId = 'review-1';
+        const files: UploadFile[] = [
+          {
+            id: 'file-1',
+            name: 'document.txt',
+            path: '/test/document.txt',
+            type: 'text/plain',
+            processMode: 'text',
+          },
+        ];
+        const checklists: ReviewChecklist[] = [
+          {
+            id: 1,
+            content: 'チェック項目1',
+            createdBy: 'user',
+            reviewHistoryId,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          },
+        ];
+
+        mockRepository.getChecklists.mockResolvedValue(checklists);
+        mockRepository.createReviewDocumentCache.mockResolvedValue({
+          id: 1,
+          reviewHistoryId,
+          fileName: 'document.txt',
+          processMode: 'text',
+          textContent: 'テストファイルの内容',
+          imageData: undefined,
+          createdAt: '2024-01-01',
+          updatedAt: '2024-01-01',
+        });
+
+        // 自動判定の試行レビューでコンテキスト長超過エラーを返す
+        let isFirstCall = true;
+        mockReviewExecuteAgent.generateLegacy.mockImplementation(async () => {
+          if (isFirstCall) {
+            isFirstCall = false;
+            throw new APICallError({
+              message: 'Context length exceeded',
+              url: 'http://localhost:11434/v1',
+              requestBodyValues: {},
+              statusCode: 400,
+              responseBody: JSON.stringify({
+                error: 'maximum context length exceeded',
+              }),
+              cause: new Error('maximum context length exceeded'),
+              isRetryable: false,
+            });
+          }
+          // 本番（largeモード）では呼ばれない想定
+          return {
+            object: [],
+            finishReason: 'stop',
+          };
+        });
+
+        // largeモード用のモック
+        mockIndividualDocumentReviewAgent.generateLegacy.mockImplementation(
+          async (_message: any, options: any) => {
+            const checklistItems =
+              options?.runtimeContext?.get('checklistItems') || [];
+            return {
+              object: checklistItems.map((item: any) => ({
+                reviewSections: [],
+                checklistId: item.id,
+                comment: `個別コメント${item.id}`,
+              })),
+              finishReason: 'stop',
+            };
+          },
+        );
+
+        mockConsolidateReviewAgent.generateLegacy.mockResolvedValue({
+          object: [
+            { checklistId: 1, comment: '統合コメント1', evaluation: 'A' },
+          ],
+          finishReason: 'stop',
+        });
+
+        // Act
+        const run = await executeReviewWorkflow.createRunAsync();
+        const result = await run.start({
+          inputData: {
+            reviewHistoryId,
+            files,
+            documentMode: 'auto',
+          },
+        });
+
+        // Assert
+        const checkResult = checkWorkflowResult(result);
+        expect(checkResult.status).toBe('success');
+
+        // largeモードとしてDBに保存されること
+        expect(
+          mockRepository.updateReviewHistoryDocumentMode,
+        ).toHaveBeenCalledWith(reviewHistoryId, 'large');
+
+        // largeモード用のエージェントが呼ばれること
+        expect(
+          mockIndividualDocumentReviewAgent.generateLegacy,
+        ).toHaveBeenCalled();
+        expect(mockConsolidateReviewAgent.generateLegacy).toHaveBeenCalled();
+      });
+
+      it('最もチェックリスト文字数が多いカテゴリが試行対象として選ばれること', async () => {
+        // Arrange
+        const reviewHistoryId = 'review-1';
+        const files: UploadFile[] = [
+          {
+            id: 'file-1',
+            name: 'document.txt',
+            path: '/test/document.txt',
+            type: 'text/plain',
+            processMode: 'text',
+          },
+        ];
+        // MAX_CHECKLISTS_PER_CATEGORY = 1 なので、各チェックリストが個別カテゴリになる
+        const checklists: ReviewChecklist[] = [
+          {
+            id: 1,
+            content: '短い項目', // 4文字
+            createdBy: 'user',
+            reviewHistoryId,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          },
+          {
+            id: 2,
+            content:
+              'これは非常に長いチェックリスト項目です。文字数が最大のカテゴリとして選ばれるべきです。', // 最長
+            createdBy: 'user',
+            reviewHistoryId,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          },
+          {
+            id: 3,
+            content: '中程度の項目です', // 中間
+            createdBy: 'user',
+            reviewHistoryId,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          },
+        ];
+
+        mockRepository.getChecklists.mockResolvedValue(checklists);
+        mockRepository.createReviewDocumentCache.mockResolvedValue({
+          id: 1,
+          reviewHistoryId,
+          fileName: 'document.txt',
+          processMode: 'text',
+          textContent: 'テストファイルの内容',
+          imageData: undefined,
+          createdAt: '2024-01-01',
+          updatedAt: '2024-01-01',
+        });
+
+        // 自動判定の試行レビュー呼び出しを記録
+        const trialCallChecklistItems: any[] = [];
+        let callCount = 0;
+        mockReviewExecuteAgent.generateLegacy.mockImplementation(
+          async (_message: any, options: any) => {
+            callCount++;
+            const checklistItems =
+              options?.runtimeContext?.get('checklistItems') ?? [];
+            if (callCount === 1) {
+              // 最初の呼び出しが自動判定の試行
+              trialCallChecklistItems.push(...checklistItems);
+            }
+            return {
+              object: checklistItems.map((item: any) => ({
+                checklistId: item.id,
+                reviewSections: [],
+                comment: `コメント${item.id}`,
+                evaluation: 'A',
+              })),
+              finishReason: 'stop',
+            };
+          },
+        );
+
+        // Act
+        const run = await executeReviewWorkflow.createRunAsync();
+        const result = await run.start({
+          inputData: {
+            reviewHistoryId,
+            files,
+            documentMode: 'auto',
+          },
+        });
+
+        // Assert
+        const checkResult = checkWorkflowResult(result);
+        expect(checkResult.status).toBe('success');
+
+        // 試行レビューに最大文字数のチェックリスト（ID=2）が使われること
+        expect(trialCallChecklistItems).toHaveLength(1);
+        expect(trialCallChecklistItems[0].id).toBe(2);
+      });
+    });
+
+    describe('異常系', () => {
+      it('試行レビューでコンテキスト長以外のエラーが発生した場合、ワークフローが失敗すること', async () => {
+        // Arrange
+        const reviewHistoryId = 'review-1';
+        const files: UploadFile[] = [
+          {
+            id: 'file-1',
+            name: 'document.txt',
+            path: '/test/document.txt',
+            type: 'text/plain',
+            processMode: 'text',
+          },
+        ];
+        const checklists: ReviewChecklist[] = [
+          {
+            id: 1,
+            content: 'チェック項目1',
+            createdBy: 'user',
+            reviewHistoryId,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          },
+        ];
+
+        mockRepository.getChecklists.mockResolvedValue(checklists);
+        mockRepository.createReviewDocumentCache.mockResolvedValue({
+          id: 1,
+          reviewHistoryId,
+          fileName: 'document.txt',
+          processMode: 'text',
+          textContent: 'テストファイルの内容',
+          imageData: undefined,
+          createdAt: '2024-01-01',
+          updatedAt: '2024-01-01',
+        });
+
+        // 自動判定の試行レビューでコンテキスト長以外のエラー
+        mockReviewExecuteAgent.generateLegacy.mockRejectedValue(
+          internalError({
+            expose: true,
+            messageCode: 'PLAIN_MESSAGE',
+            messageParams: { message: 'AI APIサーバーエラー' },
+          }),
+        );
+
+        // Act
+        const run = await executeReviewWorkflow.createRunAsync();
+        const result = await run.start({
+          inputData: {
+            reviewHistoryId,
+            files,
+            documentMode: 'auto',
+          },
+        });
+
+        // Assert
+        const checkResult = checkWorkflowResult(result);
+        expect(checkResult.status).toBe('failed');
+        expect(checkResult.errorMessage).toBeDefined();
+      });
+    });
+  });
 });

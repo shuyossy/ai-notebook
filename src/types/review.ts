@@ -70,7 +70,7 @@ export type ProcessMode = 'text' | 'image';
 export type ImageMode = 'merged' | 'pages';
 
 // ドキュメントレビューのモード定義
-export type DocumentMode = 'small' | 'large';
+export type DocumentMode = 'small' | 'large' | 'auto';
 
 // アップロードファイル情報の型定義
 export interface UploadFile {

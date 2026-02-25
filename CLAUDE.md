@@ -233,42 +233,38 @@ ElectronのIPCを使用してフロントエンド・バックエンド間の通
 ```
 
 # ID: 1
-- PBI名: buildが失敗する
+- PBI名: テキスト抽出時の画像抽出バグ解消
 - ステータス: to do
 - 背景
-  - 以下エラーが発生
-  ```
-  yoshidashuhei@Mac ai-notebook % npm run build
-
-> aikata@0.1.0 build
-> concurrently "npm run build:main" "npm run build:renderer"
-
-[0] 
-[0] > aikata@0.1.0 build:main
-[0] > cross-env NODE_ENV=production TS_NODE_TRANSPILE_ONLY=true NODE_OPTIONS="-r ts-node/register --no-warnings" webpack --config ./.erb/configs/webpack.config.main.prod.ts
-[0] 
-[1] 
-[1] > aikata@0.1.0 build:renderer
-[1] > cross-env NODE_ENV=production TS_NODE_TRANSPILE_ONLY=true NODE_OPTIONS="-r ts-node/register --no-warnings" webpack --config ./.erb/configs/webpack.config.renderer.prod.ts
-[1] 
-[0] ERROR in main.js
-[0] main.js from Terser plugin
-[0] Unexpected token: punc ([) [webpack://./node_modules/undici/lib/handler/unwrap-handler.js:14,0][main.js:60873,2]
-[0]     at js_error (/Users/yoshidashuhei/Documents/vscode_workspace/ai-notebook/node_modules/terser/dist/bundle.min.js:536:11)
-[0]     at croak (/Users/yoshidashuhei/Documents/vscode_workspace/ai-notebook/node_modules/terser/dist/bundle.min.js:1264:9)
-[0]     at token_error (/Users/yoshidashuhei/Documents/vscode_workspace/ai-notebook/node_modules/terser/dist/bundle.min.js:1272:9)
-[0]     at unexpected (/Users/yoshidashuhei/Documents/vscode_workspace/ai-notebook/node_modules/terser/dist/bundle.min.js:1278:9)
-[0]     at class_ (/Users/yoshidashuhei/Documents/vscode_workspace/ai-notebook/node_modules/terser/dist/bundle.min.js:2697:28)
-[0]     at statement (/Users/yoshidashuhei/Documents/vscode_workspace/ai-notebook/node_modules/terser/dist/bundle.min.js:1456:24)
-[0]     at _embed_tokens_wrapper (/Users/yoshidashuhei/Documents/vscode_workspace/ai-notebook/node_modules/terser/dist/bundle.min.js:1329:26)
-[0]     at block_ (/Users/yoshidashuhei/Documents/vscode_workspace/ai-notebook/node_modules/terser/dist/bundle.min.js:2168:20)
-[0]     at _function_body (/Users/yoshidashuhei/Documents/vscode_workspace/ai-notebook/node_modules/terser/dist/bundle.min.js:2080:21)
-[0]     at arrow_function (/Users/yoshidashuhei/Documents/vscode_workspace/ai-notebook/node_modules/terser/dist/bundle.min.js:1686:20)
-[0] 
-[0] webpack compiled with 1 error
-[0] npm run build:main exited with code 1
-[1] [baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
-[1] npm run build:renderer exited with code 0
-  ```
+  - テキスト抽出時の画像抽出において、AIが認識不可能な形式の画像が抽出される場合がある
+  - 現状認識しているのがemf形式
+  - 他の形式でも抽出されることがありえそう
 - 受け入れ基準
-  - エラーが修正されていること
+  - テキスト抽出時の画像抽出において、AIが認識可能な形式の画像のみ抽出されている
+    - 認識不可能な場合は無視して良い
+    - 一般的な画像形式のみに絞っておくのが安全か
+
+# ID:2
+- PBI名: 特定形式以外のテキスト抽出についての挙動見直し
+- ステータス: to do
+- 背景
+  - 現状はofficeファイル等の特定形式のファイルは明確な戦略を持ってテキスト抽出を実行する
+    - それ以外は一回txtファイルの様にファイル内のテキストデータを取得できるか試すのが良いのではないか
+- 受け入れ基準
+  - 特定形式ファイル以外については、csvやjavaファイルなどテキスト形式の場合は一度単純なテキスト抽出を試せていること
+
+# ID: 3
+- PBI名: ファイル処理結果UIの改善
+- ステータス: to do
+- 受け入れ基準
+  - ファイル処理結果について、多くのドキュメントを処理した際に、スクロールできるようにする
+
+# ID: 4
+- PBI名: ログの改善
+- ステータス: to do
+- 背景
+  - レビューでエラーになった際に、詳細原因を知りたい場合はログファイルを参照する
+  - ただ、ログの情報が少なく、エラー解決が難しい場面がある
+- 受け入れ基準
+  - 本アプリ内の全てのエラーログについて、完全なエラー内容を出力できる（`import { errWithCause } from "pino-std-serializers";`を利用するのが良いか？）
+  - レビュー機能利用時のログについては処理しているファイル名やチェックリスト名や大量ドキュメントのレビューの場合は試行回数等の情報も併せて出力できる様にする

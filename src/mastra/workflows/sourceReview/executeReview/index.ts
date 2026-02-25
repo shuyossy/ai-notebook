@@ -11,6 +11,7 @@ import { largeDocumentReviewWorkflow } from './largeDocumentReview';
 import { extractedDocumentSchema, uploadedFileSchema } from './schema';
 import { getReviewRepository } from '@/adapter/db';
 import { IReviewRepository } from '@/main/service/port/repository';
+import { determineDocumentMode } from './autoDocumentModeJudge';
 
 const logger = getMainLogger();
 
@@ -66,10 +67,10 @@ export const executeReviewWorkflowInputSchema = z.object({
     .optional()
     .describe('カスタム評定項目設定'),
   documentMode: z
-    .enum(['small', 'large'])
+    .enum(['small', 'large', 'auto'])
     .default('small')
     .describe(
-      'ドキュメントモード: small=少量ドキュメント, large=大量ドキュメント',
+      'ドキュメントモード: small=少量ドキュメント, large=大量ドキュメント, auto=自動判定',
     ),
   // リトライモード (undefinedの場合は初回レビュー)
   retryMode: z
@@ -113,6 +114,7 @@ export const documentReviewExecutionInputSchema = z.object({
       content: z.string().describe('チェックリストの内容'),
     }),
   ),
+  documentMode: z.enum(['small', 'large']).default('small'),
 });
 
 export const documentReviewExecutionOutputSchema = baseStepOutputSchema;
@@ -153,7 +155,7 @@ export const executeReviewWorkflow = createWorkflow({
       .commit(),
   ])
   // ドキュメントレビューをループするためのinputに変換(大量ドキュメントも少量ドキュメントも同じ形にする)
-  .map(async ({ inputData, bail, getInitData }) => {
+  .map(async ({ inputData, bail, getInitData, mastra }) => {
     const textExtractionResult = inputData.textExtraction;
     const classifyChecklistsResult = inputData.classifyChecklistsByCategory;
 
@@ -191,11 +193,13 @@ export const executeReviewWorkflow = createWorkflow({
       );
       await reviewRepository.deleteAllReviewResults(initData.reviewHistoryId);
 
-      // documentModeを保存
-      await reviewRepository.updateReviewHistoryDocumentMode(
-        initData.reviewHistoryId,
-        initData.documentMode,
-      );
+      // documentModeを保存 (autoの場合は判定後に保存)
+      if (initData.documentMode !== 'auto') {
+        await reviewRepository.updateReviewHistoryDocumentMode(
+          initData.reviewHistoryId,
+          initData.documentMode as 'small' | 'large',
+        );
+      }
 
       // ドキュメントキャッシュを作成
       for (const document of textExtractionResult.extractedDocuments || []) {
@@ -261,6 +265,28 @@ export const executeReviewWorkflow = createWorkflow({
       );
     }
 
+    // 自動判定: documentModeが'auto'の場合
+    let resolvedDocumentMode: 'small' | 'large';
+    if (initData.documentMode === 'auto') {
+      resolvedDocumentMode = await determineDocumentMode({
+        mastra,
+        documents: textExtractionResult.extractedDocuments!.filter(
+          (d): d is NonNullable<typeof d> => d != null,
+        ),
+        categories: classifyChecklistsResult.categories!,
+        additionalInstructions: initData.additionalInstructions,
+        commentFormat: initData.commentFormat,
+        evaluationSettings: initData.evaluationSettings,
+      });
+      // 判定結果をDBに保存
+      await reviewRepository.updateReviewHistoryDocumentMode(
+        initData.reviewHistoryId,
+        resolvedDocumentMode,
+      );
+    } else {
+      resolvedDocumentMode = initData.documentMode as 'small' | 'large';
+    }
+
     return classifyChecklistsResult.categories!.map((category) => {
       return {
         reviewHistoryId: initData.reviewHistoryId,
@@ -269,7 +295,7 @@ export const executeReviewWorkflow = createWorkflow({
         additionalInstructions: initData.additionalInstructions,
         commentFormat: initData.commentFormat,
         evaluationSettings: initData.evaluationSettings,
-        documentMode: initData.documentMode,
+        documentMode: resolvedDocumentMode,
       } as z.infer<typeof documentReviewExecutionInputSchema>;
     });
   })

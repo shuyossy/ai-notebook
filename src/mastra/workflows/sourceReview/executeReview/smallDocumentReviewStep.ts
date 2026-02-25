@@ -20,8 +20,91 @@ import {
 } from '.';
 import { getChecklistsErrorMessage } from './lib';
 import { buildDocumentFormatContext } from '@/mastra/lib/extractionFormatDescription';
+import { extractedDocumentSchema } from './schema';
 
 const logger = getMainLogger();
+
+/**
+ * 少量ドキュメントレビューの共通実行関数
+ *
+ * smallDocumentReviewExecutionStep と autoDocumentModeJudge の両方から利用される。
+ * ドキュメントメッセージ構築・RuntimeContext設定・チェックリストリマインダー追加・エージェント呼び出しを共通化。
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function executeSmallDocumentReview(params: {
+  reviewAgent: any;
+  documents: Array<z.infer<typeof extractedDocumentSchema>>;
+  checklists: Array<{ id: number; content: string }>;
+  additionalInstructions?: string;
+  commentFormat?: string;
+  evaluationSettings?: { items: { label: string; description: string }[] };
+  outputSchema: z.ZodType;
+  abortSignal?: AbortSignal;
+}) {
+  const {
+    reviewAgent,
+    documents,
+    checklists,
+    additionalInstructions,
+    commentFormat,
+    evaluationSettings,
+    outputSchema,
+    abortSignal,
+  } = params;
+
+  // ドキュメントメッセージを構築
+  const message = createCombinedMessageFromExtractedDocument(
+    documents,
+    'Please review this document against the provided checklist items',
+  );
+
+  // RuntimeContextを設定
+  const runtimeContext =
+    await createRuntimeContext<ReviewExecuteAgentRuntimeContext>();
+  runtimeContext.set('checklistItems', checklists);
+  runtimeContext.set('additionalInstructions', additionalInstructions);
+  runtimeContext.set('commentFormat', commentFormat);
+  runtimeContext.set('evaluationSettings', evaluationSettings);
+
+  // ドキュメントフォーマットコンテキストを設定
+  const documentFormatContext = buildDocumentFormatContext(
+    documents.map((doc) => ({
+      name: doc.name,
+      formatType: doc.formatType,
+      processMode: doc.processMode || 'text',
+      includeImages: doc.includeImages ?? false,
+    })),
+  );
+  if (documentFormatContext) {
+    runtimeContext.set('documentFormatContext', documentFormatContext);
+  }
+
+  // チェックリストリマインダーを追加
+  const checklistReminder = `## Checklist Items to Review:
+${checklists.map((item) => `- ID: ${item.id} - ${item.content}`).join('\n')}
+
+Please review the document against the above checklist items.`;
+
+  const messageWithReminder = {
+    ...message,
+    content: [
+      ...message.content,
+      {
+        type: 'text' as const,
+        text: checklistReminder,
+      },
+    ],
+  };
+
+  // レビューエージェントを使用してレビューを実行
+  return reviewAgent.generateLegacy(messageWithReminder, {
+    output: outputSchema,
+    runtimeContext,
+    abortSignal,
+    maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
+    ...getModelSpecificGenerateOptions(runtimeContext),
+  });
+}
 
 export const smallDocumentReviewExecutionStep = createStep({
   id: 'smallDocumentReviewExecutionStep',
@@ -44,12 +127,6 @@ export const smallDocumentReviewExecutionStep = createStep({
 
     try {
       const reviewAgent = mastra.getAgent('reviewExecuteAgent');
-
-      // 複数ファイルを統合してメッセージを作成（一度だけ）
-      const message = createCombinedMessageFromExtractedDocument(
-        documents,
-        'Please review this document against the provided checklist items',
-      );
 
       // レビューを実行(各カテゴリ内のチェックリストは一括でレビュー)
       // レビュー結果に含まれなかったチェックリストは再度レビューを実行する（最大試行回数は3回）
@@ -94,55 +171,18 @@ export const smallDocumentReviewExecutionStep = createStep({
             evaluation: evaluationEnum.describe('evaluation'),
           }),
         );
-        const runtimeContext =
-          await createRuntimeContext<ReviewExecuteAgentRuntimeContext>();
-        runtimeContext.set('checklistItems', checklists);
-        runtimeContext.set('additionalInstructions', additionalInstructions);
-        runtimeContext.set('commentFormat', commentFormat);
-        runtimeContext.set('evaluationSettings', evaluationSettings);
 
-        // ドキュメントフォーマットコンテキストを設定
-        const documentFormatContext = buildDocumentFormatContext(
-          documents.map((doc) => ({
-            name: doc.name,
-            formatType: doc.formatType,
-            processMode: doc.processMode || 'text',
-            includeImages: doc.includeImages ?? false,
-          })),
-        );
-        if (documentFormatContext) {
-          runtimeContext.set('documentFormatContext', documentFormatContext);
-        }
-
-        // チェックリスト一覧をメッセージの最後にリマインドとして追加
-        const checklistReminder = `## Checklist Items to Review:
-${checklists.map((item) => `- ID: ${item.id} - ${item.content}`).join('\n')}
-
-Please review the document against the above checklist items.`;
-
-        // メッセージのcontentの最後にリマインダーを追加
-        const messageWithReminder = {
-          ...message,
-          content: [
-            ...message.content,
-            {
-              type: 'text' as const,
-              text: checklistReminder,
-            },
-          ],
-        };
-
-        // レビューエージェントを使用してレビューを実行
-        const reviewResult = await reviewAgent.generateLegacy(
-          messageWithReminder,
-          {
-            output: outputSchema,
-            runtimeContext,
-            abortSignal,
-            maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
-            ...getModelSpecificGenerateOptions(runtimeContext),
-          },
-        );
+        // 共通関数を使用してレビューを実行
+        const reviewResult = (await executeSmallDocumentReview({
+          reviewAgent,
+          documents,
+          checklists,
+          additionalInstructions,
+          commentFormat,
+          evaluationSettings,
+          outputSchema,
+          abortSignal,
+        })) as { finishReason?: string; object?: unknown };
         const { success, reason } = judgeFinishReason(
           reviewResult.finishReason,
         );

@@ -203,7 +203,7 @@ function ReviewSourceModal({
     useState<DocumentType>('checklist-ai');
   const [checklistRequirements, setChecklistRequirements] = useState('');
   const [documentVolumeType, setDocumentVolumeType] =
-    useState<DocumentMode>('small');
+    useState<DocumentMode>('auto');
   const [editingItemIndex, setEditingItemIndex] = useState<number | null>(null);
   const [editingItem, setEditingItem] = useState<EvaluationItem>({
     label: '',
@@ -254,7 +254,7 @@ function ReviewSourceModal({
       setUploadedFiles([]);
       setDocumentType('checklist-ai');
       setChecklistRequirements('');
-      setDocumentVolumeType('small');
+      setDocumentVolumeType('auto');
     };
 
     loadSavedData();
@@ -773,9 +773,25 @@ function ReviewSourceModal({
                 <RadioGroup
                   value={documentVolumeType}
                   onChange={(e) =>
-                    setDocumentVolumeType(e.target.value as 'small' | 'large')
+                    setDocumentVolumeType(e.target.value as DocumentMode)
                   }
                 >
+                  <FormControlLabel
+                    value="auto"
+                    control={<Radio />}
+                    label={
+                      <Tooltip title="AIへの入力データ量に応じて、少量・大量ドキュメントのどちらで処理するかを自動で判定します。">
+                        <span>
+                          自動判定
+                          <HelpIcon
+                            fontSize="small"
+                            sx={{ ml: 0.5, color: 'text.secondary' }}
+                          />
+                        </span>
+                      </Tooltip>
+                    }
+                    disabled={processing}
+                  />
                   <FormControlLabel
                     value="small"
                     control={<Radio />}

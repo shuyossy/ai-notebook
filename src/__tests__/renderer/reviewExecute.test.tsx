@@ -2139,4 +2139,121 @@ describe('ReviewArea - レビュー実行', () => {
       jest.useRealTimers();
     }, 15000);
   });
+
+  describe('自動判定モード', () => {
+    it('レビューモーダルに「自動判定」ラジオボタンが表示されること', async () => {
+      render(<ReviewArea selectedReviewHistoryId="review-1" />);
+
+      const reviewButton =
+        await waitForChecklistAndEnableButton(/^レビュー実行$/);
+
+      await act(async () => {
+        fireEvent.click(reviewButton);
+      });
+
+      await waitFor(() => {
+        expect(
+          screen.getByText('レビュー対象ファイルのアップロード'),
+        ).toBeInTheDocument();
+      });
+
+      // 自動判定ラジオボタンが表示されること
+      expect(screen.getByText('自動判定')).toBeInTheDocument();
+    });
+
+    it('デフォルトで「自動判定」が選択されていること', async () => {
+      render(<ReviewArea selectedReviewHistoryId="review-1" />);
+
+      const reviewButton =
+        await waitForChecklistAndEnableButton(/^レビュー実行$/);
+
+      await act(async () => {
+        fireEvent.click(reviewButton);
+      });
+
+      await waitFor(() => {
+        expect(
+          screen.getByText('レビュー対象ファイルのアップロード'),
+        ).toBeInTheDocument();
+      });
+
+      // 「自動判定」のテキストが存在し、対応するラジオボタンが選択されていること
+      const autoLabel = screen.getByText('自動判定');
+      expect(autoLabel).toBeInTheDocument();
+      // FormControlLabelの中のRadioを取得
+      const formControlLabel = autoLabel.closest('label');
+      expect(formControlLabel).not.toBeNull();
+      const autoRadio = formControlLabel!.querySelector('input[type="radio"]');
+      expect(autoRadio).not.toBeNull();
+      expect(autoRadio).toBeChecked();
+    });
+
+    it('「自動判定」を選択してレビュー実行した場合、IPC通信でdocumentMode: "auto"が送信されること', async () => {
+      const mockShowOpenDialog = jest.fn().mockResolvedValue({
+        success: true as const,
+        data: {
+          filePaths: ['/path/to/test.pdf'],
+          canceled: false,
+        },
+      });
+
+      const mockReadFile = jest.fn().mockResolvedValue({
+        success: true as const,
+        data: new Uint8Array([0x25, 0x50, 0x44, 0x46]),
+      });
+
+      const mockExecuteReview = jest.fn().mockResolvedValue({
+        success: true,
+      });
+
+      window.electron = createMockElectronWithOptions({
+        reviewHistory: mockReviewHistory,
+        reviewChecklistResults: mockChecklistResults,
+      }) as any;
+      window.electron.fs.showOpenDialog = mockShowOpenDialog;
+      window.electron.fs.readFile = mockReadFile;
+      window.electron.review.execute = mockExecuteReview;
+
+      render(<ReviewArea selectedReviewHistoryId="review-1" />);
+
+      const reviewButton =
+        await waitForChecklistAndEnableButton(/レビュー実行/i);
+
+      await userEvent.click(reviewButton);
+
+      await waitFor(() => {
+        expect(
+          screen.getByText('レビュー対象ファイルのアップロード'),
+        ).toBeInTheDocument();
+      });
+
+      // ファイル選択
+      const uploadButton = screen.getByRole('button', {
+        name: /ファイル選択ダイアログ/,
+      });
+      await act(async () => {
+        fireEvent.click(uploadButton);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('test.pdf')).toBeInTheDocument();
+      });
+
+      // モーダルの送信ボタンをクリック
+      const submitButton = screen.getByRole('button', {
+        name: /レビュー実行/i,
+      });
+      await userEvent.click(submitButton);
+
+      // IPC通信でdocumentMode: 'auto'が送信されること
+      await waitFor(() => {
+        expect(mockExecuteReview).toHaveBeenCalledWith(
+          expect.objectContaining({
+            reviewHistoryId: 'review-1',
+            documentMode: 'auto',
+          }),
+        );
+      });
+    });
+  });
 });
