@@ -233,6 +233,7 @@
     "sass-loader": "^16.0.5",
     "stream-browserify": "^3.0.0",
     "style-loader": "^4.0.0",
+    "terser": "^5.37.0",
     "terser-webpack-plugin": "^5.3.14",
     "ts-jest": "^29.2.6",
     "ts-loader": "^9.5.2",
