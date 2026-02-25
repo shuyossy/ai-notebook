@@ -417,17 +417,17 @@ describe('FileProcessingResultSection', () => {
       ).toBeInTheDocument();
       expect(
         screen.getByText(
-          /貼り付けられた画像と図形情報（図形内テキスト情報）を抽出する/,
+          /Word・PDF：挿入された画像・図形情報（図形内テキスト）/,
         ),
       ).toBeInTheDocument();
       expect(
         screen.getByText(
-          /貼り付けられた画像と図形情報（図形内テキスト情報・種類・座標・大きさ）を抽出する/,
+          /Excel・PowerPoint：挿入された画像・図形情報（図形内テキスト・種類・大きさ・座標）/,
         ),
       ).toBeInTheDocument();
       expect(
         screen.getByText(
-          /ファイル内画像を含めないよう選択している場合は図形情報のみ利用/,
+          /挿入画像を含めないよう選択している場合は図形情報のみ利用/,
         ),
       ).toBeInTheDocument();
     });

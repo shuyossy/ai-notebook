@@ -1612,13 +1612,13 @@ describe('ReviewArea - チェックリスト抽出', () => {
       const processSelect = within(listItem).getByRole('combobox', {
         name: /document\.pdfの処理方法/,
       });
-      expect(processSelect).toHaveTextContent('テキスト抽出');
+      expect(processSelect).toHaveTextContent('テキスト表現');
 
-      // 「画像化」に切り替え
-      await changeSelectValue(processSelect, '画像化');
+      // 「画像」に切り替え
+      await changeSelectValue(processSelect, '画像');
 
-      // 画像化が選択されたことを確認
-      expect(processSelect).toHaveTextContent('画像化');
+      // 画像が選択されたことを確認
+      expect(processSelect).toHaveTextContent('画像');
     });
 
     it('画像化モードをページ毎から統合画像に切り替えられること', async () => {
@@ -1678,7 +1678,7 @@ describe('ReviewArea - チェックリスト抽出', () => {
       const processSelect = within(listItem).getByRole('combobox', {
         name: /document\.pdfの処理方法/,
       });
-      await changeSelectValue(processSelect, '画像化');
+      await changeSelectValue(processSelect, '画像');
 
       // デフォルトで「ページごと」が選択されていることを確認
       await waitFor(() => {
@@ -1753,9 +1753,9 @@ describe('ReviewArea - チェックリスト抽出', () => {
 
       // 一括設定セクションで処理方法を「画像化」に変更
       const bulkProcessSelect = screen.getByRole('combobox', {
-        name: '処理方法',
+        name: '変換形式',
       });
-      await changeSelectValue(bulkProcessSelect, '画像化');
+      await changeSelectValue(bulkProcessSelect, '画像');
 
       // 画像化方式のデフォルトは「ページごと」であることを確認
       const bulkImageModeSelect = screen.getByRole('combobox', {
@@ -1778,8 +1778,8 @@ describe('ReviewArea - チェックリスト抽出', () => {
       const processSelect2 = within(listItem2).getByRole('combobox', {
         name: /document2\.pdfの処理方法/,
       });
-      expect(processSelect1).toHaveTextContent('画像化');
-      expect(processSelect2).toHaveTextContent('画像化');
+      expect(processSelect1).toHaveTextContent('画像');
+      expect(processSelect2).toHaveTextContent('画像');
 
       // ページごとの画像化方式が選択されていることも確認
       await waitFor(() => {
@@ -1849,9 +1849,9 @@ describe('ReviewArea - チェックリスト抽出', () => {
 
       // 一括設定セクションで処理方法を「画像化」に変更
       const bulkProcessSelect = screen.getByRole('combobox', {
-        name: '処理方法',
+        name: '変換形式',
       });
-      await changeSelectValue(bulkProcessSelect, '画像化');
+      await changeSelectValue(bulkProcessSelect, '画像');
 
       // 画像化方式を「統合」に変更
       const bulkImageModeSelect = screen.getByRole('combobox', {
@@ -1874,8 +1874,8 @@ describe('ReviewArea - チェックリスト抽出', () => {
       const processSelect2 = within(listItem2).getByRole('combobox', {
         name: /document2\.pdfの処理方法/,
       });
-      expect(processSelect1).toHaveTextContent('画像化');
-      expect(processSelect2).toHaveTextContent('画像化');
+      expect(processSelect1).toHaveTextContent('画像');
+      expect(processSelect2).toHaveTextContent('画像');
 
       // 統合の画像化方式が選択されていることも確認
       await waitFor(() => {
@@ -1982,7 +1982,7 @@ describe('ReviewArea - チェックリスト抽出', () => {
       const processSelect = within(listItem).getByRole('combobox', {
         name: /test\.xlsxの処理方法/,
       });
-      await changeSelectValue(processSelect, '画像化');
+      await changeSelectValue(processSelect, '画像');
 
       // チェックリスト作成要件を入力
       const requirementInput = screen.getByLabelText('チェックリスト作成要件');
@@ -2109,7 +2109,7 @@ describe('ReviewArea - チェックリスト抽出', () => {
       const processSelect = within(listItem).getByRole('combobox', {
         name: /test\.pdfの処理方法/,
       });
-      await changeSelectValue(processSelect, '画像化');
+      await changeSelectValue(processSelect, '画像');
 
       // デフォルトで「ページごと」が選択されていることを確認
       const imageModeSelect = within(listItem).getByRole('combobox', {
@@ -2246,7 +2246,7 @@ describe('ReviewArea - チェックリスト抽出', () => {
       const processSelect = within(listItem).getByRole('combobox', {
         name: /test\.pdfの処理方法/,
       });
-      await changeSelectValue(processSelect, '画像化');
+      await changeSelectValue(processSelect, '画像');
 
       // 統合画像モードに切り替え
       const imageModeSelect = within(listItem).getByRole('combobox', {

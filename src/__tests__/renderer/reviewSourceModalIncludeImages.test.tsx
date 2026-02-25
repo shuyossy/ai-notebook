@@ -203,7 +203,7 @@ describe('ReviewSourceModal - includeImages機能', () => {
       const processSelect = within(listItem).getByRole('combobox', {
         name: /document\.pdfの処理方法/,
       });
-      await changeSelectValue(processSelect, '画像化');
+      await changeSelectValue(processSelect, '画像');
 
       // 「画像を含める」が非表示になる
       expect(screen.queryByText('画像を含める')).not.toBeInTheDocument();

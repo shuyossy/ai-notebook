@@ -1385,7 +1385,7 @@ describe('ReviewArea - レビュー実行', () => {
       const processSelect = within(listItem).getByRole('combobox', {
         name: /test\.xlsxの処理方法/,
       });
-      await changeSelectValue(processSelect, '画像化');
+      await changeSelectValue(processSelect, '画像');
 
       // モーダルの送信ボタンをクリック
       const submitButton = screen.getByRole('button', {
@@ -1499,7 +1499,7 @@ describe('ReviewArea - レビュー実行', () => {
       const processSelect = within(listItem).getByRole('combobox', {
         name: /test\.pdfの処理方法/,
       });
-      await changeSelectValue(processSelect, '画像化');
+      await changeSelectValue(processSelect, '画像');
 
       // モーダルの送信ボタンをクリック
       const submitButton = screen.getByRole('button', {

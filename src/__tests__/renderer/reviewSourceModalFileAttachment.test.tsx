@@ -87,7 +87,7 @@ describe('ReviewSourceModal - ファイル添付UI', () => {
   });
 
   describe('処理方法Selectドロップダウン表示', () => {
-    it('PDF/Officeファイルには処理方法Selectが存在し、デフォルト値が「テキスト抽出」であること', async () => {
+    it('PDF/Officeファイルには処理方法Selectが存在し、デフォルト値が「テキスト表現」であること', async () => {
       const mockShowOpenDialog = jest.fn().mockResolvedValue({
         success: true,
         data: {
@@ -109,8 +109,8 @@ describe('ReviewSourceModal - ファイル添付UI', () => {
       });
       expect(processSelect).toBeInTheDocument();
 
-      // デフォルト値が「テキスト抽出」であること
-      expect(processSelect).toHaveTextContent('テキスト抽出');
+      // デフォルト値が「テキスト表現」であること
+      expect(processSelect).toHaveTextContent('テキスト表現');
     });
 
     it('.txtファイルにはSelectがなく、「テキスト抽出」テキストが表示されること', async () => {
@@ -168,7 +168,7 @@ describe('ReviewSourceModal - ファイル添付UI', () => {
       const processSelect = within(listItem).getByRole('combobox', {
         name: /document\.pdfの処理方法/,
       });
-      await changeSelectValue(processSelect, '画像化');
+      await changeSelectValue(processSelect, '画像');
 
       // 画像化方式Selectが表示される
       expect(
@@ -202,13 +202,13 @@ describe('ReviewSourceModal - ファイル添付UI', () => {
       const processSelect = within(listItem).getByRole('combobox', {
         name: /document\.pdfの処理方法/,
       });
-      await changeSelectValue(processSelect, '画像化');
+      await changeSelectValue(processSelect, '画像');
 
-      // テキスト抽出に戻す
+      // テキスト表現に戻す
       const processSelect2 = within(listItem).getByRole('combobox', {
         name: /document\.pdfの処理方法/,
       });
-      await changeSelectValue(processSelect2, 'テキスト抽出');
+      await changeSelectValue(processSelect2, 'テキスト表現');
 
       // 画像化方式Selectが非表示
       expect(
@@ -242,7 +242,7 @@ describe('ReviewSourceModal - ファイル添付UI', () => {
       const processSelect = within(listItem).getByRole('combobox', {
         name: /document\.pdfの処理方法/,
       });
-      await changeSelectValue(processSelect, '画像化');
+      await changeSelectValue(processSelect, '画像');
 
       // 画像化方式Selectのデフォルト値が「ページごと」
       const imageModeSelect = within(listItem).getByRole('combobox', {
@@ -282,7 +282,7 @@ describe('ReviewSourceModal - ファイル添付UI', () => {
       const processSelect = within(listItem).getByRole('combobox', {
         name: /document\.pdfの処理方法/,
       });
-      await changeSelectValue(processSelect, '画像化');
+      await changeSelectValue(processSelect, '画像');
 
       // 統合を選択
       const imageModeSelect = within(listItem).getByRole('combobox', {
@@ -324,7 +324,7 @@ describe('ReviewSourceModal - ファイル添付UI', () => {
       await uploadFiles(['/test/document.pdf']);
 
       // 一括処理方法Selectが存在
-      expect(screen.getByLabelText('処理方法')).toBeInTheDocument();
+      expect(screen.getByLabelText('変換形式')).toBeInTheDocument();
 
       // テキストモード時: 画像オプションSelectが表示
       expect(screen.getByLabelText('画像オプション')).toBeInTheDocument();
@@ -349,8 +349,8 @@ describe('ReviewSourceModal - ファイル添付UI', () => {
       await uploadFiles(['/test/document.pdf']);
 
       // 画像化モードに切り替え
-      const bulkProcessSelect = screen.getByLabelText('処理方法');
-      await changeSelectValue(bulkProcessSelect, '画像化');
+      const bulkProcessSelect = screen.getByLabelText('変換形式');
+      await changeSelectValue(bulkProcessSelect, '画像');
 
       // 画像化方式Selectが表示される
       expect(screen.getByLabelText('画像化方式')).toBeInTheDocument();
@@ -385,8 +385,8 @@ describe('ReviewSourceModal - ファイル添付UI', () => {
       await uploadFiles(['/test/file1.pdf', '/test/file2.docx']);
 
       // 一括設定で画像化・ページごとを選択して適用
-      const bulkProcessSelect = screen.getByLabelText('処理方法');
-      await changeSelectValue(bulkProcessSelect, '画像化');
+      const bulkProcessSelect = screen.getByLabelText('変換形式');
+      await changeSelectValue(bulkProcessSelect, '画像');
 
       const applyButton = screen.getByRole('button', {
         name: 'すべてに適用',
@@ -400,18 +400,18 @@ describe('ReviewSourceModal - ファイル添付UI', () => {
       const file1Select = within(file1ListItem).getByRole('combobox', {
         name: /file1\.pdfの処理方法/,
       });
-      expect(file1Select).toHaveTextContent('画像化');
+      expect(file1Select).toHaveTextContent('画像');
 
       const file2ListItem = screen.getByText('file2.docx').closest('li')!;
       const file2Select = within(file2ListItem).getByRole('combobox', {
         name: /file2\.docxの処理方法/,
       });
-      expect(file2Select).toHaveTextContent('画像化');
+      expect(file2Select).toHaveTextContent('画像');
     });
   });
 
-  describe('テキスト抽出説明Alert表示', () => {
-    it('ファイルアップロード後にテキスト抽出についての説明が表示されること', async () => {
+  describe('テキスト表現説明Alert表示', () => {
+    it('ファイルアップロード後にテキスト表現についての説明が表示されること', async () => {
       const mockShowOpenDialog = jest.fn().mockResolvedValue({
         success: true,
         data: {
@@ -427,9 +427,11 @@ describe('ReviewSourceModal - ファイル添付UI', () => {
       await uploadFiles(['/test/document.pdf']);
 
       // テキスト抽出説明が表示される
-      expect(screen.getByText('テキスト抽出について')).toBeInTheDocument();
+      expect(screen.getByText('テキスト表現について')).toBeInTheDocument();
       expect(
-        screen.getByText(/テキスト情報に加えて、以下の情報を取得可能な場合/),
+        screen.getByText(
+          /ファイル内のテキスト情報に加えて、以下の情報にアクセス可能な場合/,
+        ),
       ).toBeInTheDocument();
     });
   });
@@ -498,8 +500,8 @@ describe('ReviewSourceModal - ファイル添付UI', () => {
       await uploadFiles(['/test/document.pdf']);
 
       // 画像化モードに切り替え
-      const bulkProcessSelect = screen.getByLabelText('処理方法');
-      await changeSelectValue(bulkProcessSelect, '画像化');
+      const bulkProcessSelect = screen.getByLabelText('変換形式');
+      await changeSelectValue(bulkProcessSelect, '画像');
 
       // 画像化方式横にInfoアイコンが存在すること
       expect(screen.getByTestId('bulk-image-mode-info')).toBeInTheDocument();
@@ -526,7 +528,7 @@ describe('ReviewSourceModal - ファイル添付UI', () => {
       const processSelect = within(listItem).getByRole('combobox', {
         name: /document\.pdfの処理方法/,
       });
-      await changeSelectValue(processSelect, '画像化');
+      await changeSelectValue(processSelect, '画像');
 
       // 画像化方式横にInfoアイコンが存在すること
       expect(screen.getByTestId('file-image-mode-info')).toBeInTheDocument();

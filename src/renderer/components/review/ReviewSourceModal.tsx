@@ -770,7 +770,7 @@ function ReviewSourceModal({
           {modalMode === 'review' && (
             <>
               <FormControl component="fieldset" sx={{ mb: 2 }}>
-                <FormLabel component="legend">ドキュメント量</FormLabel>
+                <FormLabel component="legend">レビュー方法</FormLabel>
                 <RadioGroup
                   value={documentVolumeType}
                   onChange={(e) =>
@@ -781,7 +781,7 @@ function ReviewSourceModal({
                     value="auto"
                     control={<Radio />}
                     label={
-                      <Tooltip title="AIへの入力データ量に応じて、少量・大量ドキュメントのどちらで処理するかを自動で判定します。">
+                      <Tooltip title="AIへの入力データ量に応じて、文書一括・分割のどちらで処理するかを自動で判定します。">
                         <span>
                           自動判定
                           <HelpIcon
@@ -799,7 +799,7 @@ function ReviewSourceModal({
                     label={
                       <Tooltip title="選択されたドキュメントを全てそのままAIの入力コンテキストに与えてレビューを行います。ドキュメント量が少ない場合に選択してください。">
                         <span>
-                          少量ドキュメント
+                          文書一括
                           <HelpIcon
                             fontSize="small"
                             sx={{ ml: 0.5, color: 'text.secondary' }}
@@ -815,7 +815,7 @@ function ReviewSourceModal({
                     label={
                       <Tooltip title="個々のドキュメントをAIの入力コンテキストに収まるまで分割してレビューを実行し、最終的にこれらの結果を統合します。ドキュメント量が多い場合に選択してください。">
                         <span>
-                          大量ドキュメント
+                          文書分割
                           <HelpIcon
                             fontSize="small"
                             sx={{ ml: 0.5, color: 'text.secondary' }}
@@ -1052,17 +1052,17 @@ function ReviewSourceModal({
                     variant="body2"
                     sx={{ fontWeight: 'bold', mb: 0.5 }}
                   >
-                    テキスト抽出について
+                    テキスト表現について
                   </Typography>
                   <Typography variant="body2">
-                    テキスト情報に加えて、以下の情報を取得可能な場合は自動的に取得します：
+                    ファイル内のテキスト情報に加えて、以下の情報にアクセス可能な場合は自動的に取得します：
                   </Typography>
                   <Box component="ul" sx={{ m: 0, pl: 2.5 }}>
                     <Typography component="li" variant="body2">
-                      Word・PDF：貼り付けられた画像、図形内のテキスト情報
+                      Word・PDF：挿入された画像・図形情報（図形内テキスト）
                     </Typography>
                     <Typography component="li" variant="body2">
-                      Excel・PowerPoint：貼り付けられた画像、図形情報（種類・大きさ・座標を含む）
+                      Excel・PowerPoint：挿入された画像・図形情報（図形内テキスト・種類・大きさ・座標）
                     </Typography>
                   </Box>
                 </Alert>
@@ -1093,19 +1093,19 @@ function ReviewSourceModal({
                     {/* 処理方法Select */}
                     <FormControl size="small" sx={{ minWidth: 160 }}>
                       <InputLabel id="bulk-process-mode-label">
-                        処理方法
+                        変換形式
                       </InputLabel>
                       <Select
                         labelId="bulk-process-mode-label"
-                        label="処理方法"
+                        label="変換形式"
                         value={bulkProcessMode}
                         onChange={(e) =>
                           setBulkProcessMode(e.target.value as BulkProcessMode)
                         }
                         disabled={processing}
                       >
-                        <MenuItem value="text">テキスト抽出</MenuItem>
-                        <MenuItem value="image">画像化</MenuItem>
+                        <MenuItem value="text">テキスト表現</MenuItem>
+                        <MenuItem value="image">画像</MenuItem>
                       </Select>
                     </FormControl>
 
@@ -1129,7 +1129,7 @@ function ReviewSourceModal({
                             <MenuItem value="include">画像を含める</MenuItem>
                           </Select>
                         </FormControl>
-                        <Tooltip title="テキスト抽出時にファイル内の画像も含めます。画像が多いファイルではコンテキスト消費量が増え、精度が低下する場合があります。">
+                        <Tooltip title="ファイル内に挿入された画像もテキスト表現に含めるかどうか選択できます。画像が多いファイルではコンテキスト消費量が増え、精度の低下や文書一括レビューの失敗につながる場合があります。">
                           <InfoOutlinedIcon
                             fontSize="small"
                             sx={{
@@ -1226,8 +1226,8 @@ function ReviewSourceModal({
                               'aria-label': `${file.name}の処理方法`,
                             }}
                           >
-                            <MenuItem value="text">テキスト抽出</MenuItem>
-                            <MenuItem value="image">画像化</MenuItem>
+                            <MenuItem value="text">テキスト表現</MenuItem>
+                            <MenuItem value="image">画像</MenuItem>
                           </Select>
                         </FormControl>
 
@@ -1296,7 +1296,7 @@ function ReviewSourceModal({
                                   <Typography variant="body2">
                                     画像を含める
                                   </Typography>
-                                  <Tooltip title="テキスト抽出時にファイル内の画像も含めます。画像が多いファイルではコンテキスト消費量が増え、精度が低下する場合があります。">
+                                  <Tooltip title="ファイル内に挿入された画像もテキスト表現に含めるかどうか選択できます。画像が多いファイルではコンテキスト消費量が増え、精度の低下や文書一括レビューの失敗につながる場合があります。">
                                     <InfoOutlinedIcon
                                       fontSize="small"
                                       sx={{
