@@ -3,7 +3,7 @@ import { createStep } from '@mastra/core';
 import { z } from 'zod';
 import { baseStepOutputSchema } from '../../schema';
 import { stepStatus } from '../../types';
-import { getMainLogger } from '@/main/lib/logger';
+import { logError } from '@/main/lib/logger';
 import { normalizeUnknownError, internalError } from '@/main/lib/error';
 import { ReviewChatResearchAgentRuntimeContext } from '@/mastra/agents/workflowAgents';
 import {
@@ -15,8 +15,6 @@ import {
 import { getReviewRepository } from '@/adapter/db';
 import { judgeReviewMode, buildResearchChecklistInfo } from '../lib';
 import { buildDocumentFormatContext } from '@/mastra/lib/extractionFormatDescription';
-
-const logger = getMainLogger();
 
 export const researchChunkStepInputSchema = z.object({
   reviewHistoryId: z.string(),
@@ -199,7 +197,7 @@ export const researchChunkStep = createStep({
         };
       }
 
-      logger.error(error, 'チャンク調査に失敗しました');
+      logError(error, 'チャンク調査に失敗しました');
       const normalizedError = normalizeUnknownError(error);
       return bail({
         status: 'failed' as stepStatus,

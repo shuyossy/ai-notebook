@@ -13,7 +13,7 @@ import { internalError, normalizeUnknownError } from '@/main/lib/error';
 import { createHash } from 'crypto';
 import { ReviewEvaluation } from '@/types';
 import { stepStatus } from '../../types';
-import { getMainLogger } from '@/main/lib/logger';
+import { logError } from '@/main/lib/logger';
 import {
   documentReviewExecutionInputSchema,
   documentReviewExecutionOutputSchema,
@@ -21,8 +21,6 @@ import {
 import { getChecklistsErrorMessage } from './lib';
 import { buildDocumentFormatContext } from '@/mastra/lib/extractionFormatDescription';
 import { extractedDocumentSchema } from './schema';
-
-const logger = getMainLogger();
 
 /**
  * 少量ドキュメントレビューの共通実行関数
@@ -236,7 +234,10 @@ export const smallDocumentReviewExecutionStep = createStep({
         },
       };
     } catch (error) {
-      logger.error(error, 'チェックリストのレビュー実行処理に失敗しました');
+      logError(error, 'チェックリストのレビュー実行処理に失敗しました', {
+        documentNames: documents?.map((d) => d.name),
+        checklistCount: checklists?.length,
+      });
       const normalizedError = normalizeUnknownError(error);
       const errorMessage = normalizedError.message;
       // エラーが発生した場合はエラー情報を返す

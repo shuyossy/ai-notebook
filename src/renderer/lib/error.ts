@@ -7,8 +7,6 @@ import { FrontErrorCode, AppErrorPayload } from '@/types';
 export class FrontAppError extends Error {
   public readonly expose: boolean;
   public readonly errorCode: FrontErrorCode;
-  // ログに出すための追加情報
-  public readonly couse?: unknown;
 
   constructor(
     errorCode: FrontErrorCode,
@@ -18,11 +16,10 @@ export class FrontAppError extends Error {
       cause?: unknown;
     },
   ) {
-    super(message);
+    super(message, { cause: options?.cause });
     this.name = 'FrontAppError';
     this.errorCode = errorCode;
     this.expose = options?.expose ?? false;
-    this.couse = options?.cause;
   }
 
   override get message(): string {

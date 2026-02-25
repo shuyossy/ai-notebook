@@ -2,6 +2,7 @@ import Logger from 'electron-log';
 import log from 'electron-log/main';
 import { getCustomAppDataDir } from '../main';
 import path from 'path';
+import { errWithCause } from 'pino-std-serializers';
 
 const logLevel = getLogLevel();
 log.transports.file.level = logLevel;
@@ -18,6 +19,24 @@ export function getMainLogger() {
     _mainLogger = log;
   }
   return _mainLogger;
+}
+
+/**
+ * エラーをシリアライズしてログ出力する関数
+ * errWithCauseを使用してcause chainを含む完全なエラー情報を出力する
+ */
+export function logError(
+  error: unknown,
+  message: string,
+  context?: Record<string, unknown>,
+): void {
+  const logger = getMainLogger();
+  const serialized = error instanceof Error ? errWithCause(error) : error;
+  if (context) {
+    logger.error({ err: serialized, ...context }, message);
+  } else {
+    logger.error(serialized, message);
+  }
 }
 
 export function getLogLevel() {

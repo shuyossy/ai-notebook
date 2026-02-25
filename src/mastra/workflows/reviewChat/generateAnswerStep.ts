@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { baseStepOutputSchema } from '../schema';
 import { stepStatus } from '../types';
 import { getReviewRepository } from '@/adapter/db';
-import { getMainLogger } from '@/main/lib/logger';
+import { logError } from '@/main/lib/logger';
 import { normalizeUnknownError, internalError } from '@/main/lib/error';
 import { ReviewChatAnswerAgentRuntimeContext } from '@/mastra/agents/workflowAgents';
 import {
@@ -18,8 +18,6 @@ import { IpcChannels } from '@/types';
 import { publishEvent } from '@/main/lib/eventPayloadHelper';
 import { ReviewChatWorkflowRuntimeContext } from '.';
 import { judgeReviewMode, buildAnswerChecklistInfo } from './lib';
-
-const logger = getMainLogger();
 
 export const generateAnswerStepInputSchema = z.object({
   reviewHistoryId: z.string(),
@@ -144,7 +142,7 @@ ${result.researchResult}`;
         answer: result.text,
       };
     } catch (error) {
-      logger.error(error, '最終回答の生成に失敗しました');
+      logError(error, '最終回答の生成に失敗しました');
       const normalizedError = normalizeUnknownError(error);
 
       // エラーイベント送信

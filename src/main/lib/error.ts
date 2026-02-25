@@ -17,8 +17,6 @@ export class AppError extends Error {
   public readonly errorCode: ErrorCode;
   public readonly messageCode: MessageCode;
   public readonly messageParams: MessageParams;
-  // ログに出すための追加情報
-  public readonly couse?: unknown;
 
   constructor(
     errorCode: ErrorCode,
@@ -33,11 +31,10 @@ export class AppError extends Error {
       options?.messageCode ?? 'UNKNOWN_ERROR',
       options?.messageParams ?? {},
     );
-    super(message);
+    super(message, { cause: options?.cause });
     this.name = 'AppError';
     this.errorCode = errorCode;
     this.expose = options?.expose ?? false;
-    this.couse = options?.cause;
     this.messageCode = options?.messageCode ?? 'UNKNOWN_ERROR';
     this.messageParams = options?.messageParams ?? {};
   }

@@ -12,9 +12,7 @@ import {
   judgeFinishReason,
   getModelSpecificGenerateOptions,
 } from '@/mastra/lib/agentUtils';
-import { getMainLogger } from '@/main/lib/logger';
-
-const logger = getMainLogger();
+import { logError } from '@/main/lib/logger';
 import type { ReviewEvaluation } from '@/types';
 import { createHash } from 'crypto';
 import { extractedDocumentSchema } from '../schema';
@@ -240,7 +238,10 @@ Please provide a consolidated review that synthesizes all individual document re
         },
       };
     } catch (error) {
-      logger.error(error, 'レビュー結果統合処理に失敗しました');
+      logError(error, 'レビュー結果統合処理に失敗しました', {
+        fileNames: documentsWithReviewResults?.map((d) => d.name),
+        checklistCount: checklists?.length,
+      });
       const normalizedError = normalizeUnknownError(error);
       const errorMessage = normalizedError.message;
       // エラーが発生した場合はエラー情報を返す

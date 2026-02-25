@@ -12,14 +12,12 @@ import {
   judgeFinishReason,
   getModelSpecificGenerateOptions,
 } from '@/mastra/lib/agentUtils';
-import { getMainLogger } from '@/main/lib/logger';
+import { logError } from '@/main/lib/logger';
 import { createCombinedMessageFromExtractedDocument } from '../../lib';
 import { getChecklistsErrorMessage } from '../lib';
 import { extractedDocumentSchema } from '../schema';
 import { getReviewRepository } from '@/adapter/db';
 import { buildDocumentFormatContext } from '@/mastra/lib/extractionFormatDescription';
-
-const logger = getMainLogger();
 
 // 個別ドキュメントレビューステップの入力スキーマ
 export const individualDocumentReviewStepInputSchema = z.object({
@@ -218,7 +216,12 @@ Checklist Items to Review:\n${checklists.map((item) => `- ID: ${item.id} - ${ite
       };
     } catch (error) {
       const isContentLengthError = judgeErrorIsContentLengthError(error);
-      logger.error(error, '個別ドキュメントレビュー処理に失敗しました');
+      logError(error, '個別ドキュメントレビュー処理に失敗しました', {
+        documentOriginalName: document.originalName,
+        documentName: document.name,
+        totalChunks: document.totalChunks,
+        chunkIndex: document.chunkIndex,
+      });
       const normalizedError = normalizeUnknownError(error);
       const errorMessage = normalizedError.message;
       // エラーが発生した場合はエラー情報を返す

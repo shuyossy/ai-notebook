@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { baseStepOutputSchema } from '../schema';
 import { stepStatus } from '../types';
 import { getReviewRepository } from '@/adapter/db';
-import { getMainLogger } from '@/main/lib/logger';
+import { logError } from '@/main/lib/logger';
 import { normalizeUnknownError, internalError } from '@/main/lib/error';
 import { ReviewChatPlanningAgentRuntimeContext } from '@/mastra/agents/workflowAgents';
 import {
@@ -14,8 +14,6 @@ import {
 } from '@/mastra/lib/agentUtils';
 import { reviewChatInputSchema } from '.';
 import { judgeReviewMode, buildPlanningChecklistInfo } from './lib';
-
-const logger = getMainLogger();
 
 // Step 1: 調査計画作成
 const planResearchStepOutputSchema = baseStepOutputSchema.extend({
@@ -122,7 +120,7 @@ export const planResearchStep = createStep({
         researchTasks,
       };
     } catch (error) {
-      logger.error(error, '調査計画の作成に失敗しました');
+      logError(error, '調査計画の作成に失敗しました');
       const normalizedError = normalizeUnknownError(error);
       return bail({
         status: 'failed' as stepStatus,

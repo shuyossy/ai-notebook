@@ -567,7 +567,7 @@ describe('PdfjsRichStrategy', () => {
           expect((error as TextExtractorStrategyError).strategyType).toBe(
             'pdfjs-rich',
           );
-          expect((error as TextExtractorStrategyError).couse).toBe(pdfError);
+          expect((error as TextExtractorStrategyError).cause).toBe(pdfError);
         }
       });
 
@@ -587,7 +587,7 @@ describe('PdfjsRichStrategy', () => {
           // TextExtractorStrategyErrorがそのまま伝播し、再ラップされないこと
           expect(error).toBeInstanceOf(TextExtractorStrategyError);
           // couse が undefined (再ラップされていない)
-          expect((error as TextExtractorStrategyError).couse).toBeUndefined();
+          expect((error as TextExtractorStrategyError).cause).toBeUndefined();
         }
       });
     });

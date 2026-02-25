@@ -4,7 +4,7 @@ import fs from 'fs/promises';
 import { existsSync, mkdirSync } from 'fs';
 import os from 'os';
 import { createHash } from 'crypto';
-import { getMainLogger } from './logger';
+import { getMainLogger, logError } from './logger';
 import { internalError } from './error';
 import { getCustomAppDataDir } from '../main';
 import { publishEvent } from '../lib/eventPayloadHelper';
@@ -169,7 +169,7 @@ async function tryReadCache(filePath: string): Promise<string | null> {
   } catch (error) {
     // ファイルが存在しない場合やJSONパースエラーの場合は null を返す
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-      logger.error({ error, filePath }, 'キャッシュの読み込みに失敗しました');
+      logError(error, 'キャッシュの読み込みに失敗しました', { filePath });
     }
     return null;
   }
@@ -211,7 +211,7 @@ async function saveCache(
     );
   } catch (error) {
     // キャッシュが保存できない場合は大きな問題にならないのでエラーは握りつぶす
-    logger.error({ error, originalFilePath }, 'キャッシュの保存に失敗しました');
+    logError(error, 'キャッシュの保存に失敗しました', { originalFilePath });
   }
 }
 
@@ -230,7 +230,7 @@ async function deleteCache(filePath: string): Promise<void> {
   } catch (error) {
     // キャッシュが削除できない場合は大きな問題にならないのでエラーは握りつぶす
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-      logger.error(error, 'キャッシュの削除に失敗しました');
+      logError(error, 'キャッシュの削除に失敗しました');
     }
   }
 }
@@ -699,7 +699,7 @@ export async function convertOfficeToPdf(inputPath: string): Promise<string> {
     const cachedPdfPath = getCachePdfPath(inputPath);
     return cachedPdfPath;
   } catch (error: any) {
-    logger.error({ error, inputPath }, 'Office to PDF conversion error');
+    logError(error, 'Office to PDF conversion error', { inputPath });
 
     // エラーメッセージを解析
     let errorMessage = 'Failed to convert Office document to PDF';
@@ -808,10 +808,7 @@ export async function cleanCacheDirectory(): Promise<void> {
           deletedCount++;
           logger.debug(`不正なキャッシュファイルを削除: ${fileName}`);
         } catch (unlinkError) {
-          logger.error(
-            { error: unlinkError, fileName },
-            'キャッシュファイルの削除に失敗',
-          );
+          logError(unlinkError, 'キャッシュファイルの削除に失敗', { fileName });
         }
       }
     }
@@ -827,10 +824,7 @@ export async function cleanCacheDirectory(): Promise<void> {
             deletedCount++;
             logger.debug(`孤立したPDFファイルを削除: ${fileName}`);
           } catch (unlinkError) {
-            logger.error(
-              { error: unlinkError, fileName },
-              '孤立PDFファイルの削除に失敗',
-            );
+            logError(unlinkError, '孤立PDFファイルの削除に失敗', { fileName });
           }
         }
       }
@@ -840,9 +834,6 @@ export async function cleanCacheDirectory(): Promise<void> {
       `PDFキャッシュクリーニング完了: ${deletedCount}個のファイルを削除`,
     );
   } catch (error) {
-    logger.error(
-      { error },
-      'PDFキャッシュディレクトリのクリーニングに失敗しました',
-    );
+    logError(error, 'PDFキャッシュディレクトリのクリーニングに失敗しました');
   }
 }

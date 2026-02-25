@@ -13,7 +13,7 @@ import { getCustomAppDataDir } from '../main';
 // その際、動的にrequire("@napi-rs/canvas")が実行されるが、本番環境だとモジュールが見つけられないエラーになる
 // releaseディレクトリに@napi-rs/canvasを追加して解決を試みたが、それでも同様にモジュールが見つけられないエラーが発生するため、予め@napi-rs/canvasを呼び出してpolyfillを実行しておく
 import canvas from '@napi-rs/canvas';
-import { getMainLogger } from './logger';
+import { getMainLogger, logError } from './logger';
 import { internalError } from './error';
 
 (globalThis as any).DOMMatrix = canvas.DOMMatrix;
@@ -131,7 +131,7 @@ export default class FileExtractor {
       const ext = path.extname(filePath).toLowerCase();
       return CACHE_TARGET_EXTENSIONS.includes(ext);
     } catch (error) {
-      logger.error(error, 'ファイルの拡張子の取得に失敗しました');
+      logError(error, 'ファイルの拡張子の取得に失敗しました');
       return false;
     }
   }
@@ -147,7 +147,7 @@ export default class FileExtractor {
       // キャッシュが削除できない場合は大きな問題にならないのでエラーは握りつぶす
       // ファイルが存在するが、取り出せない場合(≠ENOENT)はログに出す
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-        logger.error(error, 'キャッシュの削除に失敗しました');
+        logError(error, 'キャッシュの削除に失敗しました');
       }
     }
   }
@@ -178,7 +178,7 @@ export default class FileExtractor {
     } catch (error) {
       // ファイルが存在しない場合やJSONパースエラーの場合は null を返す
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-        logger.error({ error, filePath }, 'キャッシュの読み込みに失敗しました');
+        logError(error, 'キャッシュの読み込みに失敗しました', { filePath });
       }
       return null;
     }
@@ -210,7 +210,7 @@ export default class FileExtractor {
       );
     } catch (error) {
       // キャッシュが保存できない場合は大きな問題にならないのでエラーは握りつぶす
-      logger.error({ error, filePath }, 'キャッシュの保存に失敗しました');
+      logError(error, 'キャッシュの保存に失敗しました', { filePath });
     }
   }
 
@@ -280,7 +280,7 @@ export default class FileExtractor {
         },
       };
     } catch (error) {
-      logger.error({ error, filePath }, 'ファイルのテキスト抽出に失敗しました');
+      logError(error, 'ファイルのテキスト抽出に失敗しました', { filePath });
       throw internalError({
         expose: true,
         messageCode: 'FILE_TEXT_EXTRACTION_ERROR',
@@ -410,10 +410,7 @@ export default class FileExtractor {
     try {
       return await fs.readFile(filePath, 'utf-8');
     } catch (error) {
-      logger.error(
-        { error, filePath },
-        'テキストファイルの読み込みに失敗しました',
-      );
+      logError(error, 'テキストファイルの読み込みに失敗しました', { filePath });
       throw internalError({
         expose: true,
         messageCode: 'FILE_TEXT_EXTRACTION_ERROR',
@@ -768,10 +765,9 @@ try {
             deletedCount++;
             logger.debug(`不正なキャッシュファイルを削除: ${fileName}`);
           } catch (unlinkError) {
-            logger.error(
-              { error: unlinkError, fileName },
-              'キャッシュファイルの削除に失敗',
-            );
+            logError(unlinkError, 'キャッシュファイルの削除に失敗', {
+              fileName,
+            });
           }
         }
       }
@@ -780,10 +776,7 @@ try {
         `キャッシュクリーニング完了: ${deletedCount}個のファイルを削除`,
       );
     } catch (error) {
-      logger.error(
-        { error },
-        'キャッシュディレクトリのクリーニングに失敗しました',
-      );
+      logError(error, 'キャッシュディレクトリのクリーニングに失敗しました');
     }
   }
 }

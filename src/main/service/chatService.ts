@@ -9,13 +9,11 @@ import {
   getModelSpecificGenerateOptions,
 } from '@/mastra/lib/agentUtils';
 import { ChatMessage, Feature, IpcChannels } from '@/types';
-import { getMainLogger } from '../lib/logger';
+import { logError } from '../lib/logger';
 import { formatMessage } from '../lib/messages';
 import { SettingsService } from './settingsService';
 import { publishEvent } from '../lib/eventPayloadHelper';
 import { normalizeUnknownError } from '../lib/error';
-
-const logger = getMainLogger();
 
 const feature = 'CHAT' as Feature;
 
@@ -224,7 +222,7 @@ export class ChatService implements IChatService {
       },
       onError: (error) => {
         // エラーが発生したときの処理
-        logger.error(error, 'テキスト生成中にエラーが発生');
+        logError(error, 'テキスト生成中にエラーが発生');
         // エラー時もAbortControllerを削除
         this.deleteAbortController(threadId);
         const normalizedError = normalizeUnknownError(error);

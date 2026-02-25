@@ -3,7 +3,7 @@ import fs from 'fs/promises';
 import { internalError, normalizeUnknownError } from '../lib/error';
 import { publishEvent } from '../lib/eventPayloadHelper';
 import FileExtractor from '../lib/fileExtractor';
-import { getMainLogger } from '../lib/logger';
+import { getMainLogger, logError } from '../lib/logger';
 import { getSettingsRepository, getSourceRepository } from '@/adapter/db';
 import { IpcChannels, Source } from '@/types';
 import { mastra } from '@/mastra';
@@ -235,10 +235,7 @@ export class SourceService implements ISourceService {
                 filePath,
               });
             } catch (error) {
-              logger.error(
-                error,
-                'ドキュメント登録用ワークフロー実行中にエラー',
-              );
+              logError(error, 'ドキュメント登録用ワークフロー実行中にエラー');
               throw error;
             }
             // 次のイテレーションに結果配列を渡す
@@ -289,10 +286,7 @@ export class SourceService implements ISourceService {
       // 配列の配列を平坦化して返却
       return nested.flat();
     } catch (error) {
-      logger.error(
-        error,
-        'ドキュメント登録用ディレクトリの読み込みに失敗しました',
-      );
+      logError(error, 'ドキュメント登録用ディレクトリの読み込みに失敗しました');
       throw internalError({
         expose: true,
         messageCode: 'SOURCE_REGISTRATION_DIR_READING_ERROR',

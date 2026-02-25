@@ -5,14 +5,12 @@ import { stepStatus } from '../../types';
 import { baseStepOutputSchema } from '../../schema';
 import { normalizeUnknownError, internalError } from '@/main/lib/error';
 import { FileTextExtractor } from '@/main/lib/textExtractor/FileTextExtractor';
-import { getMainLogger } from '@/main/lib/logger';
+import { logError } from '@/main/lib/logger';
 import { extractedDocumentSchema, uploadedFileSchema } from './schema';
 import { removeImageLinks } from '@/mastra/lib/util';
 import { getReviewRepository } from '@/adapter/db';
 import { publishEvent } from '@/main/lib/eventPayloadHelper';
 import { IpcChannels } from '@/types';
-
-const logger = getMainLogger();
 
 // 入力スキーマ
 export const textExtractionInputSchema = z.object({
@@ -164,7 +162,10 @@ export const textExtractionStep = createStep({
         extractedDocuments,
       };
     } catch (error) {
-      logger.error(error, 'ファイル処理に失敗しました');
+      logError(error, 'ファイル処理に失敗しました', {
+        reviewHistoryId,
+        fileNames: files?.map((f) => f.name),
+      });
       const normalizedError = normalizeUnknownError(error);
 
       return bail({

@@ -19,9 +19,7 @@ import {
   getModelSpecificGenerateOptions,
 } from '@/mastra/lib/agentUtils';
 import { ClassifyCategoryAgentRuntimeContext } from '@/mastra/agents/workflowAgents';
-import { getMainLogger } from '@/main/lib/logger';
-
-const logger = getMainLogger();
+import { logError } from '@/main/lib/logger';
 
 export const classifyChecklistsByCategoryInputSchema = z.object({
   reviewHistoryId: z.string().describe('レビュー履歴ID'),
@@ -201,7 +199,9 @@ export const classifyChecklistsByCategoryStep = createStep({
         categories: finalCategories,
       };
     } catch (error) {
-      logger.error(error, 'チェックリストのカテゴリ分類処理に失敗しました');
+      logError(error, 'チェックリストのカテゴリ分類処理に失敗しました', {
+        reviewHistoryId,
+      });
       if (
         extractAIAPISafeError(error) ||
         NoObjectGeneratedError.isInstance(error) ||

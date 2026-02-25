@@ -208,6 +208,7 @@ ElectronのIPCを使用してフロントエンド・バックエンド間の通
   - コンポーネントで常にSSEの通信を張ってデータを取得したい場合は`usePushChannel`を、一時的にSSEの通信を貼りたい場合は`ElectronPushClient`を利用
 - フロントエンドでエラーメッセージを表示する(addAlertで出す想定)場合はcatchしたエラーを`src/renderer/lib/error.ts`で定義しているgetSafeErrorMessage関数に適用してエラーメッセージを取り出すこと
 - このアプリでは基本的にエラーメッセージは独自例外(`src/renderer/lib/error.ts`,`src/main/lib/error.ts`)をthrowしないとユーザにエラーメッセージが表示されないため、注意すること
+- エラーログを出力する場合は`logError`関数を利用すること（causeプロパティのシリアライズが可能）
 - エラーメッセージについてはシステムの内部処理が漏れ出ないように注意する
   - あくまでユーザの操作目線でのエラーメッセージが出るようにする
 - DB用の型(`src/adapter/db/drizzle/schema.ts`)とシステム内部で利用する型（ドメイン型）(`src/types`)は将来の保守性や移植性を考慮して適切に分離し、これらの差分はrepositoryで吸収すること

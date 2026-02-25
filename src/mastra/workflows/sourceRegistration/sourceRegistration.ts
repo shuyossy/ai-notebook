@@ -11,10 +11,8 @@ import {
   getModelSpecificGenerateOptions,
 } from '../../lib/agentUtils';
 import { normalizeUnknownError, internalError } from '@/main/lib/error';
-import { getMainLogger } from '@/main/lib/logger';
+import { logError } from '@/main/lib/logger';
 import FileExtractor from '@/main/lib/fileExtractor';
-
-const logger = getMainLogger();
 
 const triggerSchema = z.object({
   filePath: z.string().describe('登録するソースのファイルパス'),
@@ -102,7 +100,7 @@ const analyzeSourceStep = createStep({
 
       status = 'success';
     } catch (error) {
-      logger.error(error, 'ソース分析に失敗しました');
+      logError(error, 'ソース分析に失敗しました');
       let errorDetail: string;
       const normalizedError = normalizeUnknownError(error);
       errorDetail = normalizedError.message;

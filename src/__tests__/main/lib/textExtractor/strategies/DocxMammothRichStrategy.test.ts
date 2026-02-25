@@ -328,7 +328,7 @@ describe('DocxMammothRichStrategy', () => {
           expect((error as TextExtractorStrategyError).strategyType).toBe(
             'docx-mammoth-rich',
           );
-          expect((error as TextExtractorStrategyError).couse).toBe(
+          expect((error as TextExtractorStrategyError).cause).toBe(
             mammothError,
           );
         }

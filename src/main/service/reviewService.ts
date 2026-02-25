@@ -25,7 +25,7 @@ import FileExtractor from '@/main/lib/fileExtractor';
 import { CsvParser } from '@/main/lib/csvParser';
 import { publishEvent } from '../lib/eventPayloadHelper';
 import { internalError, normalizeUnknownError, toPayload } from '../lib/error';
-import { getMainLogger } from '../lib/logger';
+import { getMainLogger, logError } from '../lib/logger';
 import { mastra } from '@/mastra';
 import { checkWorkflowResult } from '@/mastra/lib/workflowUtils';
 import { formatMessage } from '../lib/messages';
@@ -467,7 +467,7 @@ export class ReviewService implements IReviewService {
         error: checkResult.errorMessage,
       };
     } catch (error) {
-      logger.error(error, 'チェックリスト抽出処理に失敗しました');
+      logError(error, 'チェックリスト抽出処理に失敗しました');
 
       // エラー時もクリーンアップ
       this.runningWorkflows.delete(reviewHistoryId);
@@ -479,7 +479,7 @@ export class ReviewService implements IReviewService {
           'idle',
         );
       } catch (statusUpdateError) {
-        logger.error(statusUpdateError, '処理ステータスの更新に失敗しました');
+        logError(statusUpdateError, '処理ステータスの更新に失敗しました');
       }
 
       const err = normalizeUnknownError(error);
@@ -641,7 +641,7 @@ export class ReviewService implements IReviewService {
         error: checkResult.errorMessage,
       };
     } catch (error) {
-      logger.error(error, 'レビュー実行処理に失敗しました');
+      logError(error, 'レビュー実行処理に失敗しました');
 
       // エラー時もクリーンアップ
       this.runningWorkflows.delete(reviewHistoryId);
@@ -653,7 +653,7 @@ export class ReviewService implements IReviewService {
           'extracted',
         );
       } catch (statusUpdateError) {
-        logger.error(statusUpdateError, '処理ステータスの更新に失敗しました');
+        logError(statusUpdateError, '処理ステータスの更新に失敗しました');
       }
 
       const err = normalizeUnknownError(error);
@@ -712,7 +712,7 @@ export class ReviewService implements IReviewService {
         success: true,
       };
     } catch (error) {
-      logger.error(error, 'チェックリスト抽出処理に失敗しました');
+      logError(error, 'チェックリスト抽出処理に失敗しました');
       const err = normalizeUnknownError(error);
       const errorMessage = err.message;
       const errorResult = {
@@ -784,7 +784,7 @@ export class ReviewService implements IReviewService {
         success: true,
       };
     } catch (error) {
-      logger.error(error, 'レビュー実行処理に失敗しました');
+      logError(error, 'レビュー実行処理に失敗しました');
       const err = normalizeUnknownError(error);
       const errorMessage = err.message;
       const errorResult = {
@@ -838,7 +838,7 @@ export class ReviewService implements IReviewService {
         };
       }
     } catch (error) {
-      logger.error(error, 'チェックリスト抽出のキャンセルに失敗しました');
+      logError(error, 'チェックリスト抽出のキャンセルに失敗しました');
       const err = normalizeUnknownError(error);
       return { success: false, error: err.message };
     }
@@ -878,7 +878,7 @@ export class ReviewService implements IReviewService {
         };
       }
     } catch (error) {
-      logger.error(error, 'レビュー実行のキャンセルに失敗しました');
+      logError(error, 'レビュー実行のキャンセルに失敗しました');
       const err = normalizeUnknownError(error);
       return { success: false, error: err.message };
     }
@@ -977,14 +977,14 @@ export class ReviewService implements IReviewService {
             });
           }
         } catch (error) {
-          logger.error(error, 'レビューチャット実行に失敗しました');
+          logError(error, 'レビューチャット実行に失敗しました');
           // エラー時もworkflowを削除
           this.runningWorkflows.delete(`chat_${reviewHistoryId}`);
           throw error;
         }
       },
       onError: (error) => {
-        logger.error(error, 'レビューチャット中にエラーが発生');
+        logError(error, 'レビューチャット中にエラーが発生');
         // エラー時もworkflowを削除
         this.runningWorkflows.delete(`chat_${reviewHistoryId}`);
         const normalizedError = normalizeUnknownError(error);
@@ -1021,7 +1021,7 @@ export class ReviewService implements IReviewService {
         };
       }
     } catch (error) {
-      logger.error(error, 'レビューチャットのキャンセルに失敗しました');
+      logError(error, 'レビューチャットのキャンセルに失敗しました');
       const err = normalizeUnknownError(error);
       return { success: false, error: err.message };
     }

@@ -6,7 +6,7 @@ import { documentQueryTool } from './sourcesTools';
 import type { RedmineBaseInfo } from './redmine/types';
 import { createRedmineClient, setupRedmineTools } from './redmine';
 import { setupGitLabTools } from './gitlab';
-import { getMainLogger } from '@/main/lib/logger';
+import { logError } from '@/main/lib/logger';
 import { normalizeUnknownError } from '@/main/lib/error';
 
 export type InitializeToolsConfig = {
@@ -42,8 +42,6 @@ type InitializeToolsResult = {
   toolsInput: ToolsInput;
 };
 
-const logger = getMainLogger();
-
 // ツールを初期化/更新する関数
 export const initializeTools = async (
   config: InitializeToolsConfig,
@@ -55,7 +53,7 @@ export const initializeTools = async (
       tools.documentQueryTool = documentQueryTool;
       result.documentTool = { success: true };
     } catch (err) {
-      logger.error(err, 'ドキュメントツールの初期化に失敗しました');
+      logError(err, 'ドキュメントツールの初期化に失敗しました');
       const error = normalizeUnknownError(err);
       result.documentTool = {
         success: false,
@@ -84,7 +82,7 @@ export const initializeTools = async (
       result.redmineTool = { success: true, redmineInfo };
     } catch (err) {
       console.error(err);
-      logger.error(err, 'Redmineツールの初期化に失敗しました');
+      logError(err, 'Redmineツールの初期化に失敗しました');
       const error = normalizeUnknownError(err);
       result.redmineTool = {
         success: false,
@@ -106,7 +104,7 @@ export const initializeTools = async (
       tools = { ...tools, ...gitlabTools };
       result.gitlabTool = { success: true };
     } catch (err) {
-      logger.error(err, 'GitLabツールの初期化に失敗しました');
+      logError(err, 'GitLabツールの初期化に失敗しました');
       const error = normalizeUnknownError(err);
       result.gitlabTool = {
         success: false,

@@ -4,10 +4,8 @@ import { z } from 'zod';
 import { baseStepOutputSchema } from '../../schema';
 import { stepStatus } from '../../types';
 import { getReviewRepository } from '@/adapter/db';
-import { getMainLogger } from '@/main/lib/logger';
+import { logError } from '@/main/lib/logger';
 import { normalizeUnknownError } from '@/main/lib/error';
-
-const logger = getMainLogger();
 
 export const getTotalChunksStepInputSchema = z.object({
   reviewHistoryId: z.string(),
@@ -44,7 +42,7 @@ export const getTotalChunksStep = createStep({
         totalChunks,
       };
     } catch (error) {
-      logger.error(error, '最大チャンク数の取得に失敗しました');
+      logError(error, '最大チャンク数の取得に失敗しました');
       const normalizedError = normalizeUnknownError(error);
       return bail({
         status: 'failed' as stepStatus,

@@ -17,7 +17,7 @@ import {
   getModelSpecificGenerateOptions,
 } from '../../lib/agentUtils';
 import { normalizeUnknownError, internalError } from '@/main/lib/error';
-import { getMainLogger } from '@/main/lib/logger';
+import { getMainLogger, logError } from '@/main/lib/logger';
 import { publishEvent } from '@/main/lib/eventPayloadHelper';
 import { IpcChannels } from '@/types';
 import { createCombinedMessage } from './lib';
@@ -259,7 +259,9 @@ const checklistDocumentExtractionStep = createStep({
         status: 'success' as stepStatus,
       };
     } catch (error) {
-      logger.error(error, 'チェックリスト抽出処理に失敗しました');
+      logError(error, 'チェックリスト抽出処理に失敗しました', {
+        reviewHistoryId,
+      });
       let errorMessage = '';
       if (
         NoObjectGeneratedError.isInstance(error) &&
@@ -371,7 +373,9 @@ const topicExtractionStep = createStep({
         topics: allTopics,
       };
     } catch (error) {
-      logger.error(error, 'チェックリスト作成のトピック抽出処理に失敗しました');
+      logError(error, 'チェックリスト作成のトピック抽出処理に失敗しました', {
+        reviewHistoryId,
+      });
       const normalizedError = normalizeUnknownError(error);
       return bail({
         status: 'failed' as stepStatus,
@@ -487,7 +491,7 @@ const topicChecklistCreationStep = createStep({
         checklistItems,
       };
     } catch (error) {
-      logger.error(error, `チェックリスト作成処理に失敗しました: ${title}`);
+      logError(error, 'チェックリスト作成処理に失敗しました', { title });
       const normalizedError = normalizeUnknownError(error);
       return bail({
         status: 'failed' as stepStatus,
@@ -720,7 +724,9 @@ Please continue refining the remaining items, avoiding duplicates with already r
         refinedItems: accumulated,
       };
     } catch (error) {
-      logger.error(error, 'チェックリストブラッシュアップ処理に失敗しました');
+      logError(error, 'チェックリストブラッシュアップ処理に失敗しました', {
+        reviewHistoryId,
+      });
       const normalizedError = normalizeUnknownError(error);
       return bail({
         status: 'failed' as stepStatus,

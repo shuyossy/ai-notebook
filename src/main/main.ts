@@ -92,7 +92,7 @@ import { resolveHtmlPath } from './lib/util';
 import { ReviewService } from './service/reviewService';
 import { SettingsService } from './service/settingsService';
 import { ChatService } from './service/chatService';
-import { getMainLogger } from './lib/logger';
+import { getMainLogger, logError } from './lib/logger';
 import { internalError, normalizeUnknownError, toPayload } from './lib/error';
 import { formatMessage } from './lib/messages';
 import { SourceService } from './service/sourceService';
@@ -179,10 +179,7 @@ export function handleIpc<C extends RequestChannel>(
         const normalized = normalizeUnknownIpcError(err, IpcNameMap[channel]);
         console.error(normalized);
         if (printErrorLog) {
-          logger.error(
-            JSON.stringify(normalized, null, 2),
-            `IPC ${channel} error`,
-          );
+          logError(normalized, `IPC ${channel} error`);
         }
 
         return {
@@ -217,7 +214,7 @@ const initializeAgentStatus = async (): Promise<void> => {
     // 設定の初期化
     await settingsService.initializeSettings();
   } catch (err) {
-    logger.error(err, '設定の初期化に失敗しました');
+    logError(err, '設定の初期化に失敗しました');
     const error = normalizeUnknownError(err);
   }
 };
