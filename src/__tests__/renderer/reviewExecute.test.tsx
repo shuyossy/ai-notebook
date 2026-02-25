@@ -18,6 +18,21 @@ import { createMockElectronWithOptions } from './test-utils/mockElectronHandler'
 import { alertStore, type AlertMessage } from '@/renderer/stores/alertStore';
 import * as pdfUtils from '@/renderer/lib/pdfUtils';
 
+// MUI Selectの値を変更するヘルパー
+const changeSelectValue = async (
+  selectElement: HTMLElement,
+  optionName: string,
+) => {
+  await act(async () => {
+    fireEvent.mouseDown(selectElement);
+  });
+  const listbox = await screen.findByRole('listbox');
+  const option = within(listbox).getByText(optionName);
+  await act(async () => {
+    fireEvent.click(option);
+  });
+};
+
 // PDF Utilsのモック
 jest.mock('@/renderer/lib/pdfUtils', () => ({
   convertPdfBytesToImages: jest.fn().mockResolvedValue([]),
@@ -202,6 +217,7 @@ describe('ReviewArea - レビュー実行', () => {
                 'pptx',
                 'txt',
                 'csv',
+                'md',
               ],
             },
           ],
@@ -1364,11 +1380,12 @@ describe('ReviewArea - レビュー実行', () => {
         expect(screen.getByText('test.xlsx')).toBeInTheDocument();
       });
 
-      // 画像モードに切り替え
-      const imageRadioLabel = screen.getAllByText(/^画像$/)[0];
-      await act(async () => {
-        fireEvent.click(imageRadioLabel);
+      // 画像化モードに切り替え
+      const listItem = screen.getByText('test.xlsx').closest('li')!;
+      const processSelect = within(listItem).getByRole('combobox', {
+        name: /test\.xlsxの処理方法/,
       });
+      await changeSelectValue(processSelect, '画像化');
 
       // モーダルの送信ボタンをクリック
       const submitButton = screen.getByRole('button', {
@@ -1409,7 +1426,7 @@ describe('ReviewArea - レビュー実行', () => {
                 expect.objectContaining({ label: '–' }),
               ]),
             }),
-            documentMode: 'small',
+            documentMode: 'auto',
           }),
         );
       });
@@ -1477,9 +1494,12 @@ describe('ReviewArea - レビュー実行', () => {
         expect(screen.getByText('test.pdf')).toBeInTheDocument();
       });
 
-      // 画像化モード（ページ毎）に切り替え
-      const imageRadioLabel = screen.getByText(/^画像$/);
-      await userEvent.click(imageRadioLabel);
+      // 画像化モードに切り替え
+      const listItem = screen.getByText('test.pdf').closest('li')!;
+      const processSelect = within(listItem).getByRole('combobox', {
+        name: /test\.pdfの処理方法/,
+      });
+      await changeSelectValue(processSelect, '画像化');
 
       // モーダルの送信ボタンをクリック
       const submitButton = screen.getByRole('button', {
@@ -1521,7 +1541,7 @@ describe('ReviewArea - レビュー実行', () => {
                 expect.objectContaining({ label: '–' }),
               ]),
             }),
-            documentMode: 'small',
+            documentMode: 'auto',
           }),
         );
       });

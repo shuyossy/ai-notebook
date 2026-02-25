@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { mastra } from '@/mastra';
+// @ts-ignore
+import type { Mastra } from '@mastra/core';
 import { judgeErrorIsContentLengthError } from '@/mastra/lib/agentUtils';
 import { extractedDocumentSchema } from './schema';
 import { executeSmallDocumentReview } from './smallDocumentReviewStep';
@@ -14,7 +15,7 @@ const logger = getMainLogger();
  * コンテキスト長超過の有無によりsmall/largeを自動判定する。
  */
 export async function determineDocumentMode(params: {
-  mastra: typeof mastra;
+  mastra: Mastra;
   documents: Array<z.infer<typeof extractedDocumentSchema>>;
   categories: Array<{
     name: string;
@@ -26,6 +27,7 @@ export async function determineDocumentMode(params: {
   abortSignal?: AbortSignal;
 }): Promise<'small' | 'large'> {
   const {
+    mastra: mastraInstance,
     documents,
     categories,
     additionalInstructions,
@@ -52,7 +54,7 @@ export async function determineDocumentMode(params: {
   );
 
   try {
-    const reviewAgent = mastra.getAgent('reviewExecuteAgent');
+    const reviewAgent = mastraInstance.getAgent('reviewExecuteAgent');
 
     // 簡易outputSchema（試行目的のため最小限）
     const outputSchema = z.array(

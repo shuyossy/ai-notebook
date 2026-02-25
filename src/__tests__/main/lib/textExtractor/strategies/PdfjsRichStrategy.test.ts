@@ -586,7 +586,7 @@ describe('PdfjsRichStrategy', () => {
         } catch (error) {
           // TextExtractorStrategyErrorがそのまま伝播し、再ラップされないこと
           expect(error).toBeInstanceOf(TextExtractorStrategyError);
-          // couse が undefined (再ラップされていない)
+          // cause が undefined (再ラップされていない)
           expect((error as TextExtractorStrategyError).cause).toBeUndefined();
         }
       });

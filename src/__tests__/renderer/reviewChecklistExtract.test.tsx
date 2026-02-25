@@ -19,6 +19,21 @@ import { createMockElectronWithOptions } from './test-utils/mockElectronHandler'
 import { alertStore, type AlertMessage } from '@/renderer/stores/alertStore';
 import * as pdfUtils from '@/renderer/lib/pdfUtils';
 
+// MUI Selectの値を変更するヘルパー
+const changeSelectValue = async (
+  selectElement: HTMLElement,
+  optionName: string,
+) => {
+  await act(async () => {
+    fireEvent.mouseDown(selectElement);
+  });
+  const listbox = await screen.findByRole('listbox');
+  const option = within(listbox).getByText(optionName);
+  await act(async () => {
+    fireEvent.click(option);
+  });
+};
+
 // PDF Utilsのモック
 jest.mock('@/renderer/lib/pdfUtils', () => ({
   convertPdfBytesToImages: jest.fn().mockResolvedValue([]),
@@ -1593,19 +1608,17 @@ describe('ReviewArea - チェックリスト抽出', () => {
       });
 
       // デフォルトで「テキスト抽出」が選択されていることを確認
-      const textRadio = screen.getAllByRole('radio', {
-        name: /テキスト抽出/,
-      })[0];
-      expect(textRadio).toBeChecked();
+      const listItem = screen.getByText('document.pdf').closest('li')!;
+      const processSelect = within(listItem).getByRole('combobox', {
+        name: /document\.pdfの処理方法/,
+      });
+      expect(processSelect).toHaveTextContent('テキスト抽出');
 
       // 「画像化」に切り替え
-      const imageRadioLabel = screen.getAllByText(/^画像$/)[0];
-      await act(async () => {
-        fireEvent.click(imageRadioLabel);
-      });
+      await changeSelectValue(processSelect, '画像化');
 
-      const imageRadio = screen.getAllByRole('radio', { name: /^画像$/ })[0];
-      expect(imageRadio).toBeChecked();
+      // 画像化が選択されたことを確認
+      expect(processSelect).toHaveTextContent('画像化');
     });
 
     it('画像化モードをページ毎から統合画像に切り替えられること', async () => {
@@ -1660,30 +1673,29 @@ describe('ReviewArea - チェックリスト抽出', () => {
         expect(screen.getByText('document.pdf')).toBeInTheDocument();
       });
 
-      // 「画像」に切り替え
-      const imageRadioLabel = screen.getAllByText(/^画像$/)[0];
-      await act(async () => {
-        fireEvent.click(imageRadioLabel);
+      // 「画像化」に切り替え
+      const listItem = screen.getByText('document.pdf').closest('li')!;
+      const processSelect = within(listItem).getByRole('combobox', {
+        name: /document\.pdfの処理方法/,
       });
+      await changeSelectValue(processSelect, '画像化');
 
-      // デフォルトで「ページ別画像」が選択されていることを確認
+      // デフォルトで「ページごと」が選択されていることを確認
       await waitFor(() => {
-        const pagesRadio = screen.getAllByRole('radio', {
-          name: /ページ別画像/,
-        })[0];
-        expect(pagesRadio).toBeChecked();
+        const imageModeSelect = within(listItem).getByRole('combobox', {
+          name: /document\.pdfの画像化方式/,
+        });
+        expect(imageModeSelect).toHaveTextContent('ページごと');
       });
 
-      // 「統合画像」に切り替え
-      const mergedRadioLabel = screen.getAllByText(/^統合画像$/)[0];
-      await act(async () => {
-        fireEvent.click(mergedRadioLabel);
+      // 「統合」に切り替え
+      const imageModeSelect = within(listItem).getByRole('combobox', {
+        name: /document\.pdfの画像化方式/,
       });
+      await changeSelectValue(imageModeSelect, '統合');
 
-      const mergedRadio = screen.getAllByRole('radio', {
-        name: /^統合画像$/,
-      })[0];
-      expect(mergedRadio).toBeChecked();
+      // 統合が選択されたことを確認
+      expect(imageModeSelect).toHaveTextContent('統合');
     });
 
     it('一括設定で全ファイルの処理モードを画像化（ページ毎）に変更できること', async () => {
@@ -1739,40 +1751,46 @@ describe('ReviewArea - チェックリスト抽出', () => {
         expect(screen.getByText('document2.pdf')).toBeInTheDocument();
       });
 
-      // 一括設定セクションで「画像化（ページ毎）」を選択
-      const bulkImagePagesRadio = screen.getAllByRole('radio', {
-        name: /画像化（ページ毎）/,
-      })[0]; // 一括設定の方
-      await act(async () => {
-        fireEvent.click(bulkImagePagesRadio);
+      // 一括設定セクションで処理方法を「画像化」に変更
+      const bulkProcessSelect = screen.getByRole('combobox', {
+        name: '処理方法',
       });
+      await changeSelectValue(bulkProcessSelect, '画像化');
 
-      // 「適用」ボタンをクリック
+      // 画像化方式のデフォルトは「ページごと」であることを確認
+      const bulkImageModeSelect = screen.getByRole('combobox', {
+        name: '画像化方式',
+      });
+      expect(bulkImageModeSelect).toHaveTextContent('ページごと');
+
+      // 「すべてに適用」ボタンをクリック
       const applyButton = screen.getByRole('button', { name: /適用/ });
       await act(async () => {
         fireEvent.click(applyButton);
       });
 
-      // 全ファイルの処理モードが「画像」、画像化モードが「ページ別画像」に変更されたことを確認
-      const imageRadios = screen.getAllByRole('radio', { name: /^画像$/ });
-      imageRadios.forEach((radio) => {
-        // 一括設定のラジオボタン以外をチェック
-        if (radio !== bulkImagePagesRadio) {
-          expect(radio).toBeChecked();
-        }
+      // 全ファイルの処理モードが「画像化」に変更されたことを確認
+      const listItem1 = screen.getByText('document1.pdf').closest('li')!;
+      const listItem2 = screen.getByText('document2.pdf').closest('li')!;
+      const processSelect1 = within(listItem1).getByRole('combobox', {
+        name: /document1\.pdfの処理方法/,
       });
-      // ページ別画像のラジオボタンが選択されていることも確認
+      const processSelect2 = within(listItem2).getByRole('combobox', {
+        name: /document2\.pdfの処理方法/,
+      });
+      expect(processSelect1).toHaveTextContent('画像化');
+      expect(processSelect2).toHaveTextContent('画像化');
+
+      // ページごとの画像化方式が選択されていることも確認
       await waitFor(() => {
-        const pagesRadios = screen.getAllByRole('radio', {
-          name: /ページ別画像/,
+        const imageModeSelect1 = within(listItem1).getByRole('combobox', {
+          name: /document1\.pdfの画像化方式/,
         });
-        // 一括設定以外のpagesRadiosがチェックされていること
-        const filePagesRadios = pagesRadios.filter(
-          (r) => r !== bulkImagePagesRadio,
-        );
-        filePagesRadios.forEach((radio) => {
-          expect(radio).toBeChecked();
+        const imageModeSelect2 = within(listItem2).getByRole('combobox', {
+          name: /document2\.pdfの画像化方式/,
         });
+        expect(imageModeSelect1).toHaveTextContent('ページごと');
+        expect(imageModeSelect2).toHaveTextContent('ページごと');
       });
     }, 20000);
 
@@ -1829,38 +1847,46 @@ describe('ReviewArea - チェックリスト抽出', () => {
         expect(screen.getByText('document2.pdf')).toBeInTheDocument();
       });
 
-      // 一括設定セクションで「画像化（統合）」を選択
-      const bulkImageMergedRadio = screen.getAllByRole('radio', {
-        name: /画像化（統合）/,
-      })[0]; // 一括設定の方
-      await act(async () => {
-        fireEvent.click(bulkImageMergedRadio);
+      // 一括設定セクションで処理方法を「画像化」に変更
+      const bulkProcessSelect = screen.getByRole('combobox', {
+        name: '処理方法',
       });
+      await changeSelectValue(bulkProcessSelect, '画像化');
 
-      // 「適用」ボタンをクリック
+      // 画像化方式を「統合」に変更
+      const bulkImageModeSelect = screen.getByRole('combobox', {
+        name: '画像化方式',
+      });
+      await changeSelectValue(bulkImageModeSelect, '統合');
+
+      // 「すべてに適用」ボタンをクリック
       const applyButton = screen.getByRole('button', { name: /適用/ });
       await act(async () => {
         fireEvent.click(applyButton);
       });
 
-      // 全ファイルの処理モードが「画像」、画像モードが「統合画像」に変更されたことを確認
-      const imageRadios = screen.getAllByRole('radio', { name: /^画像$/ });
-      imageRadios.forEach((radio) => {
-        if (radio !== bulkImageMergedRadio) {
-          expect(radio).toBeChecked();
-        }
+      // 全ファイルの処理モードが「画像化」に変更されたことを確認
+      const listItem1 = screen.getByText('document1.pdf').closest('li')!;
+      const listItem2 = screen.getByText('document2.pdf').closest('li')!;
+      const processSelect1 = within(listItem1).getByRole('combobox', {
+        name: /document1\.pdfの処理方法/,
       });
+      const processSelect2 = within(listItem2).getByRole('combobox', {
+        name: /document2\.pdfの処理方法/,
+      });
+      expect(processSelect1).toHaveTextContent('画像化');
+      expect(processSelect2).toHaveTextContent('画像化');
 
-      // 統合画像のラジオボタンが選択されていることも確認
+      // 統合の画像化方式が選択されていることも確認
       await waitFor(() => {
-        const mergedRadios = screen.getAllByRole('radio', { name: /統合画像/ });
-        // 一括設定以外のmergedRadiosがチェックされていること
-        const fileMergedRadios = mergedRadios.filter(
-          (r) => r !== bulkImageMergedRadio,
-        );
-        fileMergedRadios.forEach((radio) => {
-          expect(radio).toBeChecked();
+        const imageModeSelect1 = within(listItem1).getByRole('combobox', {
+          name: /document1\.pdfの画像化方式/,
         });
+        const imageModeSelect2 = within(listItem2).getByRole('combobox', {
+          name: /document2\.pdfの画像化方式/,
+        });
+        expect(imageModeSelect1).toHaveTextContent('統合');
+        expect(imageModeSelect2).toHaveTextContent('統合');
       });
     }, 20000);
 
@@ -1951,11 +1977,12 @@ describe('ReviewArea - チェックリスト抽出', () => {
         expect(screen.getByText('test.xlsx')).toBeInTheDocument();
       });
 
-      // 画像モードに切り替え
-      const imageRadioLabel = screen.getAllByText(/^画像$/)[0];
-      await act(async () => {
-        fireEvent.click(imageRadioLabel);
+      // 画像化モードに切り替え
+      const listItem = screen.getByText('test.xlsx').closest('li')!;
+      const processSelect = within(listItem).getByRole('combobox', {
+        name: /test\.xlsxの処理方法/,
       });
+      await changeSelectValue(processSelect, '画像化');
 
       // チェックリスト作成要件を入力
       const requirementInput = screen.getByLabelText('チェックリスト作成要件');
@@ -2077,13 +2104,18 @@ describe('ReviewArea - チェックリスト抽出', () => {
         expect(screen.getByText('test.pdf')).toBeInTheDocument();
       });
 
-      // 画像化モード（ページ毎）に切り替え
-      const imageRadioLabel = screen.getByText(/^画像$/);
-      await userEvent.click(imageRadioLabel);
+      // 画像化モードに切り替え
+      const listItem = screen.getByText('test.pdf').closest('li')!;
+      const processSelect = within(listItem).getByRole('combobox', {
+        name: /test\.pdfの処理方法/,
+      });
+      await changeSelectValue(processSelect, '画像化');
 
-      // ページ別がデフォルトで選択されていることを確認
-      const pagesRadio = screen.getByLabelText(/ページ別画像/);
-      expect(pagesRadio).toBeChecked();
+      // デフォルトで「ページごと」が選択されていることを確認
+      const imageModeSelect = within(listItem).getByRole('combobox', {
+        name: /test\.pdfの画像化方式/,
+      });
+      expect(imageModeSelect).toHaveTextContent('ページごと');
 
       // チェックリスト作成要件を入力
       const requirementInput = screen.getByLabelText('チェックリスト作成要件');
@@ -2209,13 +2241,18 @@ describe('ReviewArea - チェックリスト抽出', () => {
         expect(screen.getByText('test.pdf')).toBeInTheDocument();
       });
 
-      // 画像モード（統合）に切り替え
-      const imageRadioLabel = screen.getByText(/^画像$/);
-      await userEvent.click(imageRadioLabel);
+      // 画像化モードに切り替え
+      const listItem = screen.getByText('test.pdf').closest('li')!;
+      const processSelect = within(listItem).getByRole('combobox', {
+        name: /test\.pdfの処理方法/,
+      });
+      await changeSelectValue(processSelect, '画像化');
 
       // 統合画像モードに切り替え
-      const mergedRadio = screen.getByLabelText(/統合画像/);
-      await userEvent.click(mergedRadio);
+      const imageModeSelect = within(listItem).getByRole('combobox', {
+        name: /test\.pdfの画像化方式/,
+      });
+      await changeSelectValue(imageModeSelect, '統合');
 
       // チェックリスト作成要件を入力
       const requirementInput = screen.getByLabelText('チェックリスト作成要件');

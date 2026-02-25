@@ -21,8 +21,12 @@ describe('TxtExtractorStrategy', () => {
   });
 
   describe('メタ情報', () => {
-    it('サポートする拡張子が.txtであること', () => {
-      expect(strategy.getSupportedExtensions()).toEqual(['.txt']);
+    it('サポートする拡張子が.txt, .csv, .mdであること', () => {
+      expect(strategy.getSupportedExtensions()).toEqual([
+        '.txt',
+        '.csv',
+        '.md',
+      ]);
     });
 
     it('戦略タイプがtxt-defaultであること', () => {
