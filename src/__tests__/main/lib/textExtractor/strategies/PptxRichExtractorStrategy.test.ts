@@ -60,8 +60,10 @@ jest.mock('@/main/lib/textExtractor/XlsxDrawingParser', () => ({
 
 // mimeUtils モック
 const mockGetMimeFromExt = jest.fn();
+const mockIsAiCompatibleMime = jest.fn();
 jest.mock('@/main/lib/textExtractor/mimeUtils', () => ({
   getMimeFromExt: (...args: any[]) => mockGetMimeFromExt(...args),
+  isAiCompatibleMime: (...args: any[]) => mockIsAiCompatibleMime(...args),
 }));
 
 // JSZip モック
@@ -185,6 +187,7 @@ describe('PptxRichExtractorStrategy', () => {
 
     // デフォルトのモック設定
     mockGetMimeFromExt.mockReturnValue('image/png');
+    mockIsAiCompatibleMime.mockReturnValue(true);
     mockFormatImageTag.mockImplementation(
       (refId: string) => `![image](${refId})`,
     );
@@ -621,6 +624,123 @@ describe('PptxRichExtractorStrategy', () => {
         expect(result.content).toContain('C,D');
         // 末尾が空行で終わらないこと
         expect(result.content.trimEnd()).toBe(result.content);
+      });
+    });
+
+    describe('AI非互換画像のフィルタリング', () => {
+      it('WMF画像のみのpptxの場合、imagesが空でimage tagが出力されないこと', async () => {
+        // Arrange
+        const fileBuffer = Buffer.from('dummy-pptx');
+        mockReadFile.mockResolvedValue(fileBuffer);
+
+        setupCheerioForSlideOrder(['rId2']);
+        mockSlideParseRelationships.mockImplementation((xml: string) => {
+          if (!xml.includes('slide')) {
+            return [{ rId: 'rId2', target: 'slides/slide1.xml' }];
+          }
+          return [{ rId: 'rId1', target: '../media/image1.wmf' }];
+        });
+
+        const wmfBuffer = Buffer.from('WMF_DATA');
+        const zip = createBasicPptxZip({
+          imageBuffer: wmfBuffer,
+          imagePath: 'ppt/media/image1.wmf',
+        });
+        mockZipLoadAsync.mockResolvedValue(zip);
+
+        mockSlideParseImages.mockReturnValue([{ rId: 'rId1' }]);
+        mockSlideResolveImagePaths.mockReturnValue(
+          new Map([['rId1', 'ppt/media/image1.wmf']]),
+        );
+        mockSlideParseShapeTexts.mockReturnValue([]);
+        mockSlideParseConnectors.mockReturnValue([]);
+        mockSlideParseTables.mockReturnValue([]);
+
+        // WMF → AI非互換
+        mockGetMimeFromExt.mockReturnValue('image/x-wmf');
+        mockIsAiCompatibleMime.mockReturnValue(false);
+
+        // Act
+        const result = await strategy.extract('/path/to/test.pptx');
+
+        // Assert
+        expect(result.images).toEqual([]);
+        expect(result.content).not.toContain('![image');
+      });
+
+      it('PNG+WMF混在の場合、PNGのみ抽出されること', async () => {
+        // Arrange
+        const fileBuffer = Buffer.from('dummy-pptx');
+        mockReadFile.mockResolvedValue(fileBuffer);
+
+        setupCheerioForSlideOrder(['rId2']);
+        mockSlideParseRelationships.mockImplementation((xml: string) => {
+          if (!xml.includes('slide')) {
+            return [{ rId: 'rId2', target: 'slides/slide1.xml' }];
+          }
+          return [
+            { rId: 'rId1', target: '../media/image1.png' },
+            { rId: 'rId2', target: '../media/image2.wmf' },
+          ];
+        });
+
+        const pngBuffer = Buffer.from('PNG_DATA');
+        const wmfBuffer = Buffer.from('WMF_DATA');
+
+        const pngEntry = {
+          async: jest.fn((t: string) => {
+            if (t === 'nodebuffer') return Promise.resolve(pngBuffer);
+            return Promise.resolve(pngBuffer.toString());
+          }),
+          dir: false,
+        };
+        const wmfEntry = {
+          async: jest.fn((t: string) => {
+            if (t === 'nodebuffer') return Promise.resolve(wmfBuffer);
+            return Promise.resolve(wmfBuffer.toString());
+          }),
+          dir: false,
+        };
+
+        const zip = createBasicPptxZip({
+          extraFiles: {
+            'ppt/media/image1.png': pngEntry,
+            'ppt/media/image2.wmf': wmfEntry,
+          },
+        });
+        mockZipLoadAsync.mockResolvedValue(zip);
+
+        mockSlideParseImages.mockReturnValue([
+          { rId: 'rId1' },
+          { rId: 'rId2' },
+        ]);
+        mockSlideResolveImagePaths.mockReturnValue(
+          new Map([
+            ['rId1', 'ppt/media/image1.png'],
+            ['rId2', 'ppt/media/image2.wmf'],
+          ]),
+        );
+        mockSlideParseShapeTexts.mockReturnValue([]);
+        mockSlideParseConnectors.mockReturnValue([]);
+        mockSlideParseTables.mockReturnValue([]);
+
+        // PNG → 互換, WMF → 非互換
+        mockGetMimeFromExt
+          .mockReturnValueOnce('image/png')
+          .mockReturnValueOnce('image/x-wmf');
+        mockIsAiCompatibleMime
+          .mockReturnValueOnce(true)
+          .mockReturnValueOnce(false);
+        mockFormatImageTag.mockReturnValue('![image](image_1.png)');
+
+        // Act
+        const result = await strategy.extract('/path/to/test.pptx');
+
+        // Assert
+        expect(result.images).toHaveLength(1);
+        expect(result.images[0].referenceId).toBe('image_1.png');
+        expect(result.images[0].mimeType).toBe('image/png');
+        expect(result.content).toContain('![image](image_1.png)');
       });
     });
 

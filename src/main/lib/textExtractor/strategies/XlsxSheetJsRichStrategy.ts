@@ -28,7 +28,7 @@ import type {
   DrawingConnector,
 } from '../XlsxDrawingParser';
 import { splitCsvIntoLogicalRows } from '../csvUtils';
-import { getMimeFromExt } from '../mimeUtils';
+import { getMimeFromExt, isAiCompatibleMime } from '../mimeUtils';
 import { getMainLogger } from '@/main/lib/logger';
 
 /**
@@ -131,10 +131,16 @@ export class XlsxSheetJsRichStrategy implements ITextExtractorStrategy {
             const imgFile = zip.file(imgPath);
             if (!imgFile) continue;
 
-            imageCounter++;
-            const imgBuffer = await imgFile.async('nodebuffer');
             const ext = path.extname(imgPath).slice(1).toLowerCase() || 'png';
             const mimeType = getMimeFromExt(ext);
+
+            // AI非互換画像はスキップ（EMF, WMF等）
+            if (!isAiCompatibleMime(mimeType)) {
+              continue;
+            }
+
+            imageCounter++;
+            const imgBuffer = await imgFile.async('nodebuffer');
             const referenceId = `image_${imageCounter}.${ext}`;
 
             allImages.push({

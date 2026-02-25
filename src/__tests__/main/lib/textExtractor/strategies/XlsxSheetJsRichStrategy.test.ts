@@ -59,8 +59,10 @@ jest.mock('@/main/lib/textExtractor/XlsxDrawingParser', () => ({
 
 // mimeUtils モック
 const mockGetMimeFromExt = jest.fn();
+const mockIsAiCompatibleMime = jest.fn();
 jest.mock('@/main/lib/textExtractor/mimeUtils', () => ({
   getMimeFromExt: (...args: any[]) => mockGetMimeFromExt(...args),
+  isAiCompatibleMime: (...args: any[]) => mockIsAiCompatibleMime(...args),
 }));
 
 // JSZip モック
@@ -150,6 +152,7 @@ describe('XlsxSheetJsRichStrategy', () => {
 
     // デフォルトのモック設定
     mockGetMimeFromExt.mockReturnValue('image/png');
+    mockIsAiCompatibleMime.mockReturnValue(true);
     mockFormatImageTag.mockImplementation((refId: string, cellRange?: any) =>
       cellRange ? `![image at A1-C3](${refId})` : `![image](${refId})`,
     );
@@ -1066,6 +1069,193 @@ describe('XlsxSheetJsRichStrategy', () => {
         // [row:N]マーカーの数をチェック（セル内改行を論理行として扱うので2つ）
         const rowLines = lines.filter((l: string) => l.startsWith('[row:'));
         expect(rowLines).toHaveLength(2);
+      });
+    });
+
+    describe('AI非互換画像のフィルタリング', () => {
+      it('EMF画像のみのxlsxの場合、imagesが空でimage tagが出力されないこと', async () => {
+        // Arrange
+        const fileBuffer = Buffer.from('dummy-xlsx');
+        mockReadFile.mockResolvedValue(fileBuffer);
+
+        // JSZip
+        const relsFileEntry = createMockZipFileEntry(
+          '<Relationships><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing1.xml"/></Relationships>',
+        );
+        const drawingFileEntry = createMockZipFileEntry('<drawing/>');
+        const drawingRelsFileEntry = createMockZipFileEntry(
+          '<Relationships><Relationship Id="rId1" Target="../media/image1.emf"/></Relationships>',
+        );
+        const emfFileEntry = createMockZipFileEntry(
+          Buffer.from('EMF_DATA'),
+          'nodebuffer',
+        );
+
+        const zipFileMap: Record<string, any> = {
+          'xl/worksheets/_rels/sheet1.xml.rels': relsFileEntry,
+          'xl/drawings/drawing1.xml': drawingFileEntry,
+          'xl/drawings/_rels/drawing1.xml.rels': drawingRelsFileEntry,
+          'xl/media/image1.emf': emfFileEntry,
+          'xl/workbook.xml': null,
+          'xl/_rels/workbook.xml.rels': null,
+        };
+        const zip = {
+          file: jest.fn((path: string) => zipFileMap[path] ?? null),
+          folder: jest.fn(() =>
+            createMockFolder([{ relativePath: 'sheet1.xml.rels', dir: false }]),
+          ),
+        };
+        mockZipLoadAsync.mockResolvedValue(zip);
+
+        // XLSX
+        const sheetData = { '!ref': 'A1:C3' };
+        mockXlsxRead.mockReturnValue({
+          SheetNames: ['Sheet1'],
+          Sheets: { Sheet1: sheetData },
+        });
+        mockSheetToCsv.mockReturnValue('A,B,C');
+        mockDecodeRange.mockReturnValue({ s: { r: 0 }, e: { r: 0 } });
+
+        // DrawingParser
+        mockParseRelationships.mockImplementation((xml: string) => {
+          if (xml.includes('drawing')) {
+            return [
+              {
+                rId: 'rId1',
+                target: '../drawings/drawing1.xml',
+                type: 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing',
+              },
+            ];
+          }
+          return [{ rId: 'rId1', target: '../media/image1.emf' }];
+        });
+        mockResolveRelativePath.mockReturnValue('xl/drawings/drawing1.xml');
+        mockParseImages.mockReturnValue([
+          {
+            rId: 'rId1',
+            rowIndex: 0,
+            cellRange: { fromCol: 0, fromRow: 0, toCol: 2, toRow: 2 },
+          },
+        ]);
+        mockResolveImagePaths.mockReturnValue(
+          new Map([['rId1', 'xl/media/image1.emf']]),
+        );
+        mockParseShapeTexts.mockReturnValue([]);
+        mockParseConnectors.mockReturnValue([]);
+
+        // EMF → AI非互換
+        mockGetMimeFromExt.mockReturnValue('image/x-emf');
+        mockIsAiCompatibleMime.mockReturnValue(false);
+
+        // Act
+        const result = await strategy.extract('/path/to/test.xlsx');
+
+        // Assert
+        expect(result.images).toEqual([]);
+        expect(result.content).not.toContain('![image');
+      });
+
+      it('PNG+EMF混在の場合、PNGのみ抽出されること', async () => {
+        // Arrange
+        const fileBuffer = Buffer.from('dummy-xlsx');
+        mockReadFile.mockResolvedValue(fileBuffer);
+
+        // JSZip
+        const relsFileEntry = createMockZipFileEntry(
+          '<Relationships><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing1.xml"/></Relationships>',
+        );
+        const drawingFileEntry = createMockZipFileEntry('<drawing/>');
+        const drawingRelsFileEntry = createMockZipFileEntry('<Relationships/>');
+        const pngFileEntry = createMockZipFileEntry(
+          Buffer.from('PNG_DATA'),
+          'nodebuffer',
+        );
+        const emfFileEntry = createMockZipFileEntry(
+          Buffer.from('EMF_DATA'),
+          'nodebuffer',
+        );
+
+        const zipFileMap: Record<string, any> = {
+          'xl/worksheets/_rels/sheet1.xml.rels': relsFileEntry,
+          'xl/drawings/drawing1.xml': drawingFileEntry,
+          'xl/drawings/_rels/drawing1.xml.rels': drawingRelsFileEntry,
+          'xl/media/image1.png': pngFileEntry,
+          'xl/media/image2.emf': emfFileEntry,
+          'xl/workbook.xml': null,
+          'xl/_rels/workbook.xml.rels': null,
+        };
+        const zip = {
+          file: jest.fn((path: string) => zipFileMap[path] ?? null),
+          folder: jest.fn(() =>
+            createMockFolder([{ relativePath: 'sheet1.xml.rels', dir: false }]),
+          ),
+        };
+        mockZipLoadAsync.mockResolvedValue(zip);
+
+        // XLSX
+        const sheetData = { '!ref': 'A1:C3' };
+        mockXlsxRead.mockReturnValue({
+          SheetNames: ['Sheet1'],
+          Sheets: { Sheet1: sheetData },
+        });
+        mockSheetToCsv.mockReturnValue('A,B,C');
+        mockDecodeRange.mockReturnValue({ s: { r: 0 }, e: { r: 0 } });
+
+        // DrawingParser
+        mockParseRelationships.mockImplementation((xml: string) => {
+          if (xml.includes('drawing')) {
+            return [
+              {
+                rId: 'rId1',
+                target: '../drawings/drawing1.xml',
+                type: 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing',
+              },
+            ];
+          }
+          return [
+            { rId: 'rId1', target: '../media/image1.png' },
+            { rId: 'rId2', target: '../media/image2.emf' },
+          ];
+        });
+        mockResolveRelativePath.mockReturnValue('xl/drawings/drawing1.xml');
+        mockParseImages.mockReturnValue([
+          {
+            rId: 'rId1',
+            rowIndex: 0,
+            cellRange: { fromCol: 0, fromRow: 0, toCol: 2, toRow: 2 },
+          },
+          {
+            rId: 'rId2',
+            rowIndex: 1,
+            cellRange: { fromCol: 3, fromRow: 0, toCol: 5, toRow: 2 },
+          },
+        ]);
+        mockResolveImagePaths.mockReturnValue(
+          new Map([
+            ['rId1', 'xl/media/image1.png'],
+            ['rId2', 'xl/media/image2.emf'],
+          ]),
+        );
+        mockParseShapeTexts.mockReturnValue([]);
+        mockParseConnectors.mockReturnValue([]);
+
+        // PNG → 互換, EMF → 非互換
+        mockGetMimeFromExt
+          .mockReturnValueOnce('image/png')
+          .mockReturnValueOnce('image/x-emf');
+        mockIsAiCompatibleMime
+          .mockReturnValueOnce(true)
+          .mockReturnValueOnce(false);
+        mockFormatImageTag.mockReturnValue('![image at A1-C3](image_1.png)');
+
+        // Act
+        const result = await strategy.extract('/path/to/test.xlsx');
+
+        // Assert
+        expect(result.images).toHaveLength(1);
+        expect(result.images[0].referenceId).toBe('image_1.png');
+        expect(result.images[0].mimeType).toBe('image/png');
+        expect(result.content).toContain('![image at A1-C3](image_1.png)');
       });
     });
 

@@ -3,6 +3,21 @@
  * テキスト抽出戦略間で共有する
  */
 
+/** AIが認識可能な画像MIMEタイプの許可リスト */
+export const AI_COMPATIBLE_MIME_TYPES: ReadonlySet<string> = new Set([
+  'image/png',
+  'image/jpeg',
+]);
+
+/**
+ * MIMEタイプがAI互換かどうかを判定する
+ * @param mimeType MIMEタイプ
+ * @returns AI互換の場合true
+ */
+export function isAiCompatibleMime(mimeType: string): boolean {
+  return AI_COMPATIBLE_MIME_TYPES.has(mimeType);
+}
+
 /** MIMEタイプから拡張子へのマッピング */
 export const MIME_TO_EXT: Record<string, string> = {
   'image/png': 'png',

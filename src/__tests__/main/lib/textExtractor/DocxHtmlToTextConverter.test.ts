@@ -88,10 +88,16 @@ describe('DocxHtmlToTextConverter', () => {
           expect(result).toBe('![image](image1.png)');
         });
 
-        it('srcが空のimgタグが空のリンクに変換されること', () => {
+        it('srcが空のimgタグがスキップされること', () => {
           const html = '<img />';
           const result = converter.convert(html);
-          expect(result).toBe('![image]()');
+          expect(result).toBe('');
+        });
+
+        it('src属性が空文字列のimgタグがスキップされること', () => {
+          const html = '<img src="" />';
+          const result = converter.convert(html);
+          expect(result).toBe('');
         });
       });
 

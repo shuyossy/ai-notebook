@@ -29,8 +29,10 @@ jest.mock('@/main/lib/textExtractor/DocxHtmlToTextConverter', () => ({
 
 // mimeUtils のモック
 const mockGetExtFromMime = jest.fn();
+const mockIsAiCompatibleMime = jest.fn();
 jest.mock('@/main/lib/textExtractor/mimeUtils', () => ({
   getExtFromMime: (...args: any[]) => mockGetExtFromMime(...args),
+  isAiCompatibleMime: (...args: any[]) => mockIsAiCompatibleMime(...args),
 }));
 
 import { DocxMammothRichStrategy } from '@/main/lib/textExtractor/strategies/DocxMammothRichStrategy';
@@ -45,6 +47,7 @@ describe('DocxMammothRichStrategy', () => {
 
     // デフォルトのモック動作
     mockGetExtFromMime.mockReturnValue('png');
+    mockIsAiCompatibleMime.mockReturnValue(true);
   });
 
   describe('メタ情報', () => {
@@ -193,6 +196,96 @@ describe('DocxMammothRichStrategy', () => {
         // Assert
         expect(result.content).toBe('内容');
         expect(result.images).toEqual([]);
+      });
+    });
+
+    describe('AI非互換画像のフィルタリング', () => {
+      it('EMF画像のみのdocxの場合、imagesが空でsrcが空文字になること', async () => {
+        // Arrange
+        const fakeBuffer = Buffer.from('fake-docx-with-emf');
+        mockReadFile.mockResolvedValue(fakeBuffer);
+
+        mockImgElement.mockImplementation((callback: any) => {
+          return { type: 'imgElement', callback };
+        });
+
+        mockConvertToHtml.mockImplementation(
+          async (_input: any, options: any) => {
+            const imageHandler = options.convertImage.callback;
+
+            // EMF画像（AI非互換）
+            mockIsAiCompatibleMime.mockReturnValueOnce(false);
+            const emfResult = await imageHandler({
+              readAsBase64String: async () => 'emf_data',
+              contentType: 'image/x-emf',
+            });
+            expect(emfResult).toEqual({ src: '' });
+
+            return {
+              value: '<p>テキスト</p><img src=""/>',
+              messages: [],
+            };
+          },
+        );
+
+        mockConvert.mockReturnValue('テキスト');
+
+        // Act
+        const result = await strategy.extract('/path/to/doc_emf.docx');
+
+        // Assert
+        expect(result.images).toEqual([]);
+      });
+
+      it('PNG+EMF混在の場合、PNGのみ抽出されカウンタが連続すること', async () => {
+        // Arrange
+        const fakeBuffer = Buffer.from('fake-docx-mixed');
+        mockReadFile.mockResolvedValue(fakeBuffer);
+
+        mockImgElement.mockImplementation((callback: any) => {
+          return { type: 'imgElement', callback };
+        });
+
+        mockConvertToHtml.mockImplementation(
+          async (_input: any, options: any) => {
+            const imageHandler = options.convertImage.callback;
+
+            // 1つ目: PNG（AI互換）
+            mockIsAiCompatibleMime.mockReturnValueOnce(true);
+            mockGetExtFromMime.mockReturnValueOnce('png');
+            const pngResult = await imageHandler({
+              readAsBase64String: async () => 'png_base64_data',
+              contentType: 'image/png',
+            });
+            expect(pngResult).toEqual({ src: 'image_1.png' });
+
+            // 2つ目: EMF（AI非互換）→ スキップ
+            mockIsAiCompatibleMime.mockReturnValueOnce(false);
+            const emfResult = await imageHandler({
+              readAsBase64String: async () => 'emf_data',
+              contentType: 'image/x-emf',
+            });
+            expect(emfResult).toEqual({ src: '' });
+
+            return {
+              value: '<p>テキスト</p><img src="image_1.png"/><img src=""/>',
+              messages: [],
+            };
+          },
+        );
+
+        mockConvert.mockReturnValue('テキスト\n![image](image_1.png)');
+
+        // Act
+        const result = await strategy.extract('/path/to/doc_mixed.docx');
+
+        // Assert
+        expect(result.images).toHaveLength(1);
+        expect(result.images[0]).toEqual({
+          referenceId: 'image_1.png',
+          base64Data: 'data:image/png;base64,png_base64_data',
+          mimeType: 'image/png',
+        });
       });
     });
 

@@ -53,9 +53,12 @@ export class DocxHtmlToTextConverter {
       return this.processTable($, node);
     }
 
-    // 画像
+    // 画像（srcが空の場合はスキップ: AI非互換画像のフィルタリングによる孤立参照防止）
     if (tagName === 'img') {
       const src = $(node).attr('src') || '';
+      if (!src) {
+        return '';
+      }
       return `![image](${src})`;
     }
 
