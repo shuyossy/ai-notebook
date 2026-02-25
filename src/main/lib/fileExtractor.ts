@@ -217,6 +217,8 @@ export default class FileExtractor {
   /** 処理可能な拡張子 */
   private static readonly SUPPORTED_EXTENSIONS = [
     '.txt',
+    '.csv',
+    '.md',
     '.doc',
     '.docx',
     '.xls',

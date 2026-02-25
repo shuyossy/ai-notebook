@@ -25,6 +25,7 @@ export const getMimeTypeFromExtension = (extension: string): string => {
     pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
     txt: 'text/plain',
     csv: 'text/csv',
+    md: 'text/markdown',
   };
   return mimeTypes[extension] || 'application/octet-stream';
 };

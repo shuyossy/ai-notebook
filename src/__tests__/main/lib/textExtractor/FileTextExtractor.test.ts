@@ -309,6 +309,36 @@ describe('FileTextExtractor', () => {
         expect(result.strategyUsed).toBe('powershell-ppt');
       });
 
+      it('CSVファイルの抽出が成功すること', async () => {
+        // Arrange
+        mockExtractFromTxt.mockResolvedValue('col1,col2\nval1,val2');
+
+        // Act
+        const result = await extractor.extract('/test/data.csv', 'data.csv');
+
+        // Assert
+        expect(result.content).toBe('col1,col2\nval1,val2');
+        expect(result.images).toEqual([]);
+        expect(result.strategyUsed).toBe('txt-default');
+        expect(result.formatType).toBe('csv-plain');
+        expect(mockExtractFromTxt).toHaveBeenCalledWith('/test/data.csv');
+      });
+
+      it('Markdownファイルの抽出が成功すること', async () => {
+        // Arrange
+        mockExtractFromTxt.mockResolvedValue('# 見出し\n\n本文テキスト');
+
+        // Act
+        const result = await extractor.extract('/test/readme.md', 'readme.md');
+
+        // Assert
+        expect(result.content).toBe('# 見出し\n\n本文テキスト');
+        expect(result.images).toEqual([]);
+        expect(result.strategyUsed).toBe('txt-default');
+        expect(result.formatType).toBe('md-plain');
+        expect(mockExtractFromTxt).toHaveBeenCalledWith('/test/readme.md');
+      });
+
       it('大文字拡張子でも正しい戦略が選択されること', async () => {
         // Arrange
         mockExtractFromTxt.mockResolvedValue('テスト');
@@ -406,6 +436,8 @@ describe('FileTextExtractor', () => {
   describe('isSupported', () => {
     it('サポートされている拡張子の場合はtrueを返すこと', () => {
       expect(extractor.isSupported('.txt')).toBe(true);
+      expect(extractor.isSupported('.csv')).toBe(true);
+      expect(extractor.isSupported('.md')).toBe(true);
       expect(extractor.isSupported('.pdf')).toBe(true);
     });
 

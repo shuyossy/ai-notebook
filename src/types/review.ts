@@ -146,6 +146,8 @@ export type TextExtractorType =
 // テキスト抽出フォーマット識別子
 export type TextExtractionFormatType =
   | 'txt-plain'
+  | 'csv-plain'
+  | 'md-plain'
   | 'docx-plain'
   | 'xlsx-csv-v1'
   | 'pptx-plain'

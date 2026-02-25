@@ -133,20 +133,44 @@ const FileProcessingResultSection: React.FC<
             overflow: 'hidden',
           }}
         >
-          <TableContainer>
-            <Table size="small">
+          <TableContainer sx={{ maxHeight: 300 }}>
+            <Table size="small" stickyHeader>
               <TableHead>
-                <TableRow sx={{ bgcolor: 'grey.50' }}>
-                  <TableCell sx={{ fontWeight: 'bold', fontSize: '0.75rem' }}>
+                <TableRow>
+                  <TableCell
+                    sx={{
+                      fontWeight: 'bold',
+                      fontSize: '0.75rem',
+                      bgcolor: 'grey.50',
+                    }}
+                  >
                     ファイル名
                   </TableCell>
-                  <TableCell sx={{ fontWeight: 'bold', fontSize: '0.75rem' }}>
+                  <TableCell
+                    sx={{
+                      fontWeight: 'bold',
+                      fontSize: '0.75rem',
+                      bgcolor: 'grey.50',
+                    }}
+                  >
                     処理モード
                   </TableCell>
-                  <TableCell sx={{ fontWeight: 'bold', fontSize: '0.75rem' }}>
+                  <TableCell
+                    sx={{
+                      fontWeight: 'bold',
+                      fontSize: '0.75rem',
+                      bgcolor: 'grey.50',
+                    }}
+                  >
                     ファイル内画像
                   </TableCell>
-                  <TableCell sx={{ fontWeight: 'bold', fontSize: '0.75rem' }}>
+                  <TableCell
+                    sx={{
+                      fontWeight: 'bold',
+                      fontSize: '0.75rem',
+                      bgcolor: 'grey.50',
+                    }}
+                  >
                     画像・図形抽出
                   </TableCell>
                 </TableRow>

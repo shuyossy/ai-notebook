@@ -279,6 +279,7 @@ function ReviewSourceModal({
                 'pptx',
                 'txt',
                 'csv',
+                'md',
               ],
             },
           ],

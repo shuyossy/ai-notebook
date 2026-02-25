@@ -1,5 +1,5 @@
 import type { ITextExtractorStrategy } from '@/main/service/port/textExtractor';
-import type { TextExtractorType } from '@/types';
+import type { TextExtractorType, TextExtractionFormatType } from '@/types';
 import { TxtExtractorStrategy } from './strategies/TxtExtractorStrategy';
 import { PowerShellWordStrategy } from './strategies/PowerShellWordStrategy';
 import { PowerShellExcelStrategy } from './strategies/PowerShellExcelStrategy';
@@ -16,6 +16,8 @@ import { PdfjsRichStrategy } from './strategies/PdfjsRichStrategy';
  */
 const STRATEGY_PRIORITY_MAP: Record<string, TextExtractorType[]> = {
   '.txt': ['txt-default'],
+  '.csv': ['txt-default'],
+  '.md': ['txt-default'],
   '.doc': ['powershell-word'],
   '.docx': ['docx-mammoth-rich', 'powershell-word'],
   '.xls': ['powershell-excel'],
@@ -26,13 +28,23 @@ const STRATEGY_PRIORITY_MAP: Record<string, TextExtractorType[]> = {
 };
 
 /**
+ * 拡張子に応じたformatTypeマッピング（txt-default戦略用）
+ */
+const TXT_FORMAT_TYPE_MAP: Record<string, TextExtractionFormatType> = {
+  '.csv': 'csv-plain',
+  '.md': 'md-plain',
+};
+
+/**
  * 戦略タイプからインスタンスを生成するレジストリ
+ * txt-defaultは拡張子に応じてformatTypeを切り替える
  */
 const STRATEGY_REGISTRY: Record<
   TextExtractorType,
-  () => ITextExtractorStrategy
+  (extension: string) => ITextExtractorStrategy
 > = {
-  'txt-default': () => new TxtExtractorStrategy(),
+  'txt-default': (ext) =>
+    new TxtExtractorStrategy(TXT_FORMAT_TYPE_MAP[ext] ?? 'txt-plain'),
   'powershell-word': () => new PowerShellWordStrategy(),
   'powershell-excel': () => new PowerShellExcelStrategy(),
   'powershell-ppt': () => new PowerShellPptStrategy(),
@@ -61,7 +73,7 @@ export class TextExtractorStrategyFactory {
     return types
       .map((type) => {
         const factory = STRATEGY_REGISTRY[type];
-        return factory ? factory() : null;
+        return factory ? factory(ext) : null;
       })
       .filter((s): s is ITextExtractorStrategy => s !== null);
   }

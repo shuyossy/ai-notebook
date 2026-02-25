@@ -17,7 +17,11 @@ export function isRichFormatType(formatType: string | null): boolean {
  */
 export function isPlainOnlyFormatType(formatType: string | null): boolean {
   if (!formatType) return false;
-  return formatType === 'txt-plain' || formatType === 'csv-plain';
+  return (
+    formatType === 'txt-plain' ||
+    formatType === 'csv-plain' ||
+    formatType === 'md-plain'
+  );
 }
 
 /**

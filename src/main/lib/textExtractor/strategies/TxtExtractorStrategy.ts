@@ -7,10 +7,17 @@ import { extractFromTxt } from '../extractionUtils';
 
 /**
  * プレーンテキストファイル用の抽出戦略
+ * txt, csv, md ファイルに対応（formatTypeをコンストラクタで切り替え可能）
  */
 export class TxtExtractorStrategy implements ITextExtractorStrategy {
+  private readonly formatType: TextExtractionFormatType;
+
+  constructor(formatType: TextExtractionFormatType = 'txt-plain') {
+    this.formatType = formatType;
+  }
+
   getSupportedExtensions(): string[] {
-    return ['.txt'];
+    return ['.txt', '.csv', '.md'];
   }
 
   getStrategyType(): TextExtractorType {
@@ -18,7 +25,7 @@ export class TxtExtractorStrategy implements ITextExtractorStrategy {
   }
 
   getFormatType(): TextExtractionFormatType {
-    return 'txt-plain';
+    return this.formatType;
   }
 
   async extract(filePath: string): Promise<TextExtractionResult> {

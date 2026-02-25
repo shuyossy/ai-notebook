@@ -37,6 +37,10 @@ describe('textExtractionFormatHelper', () => {
       expect(isPlainOnlyFormatType('csv-plain')).toBe(true);
     });
 
+    it('md-plainの場合trueを返す', () => {
+      expect(isPlainOnlyFormatType('md-plain')).toBe(true);
+    });
+
     it('その他のフォーマットの場合falseを返す', () => {
       expect(isPlainOnlyFormatType('xlsx-rich-v1')).toBe(false);
       expect(isPlainOnlyFormatType('docx-plain')).toBe(false);

@@ -298,6 +298,27 @@ describe('FileProcessingResultSection', () => {
       expect(dashes).toHaveLength(2);
     });
 
+    it('markdownファイルの場合、ファイル内画像と画像・図形抽出がハイフンで表示される', () => {
+      render(
+        <FileProcessingResultSection
+          documentCaches={[
+            createCache({
+              fileName: 'readme.md',
+              processMode: 'text',
+              formatType: 'md-plain',
+              includeImages: false,
+            }),
+          ]}
+        />,
+      );
+
+      fireEvent.click(screen.getByText('ファイル処理結果'));
+
+      expect(screen.getByText('readme.md')).toBeInTheDocument();
+      const dashes = screen.getAllByText('-');
+      expect(dashes).toHaveLength(2);
+    });
+
     it('csvファイルの場合、ファイル内画像と画像・図形抽出がハイフンで表示される', () => {
       render(
         <FileProcessingResultSection
@@ -357,6 +378,29 @@ describe('FileProcessingResultSection', () => {
       expect(screen.getByText('成功')).toBeInTheDocument();
       // フォールバック
       expect(screen.getByText('失敗')).toBeInTheDocument();
+    });
+  });
+
+  describe('多数ファイル表示のスクロール', () => {
+    it('テーブルコンテナにmaxHeightが設定されていること', () => {
+      const caches: DocumentCacheInfo[] = Array.from({ length: 20 }, (_, i) =>
+        createCache({
+          fileName: `file${i}.xlsx`,
+          formatType: 'xlsx-rich-v1',
+          includeImages: true,
+        }),
+      );
+
+      const { container } = render(
+        <FileProcessingResultSection documentCaches={caches} />,
+      );
+
+      fireEvent.click(screen.getByText('ファイル処理結果'));
+
+      // TableContainerにmaxHeightが設定されている
+      const tableContainer = container.querySelector('.MuiTableContainer-root');
+      expect(tableContainer).toBeTruthy();
+      expect(tableContainer).toHaveStyle({ maxHeight: '300px' });
     });
   });
 

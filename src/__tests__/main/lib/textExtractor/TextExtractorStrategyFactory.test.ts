@@ -93,6 +93,22 @@ describe('TextExtractorStrategyFactory', () => {
         expect(strategies[1].getFormatType()).toBe('pdf-text-v1');
       });
 
+      it('.csv拡張子の戦略リストが正しいこと', () => {
+        const strategies =
+          TextExtractorStrategyFactory.getStrategiesInPriorityOrder('.csv');
+        expect(strategies).toHaveLength(1);
+        expect(strategies[0].getStrategyType()).toBe('txt-default');
+        expect(strategies[0].getFormatType()).toBe('csv-plain');
+      });
+
+      it('.md拡張子の戦略リストが正しいこと', () => {
+        const strategies =
+          TextExtractorStrategyFactory.getStrategiesInPriorityOrder('.md');
+        expect(strategies).toHaveLength(1);
+        expect(strategies[0].getStrategyType()).toBe('txt-default');
+        expect(strategies[0].getFormatType()).toBe('md-plain');
+      });
+
       it('大文字拡張子でも正しい戦略が取得できること', () => {
         const strategies =
           TextExtractorStrategyFactory.getStrategiesInPriorityOrder('.TXT');
@@ -175,6 +191,8 @@ describe('TextExtractorStrategyFactory', () => {
     describe('正常系', () => {
       it.each([
         '.txt',
+        '.csv',
+        '.md',
         '.doc',
         '.docx',
         '.xls',
@@ -192,7 +210,7 @@ describe('TextExtractorStrategyFactory', () => {
     });
 
     describe('異常系', () => {
-      it.each(['.zip', '.jpg', '.png', '.html', '', '.csv'])(
+      it.each(['.zip', '.jpg', '.png', '.html', ''])(
         '%s はサポートされていないこと',
         (ext) => {
           expect(TextExtractorStrategyFactory.isSupported(ext)).toBe(false);
