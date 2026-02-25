@@ -41,6 +41,12 @@ export function getFormatDescription(
     case 'txt-plain':
       return 'Plain text content with no conversion applied.';
 
+    case 'csv-plain':
+      return 'CSV file content read as plain text.';
+
+    case 'md-plain':
+      return 'Markdown file content read as plain text.';
+
     case 'xlsx-csv-v1':
       return [
         'Excel spreadsheet content represented in the following format:',
