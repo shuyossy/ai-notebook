@@ -188,6 +188,7 @@ export interface DocumentCacheInfo {
   processMode: ProcessMode;
   formatType: string | null;
   includeImages: boolean;
+  textCharacterCount: number;
   extractedImageCount: number;
 }
 

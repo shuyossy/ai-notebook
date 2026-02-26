@@ -76,6 +76,16 @@ function getIncludeImagesLabel(cache: DocumentCacheInfo): string {
 }
 
 /**
+ * 抽出文字数列の表示を判定
+ */
+function getTextCharacterCountLabel(cache: DocumentCacheInfo): string {
+  if (cache.processMode === 'image') {
+    return '-';
+  }
+  return cache.textCharacterCount.toLocaleString();
+}
+
+/**
  * 抽出画像数列の表示を判定
  */
 function getExtractedImageCountLabel(cache: DocumentCacheInfo): string {
@@ -208,6 +218,15 @@ const FileProcessingResultSection: React.FC<
                       bgcolor: 'grey.50',
                     }}
                   >
+                    抽出文字数
+                  </TableCell>
+                  <TableCell
+                    sx={{
+                      fontWeight: 'bold',
+                      fontSize: '0.75rem',
+                      bgcolor: 'grey.50',
+                    }}
+                  >
                     抽出画像数
                   </TableCell>
                 </TableRow>
@@ -216,6 +235,8 @@ const FileProcessingResultSection: React.FC<
                 {documentCaches.map((cache, index) => {
                   const extractionBadge = getExtractionBadge(cache);
                   const includeImagesLabel = getIncludeImagesLabel(cache);
+                  const textCharacterCountLabel =
+                    getTextCharacterCountLabel(cache);
                   const extractedImageCountLabel =
                     getExtractedImageCountLabel(cache);
 
@@ -258,6 +279,20 @@ const FileProcessingResultSection: React.FC<
                             size="small"
                             sx={{ fontWeight: 'medium' }}
                           />
+                        )}
+                      </TableCell>
+                      <TableCell
+                        sx={{ fontSize: '0.875rem', color: 'text.secondary' }}
+                      >
+                        {textCharacterCountLabel === '-' ? (
+                          <Typography
+                            component="span"
+                            sx={{ color: 'grey.400' }}
+                          >
+                            -
+                          </Typography>
+                        ) : (
+                          textCharacterCountLabel
                         )}
                       </TableCell>
                       <TableCell

@@ -15,6 +15,7 @@ describe('FileProcessingResultSection', () => {
     processMode: 'text',
     formatType: 'xlsx-rich-v1',
     includeImages: true,
+    textCharacterCount: 1500,
     extractedImageCount: 3,
     ...overrides,
   });
@@ -37,6 +38,7 @@ describe('FileProcessingResultSection', () => {
       // テーブルが表示される
       expect(screen.getByText('ファイル名')).toBeVisible();
       expect(screen.getByText('処理モード')).toBeVisible();
+      expect(screen.getByText('抽出文字数')).toBeVisible();
       expect(screen.getByText('test.xlsx')).toBeVisible();
     });
   });
@@ -273,9 +275,9 @@ describe('FileProcessingResultSection', () => {
 
       expect(screen.getByText('scan.pdf')).toBeInTheDocument();
       expect(screen.getByText('画像変換')).toBeInTheDocument();
-      // ハイフンが3つ表示される（ファイル内画像列・画像・図形抽出列・抽出画像数列）
+      // ハイフンが4つ表示される（ファイル内画像列・画像・図形抽出列・抽出文字数列・抽出画像数列）
       const dashes = screen.getAllByText('-');
-      expect(dashes).toHaveLength(3);
+      expect(dashes).toHaveLength(4);
     });
 
     it('txtファイルの場合、ファイル内画像・画像・図形抽出・抽出画像数がハイフンで表示される', () => {
@@ -503,9 +505,9 @@ describe('FileProcessingResultSection', () => {
 
       fireEvent.click(screen.getByText('ファイル処理結果'));
 
-      // ファイル内画像列・画像図形抽出列・抽出画像数列の3つのハイフン
+      // ファイル内画像列・画像図形抽出列・抽出文字数列・抽出画像数列の4つのハイフン
       const dashes = screen.getAllByText('-');
-      expect(dashes).toHaveLength(3);
+      expect(dashes).toHaveLength(4);
     });
 
     it('プレーンオンリー形式の場合ハイフンが表示される', () => {
@@ -559,6 +561,119 @@ describe('FileProcessingResultSection', () => {
 
       expect(screen.getByText('5')).toBeInTheDocument();
       expect(screen.getByText('2')).toBeInTheDocument();
+    });
+  });
+
+  describe('抽出文字数の表示', () => {
+    it('テキストモードで文字数が表示される', () => {
+      render(
+        <FileProcessingResultSection
+          documentCaches={[
+            createCache({
+              fileName: 'report.xlsx',
+              formatType: 'xlsx-rich-v1',
+              includeImages: true,
+              textCharacterCount: 1500,
+            }),
+          ]}
+        />,
+      );
+
+      fireEvent.click(screen.getByText('ファイル処理結果'));
+
+      expect(screen.getByText('1,500')).toBeInTheDocument();
+    });
+
+    it('テキストモードで文字数0の場合「0」が表示される', () => {
+      render(
+        <FileProcessingResultSection
+          documentCaches={[
+            createCache({
+              fileName: 'report.xlsx',
+              formatType: 'xlsx-rich-v1',
+              includeImages: true,
+              textCharacterCount: 0,
+            }),
+          ]}
+        />,
+      );
+
+      fireEvent.click(screen.getByText('ファイル処理結果'));
+
+      expect(screen.getByText('0')).toBeInTheDocument();
+    });
+
+    it('画像変換モードの場合ハイフンが表示される', () => {
+      render(
+        <FileProcessingResultSection
+          documentCaches={[
+            createCache({
+              fileName: 'scan.pdf',
+              processMode: 'image',
+              formatType: 'image-pages',
+              includeImages: false,
+              textCharacterCount: 0,
+            }),
+          ]}
+        />,
+      );
+
+      fireEvent.click(screen.getByText('ファイル処理結果'));
+
+      // 画像変換モードでは抽出文字数列もハイフン
+      const dashes = screen.getAllByText('-');
+      expect(dashes.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('プレーンオンリー形式でも文字数が表示される', () => {
+      render(
+        <FileProcessingResultSection
+          documentCaches={[
+            createCache({
+              fileName: 'readme.txt',
+              processMode: 'text',
+              formatType: 'txt-plain',
+              includeImages: false,
+              textCharacterCount: 500,
+            }),
+          ]}
+        />,
+      );
+
+      fireEvent.click(screen.getByText('ファイル処理結果'));
+
+      expect(screen.getByText('500')).toBeInTheDocument();
+    });
+
+    it('複数ファイルで各ファイルごとに正しい文字数が表示される', () => {
+      const caches: DocumentCacheInfo[] = [
+        createCache({
+          fileName: 'report.xlsx',
+          formatType: 'xlsx-rich-v1',
+          includeImages: true,
+          textCharacterCount: 1500,
+        }),
+        createCache({
+          fileName: 'document.docx',
+          formatType: 'docx-rich-v1',
+          includeImages: true,
+          textCharacterCount: 3000,
+        }),
+        createCache({
+          fileName: 'scan.pdf',
+          processMode: 'image',
+          formatType: 'image-pages',
+          includeImages: false,
+          textCharacterCount: 0,
+        }),
+      ];
+
+      render(<FileProcessingResultSection documentCaches={caches} />);
+
+      fireEvent.click(screen.getByText('ファイル処理結果'));
+
+      expect(screen.getByText('1,500')).toBeInTheDocument();
+      expect(screen.getByText('3,000')).toBeInTheDocument();
     });
   });
 

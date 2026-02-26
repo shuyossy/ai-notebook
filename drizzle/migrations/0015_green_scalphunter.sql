@@ -1,0 +1,1 @@
+ALTER TABLE `review_document_caches` ADD `text_character_count` integer DEFAULT 0;
