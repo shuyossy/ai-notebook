@@ -789,14 +789,28 @@ export class DrizzleReviewRepository implements IReviewRepository {
   ): Promise<void> {
     try {
       const db = await getDb();
-      await db.insert(reviewLargedocumentResultCaches).values({
-        reviewDocumentCacheId: cache.reviewDocumentCacheId,
-        reviewChecklistId: cache.reviewChecklistId,
-        comment: cache.comment,
-        totalChunks: cache.totalChunks,
-        chunkIndex: cache.chunkIndex,
-        individualFileName: cache.individualFileName,
-      });
+      await db
+        .insert(reviewLargedocumentResultCaches)
+        .values({
+          reviewDocumentCacheId: cache.reviewDocumentCacheId,
+          reviewChecklistId: cache.reviewChecklistId,
+          comment: cache.comment,
+          totalChunks: cache.totalChunks,
+          chunkIndex: cache.chunkIndex,
+          individualFileName: cache.individualFileName,
+        })
+        .onConflictDoUpdate({
+          target: [
+            reviewLargedocumentResultCaches.reviewDocumentCacheId,
+            reviewLargedocumentResultCaches.reviewChecklistId,
+            reviewLargedocumentResultCaches.chunkIndex,
+          ],
+          set: {
+            comment: cache.comment,
+            totalChunks: cache.totalChunks,
+            individualFileName: cache.individualFileName,
+          },
+        });
     } catch (err) {
       throw repositoryError(
         '分割レビュー用キャッシュデータの作成に失敗しました',
