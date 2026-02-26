@@ -832,23 +832,6 @@ function ReviewSourceModal({
 
               <TextField
                 fullWidth
-                type="number"
-                label="同時レビュー項目数"
-                value={concurrentChecklistCount}
-                onChange={(e) => {
-                  const val = parseInt(e.target.value, 10);
-                  if (!isNaN(val) && val >= 1) {
-                    setConcurrentChecklistCount(val);
-                  }
-                }}
-                inputProps={{ min: 1 }}
-                disabled={processing}
-                sx={{ mb: 2 }}
-                helperText="AIが一度にレビューするチェック項目数。数が大きいほどレビュー完了までの時間が短くなり、API発行回数も少なくなりますが、レビュー品質が低下する可能性があります"
-              />
-
-              <TextField
-                fullWidth
                 multiline
                 rows={3}
                 label="追加指示"
@@ -1044,6 +1027,23 @@ function ReviewSourceModal({
                   </Stack>
                 </AccordionDetails>
               </Accordion>
+
+              <TextField
+                fullWidth
+                type="number"
+                label="同時レビュー項目数"
+                value={concurrentChecklistCount}
+                onChange={(e) => {
+                  const val = parseInt(e.target.value, 10);
+                  if (!isNaN(val) && val >= 1) {
+                    setConcurrentChecklistCount(val);
+                  }
+                }}
+                inputProps={{ min: 1 }}
+                disabled={processing}
+                sx={{ mb: 2 }}
+                helperText="AIが一度にレビューするチェック項目数。数が大きいほどレビュー完了までの時間が短くなり、API発行回数も少なくなりますが、レビュー品質が低下する可能性があります。"
+              />
             </>
           )}
 
