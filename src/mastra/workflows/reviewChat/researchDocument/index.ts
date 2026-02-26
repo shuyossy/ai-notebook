@@ -14,7 +14,8 @@ import {
   researchChunkStep,
   researchChunkStepInputSchema,
 } from './researchDocumentChunk';
-import { internalError } from '@/main/lib/error';
+import { internalError, normalizeUnknownError } from '@/main/lib/error';
+import { logError } from '@/main/lib/logger';
 
 const logger = getMainLogger();
 
@@ -76,100 +77,114 @@ export const researchDocumentWithRetryWorkflow = createWorkflow({
       inputSchema: chunkResearchInnerWorkflowInputSchema,
       outputSchema: chunkResearchInnerWorkflowInputSchema,
     })
-      .map(async ({ inputData }) => {
-        const {
-          reviewHistoryId,
-          documentCacheId,
-          researchContent,
-          totalChunks,
-        } = inputData;
-        const reviewRepository = getReviewRepository();
-
-        // ドキュメントキャッシュを取得
-        const documentCache =
-          await reviewRepository.getReviewDocumentCacheById(documentCacheId);
-
-        if (!documentCache) {
-          throw internalError({
-            expose: true,
-            messageCode: 'REVIEW_DOCUMENT_CACHE_NOT_FOUND',
-          });
-        }
-
-        // ドキュメントをtotalChunks分に分割
-        const chunks: Array<{
-          text?: string;
-          images?: string[];
-          extractedImages?: Array<{
-            referenceId: string;
-            base64Data: string;
-            mimeType: string;
-          }>;
-        }> = [];
-
-        // extractedImagesを取得（includeImages=trueの場合のみ）
-        const extractedImages =
-          documentCache.includeImages && documentCache.extractedImages
-            ? documentCache.extractedImages
-            : [];
-
-        if (documentCache.processMode === 'text' && documentCache.textContent) {
-          // テキストをチャンク分割
-          const chunkRanges = makeChunksByCount(
-            documentCache.textContent,
+      .map(async ({ inputData, bail }) => {
+        try {
+          const {
+            reviewHistoryId,
+            documentCacheId,
+            researchContent,
             totalChunks,
-            300,
-          );
-          chunkRanges.forEach((range) => {
-            const chunkText = documentCache.textContent!.substring(
-              range.start,
-              range.end,
+          } = inputData;
+          const reviewRepository = getReviewRepository();
+
+          // ドキュメントキャッシュを取得
+          const documentCache =
+            await reviewRepository.getReviewDocumentCacheById(documentCacheId);
+
+          if (!documentCache) {
+            throw internalError({
+              expose: true,
+              messageCode: 'REVIEW_DOCUMENT_CACHE_NOT_FOUND',
+            });
+          }
+
+          // ドキュメントをtotalChunks分に分割
+          const chunks: Array<{
+            text?: string;
+            images?: string[];
+            extractedImages?: Array<{
+              referenceId: string;
+              base64Data: string;
+              mimeType: string;
+            }>;
+          }> = [];
+
+          // extractedImagesを取得（includeImages=trueの場合のみ）
+          const extractedImages =
+            documentCache.includeImages && documentCache.extractedImages
+              ? documentCache.extractedImages
+              : [];
+
+          if (
+            documentCache.processMode === 'text' &&
+            documentCache.textContent
+          ) {
+            // テキストをチャンク分割
+            const chunkRanges = makeChunksByCount(
+              documentCache.textContent,
+              totalChunks,
+              300,
             );
-            // チャンクテキスト内の画像リンクに対応する画像のみをフィルタリング
-            const chunkImages =
-              extractedImages.length > 0
-                ? filterReferencedImages(chunkText, extractedImages)
-                : undefined;
-            chunks.push({
-              text: chunkText,
-              extractedImages:
-                chunkImages && chunkImages.length > 0 ? chunkImages : undefined,
+            chunkRanges.forEach((range) => {
+              const chunkText = documentCache.textContent!.substring(
+                range.start,
+                range.end,
+              );
+              // チャンクテキスト内の画像リンクに対応する画像のみをフィルタリング
+              const chunkImages =
+                extractedImages.length > 0
+                  ? filterReferencedImages(chunkText, extractedImages)
+                  : undefined;
+              chunks.push({
+                text: chunkText,
+                extractedImages:
+                  chunkImages && chunkImages.length > 0
+                    ? chunkImages
+                    : undefined,
+              });
             });
-          });
-        } else if (
-          documentCache.processMode === 'image' &&
-          documentCache.imageData
-        ) {
-          // 画像配列をチャンク分割
-          const chunkRanges = makeChunksByCount(
-            documentCache.imageData,
+          } else if (
+            documentCache.processMode === 'image' &&
+            documentCache.imageData
+          ) {
+            // 画像配列をチャンク分割
+            const chunkRanges = makeChunksByCount(
+              documentCache.imageData,
+              totalChunks,
+              3,
+            );
+            chunkRanges.forEach((range) => {
+              chunks.push({
+                images: documentCache.imageData!.slice(range.start, range.end),
+              });
+            });
+          }
+
+          // 各チャンクに対する調査タスクを作成
+          return chunks.map((chunk, index) => ({
+            reviewHistoryId,
+            documentCacheId,
+            researchContent,
+            chunkContent: {
+              text: chunk.text,
+              images: chunk.images,
+              extractedImages: chunk.extractedImages,
+            },
+            chunkIndex: index,
             totalChunks,
-            3,
-          );
-          chunkRanges.forEach((range) => {
-            chunks.push({
-              images: documentCache.imageData!.slice(range.start, range.end),
-            });
+            fileName: documentCache.fileName,
+            checklistIds: inputData.checklistIds,
+            question: inputData.question,
+            reasoning: inputData.reasoning,
+          })) as z.infer<typeof researchChunkStepInputSchema>[];
+        } catch (error) {
+          const normalizedError = normalizeUnknownError(error);
+          logError(error, 'ドキュメントチャンク準備処理に失敗しました');
+          return bail({
+            status: 'failed' as stepStatus,
+            errorMessage: normalizedError.message,
           });
         }
-
-        // 各チャンクに対する調査タスクを作成
-        return chunks.map((chunk, index) => ({
-          reviewHistoryId,
-          documentCacheId,
-          researchContent,
-          chunkContent: {
-            text: chunk.text,
-            images: chunk.images,
-            extractedImages: chunk.extractedImages,
-          },
-          chunkIndex: index,
-          totalChunks,
-          fileName: documentCache.fileName,
-          checklistIds: inputData.checklistIds,
-          question: inputData.question,
-          reasoning: inputData.reasoning,
-        })) as z.infer<typeof researchChunkStepInputSchema>[];
       })
       .foreach(researchChunkStep, { concurrency: 5 })
       .map(async ({ inputData, bail, getInitData }) => {
@@ -227,34 +242,47 @@ export const researchDocumentWithRetryWorkflow = createWorkflow({
           } as z.infer<typeof chunkResearchInnerWorkflowInputSchema>;
         }
 
-        // すべて成功したらチャンク結果を統合
-        // ドキュメントキャッシュを取得
-        const reviewRepository = getReviewRepository();
-        const documentCache = await reviewRepository.getReviewDocumentCacheById(
-          initData.documentCacheId,
-        );
-        if (!documentCache) {
-          throw internalError({
-            expose: true,
-            messageCode: 'REVIEW_DOCUMENT_CACHE_NOT_FOUND',
-          });
-        }
-        // チャンク情報は削除し、調査結果のみを結合
-        const combinedResult = results
-          .filter((result) => result.chunkResult)
-          .map(
-            (result) =>
-              `Document Name:\n${documentCache.fileName}${initData.totalChunks > 1 ? ` ※(Chunk ${result.chunkIndex! + 1}/${initData.totalChunks})(split into chunks because the full content did not fit into context)` : ''}\nResearch Findings:\n${result.chunkResult}`,
-          )
-          .join('\n\n---\n\n');
+        try {
+          // すべて成功したらチャンク結果を統合
+          // ドキュメントキャッシュを取得
+          const reviewRepository = getReviewRepository();
+          const documentCache =
+            await reviewRepository.getReviewDocumentCacheById(
+              initData.documentCacheId,
+            );
+          if (!documentCache) {
+            throw internalError({
+              expose: true,
+              messageCode: 'REVIEW_DOCUMENT_CACHE_NOT_FOUND',
+            });
+          }
+          // チャンク情報は削除し、調査結果のみを結合
+          const combinedResult = results
+            .filter((result) => result.chunkResult)
+            .map(
+              (result) =>
+                `Document Name:\n${documentCache.fileName}${initData.totalChunks > 1 ? ` ※(Chunk ${result.chunkIndex! + 1}/${initData.totalChunks})(split into chunks because the full content did not fit into context)` : ''}\nResearch Findings:\n${result.chunkResult}`,
+            )
+            .join('\n\n---\n\n');
 
-        return {
-          status: 'success' as stepStatus,
-          documentCacheId: initData.documentCacheId,
-          researchResult: combinedResult,
-          finishReason: 'success' as const,
-          retryCount: initData.retryCount,
-        } as z.infer<typeof chunkResearchInnerWorkflowInputSchema>;
+          return {
+            status: 'success' as stepStatus,
+            documentCacheId: initData.documentCacheId,
+            researchResult: combinedResult,
+            finishReason: 'success' as const,
+            retryCount: initData.retryCount,
+          } as z.infer<typeof chunkResearchInnerWorkflowInputSchema>;
+        } catch (error) {
+          const normalizedError = normalizeUnknownError(error);
+          logError(error, 'チャンク調査結果統合処理に失敗しました');
+          return {
+            status: 'failed' as stepStatus,
+            errorMessage: normalizedError.message,
+            finishReason: 'error' as const,
+            retryCount: initData.retryCount,
+            documentCacheId: initData.documentCacheId,
+          } as z.infer<typeof chunkResearchInnerWorkflowInputSchema>;
+        }
       })
       .commit(),
     async ({ inputData }) => {

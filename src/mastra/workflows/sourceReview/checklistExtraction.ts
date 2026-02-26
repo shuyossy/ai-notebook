@@ -759,23 +759,34 @@ export const checklistExtractionWorkflow = createWorkflow({
       })
         // Step1: トピック抽出
         .then(topicExtractionStep)
-        .map(async ({ getInitData, getStepResult }) => {
-          const topicResult = getStepResult(topicExtractionStep);
-          const initData = getInitData();
+        .map(async ({ getInitData, getStepResult, bail }) => {
+          try {
+            const topicResult = getStepResult(topicExtractionStep);
+            const initData = getInitData();
 
-          // 前ステップでエラーの場合はbailで早期終了させているため、ここに来るのは成功時のみの想定
-          if (topicResult?.status !== 'success' || !topicResult.topics) {
-            throw new Error(
-              topicResult?.errorMessage || 'トピック抽出に失敗しました',
-            );
+            // 前ステップでエラーの場合はbailで早期終了させているため、ここに来るのは成功時のみの想定
+            if (topicResult?.status !== 'success' || !topicResult.topics) {
+              return bail({
+                status: 'failed' as stepStatus,
+                errorMessage:
+                  topicResult?.errorMessage || 'トピック抽出に失敗しました',
+              });
+            }
+
+            return topicResult.topics.map((topic) => ({
+              title: topic.title,
+              files: initData.files, // 統合されたファイル群を渡す
+              reviewHistoryId: initData.reviewHistoryId,
+              checklistRequirements: initData.checklistRequirements,
+            }));
+          } catch (error) {
+            const normalizedError = normalizeUnknownError(error);
+            logError(error, 'トピック結果変換処理に失敗しました');
+            return bail({
+              status: 'failed' as stepStatus,
+              errorMessage: normalizedError.message,
+            });
           }
-
-          return topicResult.topics.map((topic) => ({
-            title: topic.title,
-            files: initData.files, // 統合されたファイル群を渡す
-            reviewHistoryId: initData.reviewHistoryId,
-            checklistRequirements: initData.checklistRequirements,
-          }));
         })
         // Step2: 各トピックに対してチェックリスト作成（foreachでループ）
         .foreach(topicChecklistCreationStep)

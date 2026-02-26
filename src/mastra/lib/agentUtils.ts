@@ -80,7 +80,7 @@ export const judgeErrorIsRateLimitError = (error: unknown) => {
   if (!apiError) return false;
   if (APICallError.isInstance(apiError)) {
     return (
-      apiError.responseBody?.toLowerCase().includes("rate limit") ||
+      apiError.responseBody?.toLowerCase().includes('rate limit') ||
       apiError.statusCode === 429
     );
   }

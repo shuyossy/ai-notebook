@@ -200,10 +200,7 @@ export class DrizzleReviewRepository implements IReviewRepository {
         })
         .where(eq(reviewHistories.id, id));
     } catch (err) {
-      throw repositoryError(
-        'レビュー情報の更新に失敗しました',
-        err,
-      );
+      throw repositoryError('レビュー情報の更新に失敗しました', err);
     }
   }
 
@@ -221,10 +218,7 @@ export class DrizzleReviewRepository implements IReviewRepository {
         })
         .where(eq(reviewHistories.id, id));
     } catch (err) {
-      throw repositoryError(
-        'レビュー情報の更新に失敗しました',
-        err,
-      );
+      throw repositoryError('レビュー情報の更新に失敗しました', err);
     }
   }
 
@@ -433,10 +427,7 @@ export class DrizzleReviewRepository implements IReviewRepository {
           ),
         );
     } catch (err) {
-      throw repositoryError(
-        'レビュー結果のクリアに失敗しました',
-        err,
-      );
+      throw repositoryError('レビュー結果のクリアに失敗しました', err);
     }
   }
 
@@ -524,10 +515,7 @@ export class DrizzleReviewRepository implements IReviewRepository {
           );
       }
     } catch (err) {
-      throw repositoryError(
-        '分割レビュー情報の削除に失敗しました',
-        err,
-      );
+      throw repositoryError('分割レビュー情報の削除に失敗しました', err);
     }
   }
 
@@ -708,7 +696,10 @@ export class DrizzleReviewRepository implements IReviewRepository {
         ),
       );
     } catch (err) {
-      throw repositoryError('ドキュメントのキャッシュデータの取得に失敗しました', err);
+      throw repositoryError(
+        'ドキュメントのキャッシュデータの取得に失敗しました',
+        err,
+      );
     }
   }
 
@@ -727,7 +718,10 @@ export class DrizzleReviewRepository implements IReviewRepository {
 
       return this.convertDocumentCacheEntityToDomain(entity);
     } catch (err) {
-      throw repositoryError('ドキュメントのキャッシュデータの取得に失敗しました', err);
+      throw repositoryError(
+        'ドキュメントのキャッシュデータの取得に失敗しました',
+        err,
+      );
     }
   }
 
@@ -749,7 +743,10 @@ export class DrizzleReviewRepository implements IReviewRepository {
         ),
       );
     } catch (err) {
-      throw repositoryError('ドキュメントのキャッシュデータの取得に失敗しました', err);
+      throw repositoryError(
+        'ドキュメントのキャッシュデータの取得に失敗しました',
+        err,
+      );
     }
   }
 
@@ -875,10 +872,7 @@ export class DrizzleReviewRepository implements IReviewRepository {
       // レコードが存在しない場合は1を返す（初回処理）
       return maxChunks ?? 1;
     } catch (err) {
-      throw repositoryError(
-        'ドキュメント情報の取得に失敗しました',
-        err,
-      );
+      throw repositoryError('ドキュメント情報の取得に失敗しました', err);
     }
   }
 

@@ -4,7 +4,8 @@ import { z } from 'zod';
 import { stepStatus } from '../../../types';
 import { individualDocumentReviewStep } from './individualDocumentReviewStep';
 import { consolidateReviewStep } from './consolidateReviewStep';
-import { getMainLogger } from '@/main/lib/logger';
+import { getMainLogger, logError } from '@/main/lib/logger';
+import { normalizeUnknownError } from '@/main/lib/error';
 import {
   documentReviewExecutionInputSchema,
   documentReviewExecutionOutputSchema,
@@ -232,7 +233,7 @@ const individualDocumentReviewWorkflow = createWorkflow({
       return false;
     },
   )
-  .map(async ({ inputData }) => {
+  .map(async ({ inputData, bail }) => {
     // 個別ドキュメントレビューの結果をまとめて返す
     if (inputData.status === 'failed') {
       return {
@@ -241,41 +242,50 @@ const individualDocumentReviewWorkflow = createWorkflow({
       } as z.infer<typeof individualDocumentReviewWorkflowOutputSchema>;
     }
 
-    // 個別レビュー結果を保存
-    const reviewRepository = getReviewRepository();
-    for (const result of inputData.reviewResults || []) {
-      const targetDocument = inputData.reviewInput.find((input) => {
-        return result.documentId === input.document.id;
-      })?.document;
-      if (!targetDocument) {
-        logger.warn(
-          `Could not find target document for review result: documentId=${result.documentId}, checklistId=${result.checklistId}`,
-        );
-        continue;
+    try {
+      // 個別レビュー結果を保存
+      const reviewRepository = getReviewRepository();
+      for (const result of inputData.reviewResults || []) {
+        const targetDocument = inputData.reviewInput.find((input) => {
+          return result.documentId === input.document.id;
+        })?.document;
+        if (!targetDocument) {
+          logger.warn(
+            `Could not find target document for review result: documentId=${result.documentId}, checklistId=${result.checklistId}`,
+          );
+          continue;
+        }
+        await reviewRepository.createReviewLargedocumentResultCache({
+          reviewDocumentCacheId: inputData.originalDocument.cacheId!,
+          reviewChecklistId: result.checklistId,
+          comment: result.comment,
+          totalChunks: targetDocument.totalChunks ?? 1,
+          chunkIndex: targetDocument.chunkIndex ?? 0,
+          individualFileName: targetDocument.name,
+        });
       }
-      await reviewRepository.createReviewLargedocumentResultCache({
-        reviewDocumentCacheId: inputData.originalDocument.cacheId!,
-        reviewChecklistId: result.checklistId,
-        comment: result.comment,
-        totalChunks: targetDocument.totalChunks ?? 1,
-        chunkIndex: targetDocument.chunkIndex ?? 0,
-        individualFileName: targetDocument.name,
+
+      return {
+        status: 'success' as stepStatus,
+        documentsWithReviewResults: inputData.reviewInput.map((input) => {
+          const reviewResult = inputData.reviewResults?.filter(
+            (result) => result.documentId === input.document.id,
+          );
+          return {
+            ...input.document,
+            originalName: input.document.originalName || input.document.name,
+            reviewResults: reviewResult || [],
+          };
+        }),
+      } as z.infer<typeof individualDocumentReviewWorkflowOutputSchema>;
+    } catch (error) {
+      const normalizedError = normalizeUnknownError(error);
+      logError(error, '個別ドキュメントレビュー結果保存処理に失敗しました');
+      return bail({
+        status: 'failed' as stepStatus,
+        errorMessage: normalizedError.message,
       });
     }
-
-    return {
-      status: 'success' as stepStatus,
-      documentsWithReviewResults: inputData.reviewInput.map((input) => {
-        const reviewResult = inputData.reviewResults?.filter(
-          (result) => result.documentId === input.document.id,
-        );
-        return {
-          ...input.document,
-          originalName: input.document.originalName || input.document.name,
-          reviewResults: reviewResult || [],
-        };
-      }),
-    } as z.infer<typeof individualDocumentReviewWorkflowOutputSchema>;
   })
   .commit();
 

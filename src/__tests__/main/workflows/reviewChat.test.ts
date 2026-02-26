@@ -3070,4 +3070,114 @@ describe('reviewChatWorkflow', () => {
       });
     });
   });
+
+  describe('mapブロックのエラーハンドリング', () => {
+    describe('調査タスク準備の.map', () => {
+      it('getReviewDocumentCachesがエラーをthrowした場合にworkflowがfailedになること', async () => {
+        // Arrange
+        const reviewHistoryId = 'review-1';
+        const checklistIds = [1];
+        const question = '質問';
+
+        mockReviewChatPlanningAgent.generateLegacy.mockResolvedValue({
+          object: {
+            tasks: [
+              {
+                reasoning: 'ドキュメント1を調査',
+                documentId: '1',
+                researchContent: 'ドキュメント1の内容を調査',
+              },
+            ],
+          },
+          finishReason: 'stop',
+        });
+
+        // DB操作でエラーをthrow
+        mockRepository.getReviewDocumentCaches.mockRejectedValue(
+          new Error('DB接続エラー'),
+        );
+
+        // Act
+        const runtimeContext = new RuntimeContext();
+        runtimeContext.set('dataStreamWriter', mockDataStreamWriter);
+        runtimeContext.set('toolCallId', 'test-tool-call-id');
+
+        const run = await reviewChatWorkflow.createRunAsync();
+        const result = await run.start({
+          inputData: {
+            reviewHistoryId,
+            checklistIds,
+            question,
+          },
+          runtimeContext,
+        });
+
+        // Assert
+        const checkResult = checkWorkflowResult(result);
+        expect(checkResult.status).toBe('failed');
+      });
+    });
+
+    describe('調査結果統合の.map', () => {
+      it('getReviewDocumentCachesがエラーをthrowした場合にworkflowがfailedになること', async () => {
+        // Arrange
+        const reviewHistoryId = 'review-1';
+        const checklistIds = [1];
+        const question = '質問';
+
+        mockReviewChatPlanningAgent.generateLegacy.mockResolvedValue({
+          object: {
+            tasks: [
+              {
+                reasoning: 'ドキュメント1を調査',
+                documentId: '1',
+                researchContent: 'ドキュメント1の内容を調査',
+              },
+            ],
+          },
+          finishReason: 'stop',
+        });
+
+        // 最初の呼び出し（調査タスク準備）は成功、2回目（調査結果統合）でエラー
+        mockRepository.getReviewDocumentCaches
+          .mockResolvedValueOnce([
+            {
+              id: 1,
+              reviewHistoryId: 'review-1',
+              fileName: 'document1.txt',
+              processMode: 'text',
+              textContent: 'ドキュメント1の内容',
+              imageData: undefined,
+              createdAt: '2024-01-01',
+              updatedAt: '2024-01-01',
+            },
+          ])
+          .mockRejectedValueOnce(new Error('DB接続エラー'));
+
+        mockReviewChatResearchAgent.generateLegacy.mockResolvedValue({
+          text: '調査結果',
+          finishReason: 'stop',
+        });
+
+        // Act
+        const runtimeContext = new RuntimeContext();
+        runtimeContext.set('dataStreamWriter', mockDataStreamWriter);
+        runtimeContext.set('toolCallId', 'test-tool-call-id');
+
+        const run = await reviewChatWorkflow.createRunAsync();
+        const result = await run.start({
+          inputData: {
+            reviewHistoryId,
+            checklistIds,
+            question,
+          },
+          runtimeContext,
+        });
+
+        // Assert
+        const checkResult = checkWorkflowResult(result);
+        expect(checkResult.status).toBe('failed');
+      });
+    });
+  });
 });

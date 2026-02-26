@@ -3852,4 +3852,122 @@ describe('executeReviewWorkflow', () => {
       });
     });
   });
+
+  describe('mapブロックのエラーハンドリング', () => {
+    describe('レビューデータ準備処理（.parallel後の.map）', () => {
+      it('deleteReviewDocumentCachesがエラーをthrowした場合にworkflowがfailedになること', async () => {
+        // Arrange
+        const reviewHistoryId = 'review-1';
+        const files: UploadFile[] = [
+          {
+            id: 'file-1',
+            name: 'document.txt',
+            path: '/test/document.txt',
+            type: 'text/plain',
+            processMode: 'text',
+          },
+        ];
+        const checklists: ReviewChecklist[] = [
+          {
+            id: 1,
+            content: 'チェック項目1',
+            createdBy: 'user',
+            reviewHistoryId,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          },
+        ];
+
+        mockRepository.getChecklists.mockResolvedValue(checklists);
+
+        // DB操作でエラーをthrow
+        mockRepository.deleteReviewDocumentCaches.mockRejectedValue(
+          new Error('DB接続エラー'),
+        );
+
+        // Act
+        const run = await executeReviewWorkflow.createRunAsync();
+        const result = await run.start({
+          inputData: {
+            reviewHistoryId,
+            files,
+            documentMode: 'small',
+          },
+        });
+
+        // Assert
+        const checkResult = checkWorkflowResult(result);
+        expect(checkResult.status).toBe('failed');
+      });
+    });
+
+    describe('大量ドキュメントレビューの個別レビュー結果保存（.map）', () => {
+      it('createReviewLargedocumentResultCacheがエラーをthrowした場合にworkflowがfailedになること', async () => {
+        // Arrange
+        const reviewHistoryId = 'review-1';
+        const files: UploadFile[] = [
+          {
+            id: 'file-1',
+            name: 'document.txt',
+            path: '/test/document.txt',
+            type: 'text/plain',
+            processMode: 'text',
+          },
+        ];
+        const checklists: ReviewChecklist[] = [
+          {
+            id: 1,
+            content: 'チェック項目1',
+            createdBy: 'user',
+            reviewHistoryId,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          },
+        ];
+
+        mockRepository.getChecklists.mockResolvedValue(checklists);
+        mockRepository.createReviewDocumentCache.mockResolvedValue({
+          id: 1,
+          reviewHistoryId,
+          fileName: 'document.txt',
+          processMode: 'text',
+          textContent: 'テストファイルの内容',
+          imageData: undefined,
+          createdAt: '2024-01-01',
+          updatedAt: '2024-01-01',
+        });
+
+        // 個別ドキュメントレビューは成功
+        mockIndividualDocumentReviewAgent.generateLegacy.mockResolvedValue({
+          object: [
+            {
+              checklistId: 1,
+              reviewSections: [],
+              comment: '個別コメント',
+            },
+          ],
+          finishReason: 'stop',
+        });
+
+        // DB保存でエラーをthrow
+        mockRepository.createReviewLargedocumentResultCache.mockRejectedValue(
+          new Error('DB保存エラー'),
+        );
+
+        // Act
+        const run = await executeReviewWorkflow.createRunAsync();
+        const result = await run.start({
+          inputData: {
+            reviewHistoryId,
+            files,
+            documentMode: 'large',
+          },
+        });
+
+        // Assert
+        const checkResult = checkWorkflowResult(result);
+        expect(checkResult.status).toBe('failed');
+      });
+    });
+  });
 });

@@ -13,6 +13,8 @@ import {
 } from './generateAnswerStep';
 import { researchDocumentWithRetryWorkflow } from './researchDocument';
 import { getReviewRepository } from '@/adapter/db';
+import { normalizeUnknownError } from '@/main/lib/error';
+import { logError } from '@/main/lib/logger';
 
 // ワークフローのラインタイムコンテキスト
 export type ReviewChatWorkflowRuntimeContext = {
@@ -40,44 +42,53 @@ export const reviewChatWorkflow = createWorkflow({
       return bail(inputData);
     }
 
-    const initData = (await getInitData()) as z.infer<
-      typeof reviewChatInputSchema
-    >;
+    try {
+      const initData = (await getInitData()) as z.infer<
+        typeof reviewChatInputSchema
+      >;
 
-    // ユーザ体験向上のため、調査タスクを擬似的なtoolCallとして表現する
-    const toolCallId = (
-      runtimeContext as RuntimeContext<ReviewChatWorkflowRuntimeContext>
-    ).get('toolCallId');
-    const writer = (
-      runtimeContext as RuntimeContext<ReviewChatWorkflowRuntimeContext>
-    ).get('dataStreamWriter');
-    const reviewRepository = getReviewRepository();
-    const documentCaches = await reviewRepository.getReviewDocumentCaches(
-      initData.reviewHistoryId,
-    );
-    writer.write(
-      `9:${JSON.stringify({
-        toolCallId: `reviewChatResearchDocument-${toolCallId}`,
-        toolName: 'researchDocumentStart',
-        args: inputData.researchTasks?.map((task) => {
-          return {
-            documentName:
-              documentCaches.find((d) => d.id === task.documentCacheId)
-                ?.fileName || 'Unknown',
-            researchContent: task.researchContent,
-          };
-        }),
-      })}\n`,
-    );
+      // ユーザ体験向上のため、調査タスクを擬似的なtoolCallとして表現する
+      const toolCallId = (
+        runtimeContext as RuntimeContext<ReviewChatWorkflowRuntimeContext>
+      ).get('toolCallId');
+      const writer = (
+        runtimeContext as RuntimeContext<ReviewChatWorkflowRuntimeContext>
+      ).get('dataStreamWriter');
+      const reviewRepository = getReviewRepository();
+      const documentCaches = await reviewRepository.getReviewDocumentCaches(
+        initData.reviewHistoryId,
+      );
+      writer.write(
+        `9:${JSON.stringify({
+          toolCallId: `reviewChatResearchDocument-${toolCallId}`,
+          toolName: 'researchDocumentStart',
+          args: inputData.researchTasks?.map((task) => {
+            return {
+              documentName:
+                documentCaches.find((d) => d.id === task.documentCacheId)
+                  ?.fileName || 'Unknown',
+              researchContent: task.researchContent,
+            };
+          }),
+        })}\n`,
+      );
 
-    return (inputData.researchTasks || []).map((task) => ({
-      reviewHistoryId: initData.reviewHistoryId,
-      documentCacheId: task.documentCacheId,
-      researchContent: task.researchContent,
-      reasoning: task.reasoning,
-      checklistIds: initData.checklistIds,
-      question: initData.question,
-    })) as z.infer<typeof researchDocumentWithRetryWorkflow.inputSchema>[];
+      return (inputData.researchTasks || []).map((task) => ({
+        reviewHistoryId: initData.reviewHistoryId,
+        documentCacheId: task.documentCacheId,
+        researchContent: task.researchContent,
+        reasoning: task.reasoning,
+        checklistIds: initData.checklistIds,
+        question: initData.question,
+      })) as z.infer<typeof researchDocumentWithRetryWorkflow.inputSchema>[];
+    } catch (error) {
+      const normalizedError = normalizeUnknownError(error);
+      logError(error, '調査タスク準備処理に失敗しました');
+      return bail({
+        status: 'failed' as stepStatus,
+        errorMessage: normalizedError.message,
+      });
+    }
   })
   .foreach(researchDocumentWithRetryWorkflow, { concurrency: 5 })
   .map(async ({ inputData, bail, getInitData, runtimeContext }) => {
@@ -90,45 +101,54 @@ export const reviewChatWorkflow = createWorkflow({
       });
     }
 
-    const initData = (await getInitData()) as z.infer<
-      typeof reviewChatInputSchema
-    >;
+    try {
+      const initData = (await getInitData()) as z.infer<
+        typeof reviewChatInputSchema
+      >;
 
-    // ユーザ体験向上のため、調査タスクを擬似的なtoolCallとして表現する
-    const toolCallId = (
-      runtimeContext as RuntimeContext<ReviewChatWorkflowRuntimeContext>
-    ).get('toolCallId');
-    const writer = (
-      runtimeContext as RuntimeContext<ReviewChatWorkflowRuntimeContext>
-    ).get('dataStreamWriter');
-    const reviewRepository = getReviewRepository();
-    const documentCaches = await reviewRepository.getReviewDocumentCaches(
-      initData.reviewHistoryId,
-    );
-    writer.write(
-      `a:${JSON.stringify({
-        toolCallId: `reviewChatResearchDocument-${toolCallId}`,
-        toolName: 'researchDocumentComplete',
-        result: inputData.map((item) => ({
-          documentName:
-            documentCaches.find((d) => d.id === item.documentCacheId)
-              ?.fileName || 'Unknown',
-          researchResult: item.researchResult!,
-        })),
-      })}\n`,
-    );
+      // ユーザ体験向上のため、調査タスクを擬似的なtoolCallとして表現する
+      const toolCallId = (
+        runtimeContext as RuntimeContext<ReviewChatWorkflowRuntimeContext>
+      ).get('toolCallId');
+      const writer = (
+        runtimeContext as RuntimeContext<ReviewChatWorkflowRuntimeContext>
+      ).get('dataStreamWriter');
+      const reviewRepository = getReviewRepository();
+      const documentCaches = await reviewRepository.getReviewDocumentCaches(
+        initData.reviewHistoryId,
+      );
+      writer.write(
+        `a:${JSON.stringify({
+          toolCallId: `reviewChatResearchDocument-${toolCallId}`,
+          toolName: 'researchDocumentComplete',
+          result: inputData.map((item) => ({
+            documentName:
+              documentCaches.find((d) => d.id === item.documentCacheId)
+                ?.fileName || 'Unknown',
+            researchResult: item.researchResult!,
+          })),
+        })}\n`,
+      );
 
-    return {
-      reviewHistoryId: initData.reviewHistoryId,
-      checklistIds: initData.checklistIds,
-      question: initData.question,
-      researchResults: inputData
-        .filter((item) => item.status === 'success')
-        .map((item) => ({
-          documentCacheId: item.documentCacheId!,
-          researchResult: item.researchResult!,
-        })),
-    } as z.infer<typeof generateAnswerStepInputSchema>;
+      return {
+        reviewHistoryId: initData.reviewHistoryId,
+        checklistIds: initData.checklistIds,
+        question: initData.question,
+        researchResults: inputData
+          .filter((item) => item.status === 'success')
+          .map((item) => ({
+            documentCacheId: item.documentCacheId!,
+            researchResult: item.researchResult!,
+          })),
+      } as z.infer<typeof generateAnswerStepInputSchema>;
+    } catch (error) {
+      const normalizedError = normalizeUnknownError(error);
+      logError(error, '調査結果統合処理に失敗しました');
+      return bail({
+        status: 'failed' as stepStatus,
+        errorMessage: normalizedError.message,
+      });
+    }
   })
   .then(generateAnswerStep)
   .commit();
