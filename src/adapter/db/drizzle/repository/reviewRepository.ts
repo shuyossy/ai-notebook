@@ -201,7 +201,7 @@ export class DrizzleReviewRepository implements IReviewRepository {
         .where(eq(reviewHistories.id, id));
     } catch (err) {
       throw repositoryError(
-        'レビューの処理ステータスの更新に失敗しました',
+        'レビュー情報の更新に失敗しました',
         err,
       );
     }
@@ -222,7 +222,7 @@ export class DrizzleReviewRepository implements IReviewRepository {
         .where(eq(reviewHistories.id, id));
     } catch (err) {
       throw repositoryError(
-        'レビュー対象ドキュメント名の更新に失敗しました',
+        'レビュー情報の更新に失敗しました',
         err,
       );
     }
@@ -434,7 +434,7 @@ export class DrizzleReviewRepository implements IReviewRepository {
         );
     } catch (err) {
       throw repositoryError(
-        '指定したチェックリストのレビュー結果のクリアに失敗しました',
+        'レビュー結果のクリアに失敗しました',
         err,
       );
     }
@@ -453,7 +453,7 @@ export class DrizzleReviewRepository implements IReviewRepository {
       // ファイルシステムのキャッシュディレクトリも削除
       await ReviewCacheHelper.deleteCacheDirectory(reviewHistoryId);
     } catch (err) {
-      throw repositoryError('ドキュメントキャッシュの削除に失敗しました', err);
+      throw repositoryError('レビュー対象情報の削除に失敗しました', err);
     }
   }
 
@@ -484,7 +484,7 @@ export class DrizzleReviewRepository implements IReviewRepository {
       }
     } catch (err) {
       throw repositoryError(
-        '大量ドキュメント結果キャッシュの削除に失敗しました',
+        '分割レビュー用キャッシュの削除に失敗しました',
         err,
       );
     }
@@ -525,7 +525,7 @@ export class DrizzleReviewRepository implements IReviewRepository {
       }
     } catch (err) {
       throw repositoryError(
-        '指定したチェックリストの大量ドキュメント結果キャッシュの削除に失敗しました',
+        '分割レビュー情報の削除に失敗しました',
         err,
       );
     }
@@ -545,7 +545,7 @@ export class DrizzleReviewRepository implements IReviewRepository {
         })
         .where(eq(reviewHistories.id, id));
     } catch (err) {
-      throw repositoryError('ドキュメントモードの更新に失敗しました', err);
+      throw repositoryError('レビュー情報の更新に失敗しました', err);
     }
   }
 
@@ -708,7 +708,7 @@ export class DrizzleReviewRepository implements IReviewRepository {
         ),
       );
     } catch (err) {
-      throw repositoryError('ドキュメントキャッシュの取得に失敗しました', err);
+      throw repositoryError('ドキュメントのキャッシュデータの取得に失敗しました', err);
     }
   }
 
@@ -727,7 +727,7 @@ export class DrizzleReviewRepository implements IReviewRepository {
 
       return this.convertDocumentCacheEntityToDomain(entity);
     } catch (err) {
-      throw repositoryError('ドキュメントキャッシュの取得に失敗しました', err);
+      throw repositoryError('ドキュメントのキャッシュデータの取得に失敗しました', err);
     }
   }
 
@@ -749,7 +749,7 @@ export class DrizzleReviewRepository implements IReviewRepository {
         ),
       );
     } catch (err) {
-      throw repositoryError('ドキュメントキャッシュの取得に失敗しました', err);
+      throw repositoryError('ドキュメントのキャッシュデータの取得に失敗しました', err);
     }
   }
 
@@ -780,7 +780,7 @@ export class DrizzleReviewRepository implements IReviewRepository {
       }));
     } catch (err) {
       throw repositoryError(
-        'ドキュメントキャッシュ情報の取得に失敗しました',
+        'ドキュメントのキャッシュデータ情報の取得に失敗しました',
         err,
       );
     }
@@ -802,7 +802,7 @@ export class DrizzleReviewRepository implements IReviewRepository {
       });
     } catch (err) {
       throw repositoryError(
-        '大量ドキュメント結果キャッシュの作成に失敗しました',
+        '分割レビュー用キャッシュデータの作成に失敗しました',
         err,
       );
     }
@@ -846,7 +846,7 @@ export class DrizzleReviewRepository implements IReviewRepository {
       }));
     } catch (err) {
       throw repositoryError(
-        '大量ドキュメント結果キャッシュの取得に失敗しました',
+        '分割レビュー用キャッシュデータの取得に失敗しました',
         err,
       );
     }
@@ -876,7 +876,7 @@ export class DrizzleReviewRepository implements IReviewRepository {
       return maxChunks ?? 1;
     } catch (err) {
       throw repositoryError(
-        'ドキュメントの最大チャンク数取得に失敗しました',
+        'ドキュメント情報の取得に失敗しました',
         err,
       );
     }
