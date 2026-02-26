@@ -362,6 +362,57 @@ export class DrizzleReviewRepository implements IReviewRepository {
     }
   }
 
+  /** チェックリストエラーを保存（既存エラーがある場合は条件付き追記） */
+  async upsertReviewErrors(
+    errors: {
+      reviewChecklistId: number;
+      errorMessage: string;
+      documentOriginalName?: string;
+    }[],
+  ): Promise<void> {
+    try {
+      const db = await getDb();
+      for (const error of errors) {
+        // 現在の状態を取得
+        const [current] = await db
+          .select({
+            evaluation: reviewChecklists.evaluation,
+            comment: reviewChecklists.comment,
+          })
+          .from(reviewChecklists)
+          .where(eq(reviewChecklists.id, error.reviewChecklistId));
+
+        if (!current) continue;
+
+        // evaluationがある（正常レビュー済み）場合はスキップ
+        if (current.evaluation) continue;
+
+        let newComment: string;
+        if (current.comment) {
+          if (!error.documentOriginalName) {
+            // ドキュメント名なし（少量レビュー等）：既にエラーあればスキップ
+            continue;
+          }
+          if (current.comment.includes(error.documentOriginalName)) {
+            // 同一ドキュメント名が既存エラーに含まれる → スキップ（代表のみ保持）
+            continue;
+          }
+          // 異なるドキュメントのエラー → 追記
+          newComment = `${current.comment}\n${error.errorMessage}`;
+        } else {
+          newComment = error.errorMessage;
+        }
+
+        await db
+          .update(reviewChecklists)
+          .set({ comment: newComment })
+          .where(eq(reviewChecklists.id, error.reviewChecklistId));
+      }
+    } catch (err) {
+      throw repositoryError('レビューエラーの保存に失敗しました', err);
+    }
+  }
+
   /** チェックリスト結果を取得してグルーピング */
   async getReviewChecklistResults(
     reviewHistoryId: string,
@@ -383,6 +434,8 @@ export class DrizzleReviewRepository implements IReviewRepository {
               comment: row.comment ?? undefined,
             }
           : undefined,
+        // evaluationがnullでcommentがある場合はエラー状態
+        error: !row.evaluation && row.comment ? row.comment : undefined,
       }));
     } catch (err) {
       throw repositoryError('レビュー結果の取得に失敗しました', err);

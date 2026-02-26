@@ -28,7 +28,7 @@ import { checkWorkflowResult } from '@/mastra/lib/workflowUtils';
 import type { IReviewRepository } from '@/main/service/port/repository/IReviewRepository';
 import type { UploadFile, ReviewChecklist } from '@/types';
 import { IpcChannels } from '@/types';
-import { internalError } from '@/main/lib/error';
+import { internalError, repositoryError } from '@/main/lib/error';
 import { APICallError } from 'ai';
 
 // モック設定
@@ -113,6 +113,7 @@ describe('executeReviewWorkflow', () => {
       deleteChecklist: jest.fn(),
       deleteSystemCreatedChecklists: jest.fn(),
       upsertReviewResult: jest.fn().mockResolvedValue(undefined),
+      upsertReviewErrors: jest.fn().mockResolvedValue(undefined),
       getReviewChecklistResults: jest.fn(),
       deleteAllReviewResults: jest.fn().mockResolvedValue(undefined),
       clearReviewResultsByChecklistIds: jest.fn(),
@@ -903,7 +904,7 @@ describe('executeReviewWorkflow', () => {
         );
       });
 
-      it('レビューエージェントAPIエラー時にworkflowがfailedになること', async () => {
+      it('例外が発生した場合、チェックリストのエラーがDBに保存されworkflowがsuccessになること', async () => {
         // Arrange
         const reviewHistoryId = 'review-1';
         const files: UploadFile[] = [
@@ -958,11 +959,19 @@ describe('executeReviewWorkflow', () => {
 
         // Assert
         const checkResult = checkWorkflowResult(result);
-        expect(checkResult.status).toBe('failed');
-        expect(checkResult.errorMessage).toContain('AI APIエラー');
+        expect(checkResult.status).toBe('success');
+        // エラーがDBに保存されること
+        expect(mockRepository.upsertReviewErrors).toHaveBeenCalledWith(
+          expect.arrayContaining([
+            expect.objectContaining({
+              reviewChecklistId: 1,
+              errorMessage: expect.stringContaining('AI APIエラー'),
+            }),
+          ]),
+        );
       });
 
-      it('最大試行回数超過時にエラーメッセージに未完了項目が含まれること', async () => {
+      it('AIの出力にレビュー結果が含まれない場合（最大試行回数超過）、対象チェックリストのエラーがDBに保存されworkflowがsuccessになること', async () => {
         // Arrange
         const reviewHistoryId = 'review-1';
         const files: UploadFile[] = [
@@ -1030,14 +1039,26 @@ describe('executeReviewWorkflow', () => {
 
         // Assert
         const checkResult = checkWorkflowResult(result);
-        expect(checkResult.status).toBe('failed');
-        expect(checkResult.errorMessage).toContain('チェック項目2');
-        expect(checkResult.errorMessage).toContain(
-          'AIの出力にレビュー結果が含まれませんでした',
+        expect(checkResult.status).toBe('success');
+        // 未完了のチェックリスト（ID: 2）のみエラーがDBに保存されること
+        expect(mockRepository.upsertReviewErrors).toHaveBeenCalledWith(
+          expect.arrayContaining([
+            expect.objectContaining({
+              reviewChecklistId: 2,
+              errorMessage: 'AIの出力にレビュー結果が含まれませんでした',
+            }),
+          ]),
         );
+        // ID 1 はエラー保存されないこと（成功済み）
+        const upsertErrorsCalls = mockRepository.upsertReviewErrors.mock.calls;
+        for (const call of upsertErrorsCalls) {
+          for (const error of call[0]) {
+            expect(error.reviewChecklistId).not.toBe(1);
+          }
+        }
       });
 
-      it('finishReasonがlengthの場合に適切なエラーメッセージが返ること', async () => {
+      it('finishReasonがlengthの場合、チェックリストのエラーがDBに保存されworkflowがsuccessになること', async () => {
         // Arrange
         const reviewHistoryId = 'review-1';
         const files: UploadFile[] = [
@@ -1089,9 +1110,16 @@ describe('executeReviewWorkflow', () => {
 
         // Assert
         const checkResult = checkWorkflowResult(result);
-        expect(checkResult.status).toBe('failed');
-        expect(checkResult.errorMessage).toContain(
-          '最大出力コンテキストを超えました',
+        expect(checkResult.status).toBe('success');
+        // エラーがDBに保存されること
+        expect(mockRepository.upsertReviewErrors).toHaveBeenCalledWith(
+          expect.arrayContaining([
+            expect.objectContaining({
+              reviewChecklistId: 1,
+              errorMessage:
+                expect.stringContaining('最大出力コンテキストを超えました'),
+            }),
+          ]),
         );
       });
 
@@ -1265,11 +1293,7 @@ describe('executeReviewWorkflow', () => {
         });
 
         mockRepository.upsertReviewResult.mockRejectedValue(
-          internalError({
-            expose: true,
-            messageCode: 'PLAIN_MESSAGE',
-            messageParams: { message: 'レビュー結果保存エラー' },
-          }),
+          repositoryError('レビュー結果保存エラー', new Error('DB error')),
         );
 
         // Act
@@ -2826,7 +2850,7 @@ describe('executeReviewWorkflow', () => {
     });
 
     describe('異常系', () => {
-      it('個別ドキュメントレビュー失敗時にworkflowがfailedになること', async () => {
+      it('個別ドキュメントレビューで例外が発生した場合、オリジナルドキュメント名付きエラーがDBに保存されること', async () => {
         // Arrange
         const reviewHistoryId = 'review-1';
         const files: UploadFile[] = [
@@ -2881,11 +2905,19 @@ describe('executeReviewWorkflow', () => {
 
         // Assert
         const checkResult = checkWorkflowResult(result);
-        expect(checkResult.status).toBe('failed');
-        expect(checkResult.errorMessage).toContain('個別レビューエラー');
+        expect(checkResult.status).toBe('success');
+        // エラーがDBに保存されること（ドキュメント名付き）
+        expect(mockRepository.upsertReviewErrors).toHaveBeenCalledWith(
+          expect.arrayContaining([
+            expect.objectContaining({
+              reviewChecklistId: 1,
+              errorMessage: expect.stringContaining('document.txt'),
+            }),
+          ]),
+        );
       });
 
-      it('統合レビュー失敗時にworkflowがfailedになること', async () => {
+      it('統合レビューステップで例外が発生した場合、チェックリストエラーがDBに保存されること', async () => {
         // Arrange
         const reviewHistoryId = 'review-1';
         const files: UploadFile[] = [
@@ -2947,11 +2979,19 @@ describe('executeReviewWorkflow', () => {
 
         // Assert
         const checkResult = checkWorkflowResult(result);
-        expect(checkResult.status).toBe('failed');
-        expect(checkResult.errorMessage).toContain('統合レビューエラー');
+        expect(checkResult.status).toBe('success');
+        // エラーがDBに保存されること
+        expect(mockRepository.upsertReviewErrors).toHaveBeenCalledWith(
+          expect.arrayContaining([
+            expect.objectContaining({
+              reviewChecklistId: 1,
+              errorMessage: expect.stringContaining('統合レビューエラー'),
+            }),
+          ]),
+        );
       });
 
-      it('分割リトライ最大回数超過時にエラーになること', async () => {
+      it('コンテキスト長エラーでリトライ回数超過の場合、オリジナルドキュメント名付きエラーがDBに保存されること', async () => {
         // Arrange
         const reviewHistoryId = 'review-1';
         const files: UploadFile[] = [
@@ -2992,7 +3032,6 @@ describe('executeReviewWorkflow', () => {
         // 常にコンテキスト長エラー例外をthrow (最大5回リトライまで)
         mockIndividualDocumentReviewAgent.generateLegacy.mockImplementation(
           async () => {
-            // 常にコンテキスト長エラーをthrow
             throw new APICallError({
               message: 'Context length exceeded',
               url: 'http://test-api',
@@ -3019,20 +3058,28 @@ describe('executeReviewWorkflow', () => {
 
         // Assert
         const checkResult = checkWorkflowResult(result);
-        expect(checkResult.status).toBe('failed');
-        // リトライ最大回数（5回）を超えた場合、特定のエラーメッセージが返される
-        expect(checkResult.errorMessage).toBe(
-          'ドキュメント分割を複数回実行しましたが、コンテキスト長エラーが解消されませんでした',
+        expect(checkResult.status).toBe('success');
+        // エラーがDBに保存されること（ドキュメント名付き）
+        expect(mockRepository.upsertReviewErrors).toHaveBeenCalledWith(
+          expect.arrayContaining([
+            expect.objectContaining({
+              reviewChecklistId: 1,
+              errorMessage: expect.stringContaining('document.txt'),
+            }),
+          ]),
         );
-        // リトライのたびにドキュメントが分割され、foreachで個別レビューが実行される
-        // retryCount 0: 1個 (1回), 1: 2個 (2回), 2: 3個 (3回), 3: 4個 (4回), 4: 5個 (5回), 5: 6個 (6回)
-        // 合計: 1+2+3+4+5+6 = 21回
-        expect(
-          mockIndividualDocumentReviewAgent.generateLegacy,
-        ).toHaveBeenCalledTimes(21);
+        expect(mockRepository.upsertReviewErrors).toHaveBeenCalledWith(
+          expect.arrayContaining([
+            expect.objectContaining({
+              errorMessage: expect.stringContaining(
+                'コンテキスト長エラーが解消されませんでした',
+              ),
+            }),
+          ]),
+        );
       });
 
-      it('個別レビュー未完了チェックリスト最大試行回数超過時にエラーになること', async () => {
+      it('個別レビュー最大試行回数超過の場合、オリジナルドキュメント名付きエラーがDBに保存されること', async () => {
         // Arrange
         const reviewHistoryId = 'review-1';
         const files: UploadFile[] = [
@@ -3095,14 +3142,22 @@ describe('executeReviewWorkflow', () => {
 
         // Assert
         const checkResult = checkWorkflowResult(result);
-        expect(checkResult.status).toBe('failed');
-        expect(checkResult.errorMessage).toContain('チェック項目2');
-        expect(checkResult.errorMessage).toContain(
-          'AIの出力にレビュー結果が含まれませんでした',
+        expect(checkResult.status).toBe('success');
+        // 未完了のチェックリスト（ID: 2）のエラーがDBに保存されること（ドキュメント名付きフォーマット検証）
+        expect(mockRepository.upsertReviewErrors).toHaveBeenCalledWith(
+          expect.arrayContaining([
+            expect.objectContaining({
+              reviewChecklistId: 2,
+              errorMessage: expect.stringMatching(
+                /document\.txtの処理中にエラー:\nAIの出力にレビュー結果が含まれませんでした/,
+              ),
+              documentOriginalName: 'document.txt',
+            }),
+          ]),
         );
       });
 
-      it('統合レビュー未完了チェックリスト最大試行回数超過時にエラーになること', async () => {
+      it('統合レビュー最大試行回数超過の場合、チェックリストエラーがDBに保存されること', async () => {
         // Arrange
         const reviewHistoryId = 'review-1';
         const files: UploadFile[] = [
@@ -3173,10 +3228,17 @@ describe('executeReviewWorkflow', () => {
 
         // Assert
         const checkResult = checkWorkflowResult(result);
-        expect(checkResult.status).toBe('failed');
-        expect(checkResult.errorMessage).toContain('チェック項目2');
-        expect(checkResult.errorMessage).toContain(
-          'AIの出力に統合レビュー結果が含まれませんでした',
+        expect(checkResult.status).toBe('success');
+        // 未完了のチェックリスト（ID: 2）のエラーがDBに保存されること
+        expect(mockRepository.upsertReviewErrors).toHaveBeenCalledWith(
+          expect.arrayContaining([
+            expect.objectContaining({
+              reviewChecklistId: 2,
+              errorMessage: expect.stringContaining(
+                'AIの出力に統合レビュー結果が含まれませんでした',
+              ),
+            }),
+          ]),
         );
       });
     });

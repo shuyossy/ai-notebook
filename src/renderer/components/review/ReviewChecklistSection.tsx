@@ -260,7 +260,7 @@ const ReviewChecklistSection: React.FC<ReviewChecklistSectionProps> = ({
       {/* レビュー結果列 */}
       <TableCell align="center" sx={{ p: 1, verticalAlign: 'top' }}>
         <Box>
-          {checklist.sourceEvaluation?.evaluation && (
+          {checklist.sourceEvaluation?.evaluation ? (
             <Stack spacing={1} alignItems="center">
               <Typography
                 variant="body2"
@@ -285,7 +285,17 @@ const ReviewChecklistSection: React.FC<ReviewChecklistSectionProps> = ({
                 </Typography>
               )}
             </Stack>
-          )}
+          ) : checklist.error ? (
+            <Typography
+              variant="body2"
+              sx={{
+                ...commentBoxSx,
+                color: 'error.main',
+              }}
+            >
+              {checklist.error}
+            </Typography>
+          ) : null}
         </Box>
       </TableCell>
       {/* 操作 */}

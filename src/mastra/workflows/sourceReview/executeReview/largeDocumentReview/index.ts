@@ -14,6 +14,7 @@ import { baseStepOutputSchema } from '@/mastra/workflows/schema';
 import { makeChunksByCount } from '@/mastra/lib/util';
 import { extractedDocumentSchema } from '../schema';
 import { getReviewRepository } from '@/adapter/db';
+import { saveChecklistErrors } from '../lib';
 
 const logger = getMainLogger();
 
@@ -124,13 +125,20 @@ const individualDocumentReviewWorkflow = createWorkflow({
 
         // リトライ回数が5回を超えたら終了
         if (initData.retryCount >= 5) {
+          // エラーをDBに保存
+          const originalName =
+            initData.originalDocument.originalName ||
+            initData.originalDocument.name;
+          await saveChecklistErrors(
+            initData.reviewInput[0]?.checklists || [],
+            'ドキュメント分割を複数回実行しましたが、コンテキスト長エラーが解消されませんでした',
+            originalName,
+          );
           return {
             originalDocument: initData.originalDocument,
             reviewInput: initData.reviewInput,
             retryCount: nextRetryCount,
-            status: 'failed' as stepStatus,
-            errorMessage:
-              'ドキュメント分割を複数回実行しましたが、コンテキスト長エラーが解消されませんでした',
+            status: 'success' as stepStatus,
             finishReason: 'error' as const,
           } as z.infer<typeof individualDocumentReviewRetryWorkflowInputSchema>;
         }

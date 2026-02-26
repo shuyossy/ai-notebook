@@ -60,6 +60,13 @@ export interface IReviewRepository {
       comment: string;
     }[],
   ): Promise<void>;
+  upsertReviewErrors(
+    errors: {
+      reviewChecklistId: number;
+      errorMessage: string;
+      documentOriginalName?: string;
+    }[],
+  ): Promise<void>;
   getReviewChecklistResults(
     reviewHistoryId: string,
   ): Promise<ReviewChecklistResult[]>;

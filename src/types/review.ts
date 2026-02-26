@@ -48,6 +48,7 @@ export type ReviewChecklistResult = {
     evaluation?: ReviewEvaluation; // カスタム評定項目対応
     comment?: string;
   };
+  error?: string; // チェックリストレビュー中に発生したエラーメッセージ
 };
 
 // チェックリストの編集内容を表す型

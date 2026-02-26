@@ -256,6 +256,7 @@ export type IpcEventPayloadMap = {
     reviewHistoryId: string;
     status: ReviewExecutionResultStatus;
     error?: string;
+    hasChecklistErrors?: boolean;
   };
   [IpcChannels.REVIEW_HISTORY_UPDATED]: undefined;
   [IpcChannels.FS_CONVERT_OFFICE_TO_PDF_PROGRESS]: {

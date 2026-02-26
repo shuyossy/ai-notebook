@@ -16,6 +16,7 @@ import { logError } from '@/main/lib/logger';
 import type { ReviewEvaluation } from '@/types';
 import { createHash } from 'crypto';
 import { extractedDocumentSchema } from '../schema';
+import { saveChecklistErrors } from '../lib';
 
 // レビュー結果統合ステップの入力スキーマ
 export const consolidateReviewStepInputSchema = z.object({
@@ -80,6 +81,9 @@ export const consolidateReviewStep = createStep({
 
     const reviewRepository = getReviewRepository();
 
+    // catchブロックからアクセスできるようにtryの外で宣言
+    let targetChecklists = checklists;
+
     try {
       const consolidateAgent = mastra.getAgent('consolidateReviewAgent');
 
@@ -133,7 +137,6 @@ Please provide a consolidated review that synthesizes all individual document re
       // 統合レビューを実行（最大3回まで再試行）
       const maxAttempts = 3;
       let attempt = 0;
-      let targetChecklists = checklists;
 
       while (attempt < maxAttempts) {
         // デフォルトの評価項目
@@ -223,14 +226,14 @@ Please provide a consolidated review that synthesizes all individual document re
       }
 
       if (attempt >= maxAttempts) {
-        // 最大試行回数に達した場合、失敗したチェックリストを記録
-        return {
-          status: 'failed' as stepStatus,
-          errorMessage: `${targetChecklists?.map((c) => `・${c.content}:AIの出力に統合レビュー結果が含まれませんでした`).join('\n')}`,
-        };
+        // 最大試行回数に達した場合、エラーをDBに保存
+        await saveChecklistErrors(
+          targetChecklists,
+          'AIの出力に統合レビュー結果が含まれませんでした',
+        );
       }
 
-      // 全ての統合レビューが成功した場合
+      // 全ての統合レビューが成功した場合（またはエラーをDB保存済みの場合）
       return {
         status: 'success' as stepStatus,
         output: {
@@ -243,12 +246,22 @@ Please provide a consolidated review that synthesizes all individual document re
         checklistCount: checklists?.length,
       });
       const normalizedError = normalizeUnknownError(error);
+      // DB保存エラー（レビュー結果保存失敗等）はインフラエラーのため、従来通りワークフローを失敗させる
+      if (normalizedError.messageCode === 'DATA_ACCESS_ERROR') {
+        return bail({
+          status: 'failed' as stepStatus,
+          errorMessage: normalizedError.message,
+        });
+      }
       const errorMessage = normalizedError.message;
-      // エラーが発生した場合はエラー情報を返す
-      return bail({
-        status: 'failed' as stepStatus,
-        errorMessage: `${checklists?.map((c) => `・${c.content}:${errorMessage}`).join('\n')}`,
-      });
+      // レビュー処理エラーの場合はDBに保存してステップは成功として返す
+      await saveChecklistErrors(targetChecklists, errorMessage);
+      return {
+        status: 'success' as stepStatus,
+        output: {
+          success: true,
+        },
+      };
     }
   },
 });

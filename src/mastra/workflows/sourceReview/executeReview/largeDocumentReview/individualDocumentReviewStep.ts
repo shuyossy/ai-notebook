@@ -14,7 +14,7 @@ import {
 } from '@/mastra/lib/agentUtils';
 import { logError } from '@/main/lib/logger';
 import { createCombinedMessageFromExtractedDocument } from '../../lib';
-import { getChecklistsErrorMessage } from '../lib';
+import { getChecklistsErrorMessage, saveChecklistErrors } from '../lib';
 import { extractedDocumentSchema } from '../schema';
 import { getReviewRepository } from '@/adapter/db';
 import { buildDocumentFormatContext } from '@/mastra/lib/extractionFormatDescription';
@@ -72,6 +72,14 @@ export const individualDocumentReviewStep = createStep({
     const { document, checklists, additionalInstructions, commentFormat } =
       inputData;
 
+    // catchブロックからアクセスできるようにtryの外で宣言
+    let targetChecklists = checklists;
+    const allReviewResults: Array<{
+      documentId: string;
+      checklistId: number;
+      comment: string;
+    }> = [];
+
     try {
       const reviewAgent = mastra.getAgent('individualDocumentReviewAgent');
 
@@ -101,12 +109,6 @@ Checklist Items to Review:\n${checklists.map((item) => `- ID: ${item.id} - ${ite
       // レビューを実行（最大3回まで再試行）
       const maxAttempts = 3;
       let attempt = 0;
-      let targetChecklists = checklists;
-      const allReviewResults: Array<{
-        documentId: string;
-        checklistId: number;
-        comment: string;
-      }> = [];
 
       while (attempt < maxAttempts && targetChecklists.length > 0) {
         const outputSchema = z.array(
@@ -198,17 +200,15 @@ Checklist Items to Review:\n${checklists.map((item) => `- ID: ${item.id} - ${ite
       }
 
       if (attempt >= maxAttempts && targetChecklists.length > 0) {
-        // 最大試行回数に達した場合、失敗したチェックリストを記録
-        return {
-          status: 'failed' as stepStatus,
-          errorMessage: getChecklistsErrorMessage(
-            targetChecklists,
-            'AIの出力にレビュー結果が含まれませんでした',
-          ),
-        };
+        // 最大試行回数に達した場合、エラーをDBに保存
+        await saveChecklistErrors(
+          targetChecklists,
+          'AIの出力にレビュー結果が含まれませんでした',
+          document.originalName,
+        );
       }
 
-      // 全てのレビューが成功した場合
+      // 成功（部分的にエラーがあってもDB保存済み）
       return {
         status: 'success' as stepStatus,
         reviewResults: allReviewResults,
@@ -224,11 +224,34 @@ Checklist Items to Review:\n${checklists.map((item) => `- ID: ${item.id} - ${ite
       });
       const normalizedError = normalizeUnknownError(error);
       const errorMessage = normalizedError.message;
-      // エラーが発生した場合はエラー情報を返す
+
+      if (isContentLengthError) {
+        // コンテキスト長エラーの場合はリトライ用にそのまま返す
+        return {
+          status: 'failed' as stepStatus,
+          errorMessage: `${checklists?.map((c) => `・${c.content}:${errorMessage}`).join('\n')}`,
+          finishReason: 'content_length' as const,
+        };
+      }
+
+      // DB保存エラーはインフラエラーのため、従来通りワークフローを失敗させる
+      if (normalizedError.messageCode === 'DATA_ACCESS_ERROR') {
+        return {
+          status: 'failed' as stepStatus,
+          errorMessage,
+          finishReason: 'error' as const,
+        };
+      }
+      // コンテキスト長エラー以外はエラーをDBに保存してステップは成功として返す
+      await saveChecklistErrors(
+        targetChecklists,
+        errorMessage,
+        document.originalName,
+      );
       return {
-        status: 'failed' as stepStatus,
-        errorMessage: `${checklists?.map((c) => `・${c.content}:${errorMessage}`).join('\n')}`,
-        finishReason: isContentLengthError ? 'content_length' : 'error',
+        status: 'success' as stepStatus,
+        reviewResults: allReviewResults,
+        finishReason: 'success',
       };
     }
   },

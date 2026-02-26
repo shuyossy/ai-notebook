@@ -190,6 +190,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
       reviewHistoryId: string;
       status: ReviewExecutionResultStatus;
       error?: string;
+      hasChecklistErrors?: boolean;
     }) => {
       // 自分のレビュー履歴のイベントかチェック
       if (payload.reviewHistoryId !== selectedReviewHistoryId) {
@@ -208,10 +209,18 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
       });
 
       if (payload.status === 'success') {
-        addAlert({
-          message: 'レビューが完了しました',
-          severity: 'success',
-        });
+        if (payload.hasChecklistErrors) {
+          addAlert({
+            message:
+              '一部のチェックリストのレビューに失敗しました。結果欄をご確認ください。',
+            severity: 'warning',
+          });
+        } else {
+          addAlert({
+            message: 'レビューが完了しました',
+            severity: 'success',
+          });
+        }
       } else if (payload.status === 'failed') {
         addAlert({
           message: `レビューに失敗しました\n${payload.error}`,
@@ -628,9 +637,11 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
     [handleExecuteReview],
   );
 
-  // レビュー結果が既に存在するかチェック
+  // レビュー結果が既に存在するかチェック（エラー状態も含む）
   const hasExistingReviewResults = checklistResults.some(
-    (cl) => cl.sourceEvaluation !== null && cl.sourceEvaluation !== undefined,
+    (cl) =>
+      (cl.sourceEvaluation !== null && cl.sourceEvaluation !== undefined) ||
+      cl.error,
   );
 
   // チェックリストの更新処理

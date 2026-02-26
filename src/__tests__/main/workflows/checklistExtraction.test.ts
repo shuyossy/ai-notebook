@@ -130,6 +130,7 @@ describe('checklistExtractionWorkflow', () => {
       updateReviewHistoryConcurrentChecklistCount: jest
         .fn()
         .mockResolvedValue(undefined),
+      upsertReviewErrors: jest.fn().mockResolvedValue(undefined),
     } as jest.Mocked<IReviewRepository>;
 
     (getReviewRepository as jest.Mock).mockReturnValue(mockRepository);

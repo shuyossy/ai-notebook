@@ -509,7 +509,11 @@ export class ReviewService implements IReviewService {
     documentMode?: DocumentMode,
     retryMode?: RetryMode,
     concurrentChecklistCount?: number,
-  ): Promise<{ status: ReviewExecutionResultStatus; error?: string }> {
+  ): Promise<{
+    status: ReviewExecutionResultStatus;
+    error?: string;
+    hasChecklistErrors?: boolean;
+  }> {
     try {
       // バリデーション: 初回レビューの場合はfilesが必須
       if (!retryMode && !files) {
@@ -643,9 +647,20 @@ export class ReviewService implements IReviewService {
         newStatus,
       );
 
+      // チェックリストエラーの有無を確認
+      let hasChecklistErrors = false;
+      if (checkResult.status === 'success') {
+        const checklistResults =
+          await this.reviewRepository.getReviewChecklistResults(
+            reviewHistoryId,
+          );
+        hasChecklistErrors = checklistResults.some((r) => r.error);
+      }
+
       return {
         status: checkResult.status,
         error: checkResult.errorMessage,
+        hasChecklistErrors,
       };
     } catch (error) {
       logError(error, 'レビュー実行処理に失敗しました');
@@ -773,6 +788,7 @@ export class ReviewService implements IReviewService {
             reviewHistoryId,
             status: res.status,
             error: res.error,
+            hasChecklistErrors: res.hasChecklistErrors,
           });
           return true;
         })
