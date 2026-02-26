@@ -112,9 +112,13 @@ export interface RelationshipEntry {
   type?: string;
 }
 
-/** OOXML仕様のdrawingリレーションシップタイプ */
+/** OOXML仕様のdrawingリレーションシップタイプ（Transitional） */
 export const DRAWING_RELATIONSHIP_TYPE =
   'http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing';
+
+/** OOXML仕様のdrawingリレーションシップタイプ（Strict） */
+export const DRAWING_RELATIONSHIP_TYPE_STRICT =
+  'http://purl.oclc.org/ooxml/officeDocument/relationships/drawing';
 
 /**
  * 0ベース列インデックスをExcel列文字に変換する
@@ -368,8 +372,11 @@ export class XlsxDrawingParser {
     const $ = cheerio.load(drawingXml, { xml: true });
     const images: DrawingImage[] = [];
 
+    // mc:Fallback要素を除去して重複抽出を防止（Office 2010+のAlternateContent対応）
+    $('mc\\:Fallback, Fallback').remove();
+
     const anchors = $(
-      'xdr\\:twoCellAnchor, twoCellAnchor, xdr\\:oneCellAnchor, oneCellAnchor',
+      'xdr\\:twoCellAnchor, twoCellAnchor, xdr\\:oneCellAnchor, oneCellAnchor, xdr\\:absoluteAnchor, absoluteAnchor',
     );
 
     anchors.each((_, anchor) => {
@@ -402,8 +409,11 @@ export class XlsxDrawingParser {
     const $ = cheerio.load(drawingXml, { xml: true });
     const shapeTexts: DrawingShapeText[] = [];
 
+    // mc:Fallback要素を除去して重複抽出を防止
+    $('mc\\:Fallback, Fallback').remove();
+
     const anchors = $(
-      'xdr\\:twoCellAnchor, twoCellAnchor, xdr\\:oneCellAnchor, oneCellAnchor',
+      'xdr\\:twoCellAnchor, twoCellAnchor, xdr\\:oneCellAnchor, oneCellAnchor, xdr\\:absoluteAnchor, absoluteAnchor',
     );
 
     anchors.each((_, anchor) => {
@@ -455,8 +465,11 @@ export class XlsxDrawingParser {
     const $ = cheerio.load(drawingXml, { xml: true });
     const connectors: DrawingConnector[] = [];
 
+    // mc:Fallback要素を除去して重複抽出を防止
+    $('mc\\:Fallback, Fallback').remove();
+
     const anchors = $(
-      'xdr\\:twoCellAnchor, twoCellAnchor, xdr\\:oneCellAnchor, oneCellAnchor',
+      'xdr\\:twoCellAnchor, twoCellAnchor, xdr\\:oneCellAnchor, oneCellAnchor, xdr\\:absoluteAnchor, absoluteAnchor',
     );
 
     anchors.each((_, anchor) => {

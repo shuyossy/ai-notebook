@@ -910,5 +910,137 @@ describe('PptxRichExtractorStrategy', () => {
         );
       });
     });
+
+    describe('Strict OOXML形式対応', () => {
+      it('名前空間プレフィックスなしのpresentation.xmlでスライド順序が正しく取得されること', async () => {
+        // Arrange: Strict OOXML形式ではp:プレフィックスなしで<sldIdLst><sldId>が記述される
+        const fileBuffer = Buffer.from('dummy-pptx');
+        mockReadFile.mockResolvedValue(fileBuffer);
+
+        // cheerioセットアップ：プレフィックスなしセレクタ（sldIdLst > sldId）でマッチ
+        setupCheerioForSlideOrder(['rId10', 'rId11']);
+        mockSlideParseRelationships.mockReturnValue([
+          { rId: 'rId10', target: 'slides/slide2.xml' },
+          { rId: 'rId11', target: 'slides/slide1.xml' },
+        ]);
+
+        const slide1File = createMockZipFileEntry('<slide1/>');
+        const slide2File = createMockZipFileEntry('<slide2/>');
+        const presentationFile = createMockZipFileEntry('<presentation/>');
+        const presentationRelsFile = createMockZipFileEntry('<Relationships/>');
+
+        const zipFileMap: Record<string, any> = {
+          'ppt/presentation.xml': presentationFile,
+          'ppt/_rels/presentation.xml.rels': presentationRelsFile,
+          'ppt/slides/slide1.xml': slide1File,
+          'ppt/slides/slide2.xml': slide2File,
+          'ppt/slides/_rels/slide1.xml.rels': null,
+          'ppt/slides/_rels/slide2.xml.rels': null,
+        };
+        const zip = {
+          file: jest.fn((path: string) => zipFileMap[path] ?? null),
+        };
+        mockZipLoadAsync.mockResolvedValue(zip);
+
+        mockSlideParseImages.mockReturnValue([]);
+        mockSlideResolveImagePaths.mockReturnValue(new Map());
+        mockSlideParseShapeTexts.mockReturnValue([
+          { text: 'Slide Text', rowIndex: 0, isTextBox: true },
+        ]);
+        mockSlideParseConnectors.mockReturnValue([]);
+        mockSlideParseTables.mockReturnValue([]);
+
+        // Act
+        const result = await strategy.extract('/path/to/test.pptx');
+
+        // Assert
+        const lines = result.content.split('\n');
+        const slide2Index = lines.findIndex((l) => l.includes('#slide:2'));
+        const slide1Index = lines.findIndex((l) => l.includes('#slide:1'));
+        // presentation.xmlの順序に従いスライド2→スライド1の順
+        expect(slide2Index).toBeLessThan(slide1Index);
+        expect(result.content).toContain('Slide Text');
+      });
+
+      it('混在描画要素（画像・テキスト・テーブル）が複数スライドで正しく抽出されること', async () => {
+        // Arrange
+        const fileBuffer = Buffer.from('dummy-pptx');
+        mockReadFile.mockResolvedValue(fileBuffer);
+
+        setupCheerioForSlideOrder(['rId2', 'rId3']);
+        mockSlideParseRelationships.mockReturnValue([
+          { rId: 'rId2', target: 'slides/slide1.xml' },
+          { rId: 'rId3', target: 'slides/slide2.xml' },
+        ]);
+
+        const slide1File = createMockZipFileEntry('<slide1/>');
+        const slide2File = createMockZipFileEntry('<slide2/>');
+        const presentationFile = createMockZipFileEntry('<presentation/>');
+        const presentationRelsFile = createMockZipFileEntry('<Relationships/>');
+
+        const zipFileMap: Record<string, any> = {
+          'ppt/presentation.xml': presentationFile,
+          'ppt/_rels/presentation.xml.rels': presentationRelsFile,
+          'ppt/slides/slide1.xml': slide1File,
+          'ppt/slides/slide2.xml': slide2File,
+          'ppt/slides/_rels/slide1.xml.rels': null,
+          'ppt/slides/_rels/slide2.xml.rels': null,
+        };
+        const zip = {
+          file: jest.fn((path: string) => zipFileMap[path] ?? null),
+        };
+        mockZipLoadAsync.mockResolvedValue(zip);
+
+        // スライド1: テキストボックスと図形
+        // スライド2: テーブル
+        let callCount = 0;
+        mockSlideParseImages.mockReturnValue([]);
+        mockSlideResolveImagePaths.mockReturnValue(new Map());
+        mockSlideParseShapeTexts.mockImplementation(() => {
+          callCount++;
+          if (callCount === 1) {
+            return [
+              { text: 'Title', rowIndex: 0, isTextBox: true },
+              {
+                text: 'Shape Content',
+                rowIndex: 0,
+                metadata: { presetGeometry: 'rect' },
+              },
+            ];
+          }
+          return [];
+        });
+        mockSlideParseConnectors.mockReturnValue([]);
+
+        let tableCallCount = 0;
+        mockSlideParseTables.mockImplementation(() => {
+          tableCallCount++;
+          if (tableCallCount === 2) {
+            return [
+              {
+                rows: [
+                  ['A', 'B'],
+                  ['C', 'D'],
+                ],
+              },
+            ];
+          }
+          return [];
+        });
+        mockSlideEscapeCsvCell.mockImplementation((val: string) => val);
+        mockFormatDrawingTagFull.mockReturnValue('[shape_1:rect]');
+
+        // Act
+        const result = await strategy.extract('/path/to/test.pptx');
+
+        // Assert
+        expect(result.content).toContain('#slide:1');
+        expect(result.content).toContain('#slide:2');
+        expect(result.content).toContain('Title');
+        expect(result.content).toContain('[shape_1:rect] Shape Content');
+        expect(result.content).toContain('A,B');
+        expect(result.content).toContain('C,D');
+      });
+    });
   });
 });

@@ -1236,4 +1236,384 @@ describe('XlsxDrawingParser', () => {
       });
     });
   });
+
+  describe('バージョン互換性テスト', () => {
+    it('名前空間プレフィックスなしのDrawing XMLで画像を抽出する', () => {
+      const xml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+          <wsDr xmlns="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing"
+                xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+                xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+            <twoCellAnchor>
+              <from><col>0</col><row>2</row></from>
+              <to><col>4</col><row>8</row></to>
+              <pic>
+                <blipFill>
+                  <a:blip r:embed="rId1"/>
+                </blipFill>
+              </pic>
+            </twoCellAnchor>
+          </wsDr>`;
+      const images = parser.parseImages(xml);
+      expect(images).toHaveLength(1);
+      expect(images[0].rId).toBe('rId1');
+    });
+
+    it('absoluteAnchor内の画像を抽出する', () => {
+      const xml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+          <xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing"
+                    xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+                    xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+            <xdr:absoluteAnchor>
+              <xdr:pic>
+                <xdr:blipFill>
+                  <a:blip r:embed="rId5"/>
+                </xdr:blipFill>
+              </xdr:pic>
+            </xdr:absoluteAnchor>
+          </xdr:wsDr>`;
+      const images = parser.parseImages(xml);
+      expect(images).toHaveLength(1);
+      expect(images[0].rId).toBe('rId5');
+    });
+
+    it('r:link属性の外部画像参照を抽出する', () => {
+      const xml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+          <xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing"
+                    xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+                    xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+            <xdr:twoCellAnchor>
+              <xdr:from><xdr:col>0</xdr:col><xdr:row>0</xdr:row></xdr:from>
+              <xdr:to><xdr:col>5</xdr:col><xdr:row>5</xdr:row></xdr:to>
+              <xdr:pic>
+                <xdr:blipFill>
+                  <a:blip r:link="rId10"/>
+                </xdr:blipFill>
+              </xdr:pic>
+            </xdr:twoCellAnchor>
+          </xdr:wsDr>`;
+      const images = parser.parseImages(xml);
+      expect(images).toHaveLength(1);
+      expect(images[0].rId).toBe('rId10');
+    });
+
+    it('グループ図形内の画像を抽出する', () => {
+      const xml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+          <xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing"
+                    xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+                    xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+            <xdr:twoCellAnchor>
+              <xdr:from><xdr:col>0</xdr:col><xdr:row>0</xdr:row></xdr:from>
+              <xdr:to><xdr:col>10</xdr:col><xdr:row>10</xdr:row></xdr:to>
+              <xdr:grpSp>
+                <xdr:pic>
+                  <xdr:blipFill>
+                    <a:blip r:embed="rId7"/>
+                  </xdr:blipFill>
+                </xdr:pic>
+              </xdr:grpSp>
+            </xdr:twoCellAnchor>
+          </xdr:wsDr>`;
+      const images = parser.parseImages(xml);
+      expect(images).toHaveLength(1);
+      expect(images[0].rId).toBe('rId7');
+    });
+
+    it('txBody内にa:p要素がない図形はテキストなしとして処理される', () => {
+      const xml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+          <xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing"
+                    xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+            <xdr:twoCellAnchor>
+              <xdr:from><xdr:col>0</xdr:col><xdr:row>0</xdr:row></xdr:from>
+              <xdr:to><xdr:col>5</xdr:col><xdr:row>5</xdr:row></xdr:to>
+              <xdr:sp>
+                <xdr:nvSpPr><xdr:cNvPr id="2" name="Shape1"/></xdr:nvSpPr>
+                <xdr:txBody></xdr:txBody>
+              </xdr:sp>
+            </xdr:twoCellAnchor>
+          </xdr:wsDr>`;
+      const shapes = parser.parseShapeTexts(xml);
+      expect(shapes).toEqual([]);
+    });
+
+    it('a:fld要素内のテキストを抽出する', () => {
+      const xml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+          <xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing"
+                    xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+            <xdr:twoCellAnchor>
+              <xdr:from><xdr:col>0</xdr:col><xdr:row>0</xdr:row></xdr:from>
+              <xdr:to><xdr:col>5</xdr:col><xdr:row>5</xdr:row></xdr:to>
+              <xdr:sp>
+                <xdr:nvSpPr><xdr:cNvPr id="2" name="DateField"/></xdr:nvSpPr>
+                <xdr:txBody>
+                  <a:p>
+                    <a:fld type="{DATE}">
+                      <a:t>2024/01/01</a:t>
+                    </a:fld>
+                  </a:p>
+                </xdr:txBody>
+              </xdr:sp>
+            </xdr:twoCellAnchor>
+          </xdr:wsDr>`;
+      const shapes = parser.parseShapeTexts(xml);
+      expect(shapes).toHaveLength(1);
+      expect(shapes[0].text).toBe('2024/01/01');
+    });
+
+    it('名前空間プレフィックス混在XMLから図形テキストを抽出する', () => {
+      const xml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+          <wsDr xmlns="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing"
+                xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+            <twoCellAnchor>
+              <from><col>0</col><row>0</row></from>
+              <to><col>5</col><row>5</row></to>
+              <sp>
+                <nvSpPr><cNvPr id="2" name="Shape1"/></nvSpPr>
+                <txBody>
+                  <a:p><a:r><a:t>プレフィックスなし図形</a:t></a:r></a:p>
+                </txBody>
+              </sp>
+            </twoCellAnchor>
+          </wsDr>`;
+      const shapes = parser.parseShapeTexts(xml);
+      expect(shapes).toHaveLength(1);
+      expect(shapes[0].text).toBe('プレフィックスなし図形');
+    });
+  });
+});
+
+describe('XlsxDrawingParser - mc:AlternateContent重複抽出防止', () => {
+  const parser = new XlsxDrawingParser();
+
+  it('mc:AlternateContent内の画像がmc:Choice側のみ抽出される（Fallbackが除去される）', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+      <xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing"
+                 xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+                 xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+                 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+        <xdr:twoCellAnchor>
+          <xdr:from><xdr:col>1</xdr:col><xdr:row>2</xdr:row></xdr:from>
+          <xdr:to><xdr:col>3</xdr:col><xdr:row>5</xdr:row></xdr:to>
+          <mc:AlternateContent>
+            <mc:Choice Requires="a14">
+              <xdr:pic>
+                <xdr:blipFill><a:blip r:embed="rId1"/></xdr:blipFill>
+              </xdr:pic>
+            </mc:Choice>
+            <mc:Fallback>
+              <xdr:pic>
+                <xdr:blipFill><a:blip r:embed="rId2"/></xdr:blipFill>
+              </xdr:pic>
+            </mc:Fallback>
+          </mc:AlternateContent>
+        </xdr:twoCellAnchor>
+      </xdr:wsDr>`;
+
+    const images = parser.parseImages(xml);
+
+    expect(images).toHaveLength(1);
+    expect(images[0].rId).toBe('rId1');
+  });
+
+  it('mc:AlternateContent内の図形テキストが重複なく抽出される', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+      <xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing"
+                 xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+                 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+        <xdr:twoCellAnchor>
+          <xdr:from><xdr:col>0</xdr:col><xdr:row>0</xdr:row></xdr:from>
+          <xdr:to><xdr:col>2</xdr:col><xdr:row>2</xdr:row></xdr:to>
+          <mc:AlternateContent>
+            <mc:Choice Requires="a14">
+              <xdr:sp>
+                <xdr:nvSpPr><xdr:cNvPr id="5" name="Shape1"/></xdr:nvSpPr>
+                <xdr:txBody><a:p><a:r><a:t>新形式テキスト</a:t></a:r></a:p></xdr:txBody>
+              </xdr:sp>
+            </mc:Choice>
+            <mc:Fallback>
+              <xdr:sp>
+                <xdr:nvSpPr><xdr:cNvPr id="5" name="Shape1"/></xdr:nvSpPr>
+                <xdr:txBody><a:p><a:r><a:t>旧形式テキスト</a:t></a:r></a:p></xdr:txBody>
+              </xdr:sp>
+            </mc:Fallback>
+          </mc:AlternateContent>
+        </xdr:twoCellAnchor>
+      </xdr:wsDr>`;
+
+    const shapes = parser.parseShapeTexts(xml);
+
+    expect(shapes).toHaveLength(1);
+    expect(shapes[0].text).toBe('新形式テキスト');
+  });
+
+  it('mc:AlternateContent内のコネクタが重複なく抽出される', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+      <xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing"
+                 xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+                 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+        <xdr:twoCellAnchor>
+          <xdr:from><xdr:col>0</xdr:col><xdr:row>0</xdr:row></xdr:from>
+          <xdr:to><xdr:col>3</xdr:col><xdr:row>3</xdr:row></xdr:to>
+          <mc:AlternateContent>
+            <mc:Choice Requires="a14">
+              <xdr:cxnSp>
+                <xdr:spPr><a:prstGeom prst="straightConnector1"/></xdr:spPr>
+              </xdr:cxnSp>
+            </mc:Choice>
+            <mc:Fallback>
+              <xdr:cxnSp>
+                <xdr:spPr><a:prstGeom prst="line"/></xdr:spPr>
+              </xdr:cxnSp>
+            </mc:Fallback>
+          </mc:AlternateContent>
+        </xdr:twoCellAnchor>
+      </xdr:wsDr>`;
+
+    const connectors = parser.parseConnectors(xml);
+
+    expect(connectors).toHaveLength(1);
+    expect(connectors[0].metadata?.presetGeometry).toBe('straightConnector1');
+  });
+});
+
+describe('XlsxDrawingParser - absoluteAnchor対応', () => {
+  const parser = new XlsxDrawingParser();
+
+  it('absoluteAnchor内の画像を抽出する', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+      <xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing"
+                 xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+                 xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+        <xdr:absoluteAnchor>
+          <xdr:pic>
+            <xdr:blipFill><a:blip r:embed="rId1"/></xdr:blipFill>
+          </xdr:pic>
+        </xdr:absoluteAnchor>
+      </xdr:wsDr>`;
+
+    const images = parser.parseImages(xml);
+
+    expect(images).toHaveLength(1);
+    expect(images[0].rId).toBe('rId1');
+    expect(images[0].rowIndex).toBe(0);
+    expect(images[0].cellRange).toBeUndefined();
+  });
+
+  it('absoluteAnchor内の図形テキストを抽出する', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+      <xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing"
+                 xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+        <xdr:absoluteAnchor>
+          <xdr:sp>
+            <xdr:nvSpPr><xdr:cNvPr id="10" name="AbsShape"/></xdr:nvSpPr>
+            <xdr:txBody><a:p><a:r><a:t>絶対アンカーテキスト</a:t></a:r></a:p></xdr:txBody>
+          </xdr:sp>
+        </xdr:absoluteAnchor>
+      </xdr:wsDr>`;
+
+    const shapes = parser.parseShapeTexts(xml);
+
+    expect(shapes).toHaveLength(1);
+    expect(shapes[0].text).toBe('絶対アンカーテキスト');
+    expect(shapes[0].rowIndex).toBe(0);
+  });
+
+  it('absoluteAnchor内のコネクタを抽出する', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+      <xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing"
+                 xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+        <xdr:absoluteAnchor>
+          <xdr:cxnSp>
+            <xdr:spPr><a:prstGeom prst="straightConnector1"/></xdr:spPr>
+          </xdr:cxnSp>
+        </xdr:absoluteAnchor>
+      </xdr:wsDr>`;
+
+    const connectors = parser.parseConnectors(xml);
+
+    expect(connectors).toHaveLength(1);
+    expect(connectors[0].metadata?.presetGeometry).toBe('straightConnector1');
+    expect(connectors[0].rowIndex).toBe(0);
+  });
+});
+
+describe('XlsxDrawingParser - グループ図形の再帰探索', () => {
+  const parser = new XlsxDrawingParser();
+
+  it('grpSp内の画像が再帰的に抽出される', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+      <xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing"
+                 xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+                 xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+        <xdr:twoCellAnchor>
+          <xdr:from><xdr:col>0</xdr:col><xdr:row>0</xdr:row></xdr:from>
+          <xdr:to><xdr:col>5</xdr:col><xdr:row>5</xdr:row></xdr:to>
+          <xdr:grpSp>
+            <xdr:pic>
+              <xdr:blipFill><a:blip r:embed="rId1"/></xdr:blipFill>
+            </xdr:pic>
+            <xdr:grpSp>
+              <xdr:pic>
+                <xdr:blipFill><a:blip r:embed="rId2"/></xdr:blipFill>
+              </xdr:pic>
+            </xdr:grpSp>
+          </xdr:grpSp>
+        </xdr:twoCellAnchor>
+      </xdr:wsDr>`;
+
+    const images = parser.parseImages(xml);
+
+    expect(images).toHaveLength(2);
+    expect(images[0].rId).toBe('rId1');
+    expect(images[1].rId).toBe('rId2');
+  });
+
+  it('grpSp内の図形テキストが再帰的に抽出される', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+      <xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing"
+                 xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+        <xdr:twoCellAnchor>
+          <xdr:from><xdr:col>0</xdr:col><xdr:row>0</xdr:row></xdr:from>
+          <xdr:to><xdr:col>5</xdr:col><xdr:row>5</xdr:row></xdr:to>
+          <xdr:grpSp>
+            <xdr:sp>
+              <xdr:nvSpPr><xdr:cNvPr id="2" name="Shape1"/></xdr:nvSpPr>
+              <xdr:txBody><a:p><a:r><a:t>グループ内図形1</a:t></a:r></a:p></xdr:txBody>
+            </xdr:sp>
+            <xdr:grpSp>
+              <xdr:sp>
+                <xdr:nvSpPr><xdr:cNvPr id="3" name="Shape2"/></xdr:nvSpPr>
+                <xdr:txBody><a:p><a:r><a:t>ネスト内図形2</a:t></a:r></a:p></xdr:txBody>
+              </xdr:sp>
+            </xdr:grpSp>
+          </xdr:grpSp>
+        </xdr:twoCellAnchor>
+      </xdr:wsDr>`;
+
+    const shapes = parser.parseShapeTexts(xml);
+
+    expect(shapes).toHaveLength(2);
+    expect(shapes[0].text).toBe('グループ内図形1');
+    expect(shapes[1].text).toBe('ネスト内図形2');
+  });
+
+  it('grpSp内のコネクタが再帰的に抽出される', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+      <xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing"
+                 xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+        <xdr:twoCellAnchor>
+          <xdr:from><xdr:col>0</xdr:col><xdr:row>0</xdr:row></xdr:from>
+          <xdr:to><xdr:col>5</xdr:col><xdr:row>5</xdr:row></xdr:to>
+          <xdr:grpSp>
+            <xdr:cxnSp>
+              <xdr:spPr><a:prstGeom prst="straightConnector1"/></xdr:spPr>
+            </xdr:cxnSp>
+          </xdr:grpSp>
+        </xdr:twoCellAnchor>
+      </xdr:wsDr>`;
+
+    const connectors = parser.parseConnectors(xml);
+
+    expect(connectors).toHaveLength(1);
+    expect(connectors[0].metadata?.presetGeometry).toBe('straightConnector1');
+  });
 });

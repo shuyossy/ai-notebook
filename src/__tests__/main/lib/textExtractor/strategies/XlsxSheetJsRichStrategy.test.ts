@@ -41,6 +41,8 @@ const mockResolveConnectorEndpoints = jest.fn();
 jest.mock('@/main/lib/textExtractor/XlsxDrawingParser', () => ({
   DRAWING_RELATIONSHIP_TYPE:
     'http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing',
+  DRAWING_RELATIONSHIP_TYPE_STRICT:
+    'http://purl.oclc.org/ooxml/officeDocument/relationships/drawing',
   XlsxDrawingParser: jest.fn().mockImplementation(() => ({
     parseRelationships: (...args: any[]) => mockParseRelationships(...args),
     resolveRelativePath: (...args: any[]) => mockResolveRelativePath(...args),
@@ -1415,6 +1417,202 @@ describe('XlsxSheetJsRichStrategy', () => {
           originalError,
         );
       });
+    });
+  });
+
+  describe('Strict OOXMLネームスペース対応', () => {
+    it('Strict OOXML形式のリレーションシップタイプを認識してdrawingを処理する', async () => {
+      // Arrange
+      const fileBuffer = Buffer.from('dummy-xlsx');
+      mockReadFile.mockResolvedValue(fileBuffer);
+
+      // Strict OOXML URIをType属性に持つrelsファイルを作成
+      const strictRels =
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+        '<Relationship Id="rId_drawing" Target="../drawings/drawing1.xml" ' +
+        'Type="http://purl.oclc.org/ooxml/officeDocument/relationships/drawing"/>' +
+        '</Relationships>';
+      const relsFileEntry = createMockZipFileEntry(strictRels);
+      const drawingFileEntry = createMockZipFileEntry('<drawing/>');
+
+      const zipFileMap: Record<string, any> = {
+        'xl/worksheets/_rels/sheet1.xml.rels': relsFileEntry,
+        'xl/drawings/drawing1.xml': drawingFileEntry,
+        'xl/workbook.xml': null,
+        'xl/_rels/workbook.xml.rels': null,
+      };
+      const zip = {
+        file: jest.fn((path: string) => zipFileMap[path] ?? null),
+        folder: jest.fn(() =>
+          createMockFolder([{ relativePath: 'sheet1.xml.rels', dir: false }]),
+        ),
+      };
+      mockZipLoadAsync.mockResolvedValue(zip);
+
+      const sheetData = { '!ref': 'A1:B2' };
+      mockXlsxRead.mockReturnValue({
+        SheetNames: ['Sheet1'],
+        Sheets: { Sheet1: sheetData },
+      });
+      mockSheetToCsv.mockReturnValue('テスト');
+      mockDecodeRange.mockReturnValue({ s: { r: 0 }, e: { r: 0 } });
+
+      // DrawingParser: Strict OOXML URIのリレーションシップを返す
+      mockParseRelationships.mockReturnValue([
+        {
+          rId: 'rId_drawing',
+          target: '../drawings/drawing1.xml',
+          type: 'http://purl.oclc.org/ooxml/officeDocument/relationships/drawing',
+        },
+      ]);
+      mockResolveRelativePath.mockReturnValue('xl/drawings/drawing1.xml');
+      mockParseImages.mockReturnValue([]);
+      mockResolveImagePaths.mockReturnValue(new Map());
+      mockParseShapeTexts.mockReturnValue([
+        {
+          text: 'Strict形式テスト',
+          metadata: {
+            presetGeometry: 'rect',
+            position: {
+              fromCol: 0,
+              fromRow: 0,
+              toCol: 2,
+              toRow: 2,
+            },
+          },
+        },
+      ]);
+      mockParseConnectors.mockReturnValue([]);
+      mockFormatDrawingTagFull.mockReturnValue(
+        '[shape_1:rect cell:A1-C3] Strict形式テスト',
+      );
+
+      // Act
+      const result = await strategy.extract('/path/to/test.xlsx');
+
+      // Assert
+      expect(result.content).toContain('Strict形式テスト');
+    });
+  });
+
+  describe('Strict OOXML workbook.xml互換性テスト', () => {
+    it('Strict OOXML workbook.xml（`<x:sheet>`要素）でシート名解決できる', async () => {
+      // Arrange
+      const fileBuffer = Buffer.from('dummy-xlsx');
+      mockReadFile.mockResolvedValue(fileBuffer);
+
+      // workbook.xmlを<x:sheet>プレフィックス形式にする
+      const strictWorkbookXml =
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+        '<workbook xmlns:x="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+        '<sheets>' +
+        '<x:sheet name="売上シート" sheetId="1" r:id="rId1"/>' +
+        '<x:sheet name="経費シート" sheetId="2" r:id="rId2"/>' +
+        '</sheets></workbook>';
+      const workbookRelsXml =
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+        '<Relationship Id="rId1" Target="worksheets/sheet1.xml" ' +
+        'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet"/>' +
+        '<Relationship Id="rId2" Target="worksheets/sheet2.xml" ' +
+        'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet"/>' +
+        '</Relationships>';
+
+      const workbookXmlEntry = createMockZipFileEntry(strictWorkbookXml);
+      const workbookRelsEntry = createMockZipFileEntry(workbookRelsXml);
+
+      const zipFileMap: Record<string, any> = {
+        'xl/worksheets/_rels/sheet1.xml.rels': null,
+        'xl/worksheets/_rels/sheet2.xml.rels': null,
+        'xl/workbook.xml': workbookXmlEntry,
+        'xl/_rels/workbook.xml.rels': workbookRelsEntry,
+      };
+      const zip = {
+        file: jest.fn((path: string) => zipFileMap[path] ?? null),
+        folder: jest.fn(() => createMockFolder([])),
+      };
+      mockZipLoadAsync.mockResolvedValue(zip);
+
+      // cheerioモック: <x:sheet>要素のパース結果を返す
+      let cheerioCallIndex = 0;
+      const mockCheerioInstance: any = jest.fn((selector: any) => {
+        if (typeof selector === 'string' && selector.includes('sheet')) {
+          return {
+            each: jest.fn((callback: (index: number, el: any) => void) => {
+              callback(0, 'el0');
+              callback(1, 'el1');
+            }),
+          };
+        }
+        // $(el)呼び出し: 各要素のattr
+        const attrs: Record<string, string>[] = [
+          { name: '売上シート', 'r:id': 'rId1' },
+          { name: '経費シート', 'r:id': 'rId2' },
+        ];
+        const idx = cheerioCallIndex++;
+        const attrData = attrs[idx % attrs.length];
+        return {
+          attr: jest.fn((key: string) => attrData[key]),
+        };
+      });
+      mockCheerioLoad.mockReturnValue(mockCheerioInstance);
+
+      // parseRelationships: workbook.xml.relsからのリレーション
+      mockParseRelationships.mockReturnValue([
+        { rId: 'rId1', target: 'worksheets/sheet1.xml' },
+        { rId: 'rId2', target: 'worksheets/sheet2.xml' },
+      ]);
+
+      mockXlsxRead.mockReturnValue({
+        SheetNames: ['売上シート', '経費シート'],
+        Sheets: {
+          売上シート: { '!ref': 'A1:A1' },
+          経費シート: { '!ref': 'A1:A1' },
+        },
+      });
+      mockSheetToCsv
+        .mockReturnValueOnce('売上データ')
+        .mockReturnValueOnce('経費データ');
+      mockDecodeRange.mockReturnValue({ s: { r: 0 }, e: { r: 0 } });
+
+      // Act
+      const result = await strategy.extract('/path/to/test.xlsx');
+
+      // Assert: シート名がcontent内の#sheet:マーカーに反映されていること
+      expect(result.content).toContain('#sheet:売上シート');
+      expect(result.content).toContain('#sheet:経費シート');
+    });
+
+    it('Office 2007形式（プレフィックスなし`<sheet>`）のシート名解決', async () => {
+      // Arrange
+      const fileBuffer = Buffer.from('dummy-xlsx');
+      mockReadFile.mockResolvedValue(fileBuffer);
+
+      const zip = createMockZip();
+      mockZipLoadAsync.mockResolvedValue(zip);
+
+      // workbook.xml関連ファイルなし → フォールバックでSheetNames[index]を使用
+      zip.file.mockReturnValue(null);
+      zip.folder.mockReturnValue(createMockFolder([]));
+
+      mockXlsxRead.mockReturnValue({
+        SheetNames: ['第1四半期', '第2四半期'],
+        Sheets: {
+          第1四半期: { '!ref': 'A1:A1' },
+          第2四半期: { '!ref': 'A1:A1' },
+        },
+      });
+      mockSheetToCsv
+        .mockReturnValueOnce('Q1データ')
+        .mockReturnValueOnce('Q2データ');
+      mockDecodeRange.mockReturnValue({ s: { r: 0 }, e: { r: 0 } });
+
+      // Act
+      const result = await strategy.extract('/path/to/test.xlsx');
+
+      // Assert: 標準形式のworkbook.xmlでシート名が正しく解決されること
+      expect(result.content).toContain('#sheet:第1四半期');
+      expect(result.content).toContain('#sheet:第2四半期');
     });
   });
 });

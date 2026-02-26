@@ -40,6 +40,9 @@ export class PptxSlideParser {
     const $ = cheerio.load(slideXml, { xml: true });
     const images: PptxImage[] = [];
 
+    // mc:Fallback要素を除去して重複抽出を防止（Office 2010+のAlternateContent対応）
+    $('mc\\:Fallback, Fallback').remove();
+
     const pics = $('p\\:pic, pic');
     pics.each((_, pic) => {
       const blipFill = $(pic).find('p\\:blipFill, blipFill');
@@ -59,6 +62,9 @@ export class PptxSlideParser {
   parseShapeTexts(slideXml: string): DrawingShapeText[] {
     const $ = cheerio.load(slideXml, { xml: true });
     const shapeTexts: DrawingShapeText[] = [];
+
+    // mc:Fallback要素を除去して重複抽出を防止
+    $('mc\\:Fallback, Fallback').remove();
 
     const shapes = $('p\\:sp, sp');
     shapes.each((_, shape) => {
@@ -81,7 +87,8 @@ export class PptxSlideParser {
       const cNvSpPr = $shape
         .find('p\\:nvSpPr > p\\:cNvSpPr, nvSpPr > cNvSpPr')
         .first();
-      const isTxBox = cNvSpPr.attr('txBox') === '1';
+      const txBoxAttr = cNvSpPr.attr('txBox');
+      const isTxBox = txBoxAttr === '1' || txBoxAttr === 'true';
 
       const nvPr = $shape.find('p\\:nvSpPr > p\\:nvPr, nvSpPr > nvPr').first();
       const isPlaceholder = nvPr.find('p\\:ph, ph').length > 0;
@@ -109,6 +116,9 @@ export class PptxSlideParser {
   parseConnectors(slideXml: string): DrawingConnector[] {
     const $ = cheerio.load(slideXml, { xml: true });
     const connectors: DrawingConnector[] = [];
+
+    // mc:Fallback要素を除去して重複抽出を防止
+    $('mc\\:Fallback, Fallback').remove();
 
     const cxnSps = $('p\\:cxnSp, cxnSp');
     cxnSps.each((_, cxnSp) => {
@@ -191,6 +201,9 @@ export class PptxSlideParser {
     const $ = cheerio.load(slideXml, { xml: true });
     const tables: PptxTable[] = [];
 
+    // mc:Fallback要素を除去して重複抽出を防止
+    $('mc\\:Fallback, Fallback').remove();
+
     const tbls = $('a\\:tbl, tbl');
     tbls.each((_, tbl) => {
       const rows: string[][] = [];
@@ -199,23 +212,50 @@ export class PptxSlideParser {
         const cells: string[] = [];
         const tcs = $(tr).find('a\\:tc, tc');
         tcs.each((_, tc) => {
+          const $tc = $(tc);
+
+          // vMerge属性あり（rowSpan未指定）の場合は継続セルとして空セルにする
+          const vMergeAttr = $tc.attr('vMerge');
+          if (vMergeAttr !== undefined && vMergeAttr !== null) {
+            cells.push('');
+            return;
+          }
+
+          // hMerge属性ありの場合はgridSpanの被マージセルとしてスキップする
+          // gridSpan処理で空セルが追加されるため、ここでは何もしない
+          const hMergeAttr = $tc.attr('hMerge');
+          if (hMergeAttr !== undefined && hMergeAttr !== null) {
+            return;
+          }
+
           // セル内の段落ごとにテキストを抽出し、段落間を改行で結合
           const paragraphs: string[] = [];
-          $(tc)
-            .find('a\\:p, p')
-            .each((_, p) => {
-              const texts: string[] = [];
-              $(p)
-                .find('a\\:t, t')
-                .each((_, t) => {
-                  const text = $(t).text();
-                  if (text) {
-                    texts.push(text);
-                  }
-                });
-              paragraphs.push(texts.join(''));
-            });
-          cells.push(paragraphs.join('\n'));
+          $tc.find('a\\:p, p').each((_, p) => {
+            const texts: string[] = [];
+            $(p)
+              .find('a\\:t, t')
+              .each((_, t) => {
+                const text = $(t).text();
+                if (text) {
+                  texts.push(text);
+                }
+              });
+            paragraphs.push(texts.join(''));
+          });
+          const cellText = paragraphs.join('\n');
+          cells.push(cellText);
+
+          // gridSpan > 1の場合、一部ツールがhMerge属性を生成しないことがあるため
+          // 明示的に空セルを追加する（hMergeセルは重複防止のためスキップ済み）
+          const gridSpanAttr = $tc.attr('gridSpan');
+          if (gridSpanAttr) {
+            const gridSpan = parseInt(gridSpanAttr, 10);
+            if (gridSpan > 1) {
+              for (let i = 1; i < gridSpan; i++) {
+                cells.push('');
+              }
+            }
+          }
         });
         rows.push(cells);
       });

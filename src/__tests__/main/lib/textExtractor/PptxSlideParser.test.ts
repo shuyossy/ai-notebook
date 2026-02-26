@@ -1043,3 +1043,500 @@ describe('PptxSlideParser', () => {
     });
   });
 });
+
+describe('PptxSlideParser - mc:AlternateContent重複抽出防止', () => {
+  const parser = new PptxSlideParser();
+
+  it('mc:AlternateContent内の画像がmc:Choice側のみ抽出される', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+      <p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+             xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+             xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+        <p:cSld><p:spTree>
+          <mc:AlternateContent>
+            <mc:Choice Requires="a14">
+              <p:pic>
+                <p:blipFill><a:blip r:embed="rId1"/></p:blipFill>
+              </p:pic>
+            </mc:Choice>
+            <mc:Fallback>
+              <p:pic>
+                <p:blipFill><a:blip r:embed="rId2"/></p:blipFill>
+              </p:pic>
+            </mc:Fallback>
+          </mc:AlternateContent>
+        </p:spTree></p:cSld>
+      </p:sld>`;
+
+    const images = parser.parseImages(xml);
+
+    expect(images).toHaveLength(1);
+    expect(images[0].rId).toBe('rId1');
+  });
+
+  it('mc:AlternateContent内の図形テキストが重複なく抽出される', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+      <p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+             xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+        <p:cSld><p:spTree>
+          <mc:AlternateContent>
+            <mc:Choice Requires="a14">
+              <p:sp>
+                <p:nvSpPr><p:cNvPr id="2" name="Shape1"/></p:nvSpPr>
+                <p:txBody><a:p><a:r><a:t>新形式テキスト</a:t></a:r></a:p></p:txBody>
+              </p:sp>
+            </mc:Choice>
+            <mc:Fallback>
+              <p:sp>
+                <p:nvSpPr><p:cNvPr id="2" name="Shape1"/></p:nvSpPr>
+                <p:txBody><a:p><a:r><a:t>旧形式テキスト</a:t></a:r></a:p></p:txBody>
+              </p:sp>
+            </mc:Fallback>
+          </mc:AlternateContent>
+        </p:spTree></p:cSld>
+      </p:sld>`;
+
+    const shapes = parser.parseShapeTexts(xml);
+
+    expect(shapes).toHaveLength(1);
+    expect(shapes[0].text).toBe('新形式テキスト');
+  });
+
+  it('mc:AlternateContent内のコネクタが重複なく抽出される', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+      <p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+             xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+        <p:cSld><p:spTree>
+          <mc:AlternateContent>
+            <mc:Choice Requires="a14">
+              <p:cxnSp>
+                <p:spPr><a:prstGeom prst="straightConnector1"/></p:spPr>
+              </p:cxnSp>
+            </mc:Choice>
+            <mc:Fallback>
+              <p:cxnSp>
+                <p:spPr><a:prstGeom prst="line"/></p:spPr>
+              </p:cxnSp>
+            </mc:Fallback>
+          </mc:AlternateContent>
+        </p:spTree></p:cSld>
+      </p:sld>`;
+
+    const connectors = parser.parseConnectors(xml);
+
+    expect(connectors).toHaveLength(1);
+    expect(connectors[0].metadata?.presetGeometry).toBe('straightConnector1');
+  });
+
+  it('mc:AlternateContent内のテーブルが重複なく抽出される', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+      <p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+             xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+        <p:cSld><p:spTree>
+          <mc:AlternateContent>
+            <mc:Choice Requires="a14">
+              <p:graphicFrame>
+                <a:graphic><a:graphicData>
+                  <a:tbl>
+                    <a:tr><a:tc><a:txBody><a:p><a:r><a:t>新表</a:t></a:r></a:p></a:txBody></a:tc></a:tr>
+                  </a:tbl>
+                </a:graphicData></a:graphic>
+              </p:graphicFrame>
+            </mc:Choice>
+            <mc:Fallback>
+              <p:graphicFrame>
+                <a:graphic><a:graphicData>
+                  <a:tbl>
+                    <a:tr><a:tc><a:txBody><a:p><a:r><a:t>旧表</a:t></a:r></a:p></a:txBody></a:tc></a:tr>
+                  </a:tbl>
+                </a:graphicData></a:graphic>
+              </p:graphicFrame>
+            </mc:Fallback>
+          </mc:AlternateContent>
+        </p:spTree></p:cSld>
+      </p:sld>`;
+
+    const tables = parser.parseTables(xml);
+
+    expect(tables).toHaveLength(1);
+    expect(tables[0].rows).toEqual([['新表']]);
+  });
+});
+
+describe('PptxSlideParser - テーブルのgridSpan/vMerge対応', () => {
+  const parser = new PptxSlideParser();
+
+  it('gridSpanで列方向にマージされたセルを空セルで補完する', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+      <p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+             xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+        <p:cSld><p:spTree>
+          <p:graphicFrame>
+            <a:graphic><a:graphicData>
+              <a:tbl>
+                <a:tr>
+                  <a:tc gridSpan="2"><a:txBody><a:p><a:r><a:t>マージ</a:t></a:r></a:p></a:txBody></a:tc>
+                  <a:tc hMerge="1"><a:txBody><a:p></a:p></a:txBody></a:tc>
+                  <a:tc><a:txBody><a:p><a:r><a:t>通常</a:t></a:r></a:p></a:txBody></a:tc>
+                </a:tr>
+              </a:tbl>
+            </a:graphicData></a:graphic>
+          </p:graphicFrame>
+        </p:spTree></p:cSld>
+      </p:sld>`;
+
+    const tables = parser.parseTables(xml);
+
+    expect(tables).toHaveLength(1);
+    expect(tables[0].rows).toEqual([['マージ', '', '通常']]);
+  });
+
+  it('vMergeで行方向にマージされたセルを空セルで補完する', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+      <p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+             xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+        <p:cSld><p:spTree>
+          <p:graphicFrame>
+            <a:graphic><a:graphicData>
+              <a:tbl>
+                <a:tr>
+                  <a:tc rowSpan="2"><a:txBody><a:p><a:r><a:t>マージ開始</a:t></a:r></a:p></a:txBody></a:tc>
+                  <a:tc><a:txBody><a:p><a:r><a:t>B1</a:t></a:r></a:p></a:txBody></a:tc>
+                </a:tr>
+                <a:tr>
+                  <a:tc vMerge="1"><a:txBody><a:p></a:p></a:txBody></a:tc>
+                  <a:tc><a:txBody><a:p><a:r><a:t>B2</a:t></a:r></a:p></a:txBody></a:tc>
+                </a:tr>
+              </a:tbl>
+            </a:graphicData></a:graphic>
+          </p:graphicFrame>
+        </p:spTree></p:cSld>
+      </p:sld>`;
+
+    const tables = parser.parseTables(xml);
+
+    expect(tables).toHaveLength(1);
+    expect(tables[0].rows).toEqual([
+      ['マージ開始', 'B1'],
+      ['', 'B2'],
+    ]);
+  });
+
+  it('gridSpanとvMergeが混在するテーブルを正しく処理する', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+      <p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+             xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+        <p:cSld><p:spTree>
+          <p:graphicFrame>
+            <a:graphic><a:graphicData>
+              <a:tbl>
+                <a:tr>
+                  <a:tc gridSpan="2" rowSpan="2"><a:txBody><a:p><a:r><a:t>2x2マージ</a:t></a:r></a:p></a:txBody></a:tc>
+                  <a:tc hMerge="1"><a:txBody><a:p></a:p></a:txBody></a:tc>
+                  <a:tc><a:txBody><a:p><a:r><a:t>C1</a:t></a:r></a:p></a:txBody></a:tc>
+                </a:tr>
+                <a:tr>
+                  <a:tc vMerge="1"><a:txBody><a:p></a:p></a:txBody></a:tc>
+                  <a:tc vMerge="1" hMerge="1"><a:txBody><a:p></a:p></a:txBody></a:tc>
+                  <a:tc><a:txBody><a:p><a:r><a:t>C2</a:t></a:r></a:p></a:txBody></a:tc>
+                </a:tr>
+                <a:tr>
+                  <a:tc><a:txBody><a:p><a:r><a:t>A3</a:t></a:r></a:p></a:txBody></a:tc>
+                  <a:tc><a:txBody><a:p><a:r><a:t>B3</a:t></a:r></a:p></a:txBody></a:tc>
+                  <a:tc><a:txBody><a:p><a:r><a:t>C3</a:t></a:r></a:p></a:txBody></a:tc>
+                </a:tr>
+              </a:tbl>
+            </a:graphicData></a:graphic>
+          </p:graphicFrame>
+        </p:spTree></p:cSld>
+      </p:sld>`;
+
+    const tables = parser.parseTables(xml);
+
+    expect(tables).toHaveLength(1);
+    expect(tables[0].rows).toEqual([
+      ['2x2マージ', '', 'C1'],
+      ['', '', 'C2'],
+      ['A3', 'B3', 'C3'],
+    ]);
+  });
+});
+
+describe('PptxSlideParser - txBox属性の柔軟化', () => {
+  const parser = new PptxSlideParser();
+
+  it('txBox="true"のテキストボックスでisTextBox=trueが設定される', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+      <p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+             xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+        <p:cSld><p:spTree>
+          <p:sp>
+            <p:nvSpPr>
+              <p:cNvPr id="2" name="TextBox1"/>
+              <p:cNvSpPr txBox="true"/>
+            </p:nvSpPr>
+            <p:txBody>
+              <a:p><a:r><a:t>テキストボックス内容</a:t></a:r></a:p>
+            </p:txBody>
+          </p:sp>
+        </p:spTree></p:cSld>
+      </p:sld>`;
+
+    const shapes = parser.parseShapeTexts(xml);
+
+    expect(shapes).toHaveLength(1);
+    expect(shapes[0].text).toBe('テキストボックス内容');
+    expect(shapes[0].isTextBox).toBe(true);
+  });
+});
+
+describe('PptxSlideParser - グループ内要素の再帰的抽出', () => {
+  const parser = new PptxSlideParser();
+
+  it('グループ内のコネクタが再帰的に抽出される', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+      <p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+             xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+        <p:cSld><p:spTree>
+          <p:grpSp>
+            <p:cxnSp>
+              <p:spPr><a:prstGeom prst="straightConnector1"/></p:spPr>
+            </p:cxnSp>
+            <p:grpSp>
+              <p:cxnSp>
+                <p:spPr><a:prstGeom prst="bentConnector3"/></p:spPr>
+              </p:cxnSp>
+            </p:grpSp>
+          </p:grpSp>
+        </p:spTree></p:cSld>
+      </p:sld>`;
+
+    const connectors = parser.parseConnectors(xml);
+
+    expect(connectors).toHaveLength(2);
+    expect(connectors[0].metadata?.presetGeometry).toBe('straightConnector1');
+    expect(connectors[1].metadata?.presetGeometry).toBe('bentConnector3');
+  });
+});
+
+describe('PptxSlideParser - gridSpanのhMergeなし対応', () => {
+  const parser = new PptxSlideParser();
+
+  it('gridSpanありだがhMerge属性なしの後続セルでも正しく空セル補完する', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+      <p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+             xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+        <p:cSld><p:spTree>
+          <p:graphicFrame>
+            <a:graphic><a:graphicData>
+              <a:tbl>
+                <a:tr>
+                  <a:tc gridSpan="3"><a:txBody><a:p><a:r><a:t>3列マージ</a:t></a:r></a:p></a:txBody></a:tc>
+                  <a:tc><a:txBody><a:p><a:r><a:t>通常セル</a:t></a:r></a:p></a:txBody></a:tc>
+                </a:tr>
+                <a:tr>
+                  <a:tc><a:txBody><a:p><a:r><a:t>A2</a:t></a:r></a:p></a:txBody></a:tc>
+                  <a:tc><a:txBody><a:p><a:r><a:t>B2</a:t></a:r></a:p></a:txBody></a:tc>
+                  <a:tc><a:txBody><a:p><a:r><a:t>C2</a:t></a:r></a:p></a:txBody></a:tc>
+                  <a:tc><a:txBody><a:p><a:r><a:t>D2</a:t></a:r></a:p></a:txBody></a:tc>
+                </a:tr>
+              </a:tbl>
+            </a:graphicData></a:graphic>
+          </p:graphicFrame>
+        </p:spTree></p:cSld>
+      </p:sld>`;
+
+    const tables = parser.parseTables(xml);
+    expect(tables).toHaveLength(1);
+    expect(tables[0].rows).toEqual([
+      ['3列マージ', '', '', '通常セル'],
+      ['A2', 'B2', 'C2', 'D2'],
+    ]);
+  });
+
+  it('gridSpan=1の通常セルでは空セルが追加されない', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+      <p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+             xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+        <p:cSld><p:spTree>
+          <p:graphicFrame>
+            <a:graphic><a:graphicData>
+              <a:tbl>
+                <a:tr>
+                  <a:tc gridSpan="1"><a:txBody><a:p><a:r><a:t>A1</a:t></a:r></a:p></a:txBody></a:tc>
+                  <a:tc gridSpan="1"><a:txBody><a:p><a:r><a:t>B1</a:t></a:r></a:p></a:txBody></a:tc>
+                </a:tr>
+              </a:tbl>
+            </a:graphicData></a:graphic>
+          </p:graphicFrame>
+        </p:spTree></p:cSld>
+      </p:sld>`;
+
+    const tables = parser.parseTables(xml);
+    expect(tables).toHaveLength(1);
+    expect(tables[0].rows).toEqual([['A1', 'B1']]);
+  });
+
+  it('vMerge属性値なし（属性存在のみ）のセルを空セルとして処理する', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+      <p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+             xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+        <p:cSld><p:spTree>
+          <p:graphicFrame>
+            <a:graphic><a:graphicData>
+              <a:tbl>
+                <a:tr>
+                  <a:tc rowSpan="2"><a:txBody><a:p><a:r><a:t>マージ開始</a:t></a:r></a:p></a:txBody></a:tc>
+                  <a:tc><a:txBody><a:p><a:r><a:t>B1</a:t></a:r></a:p></a:txBody></a:tc>
+                </a:tr>
+                <a:tr>
+                  <a:tc vMerge=""><a:txBody><a:p></a:p></a:txBody></a:tc>
+                  <a:tc><a:txBody><a:p><a:r><a:t>B2</a:t></a:r></a:p></a:txBody></a:tc>
+                </a:tr>
+              </a:tbl>
+            </a:graphicData></a:graphic>
+          </p:graphicFrame>
+        </p:spTree></p:cSld>
+      </p:sld>`;
+
+    const tables = parser.parseTables(xml);
+    expect(tables).toHaveLength(1);
+    expect(tables[0].rows).toEqual([
+      ['マージ開始', 'B1'],
+      ['', 'B2'],
+    ]);
+  });
+});
+
+describe('PptxSlideParser - Strict OOXML名前空間', () => {
+  const parser = new PptxSlideParser();
+
+  it('名前空間プレフィックスなしのスライドXMLから画像を抽出する', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+      <sld xmlns="http://schemas.openxmlformats.org/presentationml/2006/main"
+           xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+           xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+        <cSld><spTree>
+          <pic>
+            <blipFill>
+              <a:blip r:embed="rId2"/>
+            </blipFill>
+          </pic>
+        </spTree></cSld>
+      </sld>`;
+
+    const images = parser.parseImages(xml);
+    expect(images).toHaveLength(1);
+    expect(images[0].rId).toBe('rId2');
+  });
+
+  it('名前空間プレフィックスなしのスライドXMLから図形テキストを抽出する', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+      <sld xmlns="http://schemas.openxmlformats.org/presentationml/2006/main"
+           xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+        <cSld><spTree>
+          <sp>
+            <nvSpPr><cNvPr id="2" name="Shape1"/></nvSpPr>
+            <txBody>
+              <a:p><a:r><a:t>プレフィックスなしテキスト</a:t></a:r></a:p>
+            </txBody>
+          </sp>
+        </spTree></cSld>
+      </sld>`;
+
+    const shapes = parser.parseShapeTexts(xml);
+    expect(shapes).toHaveLength(1);
+    expect(shapes[0].text).toBe('プレフィックスなしテキスト');
+  });
+
+  it('グループ図形内の図形テキストを抽出する', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+      <p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+             xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+        <p:cSld><p:spTree>
+          <p:grpSp>
+            <p:grpSp>
+              <p:sp>
+                <p:nvSpPr><p:cNvPr id="7" name="DeepShape"/></p:nvSpPr>
+                <p:txBody>
+                  <a:p><a:r><a:t>深くネストされた図形</a:t></a:r></a:p>
+                </p:txBody>
+              </p:sp>
+            </p:grpSp>
+          </p:grpSp>
+        </p:spTree></p:cSld>
+      </p:sld>`;
+
+    const shapes = parser.parseShapeTexts(xml);
+    expect(shapes).toHaveLength(1);
+    expect(shapes[0].text).toBe('深くネストされた図形');
+    expect(shapes[0].drawingObjectId).toBe(7);
+  });
+
+  it('spPr要素がない最小限図形のテキストを抽出する', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+      <p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+             xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+        <p:cSld><p:spTree>
+          <p:sp>
+            <p:nvSpPr><p:cNvPr id="2" name="MinShape"/></p:nvSpPr>
+            <p:txBody>
+              <a:p><a:r><a:t>最小限図形テキスト</a:t></a:r></a:p>
+            </p:txBody>
+          </p:sp>
+        </p:spTree></p:cSld>
+      </p:sld>`;
+
+    const shapes = parser.parseShapeTexts(xml);
+    expect(shapes).toHaveLength(1);
+    expect(shapes[0].text).toBe('最小限図形テキスト');
+    expect(shapes[0].metadata).toBeUndefined();
+  });
+
+  it('複数mc:AlternateContentブロックの要素を正しく抽出する', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+      <p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+             xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+        <p:cSld><p:spTree>
+          <mc:AlternateContent>
+            <mc:Choice Requires="a14">
+              <p:sp>
+                <p:nvSpPr><p:cNvPr id="2" name="Shape1"/></p:nvSpPr>
+                <p:txBody><a:p><a:r><a:t>Choice1テキスト</a:t></a:r></a:p></p:txBody>
+              </p:sp>
+            </mc:Choice>
+            <mc:Fallback>
+              <p:sp>
+                <p:nvSpPr><p:cNvPr id="2" name="Shape1"/></p:nvSpPr>
+                <p:txBody><a:p><a:r><a:t>Fallback1テキスト</a:t></a:r></a:p></p:txBody>
+              </p:sp>
+            </mc:Fallback>
+          </mc:AlternateContent>
+          <mc:AlternateContent>
+            <mc:Choice Requires="a14">
+              <p:sp>
+                <p:nvSpPr><p:cNvPr id="3" name="Shape2"/></p:nvSpPr>
+                <p:txBody><a:p><a:r><a:t>Choice2テキスト</a:t></a:r></a:p></p:txBody>
+              </p:sp>
+            </mc:Choice>
+            <mc:Fallback>
+              <p:sp>
+                <p:nvSpPr><p:cNvPr id="3" name="Shape2"/></p:nvSpPr>
+                <p:txBody><a:p><a:r><a:t>Fallback2テキスト</a:t></a:r></a:p></p:txBody>
+              </p:sp>
+            </mc:Fallback>
+          </mc:AlternateContent>
+        </p:spTree></p:cSld>
+      </p:sld>`;
+
+    const shapes = parser.parseShapeTexts(xml);
+    expect(shapes).toHaveLength(2);
+    expect(shapes[0].text).toBe('Choice1テキスト');
+    expect(shapes[1].text).toBe('Choice2テキスト');
+  });
+});

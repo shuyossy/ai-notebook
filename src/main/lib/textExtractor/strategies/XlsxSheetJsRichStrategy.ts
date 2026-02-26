@@ -16,6 +16,7 @@ import type {
 import {
   XlsxDrawingParser,
   DRAWING_RELATIONSHIP_TYPE,
+  DRAWING_RELATIONSHIP_TYPE_STRICT,
   formatImageTag,
   formatDrawingTagFull,
   formatDrawingTagShort,
@@ -376,7 +377,8 @@ export class XlsxSheetJsRichStrategy implements ITextExtractorStrategy {
 
       for (const rel of rels) {
         const isDrawing = rel.type
-          ? rel.type === DRAWING_RELATIONSHIP_TYPE
+          ? rel.type === DRAWING_RELATIONSHIP_TYPE ||
+            rel.type === DRAWING_RELATIONSHIP_TYPE_STRICT
           : rel.target.includes('drawing');
         if (!isDrawing) continue;
 
@@ -461,7 +463,8 @@ export class XlsxSheetJsRichStrategy implements ITextExtractorStrategy {
 
       const $ = cheerio.load(workbookXml, { xml: true });
       const sheetEntries: { name: string; rId: string }[] = [];
-      $('sheet').each((_, el) => {
+      // Strict OOXML形式では<x:sheet>プレフィックス付きの場合があるため両方に対応
+      $('sheet, x\\:sheet').each((_, el) => {
         const name = $(el).attr('name');
         const rId = $(el).attr('r:id');
         if (name && rId) {

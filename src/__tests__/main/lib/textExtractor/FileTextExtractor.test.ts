@@ -445,4 +445,57 @@ describe('FileTextExtractor', () => {
       expect(extractor.isSupported('.zip')).toBe(false);
     });
   });
+
+  describe('フォールバック統合テスト', () => {
+    it('.xlsxでリッチ戦略失敗時にplain戦略にフォールバックすること', async () => {
+      // Arrange: リッチ戦略はデフォルトで失敗する（beforeEachで設定済み）
+      mockExtractViaPowerShell.mockResolvedValue('Excel plain content');
+
+      // Act
+      const result = await extractor.extract('/test/sheet.xlsx', 'sheet.xlsx');
+
+      // Assert
+      expect(mockXlsxRichExtract).toHaveBeenCalled();
+      expect(mockExtractViaPowerShell).toHaveBeenCalledWith(
+        '/test/sheet.xlsx',
+        'excel',
+      );
+      expect(result.strategyUsed).toBe('powershell-excel');
+      expect(result.formatType).toBe('xlsx-csv-v1');
+      expect(result.content).toBe('Excel plain content');
+    });
+
+    it('.pptxでリッチ戦略失敗時にplain戦略にフォールバックすること', async () => {
+      // Arrange: リッチ戦略はデフォルトで失敗する（beforeEachで設定済み）
+      mockExtractViaPowerShell.mockResolvedValue('PPT plain content');
+
+      // Act
+      const result = await extractor.extract('/test/pres.pptx', 'pres.pptx');
+
+      // Assert
+      expect(mockPptxRichExtract).toHaveBeenCalled();
+      expect(mockExtractViaPowerShell).toHaveBeenCalledWith(
+        '/test/pres.pptx',
+        'ppt',
+      );
+      expect(result.strategyUsed).toBe('powershell-ppt');
+      expect(result.formatType).toBe('pptx-plain');
+      expect(result.content).toBe('PPT plain content');
+    });
+
+    it('.pdfでリッチ戦略失敗時にplain戦略にフォールバックすること', async () => {
+      // Arrange: リッチ戦略はデフォルトで失敗する（beforeEachで設定済み）
+      mockExtractFromPdf.mockResolvedValue('PDF plain content');
+
+      // Act
+      const result = await extractor.extract('/test/doc.pdf', 'doc.pdf');
+
+      // Assert
+      expect(mockPdfRichExtract).toHaveBeenCalled();
+      expect(mockExtractFromPdf).toHaveBeenCalledWith('/test/doc.pdf');
+      expect(result.strategyUsed).toBe('pdfjs-dist');
+      expect(result.formatType).toBe('pdf-text-v1');
+      expect(result.content).toBe('PDF plain content');
+    });
+  });
 });

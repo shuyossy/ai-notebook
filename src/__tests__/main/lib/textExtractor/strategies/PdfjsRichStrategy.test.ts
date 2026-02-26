@@ -592,4 +592,315 @@ describe('PdfjsRichStrategy', () => {
       });
     });
   });
+
+  describe('CTMスタック安全性', () => {
+    it('restore操作がsave操作より多い場合でもエラーにならない', async () => {
+      const fileData = Buffer.from('fake-pdf-data');
+      mockReadFileSync.mockReturnValue(fileData);
+
+      const page = createMockPage({
+        viewportHeight: 800,
+        textItems: [{ str: 'テスト', transform: [1, 0, 0, 1, 100, 700] }],
+        operatorList: {
+          fnArray: [
+            mockOPS.save,
+            mockOPS.restore,
+            mockOPS.restore, // saveなしの余分なrestore
+            mockOPS.restore, // さらに余分
+          ],
+          argsArray: [[], [], [], []],
+        },
+      });
+      createMockPdfDocument([page]);
+
+      const result = await strategy.extract('/path/to/test.pdf');
+      expect(result.content).toContain('テスト');
+    });
+  });
+
+  describe('非標準画像チャネル', () => {
+    it('非標準チャネル数の画像はスキップされる', async () => {
+      const fileData = Buffer.from('fake-pdf-data');
+      mockReadFileSync.mockReturnValue(fileData);
+
+      // チャネル数5の画像（非標準）
+      const imageData = new Uint8ClampedArray(10 * 10 * 5);
+      const page = createMockPage({
+        viewportHeight: 800,
+        textItems: [{ str: 'テキスト', transform: [1, 0, 0, 1, 100, 500] }],
+        operatorList: {
+          fnArray: [
+            mockOPS.save,
+            mockOPS.transform,
+            mockOPS.paintImageXObject,
+            mockOPS.restore,
+          ],
+          argsArray: [[], [100, 0, 0, 100, 50, 700], ['img_nonstandard'], []],
+        },
+        objs: {
+          img_nonstandard: { data: imageData, width: 10, height: 10 },
+        },
+      });
+      createMockPdfDocument([page]);
+      mockEncodeSync.mockReturnValue(Buffer.from('png_data'));
+
+      const result = await strategy.extract('/path/to/test.pdf');
+
+      // テキストは抽出されるが、非標準チャネル画像はスキップ
+      expect(result.content).toContain('テキスト');
+      expect(result.images).toEqual([]);
+    });
+  });
+
+  describe('バージョン互換性テスト', () => {
+    it('save/restoreなしのpaintImageXObjectを処理する', async () => {
+      const fileData = Buffer.from('fake-pdf-data');
+      mockReadFileSync.mockReturnValue(fileData);
+
+      const imageData = new Uint8ClampedArray(100 * 50 * 3);
+      const page = createMockPage({
+        viewportHeight: 800,
+        textItems: [{ str: 'テスト', transform: [1, 0, 0, 1, 50, 750] }],
+        operatorList: {
+          fnArray: [mockOPS.transform, mockOPS.paintImageXObject],
+          argsArray: [[200, 0, 0, 150, 50, 600], ['img_nosave']],
+        },
+        objs: {
+          img_nosave: { data: imageData, width: 100, height: 50 },
+        },
+      });
+      createMockPdfDocument([page]);
+
+      const result = await strategy.extract('/path/to/test.pdf');
+
+      expect(result.content).toContain('テスト');
+      expect(result.images).toHaveLength(1);
+    });
+
+    it('3段ネストFormXObject内の画像を処理する', async () => {
+      const fileData = Buffer.from('fake-pdf-data');
+      mockReadFileSync.mockReturnValue(fileData);
+
+      const imageData = new Uint8ClampedArray(100 * 80 * 3);
+      const page = createMockPage({
+        viewportHeight: 800,
+        textItems: [{ str: 'テスト', transform: [1, 0, 0, 1, 50, 750] }],
+        operatorList: {
+          fnArray: [
+            mockOPS.save,
+            mockOPS.transform,
+            mockOPS.paintFormXObjectBegin,
+            mockOPS.save,
+            mockOPS.transform,
+            mockOPS.paintFormXObjectBegin,
+            mockOPS.save,
+            mockOPS.transform,
+            mockOPS.paintImageXObject,
+            mockOPS.restore,
+            mockOPS.paintFormXObjectEnd,
+            mockOPS.restore,
+            mockOPS.paintFormXObjectEnd,
+            mockOPS.restore,
+          ],
+          argsArray: [
+            [],
+            [1, 0, 0, 1, 0, 0],
+            [],
+            [],
+            [1, 0, 0, 1, 0, 500],
+            [],
+            [],
+            [100, 0, 0, 80, 50, 50],
+            ['img_deep'],
+            [],
+            [],
+            [],
+            [],
+            [],
+          ],
+        },
+        objs: {
+          img_deep: { data: imageData, width: 100, height: 80 },
+        },
+      });
+      createMockPdfDocument([page]);
+
+      const result = await strategy.extract('/path/to/test.pdf');
+
+      expect(result.images).toHaveLength(1);
+    });
+
+    it('4チャンネル（CMYK）画像を処理する', async () => {
+      const fileData = Buffer.from('fake-pdf-data');
+      mockReadFileSync.mockReturnValue(fileData);
+
+      const imageData = new Uint8ClampedArray(50 * 50 * 4);
+      const page = createMockPage({
+        viewportHeight: 800,
+        textItems: [{ str: 'CMYK', transform: [1, 0, 0, 1, 50, 750] }],
+        operatorList: {
+          fnArray: [
+            mockOPS.save,
+            mockOPS.transform,
+            mockOPS.paintImageXObject,
+            mockOPS.restore,
+          ],
+          argsArray: [[], [100, 0, 0, 80, 50, 600], ['img_cmyk'], []],
+        },
+        objs: {
+          img_cmyk: { data: imageData, width: 50, height: 50 },
+        },
+      });
+      createMockPdfDocument([page]);
+
+      const result = await strategy.extract('/path/to/test.pdf');
+
+      expect(result.content).toContain('CMYK');
+      expect(result.images).toHaveLength(1);
+    });
+
+    it('1チャンネル（グレースケール）画像を処理する', async () => {
+      const fileData = Buffer.from('fake-pdf-data');
+      mockReadFileSync.mockReturnValue(fileData);
+
+      const imageData = new Uint8ClampedArray(50 * 50 * 1);
+      const page = createMockPage({
+        viewportHeight: 800,
+        textItems: [
+          { str: 'グレースケール', transform: [1, 0, 0, 1, 50, 750] },
+        ],
+        operatorList: {
+          fnArray: [
+            mockOPS.save,
+            mockOPS.transform,
+            mockOPS.paintImageXObject,
+            mockOPS.restore,
+          ],
+          argsArray: [[], [100, 0, 0, 80, 50, 600], ['img_gray'], []],
+        },
+        objs: {
+          img_gray: { data: imageData, width: 50, height: 50 },
+        },
+      });
+      createMockPdfDocument([page]);
+
+      const result = await strategy.extract('/path/to/test.pdf');
+
+      expect(result.content).toContain('グレースケール');
+      expect(result.images).toHaveLength(1);
+    });
+
+    it('テキストなし画像のみページを処理する', async () => {
+      const fileData = Buffer.from('fake-pdf-data');
+      mockReadFileSync.mockReturnValue(fileData);
+
+      const imageData = new Uint8ClampedArray(100 * 50 * 3);
+      const page = createMockPage({
+        viewportHeight: 800,
+        textItems: [],
+        operatorList: {
+          fnArray: [
+            mockOPS.save,
+            mockOPS.transform,
+            mockOPS.paintImageXObject,
+            mockOPS.restore,
+          ],
+          argsArray: [[], [200, 0, 0, 150, 50, 600], ['img_only'], []],
+        },
+        objs: {
+          img_only: { data: imageData, width: 100, height: 50 },
+        },
+      });
+      createMockPdfDocument([page]);
+
+      const result = await strategy.extract('/path/to/test.pdf');
+
+      expect(result.content).toContain('#page:1');
+      expect(result.content).toContain('![image](image_1.png)');
+      expect(result.images).toHaveLength(1);
+    });
+
+    it('空文字列テキストアイテムをスキップする', async () => {
+      const fileData = Buffer.from('fake-pdf-data');
+      mockReadFileSync.mockReturnValue(fileData);
+
+      const page = createMockPage({
+        viewportHeight: 800,
+        textItems: [
+          { str: '', transform: [1, 0, 0, 1, 50, 750] },
+          { str: '実際のテキスト', transform: [1, 0, 0, 1, 50, 730] },
+          { str: '', transform: [1, 0, 0, 1, 50, 710] },
+        ],
+      });
+      createMockPdfDocument([page]);
+
+      const result = await strategy.extract('/path/to/test.pdf');
+
+      expect(result.content).toContain('実際のテキスト');
+    });
+
+    it('複数transform累積後のpaintImageXObjectを処理する', async () => {
+      const fileData = Buffer.from('fake-pdf-data');
+      mockReadFileSync.mockReturnValue(fileData);
+
+      const imageData = new Uint8ClampedArray(100 * 50 * 3);
+      const page = createMockPage({
+        viewportHeight: 800,
+        textItems: [{ str: 'テスト', transform: [1, 0, 0, 1, 50, 750] }],
+        operatorList: {
+          fnArray: [
+            mockOPS.save,
+            mockOPS.transform,
+            mockOPS.transform,
+            mockOPS.paintImageXObject,
+            mockOPS.restore,
+          ],
+          argsArray: [
+            [],
+            [1, 0, 0, 1, 100, 200],
+            [200, 0, 0, 150, 50, 300],
+            ['img_multi'],
+            [],
+          ],
+        },
+        objs: {
+          img_multi: { data: imageData, width: 100, height: 50 },
+        },
+      });
+      createMockPdfDocument([page]);
+
+      const result = await strategy.extract('/path/to/test.pdf');
+
+      expect(result.images).toHaveLength(1);
+    });
+
+    it('負座標画像を処理する', async () => {
+      const fileData = Buffer.from('fake-pdf-data');
+      mockReadFileSync.mockReturnValue(fileData);
+
+      const imageData = new Uint8ClampedArray(100 * 50 * 3);
+      const page = createMockPage({
+        viewportHeight: 800,
+        textItems: [{ str: 'テスト', transform: [1, 0, 0, 1, 50, 750] }],
+        operatorList: {
+          fnArray: [
+            mockOPS.save,
+            mockOPS.transform,
+            mockOPS.paintImageXObject,
+            mockOPS.restore,
+          ],
+          argsArray: [[], [200, 0, 0, 150, -50, -100], ['img_neg'], []],
+        },
+        objs: {
+          img_neg: { data: imageData, width: 100, height: 50 },
+        },
+      });
+      createMockPdfDocument([page]);
+
+      const result = await strategy.extract('/path/to/test.pdf');
+
+      // 負座標でもエラーにならずに処理される
+      expect(result.images).toHaveLength(1);
+    });
+  });
 });

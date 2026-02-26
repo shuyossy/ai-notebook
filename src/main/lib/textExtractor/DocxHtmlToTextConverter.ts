@@ -84,12 +84,12 @@ export class DocxHtmlToTextConverter {
 
     // 順序なしリスト
     if (tagName === 'ul') {
-      return this.processUnorderedList($, node);
+      return this.processUnorderedList($, node, 0);
     }
 
     // 順序付きリスト
     if (tagName === 'ol') {
-      return this.processOrderedList($, node);
+      return this.processOrderedList($, node, 0);
     }
 
     // インライン要素およびその他未知のタグはテキスト内容のみ
@@ -117,21 +117,73 @@ export class DocxHtmlToTextConverter {
   private processTable($: cheerio.CheerioAPI, el: any): string {
     let result = '';
 
+    // rowSpanTracker: 列インデックス → 残りの行方向マージ数
+    const rowSpanTracker = new Map<number, number>();
+
     // 直接子のtr、またはthead/tbody/tfoot直下のtrのみ取得（ネストテーブルの混入を防ぐ）
     const rows = $(el)
       .children('tr')
       .add($(el).children('thead, tbody, tfoot').children('tr'));
     rows.each((_, tr) => {
       const cells: string[] = [];
+      let colIdx = 0;
 
       $(tr)
         .children('td, th')
         .each((_, cell) => {
+          // rowSpanTrackerにより、前行のrowSpanで占有された列をスキップ
+          while (
+            rowSpanTracker.has(colIdx) &&
+            rowSpanTracker.get(colIdx)! > 0
+          ) {
+            cells.push('');
+            rowSpanTracker.set(colIdx, rowSpanTracker.get(colIdx)! - 1);
+            if (rowSpanTracker.get(colIdx) === 0) {
+              rowSpanTracker.delete(colIdx);
+            }
+            colIdx++;
+          }
+
           let cellText = this.processChildren($, cell);
           // 末尾改行除去 + 連続改行を単一改行に圧縮
           cellText = cellText.replace(/\n+$/, '').replace(/\n{2,}/g, '\n');
           cells.push(this.escapeCsvCell(cellText));
+
+          // colspan/rowspan属性を取得
+          const colspanAttr = $(cell).attr('colspan');
+          const rowspanAttr = $(cell).attr('rowspan');
+          const colspan = colspanAttr ? parseInt(colspanAttr, 10) : 1;
+          const rowspan = rowspanAttr ? parseInt(rowspanAttr, 10) : 1;
+
+          // rowspan > 1の場合、次行以降の同列をトラッキング
+          if (rowspan > 1) {
+            rowSpanTracker.set(colIdx, rowspan - 1);
+          }
+
+          colIdx++;
+
+          // colspan > 1の場合、残りのスパン分を空セルで埋める
+          if (colspan > 1) {
+            for (let i = 1; i < colspan; i++) {
+              cells.push('');
+              // colspanされた各列もrowSpanTrackerに登録
+              if (rowspan > 1) {
+                rowSpanTracker.set(colIdx, rowspan - 1);
+              }
+              colIdx++;
+            }
+          }
         });
+
+      // 行末の残りのrowSpan占有列も処理
+      while (rowSpanTracker.has(colIdx) && rowSpanTracker.get(colIdx)! > 0) {
+        cells.push('');
+        rowSpanTracker.set(colIdx, rowSpanTracker.get(colIdx)! - 1);
+        if (rowSpanTracker.get(colIdx) === 0) {
+          rowSpanTracker.delete(colIdx);
+        }
+        colIdx++;
+      }
 
       result += cells.join(',') + '\n';
     });
@@ -153,17 +205,46 @@ export class DocxHtmlToTextConverter {
    * 順序なしリストを処理する
    */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private processUnorderedList($: cheerio.CheerioAPI, el: any): string {
+  private processUnorderedList(
+    $: cheerio.CheerioAPI,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    el: any,
+    depth: number,
+  ): string {
     let result = '';
+    const indent = '  '.repeat(depth);
 
     $(el)
       .children('li')
       .each((_, li) => {
-        const text = this.processChildren($, li);
-        result += `- ${text}\n`;
+        const $li = $(li);
+        // li直下のテキストやインライン要素のみ処理（ネストリストは除外）
+        let text = '';
+        $li.contents().each((_, child) => {
+          if (
+            child.type === 'tag' &&
+            (child.tagName === 'ul' || child.tagName === 'ol')
+          ) {
+            return; // ネストリストはスキップ
+          }
+          text += this.processNode($, child);
+        });
+        // 末尾の改行・空白を除去
+        text = text.replace(/\n+$/, '').trim();
+        result += `${indent}- ${text}\n`;
+
+        // ネストリストを処理
+        $li.children('ul').each((_, nestedUl) => {
+          result += this.processUnorderedList($, nestedUl, depth + 1);
+        });
+        $li.children('ol').each((_, nestedOl) => {
+          result += this.processOrderedList($, nestedOl, depth + 1);
+        });
       });
 
-    result += '\n';
+    if (depth === 0) {
+      result += '\n';
+    }
     return result;
   }
 
@@ -171,17 +252,46 @@ export class DocxHtmlToTextConverter {
    * 順序付きリストを処理する
    */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private processOrderedList($: cheerio.CheerioAPI, el: any): string {
+  private processOrderedList(
+    $: cheerio.CheerioAPI,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    el: any,
+    depth: number,
+  ): string {
     let result = '';
+    const indent = '  '.repeat(depth);
 
     $(el)
       .children('li')
       .each((i, li) => {
-        const text = this.processChildren($, li);
-        result += `${i + 1}. ${text}\n`;
+        const $li = $(li);
+        // li直下のテキストやインライン要素のみ処理（ネストリストは除外）
+        let text = '';
+        $li.contents().each((_, child) => {
+          if (
+            child.type === 'tag' &&
+            (child.tagName === 'ul' || child.tagName === 'ol')
+          ) {
+            return; // ネストリストはスキップ
+          }
+          text += this.processNode($, child);
+        });
+        // 末尾の改行・空白を除去
+        text = text.replace(/\n+$/, '').trim();
+        result += `${indent}${i + 1}. ${text}\n`;
+
+        // ネストリストを処理
+        $li.children('ul').each((_, nestedUl) => {
+          result += this.processUnorderedList($, nestedUl, depth + 1);
+        });
+        $li.children('ol').each((_, nestedOl) => {
+          result += this.processOrderedList($, nestedOl, depth + 1);
+        });
       });
 
-    result += '\n';
+    if (depth === 0) {
+      result += '\n';
+    }
     return result;
   }
 }
