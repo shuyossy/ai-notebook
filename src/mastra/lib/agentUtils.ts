@@ -3,7 +3,7 @@ import { RuntimeContext } from '@mastra/core/runtime-context';
 import { getSettingsRepository } from '@/adapter/db';
 import { BaseRuntimeContext } from '../agents/types';
 import { AppError, extractAIAPISafeError } from '@/main/lib/error';
-import { APICallError } from 'ai';
+import { APICallError, NoObjectGeneratedError } from 'ai';
 import { isGpt5Model, ReasoningEffort } from '@/config/modelConfig';
 
 // BaseRuntimeConotextに値を入れた上で、指定したRuntimeContextを返す関数
@@ -66,6 +66,38 @@ export const judgeErrorIsContentLengthError = (error: unknown) => {
     );
   }
   return false;
+};
+
+/**
+ * レート制限エラーかどうかを判定する関数
+ * AI APIからのエラーやfinishReasonを検査し、レート制限エラーかを判定
+ *
+ * @param error エラーオブジェクト
+ * @returns レート制限エラーの場合はtrue
+ */
+export const judgeErrorIsRateLimitError = (error: unknown) => {
+  const apiError = extractAIAPISafeError(error);
+  if (!apiError) return false;
+  if (APICallError.isInstance(apiError)) {
+    return (
+      apiError.responseBody?.toLowerCase().includes("rate limit") ||
+      apiError.statusCode === 429
+    );
+  }
+  return false;
+};
+
+/**
+ * AI構造化出力時のパースエラーかどうかを判定する関数
+ * AI APIからのエラーやfinishReasonを検査し、判定
+ *
+ * @param error エラーオブジェクト
+ * @returns AI構造化出力時のパースエラーの場合はtrue
+ */
+export const judgeNoObjectGeneratedError = (error: unknown) => {
+  const apiError = extractAIAPISafeError(error);
+  if (!apiError) return false;
+  return NoObjectGeneratedError.isInstance(apiError);
 };
 
 /**
