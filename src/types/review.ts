@@ -187,6 +187,7 @@ export interface DocumentCacheInfo {
   processMode: ProcessMode;
   formatType: string | null;
   includeImages: boolean;
+  extractedImageCount: number;
 }
 
 // CSV/Excelインポートデータの型定義

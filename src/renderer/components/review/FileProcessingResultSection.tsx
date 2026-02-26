@@ -76,6 +76,34 @@ function getIncludeImagesLabel(cache: DocumentCacheInfo): string {
 }
 
 /**
+ * 抽出画像数列の表示を判定
+ */
+function getExtractedImageCountLabel(cache: DocumentCacheInfo): string {
+  // 画像変換モードは対象外
+  if (cache.processMode === 'image') {
+    return '-';
+  }
+  // プレーンオンリーは対象外
+  if (isPlainOnlyFormatType(cache.formatType)) {
+    return '-';
+  }
+  // リッチ戦略がないファイル形式は対象外
+  if (!hasRichStrategyAvailable(cache.fileName)) {
+    return '-';
+  }
+  // リッチ戦略失敗（フォールバック）の場合は対象外
+  if (!isRichFormatType(cache.formatType)) {
+    return '-';
+  }
+  // リッチ成功だがユーザが画像を含めない選択をした場合は対象外
+  if (!cache.includeImages) {
+    return '-';
+  }
+  // リッチ成功+画像を含める → 数値表示（0を含む）
+  return String(cache.extractedImageCount);
+}
+
+/**
  * 処理モードの表示ラベル
  */
 function getProcessModeLabel(processMode: string): string {
@@ -173,12 +201,23 @@ const FileProcessingResultSection: React.FC<
                   >
                     画像・図形抽出
                   </TableCell>
+                  <TableCell
+                    sx={{
+                      fontWeight: 'bold',
+                      fontSize: '0.75rem',
+                      bgcolor: 'grey.50',
+                    }}
+                  >
+                    抽出画像数
+                  </TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {documentCaches.map((cache, index) => {
                   const extractionBadge = getExtractionBadge(cache);
                   const includeImagesLabel = getIncludeImagesLabel(cache);
+                  const extractedImageCountLabel =
+                    getExtractedImageCountLabel(cache);
 
                   return (
                     <TableRow key={cache.fileName}>
@@ -219,6 +258,20 @@ const FileProcessingResultSection: React.FC<
                             size="small"
                             sx={{ fontWeight: 'medium' }}
                           />
+                        )}
+                      </TableCell>
+                      <TableCell
+                        sx={{ fontSize: '0.875rem', color: 'text.secondary' }}
+                      >
+                        {extractedImageCountLabel === '-' ? (
+                          <Typography
+                            component="span"
+                            sx={{ color: 'grey.400' }}
+                          >
+                            -
+                          </Typography>
+                        ) : (
+                          extractedImageCountLabel
                         )}
                       </TableCell>
                     </TableRow>

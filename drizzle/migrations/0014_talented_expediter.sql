@@ -1,0 +1,1 @@
+ALTER TABLE `review_document_caches` ADD `extracted_image_count` integer DEFAULT 0;

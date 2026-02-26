@@ -638,6 +638,7 @@ export class DrizzleReviewRepository implements IReviewRepository {
           cachePath: '', // 一時的に空文字列を設定
           formatType: cache.formatType ?? null,
           includeImages: cache.includeImages ? 1 : 0,
+          extractedImageCount: cache.extractedImages?.length ?? 0,
         })
         .returning();
 
@@ -764,6 +765,7 @@ export class DrizzleReviewRepository implements IReviewRepository {
           processMode: reviewDocumentCaches.processMode,
           formatType: reviewDocumentCaches.formatType,
           includeImages: reviewDocumentCaches.includeImages,
+          extractedImageCount: reviewDocumentCaches.extractedImageCount,
         })
         .from(reviewDocumentCaches)
         .where(eq(reviewDocumentCaches.reviewHistoryId, reviewHistoryId))
@@ -774,6 +776,7 @@ export class DrizzleReviewRepository implements IReviewRepository {
         processMode: entity.processMode as ProcessMode,
         formatType: entity.formatType ?? null,
         includeImages: entity.includeImages === 1,
+        extractedImageCount: entity.extractedImageCount ?? 0,
       }));
     } catch (err) {
       throw repositoryError(
