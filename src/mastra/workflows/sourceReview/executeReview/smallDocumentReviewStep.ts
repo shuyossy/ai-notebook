@@ -19,6 +19,7 @@ import {
 } from '.';
 import { deduplicateByChecklistId, saveChecklistErrors } from './lib';
 import { buildDocumentFormatContext } from '@/mastra/lib/extractionFormatDescription';
+import { withAIControl } from '@/mastra/lib/withAIControl';
 import { extractedDocumentSchema } from './schema';
 
 /**
@@ -94,13 +95,17 @@ Please review the document against the above checklist items.`;
   };
 
   // レビューエージェントを使用してレビューを実行
-  return reviewAgent.generateLegacy(messageWithReminder, {
-    output: outputSchema,
-    runtimeContext,
-    abortSignal,
-    maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
-    ...getModelSpecificGenerateOptions(runtimeContext),
-  });
+  return withAIControl(
+    () =>
+      reviewAgent.generateLegacy(messageWithReminder, {
+        output: outputSchema,
+        runtimeContext,
+        abortSignal,
+        maxRetries: 0,
+        ...getModelSpecificGenerateOptions(runtimeContext),
+      }),
+    { abortSignal },
+  );
 }
 
 export const smallDocumentReviewExecutionStep = createStep({

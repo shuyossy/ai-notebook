@@ -12,6 +12,7 @@ import {
   judgeFinishReason,
   getModelSpecificGenerateOptions,
 } from '@/mastra/lib/agentUtils';
+import { withAIControl } from '@/mastra/lib/withAIControl';
 import { reviewChatInputSchema } from '.';
 import { judgeReviewMode, buildPlanningChecklistInfo } from './lib';
 
@@ -85,12 +86,14 @@ export const planResearchStep = createStep({
 
       // Mastraエージェント経由でAI呼び出し（構造化出力）
       const planningAgent = mastra.getAgent('reviewChatPlanningAgent');
-      const result = await planningAgent.generateLegacy(question, {
-        runtimeContext,
-        output: researchTasksSchema,
-        maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
-        ...getModelSpecificGenerateOptions(runtimeContext),
-      });
+      const result = await withAIControl(() =>
+        planningAgent.generateLegacy(question, {
+          runtimeContext,
+          output: researchTasksSchema,
+          maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
+          ...getModelSpecificGenerateOptions(runtimeContext),
+        }),
+      );
 
       const { success, reason } = judgeFinishReason(result.finishReason);
       if (!success) {

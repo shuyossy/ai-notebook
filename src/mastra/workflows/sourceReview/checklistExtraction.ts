@@ -22,6 +22,7 @@ import { publishEvent } from '@/main/lib/eventPayloadHelper';
 import { IpcChannels } from '@/types';
 import { createCombinedMessage } from './lib';
 import { buildDocumentFormatContext } from '../../lib/extractionFormatDescription';
+import { withAIControl } from '../../lib/withAIControl';
 
 const logger = getMainLogger();
 
@@ -156,55 +157,56 @@ const checklistDocumentExtractionStep = createStep({
         if (documentFormatContext) {
           runtimeContext.set('documentFormatContext', documentFormatContext);
         }
-        const extractionResult = await checklistExtractionAgent.generateLegacy(
-          message,
-          {
-            output: outputSchema,
-            runtimeContext,
-            abortSignal,
-            maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
-            ...getModelSpecificGenerateOptions(runtimeContext),
-            // AIの限界生成トークン数を超えた場合のエラーを回避するための設定
-            experimental_repairText: async (options) => {
-              isCompleted = false;
-              const { text } = options;
-              let repairedText = text;
-              let deleteLastItemFlag = false;
-              try {
-                const lastChar = text.charAt(text.length - 1);
-                if (lastChar === '"') {
-                  repairedText = text + ']}';
-                } else if (lastChar === ']') {
-                  repairedText = text + '}';
-                } else if (lastChar === ',') {
-                  // 最後のカンマを削除してから ']} を追加
-                  repairedText = text.slice(0, -1) + ']}';
-                } else {
-                  // その他のケースでは強制的に ']} を追加
-                  repairedText = text + '"]}';
-                  deleteLastItemFlag = true;
+        const extractionResult = await withAIControl(
+          () =>
+            checklistExtractionAgent.generateLegacy(message, {
+              output: outputSchema,
+              runtimeContext,
+              abortSignal,
+              maxRetries: 0,
+              ...getModelSpecificGenerateOptions(runtimeContext),
+              // AIの限界生成トークン数を超えた場合のエラーを回避するための設定
+              experimental_repairText: async (options) => {
+                isCompleted = false;
+                const { text } = options;
+                let repairedText = text;
+                let deleteLastItemFlag = false;
+                try {
+                  const lastChar = text.charAt(text.length - 1);
+                  if (lastChar === '"') {
+                    repairedText = text + ']}';
+                  } else if (lastChar === ']') {
+                    repairedText = text + '}';
+                  } else if (lastChar === ',') {
+                    // 最後のカンマを削除してから ']} を追加
+                    repairedText = text.slice(0, -1) + ']}';
+                  } else {
+                    // その他のケースでは強制的に ']} を追加
+                    repairedText = text + '"]}';
+                    deleteLastItemFlag = true;
+                  }
+                  // JSONに変換してみて、エラーが出ないか確かめる
+                  // deleteLastItemFlagがtrueの場合は最後の項目を削除する
+                  const parsedJson = JSON.parse(repairedText) as z.infer<
+                    typeof outputSchema
+                  >;
+                  if (deleteLastItemFlag) {
+                    parsedJson.newChecklists.pop(); // 最後の項目を削除
+                  }
+                  repairedText = JSON.stringify(parsedJson);
+                } catch (error) {
+                  console.error(
+                    `チェックリスト抽出の修正に失敗しました: ${error}`,
+                  );
+                  throw internalError({
+                    expose: true,
+                    messageCode: 'REVIEW_CHECKLIST_EXTRACTION_OVER_MAX_TOKENS',
+                  });
                 }
-                // JSONに変換してみて、エラーが出ないか確かめる
-                // deleteLastItemFlagがtrueの場合は最後の項目を削除する
-                const parsedJson = JSON.parse(repairedText) as z.infer<
-                  typeof outputSchema
-                >;
-                if (deleteLastItemFlag) {
-                  parsedJson.newChecklists.pop(); // 最後の項目を削除
-                }
-                repairedText = JSON.stringify(parsedJson);
-              } catch (error) {
-                console.error(
-                  `チェックリスト抽出の修正に失敗しました: ${error}`,
-                );
-                throw internalError({
-                  expose: true,
-                  messageCode: 'REVIEW_CHECKLIST_EXTRACTION_OVER_MAX_TOKENS',
-                });
-              }
-              return repairedText;
-            },
-          },
+                return repairedText;
+              },
+            }),
+          { abortSignal },
         );
 
         // チェックリストドキュメントでない場合はエラー
@@ -345,15 +347,16 @@ const topicExtractionStep = createStep({
         runtimeContext.set('documentFormatContext', documentFormatContext);
       }
 
-      const extractionResult = await topicExtractionAgent.generateLegacy(
-        message,
-        {
-          output: outputSchema,
-          runtimeContext,
-          abortSignal,
-          maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
-          ...getModelSpecificGenerateOptions(runtimeContext),
-        },
+      const extractionResult = await withAIControl(
+        () =>
+          topicExtractionAgent.generateLegacy(message, {
+            output: outputSchema,
+            runtimeContext,
+            abortSignal,
+            maxRetries: 0,
+            ...getModelSpecificGenerateOptions(runtimeContext),
+          }),
+        { abortSignal },
       );
 
       logger.debug(
@@ -455,13 +458,17 @@ const topicChecklistCreationStep = createStep({
         runtimeContext.set('documentFormatContext', documentFormatContext);
       }
 
-      const result = await topicChecklistAgent.generateLegacy(message, {
-        output: outputSchema,
-        runtimeContext,
-        abortSignal,
-        maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
-        ...getModelSpecificGenerateOptions(runtimeContext),
-      });
+      const result = await withAIControl(
+        () =>
+          topicChecklistAgent.generateLegacy(message, {
+            output: outputSchema,
+            runtimeContext,
+            abortSignal,
+            maxRetries: 0,
+            ...getModelSpecificGenerateOptions(runtimeContext),
+          }),
+        { abortSignal },
+      );
       logger.debug(
         `Combined document topic(${title}) generated checklist items:`,
         JSON.stringify(result.object.checklistItems, null, 2),
@@ -635,55 +642,56 @@ Please continue refining the remaining items, avoiding duplicates with already r
     : 'Please refine these checklist items according to the guidelines.'
 }`;
 
-        const refinementResult = await checklistRefinementAgent.generateLegacy(
-          userPrompt,
-          {
-            output: outputSchema,
-            runtimeContext,
-            abortSignal,
-            maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
-            ...getModelSpecificGenerateOptions(runtimeContext),
-            // AIの限界生成トークン数を超えた場合のエラーを回避するための設定
-            experimental_repairText: async (options) => {
-              isCompleted = false;
-              const { text } = options;
-              let repairedText = text;
-              let deleteLastItemFlag = false;
-              try {
-                const lastChar = text.charAt(text.length - 1);
-                if (lastChar === '"') {
-                  repairedText = text + ']}';
-                } else if (lastChar === ']') {
-                  repairedText = text + '}';
-                } else if (lastChar === ',') {
-                  // 最後のカンマを削除してから ']} を追加
-                  repairedText = text.slice(0, -1) + ']}';
-                } else {
-                  // その他のケースでは強制的に ']} を追加
-                  repairedText = text + '"]}';
-                  deleteLastItemFlag = true;
+        const refinementResult = await withAIControl(
+          () =>
+            checklistRefinementAgent.generateLegacy(userPrompt, {
+              output: outputSchema,
+              runtimeContext,
+              abortSignal,
+              maxRetries: 0,
+              ...getModelSpecificGenerateOptions(runtimeContext),
+              // AIの限界生成トークン数を超えた場合のエラーを回避するための設定
+              experimental_repairText: async (options) => {
+                isCompleted = false;
+                const { text } = options;
+                let repairedText = text;
+                let deleteLastItemFlag = false;
+                try {
+                  const lastChar = text.charAt(text.length - 1);
+                  if (lastChar === '"') {
+                    repairedText = text + ']}';
+                  } else if (lastChar === ']') {
+                    repairedText = text + '}';
+                  } else if (lastChar === ',') {
+                    // 最後のカンマを削除してから ']} を追加
+                    repairedText = text.slice(0, -1) + ']}';
+                  } else {
+                    // その他のケースでは強制的に ']} を追加
+                    repairedText = text + '"]}';
+                    deleteLastItemFlag = true;
+                  }
+                  // JSONに変換してみて、エラーが出ないか確かめる
+                  // deleteLastItemFlagがtrueの場合は最後の項目を削除する
+                  const parsedJson = JSON.parse(repairedText) as z.infer<
+                    typeof outputSchema
+                  >;
+                  if (deleteLastItemFlag) {
+                    parsedJson.refinedChecklists.pop(); // 最後の項目を削除
+                  }
+                  repairedText = JSON.stringify(parsedJson);
+                } catch (error) {
+                  console.error(
+                    `チェックリストブラッシュアップの修正に失敗しました: ${error}`,
+                  );
+                  throw internalError({
+                    expose: true,
+                    messageCode: 'REVIEW_CHECKLIST_REFINEMENT_OVER_MAX_TOKENS',
+                  });
                 }
-                // JSONに変換してみて、エラーが出ないか確かめる
-                // deleteLastItemFlagがtrueの場合は最後の項目を削除する
-                const parsedJson = JSON.parse(repairedText) as z.infer<
-                  typeof outputSchema
-                >;
-                if (deleteLastItemFlag) {
-                  parsedJson.refinedChecklists.pop(); // 最後の項目を削除
-                }
-                repairedText = JSON.stringify(parsedJson);
-              } catch (error) {
-                console.error(
-                  `チェックリストブラッシュアップの修正に失敗しました: ${error}`,
-                );
-                throw internalError({
-                  expose: true,
-                  messageCode: 'REVIEW_CHECKLIST_REFINEMENT_OVER_MAX_TOKENS',
-                });
-              }
-              return repairedText;
-            },
-          },
+                return repairedText;
+              },
+            }),
+          { abortSignal },
         );
 
         // ブラッシュアップされたチェックリストから新規のものを蓄積

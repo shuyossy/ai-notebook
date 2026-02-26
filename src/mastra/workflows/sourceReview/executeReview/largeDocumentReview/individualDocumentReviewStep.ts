@@ -22,6 +22,7 @@ import {
 import { extractedDocumentSchema } from '../schema';
 import { getReviewRepository } from '@/adapter/db';
 import { buildDocumentFormatContext } from '@/mastra/lib/extractionFormatDescription';
+import { withAIControl } from '@/mastra/lib/withAIControl';
 
 // 個別ドキュメントレビューステップの入力スキーマ
 export const individualDocumentReviewStepInputSchema = z.object({
@@ -148,13 +149,17 @@ Checklist Items to Review:\n${checklists.map((item) => `- ID: ${item.id} - ${ite
         }
 
         // レビューエージェントを使用してレビューを実行
-        const reviewResult = await reviewAgent.generateLegacy(reviewMessage, {
-          output: outputSchema,
-          runtimeContext,
-          abortSignal,
-          maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
-          ...getModelSpecificGenerateOptions(runtimeContext),
-        });
+        const reviewResult = await withAIControl(
+          () =>
+            reviewAgent.generateLegacy(reviewMessage, {
+              output: outputSchema,
+              runtimeContext,
+              abortSignal,
+              maxRetries: 0,
+              ...getModelSpecificGenerateOptions(runtimeContext),
+            }),
+          { abortSignal },
+        );
 
         if (reviewResult.finishReason === 'length') {
           return bail({

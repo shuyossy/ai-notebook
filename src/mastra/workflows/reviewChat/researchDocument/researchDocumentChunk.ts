@@ -12,6 +12,7 @@ import {
   judgeErrorIsContentLengthError,
   getModelSpecificGenerateOptions,
 } from '@/mastra/lib/agentUtils';
+import { withAIControl } from '@/mastra/lib/withAIControl';
 import { getReviewRepository } from '@/adapter/db';
 import { judgeReviewMode, buildResearchChecklistInfo } from '../lib';
 import { buildDocumentFormatContext } from '@/mastra/lib/extractionFormatDescription';
@@ -116,7 +117,10 @@ export const researchChunkStep = createStep({
       }
 
       // メッセージを作成
-      const messageContent = [];
+      const messageContent: (
+        | { type: 'text'; text: string }
+        | { type: 'image'; image: string; mimeType: string }
+      )[] = [];
 
       if (chunkContent.text) {
         // テキストチャンクの場合
@@ -159,16 +163,18 @@ export const researchChunkStep = createStep({
 
       // Mastraエージェント経由でAI呼び出し
       const researchAgent = mastra.getAgent('reviewChatResearchAgent');
-      const result = await researchAgent.generateLegacy(
-        {
-          role: 'user',
-          content: messageContent,
-        },
-        {
-          runtimeContext,
-          maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
-          ...getModelSpecificGenerateOptions(runtimeContext),
-        },
+      const result = await withAIControl(() =>
+        researchAgent.generateLegacy(
+          {
+            role: 'user',
+            content: messageContent,
+          },
+          {
+            runtimeContext,
+            maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
+            ...getModelSpecificGenerateOptions(runtimeContext),
+          },
+        ),
       );
 
       const { success, reason } = judgeFinishReason(result.finishReason);

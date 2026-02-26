@@ -13,6 +13,7 @@ import {
   getModelSpecificGenerateOptions,
 } from '@/mastra/lib/agentUtils';
 import { logError } from '@/main/lib/logger';
+import { withAIControl } from '@/mastra/lib/withAIControl';
 import type { ReviewEvaluation } from '@/types';
 import { extractedDocumentSchema } from '../schema';
 import { deduplicateByChecklistId, saveChecklistErrors } from '../lib';
@@ -173,15 +174,16 @@ Please provide a consolidated review that synthesizes all individual document re
         runtimeContext.set('checklistItems', targetChecklists);
 
         // 統合レビューエージェントを使用して統合レビューを実行
-        const consolidatedResult = await consolidateAgent.generateLegacy(
-          reviewMessage,
-          {
-            output: outputSchema,
-            runtimeContext,
-            abortSignal,
-            maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
-            ...getModelSpecificGenerateOptions(runtimeContext),
-          },
+        const consolidatedResult = await withAIControl(
+          () =>
+            consolidateAgent.generateLegacy(reviewMessage, {
+              output: outputSchema,
+              runtimeContext,
+              abortSignal,
+              maxRetries: 0,
+              ...getModelSpecificGenerateOptions(runtimeContext),
+            }),
+          { abortSignal },
         );
 
         const { success, reason } = judgeFinishReason(

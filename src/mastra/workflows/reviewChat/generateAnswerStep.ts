@@ -14,6 +14,7 @@ import {
   judgeFinishReason,
   getModelSpecificGenerateOptions,
 } from '@/mastra/lib/agentUtils';
+import { withAIControl } from '@/mastra/lib/withAIControl';
 import { IpcChannels } from '@/types';
 import { publishEvent } from '@/main/lib/eventPayloadHelper';
 import { ReviewChatWorkflowRuntimeContext } from '.';
@@ -96,28 +97,34 @@ ${result.researchResult}`;
 
       // Mastraエージェント経由でストリーミングAI呼び出し
       const answerAgent = mastra.getAgent('reviewChatAnswerAgent');
-      const result = await answerAgent.generateLegacy(promptText, {
-        runtimeContext,
-        abortSignal,
-        maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
-        ...getModelSpecificGenerateOptions(runtimeContext),
-        onStepFinish: (stepResult) => {
-          // AI SDK Data Stream Protocol v1 形式でチャンクを送信
-          // https://sdk.vercel.ai/docs/ai-sdk-ui/stream-protocol
-          if (stepResult.text) {
-            dataStreamWriter.write(`0:${JSON.stringify(stepResult.text)}\n`);
-          }
-          stepResult.toolCalls.forEach((toolCall) => {
-            dataStreamWriter.write(`9:${JSON.stringify(toolCall)}\n`);
-          });
-          stepResult.toolResults.forEach((toolResult) => {
-            dataStreamWriter.write(`a:${JSON.stringify(toolResult)}\n`);
-          });
-          dataStreamWriter.write(
-            `e:${JSON.stringify({ finishReason: stepResult.finishReason, ...stepResult.usage })}\n`,
-          );
-        },
-      });
+      const result = await withAIControl(
+        () =>
+          answerAgent.generateLegacy(promptText, {
+            runtimeContext,
+            abortSignal,
+            maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
+            ...getModelSpecificGenerateOptions(runtimeContext),
+            onStepFinish: (stepResult) => {
+              // AI SDK Data Stream Protocol v1 形式でチャンクを送信
+              // https://sdk.vercel.ai/docs/ai-sdk-ui/stream-protocol
+              if (stepResult.text) {
+                dataStreamWriter.write(
+                  `0:${JSON.stringify(stepResult.text)}\n`,
+                );
+              }
+              stepResult.toolCalls.forEach((toolCall) => {
+                dataStreamWriter.write(`9:${JSON.stringify(toolCall)}\n`);
+              });
+              stepResult.toolResults.forEach((toolResult) => {
+                dataStreamWriter.write(`a:${JSON.stringify(toolResult)}\n`);
+              });
+              dataStreamWriter.write(
+                `e:${JSON.stringify({ finishReason: stepResult.finishReason, ...stepResult.usage })}\n`,
+              );
+            },
+          }),
+        { abortSignal },
+      );
 
       const { success, reason } = judgeFinishReason(result.finishReason);
       if (!success) {

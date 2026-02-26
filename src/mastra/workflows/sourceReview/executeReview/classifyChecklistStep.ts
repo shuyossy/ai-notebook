@@ -19,6 +19,7 @@ import {
 } from '@/mastra/lib/agentUtils';
 import { ClassifyCategoryAgentRuntimeContext } from '@/mastra/agents/workflowAgents';
 import { logError } from '@/main/lib/logger';
+import { withAIControl } from '@/mastra/lib/withAIControl';
 
 export const classifyChecklistsByCategoryInputSchema = z.object({
   reviewHistoryId: z.string().describe('レビュー履歴ID'),
@@ -118,16 +119,20 @@ export const classifyChecklistsByCategoryStep = createStep({
         await createRuntimeContext<ClassifyCategoryAgentRuntimeContext>();
       runtimeContext.set('targetChecklistCount', targetChecklistCount);
       // チェックリスト項目をカテゴリごとに分類
-      const classificationResult = await classifiCategoryAgent.generateLegacy(
-        `checklist items:
+      const classificationResult = await withAIControl(
+        () =>
+          classifiCategoryAgent.generateLegacy(
+            `checklist items:
   ${checklistData.map((item) => `ID: ${item.id} - ${item.content}`).join('\n')}`,
-        {
-          output: outputSchema,
-          runtimeContext,
-          abortSignal,
-          maxRetries: 0, // リトライ回数を0に設定（社内AIモデルの利用制限対応）
-          ...getModelSpecificGenerateOptions(runtimeContext),
-        },
+            {
+              output: outputSchema,
+              runtimeContext,
+              abortSignal,
+              maxRetries: 0,
+              ...getModelSpecificGenerateOptions(runtimeContext),
+            },
+          ),
+        { abortSignal },
       );
       // 分類結果の妥当性をチェック
       const rawCategories = classificationResult.object.categories;

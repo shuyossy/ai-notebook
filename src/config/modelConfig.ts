@@ -21,6 +21,14 @@ export const isValidModelName = (value: string): value is ModelName => {
 // デフォルトのモデル名
 export const DEFAULT_MODEL: ModelName = 'gpt-4o';
 
+// モデルごとのレート制限設定（1分間あたりのリクエスト上限）
+export const MODEL_RATE_LIMITS: Record<string, number> = {
+  'gpt-4.1-mini': 2,
+  'gpt-4o': 20,
+  'gpt-5': 10,
+};
+export const DEFAULT_RATE_LIMIT = 15;
+
 // ReasoningEffortの選択肢
 export const REASONING_EFFORT_OPTIONS = [
   'minimal',

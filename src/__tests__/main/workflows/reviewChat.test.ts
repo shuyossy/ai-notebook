@@ -69,6 +69,10 @@ jest.mock('@/main/lib/eventPayloadHelper', () => ({
   publishEvent: jest.fn(),
 }));
 
+jest.mock('@/mastra/lib/withAIControl', () => ({
+  withAIControl: jest.fn((fn: () => any) => fn()),
+}));
+
 // DataStreamWriterのモック
 const createMockDataStreamWriter = (): jest.Mocked<DataStreamWriter> =>
   ({

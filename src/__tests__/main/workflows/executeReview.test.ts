@@ -79,6 +79,11 @@ jest.mock('@/main/lib/eventPayloadHelper', () => ({
   publishEvent: (...args: any[]) => mockPublishEvent(...args),
 }));
 
+// withAIControlはパススルー（withAIControl自体は別途テスト済み）
+jest.mock('@/mastra/lib/withAIControl', () => ({
+  withAIControl: jest.fn((fn: () => any) => fn()),
+}));
+
 describe('executeReviewWorkflow', () => {
   // モックリポジトリ
   let mockRepository: jest.Mocked<IReviewRepository>;
