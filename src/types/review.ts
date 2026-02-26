@@ -6,6 +6,7 @@ export interface RevieHistory {
   commentFormat?: string | null;
   evaluationSettings?: CustomEvaluationSettings | null; // カスタム評定項目設定
   documentMode?: DocumentMode | null; // ドキュメントモード
+  concurrentChecklistCount?: number | null; // 同時レビュー項目数
   processingStatus: ProcessingStatus; // 処理ステータス
   createdAt: string;
   updatedAt: string;

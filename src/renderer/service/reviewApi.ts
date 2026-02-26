@@ -59,6 +59,7 @@ export interface IReviewApi {
     additionalInstructions?: string,
     commentFormat?: string,
     retryMode?: RetryMode,
+    concurrentChecklistCount?: number,
     options?: ApiServiceDefaultOptions,
   ): Promise<void>;
   subscribeChecklistExtractionFinished(
@@ -196,6 +197,7 @@ export class ReviewApi implements IReviewApi {
     additionalInstructions?: string,
     commentFormat?: string,
     retryMode?: RetryMode,
+    concurrentChecklistCount?: number,
     options?: ApiServiceDefaultOptions,
   ): Promise<void> {
     await invokeApi(
@@ -208,6 +210,7 @@ export class ReviewApi implements IReviewApi {
           evaluationSettings,
           documentMode: documentMode ? documentMode : 'small',
           retryMode,
+          concurrentChecklistCount,
         }),
       options,
     );

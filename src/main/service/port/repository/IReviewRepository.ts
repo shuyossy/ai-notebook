@@ -84,6 +84,12 @@ export interface IReviewRepository {
     documentMode: DocumentMode,
   ): Promise<void>;
 
+  // 同時レビュー項目数の保存
+  updateReviewHistoryConcurrentChecklistCount(
+    id: string,
+    concurrentChecklistCount: number,
+  ): Promise<void>;
+
   // ドキュメントキャッシュ管理
   createReviewDocumentCache(
     cache: Omit<ReviewDocumentCache, 'id' | 'createdAt' | 'updatedAt'>,

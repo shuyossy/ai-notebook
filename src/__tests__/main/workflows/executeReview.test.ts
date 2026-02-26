@@ -133,6 +133,9 @@ describe('executeReviewWorkflow', () => {
       getMaxTotalChunksForDocument: jest.fn(),
       getChecklistResultsWithIndividualResults: jest.fn(),
       getReviewDocumentCacheInfos: jest.fn(),
+      updateReviewHistoryConcurrentChecklistCount: jest
+        .fn()
+        .mockResolvedValue(undefined),
     } as jest.Mocked<IReviewRepository>;
 
     (getReviewRepository as jest.Mock).mockReturnValue(mockRepository);
@@ -3270,10 +3273,106 @@ describe('executeReviewWorkflow', () => {
 
   describe('エッジケース', () => {
     it('カテゴリ分類でAIが全IDを返さない場合、その他カテゴリに含まれること', async () => {
-      // このテストはclassifyChecklistsByCategoryStepの内部ロジックなので、
-      // MAX_CHECKLISTS_PER_CATEGORY > 1に設定する必要がある
-      // 現在の実装では MAX_CHECKLISTS_PER_CATEGORY = 1なのでスキップ
-      // 将来的にMAX_CHECKLISTS_PER_CATEGORYを変更可能にした場合に有効化
+      // Arrange
+      const reviewHistoryId = 'review-1';
+      const files: UploadFile[] = [
+        {
+          id: 'file-1',
+          name: 'document.txt',
+          path: '/test/document.txt',
+          type: 'text/plain',
+          processMode: 'text',
+        },
+      ];
+      // 3件のチェックリスト、concurrentChecklistCount=2でAIに分類させる
+      const checklists: ReviewChecklist[] = [
+        {
+          id: 1,
+          content: 'チェック項目1',
+          createdBy: 'user',
+          reviewHistoryId,
+          createdAt: '2024-01-01',
+          updatedAt: '2024-01-01',
+        },
+        {
+          id: 2,
+          content: 'チェック項目2',
+          createdBy: 'user',
+          reviewHistoryId,
+          createdAt: '2024-01-01',
+          updatedAt: '2024-01-01',
+        },
+        {
+          id: 3,
+          content: 'チェック項目3',
+          createdBy: 'user',
+          reviewHistoryId,
+          createdAt: '2024-01-01',
+          updatedAt: '2024-01-01',
+        },
+      ];
+
+      mockRepository.getChecklists.mockResolvedValue(checklists);
+      mockRepository.createReviewDocumentCache.mockResolvedValue({
+        id: 1,
+        reviewHistoryId,
+        fileName: 'document.txt',
+        processMode: 'text',
+        textContent: 'テストファイルの内容',
+        imageData: undefined,
+        createdAt: '2024-01-01',
+        updatedAt: '2024-01-01',
+      });
+
+      // AIがID 1のみ返す（ID 2, 3は未分類→「その他」カテゴリに追加される）
+      mockClassifyCategoryAgent.generateLegacy.mockResolvedValue({
+        object: {
+          categories: [{ name: 'セキュリティ', checklistIds: [1] }],
+        },
+        finishReason: 'stop',
+      });
+
+      // レビューエージェントのモック（各カテゴリごとに呼ばれる、全IDに対して応答）
+      mockReviewExecuteAgent.generateLegacy.mockResolvedValue({
+        object: [
+          {
+            checklistId: 1,
+            reviewSections: [],
+            comment: 'コメント1',
+            evaluation: 'A',
+          },
+          {
+            checklistId: 2,
+            reviewSections: [],
+            comment: 'コメント2',
+            evaluation: 'B',
+          },
+          {
+            checklistId: 3,
+            reviewSections: [],
+            comment: 'コメント3',
+            evaluation: 'A',
+          },
+        ],
+        finishReason: 'stop',
+      });
+
+      // Act
+      const run = await executeReviewWorkflow.createRunAsync();
+      const result = await run.start({
+        inputData: {
+          reviewHistoryId,
+          files,
+          documentMode: 'small',
+          concurrentChecklistCount: 2,
+        },
+      });
+
+      // Assert
+      const checkResult = checkWorkflowResult(result);
+      expect(checkResult.status).toBe('success');
+      // AIが全IDを返さなくてもレビューが実行されること
+      expect(mockReviewExecuteAgent.generateLegacy).toHaveBeenCalled();
     });
 
     it('空のimageDataでもエラーにならないこと', async () => {

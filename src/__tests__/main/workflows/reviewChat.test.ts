@@ -165,6 +165,9 @@ describe('reviewChatWorkflow', () => {
         },
       ]),
       getReviewDocumentCacheInfos: jest.fn(),
+      updateReviewHistoryConcurrentChecklistCount: jest
+        .fn()
+        .mockResolvedValue(undefined),
     } as jest.Mocked<IReviewRepository>;
 
     (getReviewRepository as jest.Mock).mockReturnValue(mockRepository);

@@ -166,6 +166,7 @@ export type IpcRequestPayloadMap = {
     commentFormat?: string;
     evaluationSettings: CustomEvaluationSettings;
     documentMode: DocumentMode;
+    concurrentChecklistCount?: number;
   };
   [IpcChannels.REVIEW_EXECUTE_ABORT]: string; // review history id
   [IpcChannels.REVIEW_CHAT_SEND_MESSAGE]: {

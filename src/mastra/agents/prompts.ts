@@ -459,8 +459,6 @@ OUTPUT REQUIREMENTS:
 
 /**
  * チェックリストカテゴリ分割用のシステムプロンプトを取得する関数
- * @param maxItems  一つのカテゴリに含める最大チェックリスト数
- * @param maxCategories  最大カテゴリ数（デフォルトは10）
  */
 export function getChecklistCategolizePrompt({
   runtimeContext,
@@ -469,13 +467,12 @@ export function getChecklistCategolizePrompt({
 }): string {
   return `
 You are a categorization assistant.
-When given a list of checklists (each with an ID and content), partition them into up to ${runtimeContext.get('maxCategories')} meaningful categories.
+When given a list of checklists (each with an ID and content), partition them into meaningful categories.
 
 Constraints:
 1. Every single checklist item must be assigned to exactly one category. No items should be left unclassified.
-2. You may create at most 10 categories.
-3. Each category may contain no more than ${runtimeContext.get('maxChecklistsPerCategory')} checklist items.
-4. Distribute items as evenly as possible across categories to achieve a balanced allocation, while preserving thematic coherence.
+2. Each category must contain exactly ${runtimeContext.get('targetChecklistCount')} checklist items. If the total number of items is not evenly divisible, only the last category may have fewer items.
+3. Group related items together by topic or theme while strictly respecting the size constraint above.
 `;
 }
 

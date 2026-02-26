@@ -127,6 +127,9 @@ describe('checklistExtractionWorkflow', () => {
       getMaxTotalChunksForDocument: jest.fn(),
       getChecklistResultsWithIndividualResults: jest.fn(),
       getReviewDocumentCacheInfos: jest.fn(),
+      updateReviewHistoryConcurrentChecklistCount: jest
+        .fn()
+        .mockResolvedValue(undefined),
     } as jest.Mocked<IReviewRepository>;
 
     (getReviewRepository as jest.Mock).mockReturnValue(mockRepository);

@@ -29,8 +29,7 @@ export type ChecklistExtractionAgentRuntimeContext = BaseRuntimeContext & {
 };
 
 export type ClassifyCategoryAgentRuntimeContext = BaseRuntimeContext & {
-  maxChecklistsPerCategory: number;
-  maxCategories: number;
+  targetChecklistCount: number;
 };
 
 export type ReviewExecuteAgentRuntimeContext = BaseRuntimeContext & {

@@ -508,6 +508,7 @@ export class ReviewService implements IReviewService {
     commentFormat?: string,
     documentMode?: DocumentMode,
     retryMode?: RetryMode,
+    concurrentChecklistCount?: number,
   ): Promise<{ status: ReviewExecutionResultStatus; error?: string }> {
     try {
       // バリデーション: 初回レビューの場合はfilesが必須
@@ -553,7 +554,7 @@ export class ReviewService implements IReviewService {
         });
       }
 
-      // 初回レビュー時はレビュー指示・評定項目設定・ドキュメントモードを保存
+      // 初回レビュー時はレビュー指示・評定項目設定・ドキュメントモード・同時レビュー項目数を保存
       if (!retryMode) {
         await this.updateReviewInstruction(
           reviewHistoryId,
@@ -568,6 +569,10 @@ export class ReviewService implements IReviewService {
           reviewHistoryId,
           documentMode || 'small',
         );
+        await this.reviewRepository.updateReviewHistoryConcurrentChecklistCount(
+          reviewHistoryId,
+          concurrentChecklistCount ?? 1,
+        );
       } else {
         // リトライ時は最新のレビュー履歴情報を取得
         evaluationSettings = reviewHistory.evaluationSettings!;
@@ -575,6 +580,7 @@ export class ReviewService implements IReviewService {
           reviewHistory.additionalInstructions ?? undefined;
         commentFormat = reviewHistory.commentFormat ?? undefined;
         documentMode = reviewHistory.documentMode || 'small';
+        concurrentChecklistCount = reviewHistory.concurrentChecklistCount ?? 1;
       }
 
       // タイトルの変更（初回レビューのみ）
@@ -611,6 +617,7 @@ export class ReviewService implements IReviewService {
           additionalInstructions,
           commentFormat,
           documentMode: documentMode,
+          concurrentChecklistCount: concurrentChecklistCount ?? 1,
           retryMode,
         },
       });
@@ -747,6 +754,7 @@ export class ReviewService implements IReviewService {
     commentFormat?: string,
     documentMode?: DocumentMode,
     retryMode?: RetryMode,
+    concurrentChecklistCount?: number,
   ): { success: boolean; error?: string } {
     try {
       this.executeReview(
@@ -757,6 +765,7 @@ export class ReviewService implements IReviewService {
         commentFormat,
         documentMode,
         retryMode,
+        concurrentChecklistCount,
       )
         .then((res) => {
           // 完了イベントを送信

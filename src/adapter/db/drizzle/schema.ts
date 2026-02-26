@@ -64,6 +64,7 @@ export const reviewHistories = sqliteTable('review_histories', {
   commentFormat: text('comment_format'), // レビューのコメントフォーマット
   evaluationSettings: text('evaluation_settings'), // 評定項目設定（JSON形式）
   documentMode: text('document_mode'), // レビュー実行方法: small, large
+  concurrentChecklistCount: integer('concurrent_checklist_count').default(1), // 同時レビュー項目数
   processingStatus: text('processing_status').notNull().default('idle'), // 処理ステータス: idle, extracting, canceling-extract, extracted, reviewing, canceling-review, completed
   createdAt: text('created_at')
     .notNull()

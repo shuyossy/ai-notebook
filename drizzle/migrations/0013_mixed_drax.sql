@@ -1,0 +1,1 @@
+ALTER TABLE `review_histories` ADD `concurrent_checklist_count` integer DEFAULT 1;

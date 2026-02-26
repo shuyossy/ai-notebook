@@ -204,6 +204,7 @@ function ReviewSourceModal({
   const [checklistRequirements, setChecklistRequirements] = useState('');
   const [documentVolumeType, setDocumentVolumeType] =
     useState<DocumentMode>('auto');
+  const [concurrentChecklistCount, setConcurrentChecklistCount] = useState(1);
   const [editingItemIndex, setEditingItemIndex] = useState<number | null>(null);
   const [editingItem, setEditingItem] = useState<EvaluationItem>({
     label: '',
@@ -641,6 +642,7 @@ function ReviewSourceModal({
           ? checklistRequirements.trim()
           : undefined,
         modalMode === 'review' ? documentVolumeType : undefined,
+        modalMode === 'review' ? concurrentChecklistCount : undefined,
         modalMode === 'review' && additionalInstructions.trim() !== ''
           ? additionalInstructions.trim()
           : undefined,
@@ -827,6 +829,23 @@ function ReviewSourceModal({
                   />
                 </RadioGroup>
               </FormControl>
+
+              <TextField
+                fullWidth
+                type="number"
+                label="同時レビュー項目数"
+                value={concurrentChecklistCount}
+                onChange={(e) => {
+                  const val = parseInt(e.target.value, 10);
+                  if (!isNaN(val) && val >= 1) {
+                    setConcurrentChecklistCount(val);
+                  }
+                }}
+                inputProps={{ min: 1 }}
+                disabled={processing}
+                sx={{ mb: 2 }}
+                helperText="AIが一度にレビューするチェック項目数。数が大きいほどレビュー完了までの時間が短くなり、API発行回数も少なくなりますが、レビュー品質が低下する可能性があります"
+              />
 
               <TextField
                 fullWidth

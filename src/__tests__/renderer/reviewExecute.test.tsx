@@ -2276,4 +2276,128 @@ describe('ReviewArea - レビュー実行', () => {
       });
     });
   });
+
+  describe('同時レビュー項目数', () => {
+    it('レビューモーダルに「同時レビュー項目数」の入力欄が表示されること', async () => {
+      render(<ReviewArea selectedReviewHistoryId="review-1" />);
+
+      const reviewButton =
+        await waitForChecklistAndEnableButton(/^レビュー実行$/);
+
+      await act(async () => {
+        fireEvent.click(reviewButton);
+      });
+
+      await waitFor(() => {
+        expect(
+          screen.getByText('レビュー対象ファイルのアップロード'),
+        ).toBeInTheDocument();
+      });
+
+      // 同時レビュー項目数の入力欄が表示されること
+      const input = screen.getByLabelText(/同時レビュー項目数/);
+      expect(input).toBeInTheDocument();
+
+      // 説明文が表示されること
+      expect(
+        screen.getByText(/AIが一度にレビューするチェック項目数/),
+      ).toBeInTheDocument();
+    });
+
+    it('デフォルト値が1であること', async () => {
+      render(<ReviewArea selectedReviewHistoryId="review-1" />);
+
+      const reviewButton =
+        await waitForChecklistAndEnableButton(/^レビュー実行$/);
+
+      await act(async () => {
+        fireEvent.click(reviewButton);
+      });
+
+      await waitFor(() => {
+        expect(
+          screen.getByText('レビュー対象ファイルのアップロード'),
+        ).toBeInTheDocument();
+      });
+
+      const input = screen.getByLabelText(
+        /同時レビュー項目数/,
+      ) as HTMLInputElement;
+      expect(input.value).toBe('1');
+    });
+
+    it('値を変更してレビュー実行すると、IPC呼び出しにconcurrentChecklistCountが含まれること', async () => {
+      const mockShowOpenDialog = jest.fn().mockResolvedValue({
+        success: true as const,
+        data: {
+          filePaths: ['/path/to/test.pdf'],
+          canceled: false,
+        },
+      });
+
+      const mockReadFile = jest.fn().mockResolvedValue({
+        success: true as const,
+        data: new Uint8Array([0x25, 0x50, 0x44, 0x46]),
+      });
+
+      const mockExecuteReview = jest.fn().mockResolvedValue({
+        success: true,
+      });
+
+      window.electron = createMockElectronWithOptions({
+        reviewHistory: mockReviewHistory,
+        reviewChecklistResults: mockChecklistResults,
+      }) as any;
+      window.electron.fs.showOpenDialog = mockShowOpenDialog;
+      window.electron.fs.readFile = mockReadFile;
+      window.electron.review.execute = mockExecuteReview;
+
+      render(<ReviewArea selectedReviewHistoryId="review-1" />);
+
+      const reviewButton =
+        await waitForChecklistAndEnableButton(/レビュー実行/i);
+
+      await userEvent.click(reviewButton);
+
+      await waitFor(() => {
+        expect(
+          screen.getByText('レビュー対象ファイルのアップロード'),
+        ).toBeInTheDocument();
+      });
+
+      // 同時レビュー項目数を3に変更
+      const input = screen.getByLabelText(/同時レビュー項目数/);
+      await act(async () => {
+        fireEvent.change(input, { target: { value: '3' } });
+      });
+
+      // ファイル選択
+      const uploadButton = screen.getByRole('button', {
+        name: /ファイル選択ダイアログ/,
+      });
+      await act(async () => {
+        fireEvent.click(uploadButton);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('test.pdf')).toBeInTheDocument();
+      });
+
+      // モーダルの送信ボタンをクリック
+      const submitButton = screen.getByRole('button', {
+        name: /レビュー実行/i,
+      });
+      await userEvent.click(submitButton);
+
+      // IPC通信にconcurrentChecklistCount: 3が含まれること
+      await waitFor(() => {
+        expect(mockExecuteReview).toHaveBeenCalledWith(
+          expect.objectContaining({
+            reviewHistoryId: 'review-1',
+            concurrentChecklistCount: 3,
+          }),
+        );
+      });
+    });
+  });
 });

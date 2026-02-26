@@ -62,6 +62,8 @@ export class DrizzleReviewRepository implements IReviewRepository {
       commentFormat: reviewHistoryEntity.commentFormat,
       evaluationSettings: null,
       documentMode: reviewHistoryEntity.documentMode as DocumentMode | null,
+      concurrentChecklistCount:
+        reviewHistoryEntity.concurrentChecklistCount ?? 1,
       processingStatus: (reviewHistoryEntity.processingStatus ||
         'idle') as ProcessingStatus,
       createdAt: reviewHistoryEntity.createdAt,
@@ -544,6 +546,24 @@ export class DrizzleReviewRepository implements IReviewRepository {
         .where(eq(reviewHistories.id, id));
     } catch (err) {
       throw repositoryError('ドキュメントモードの更新に失敗しました', err);
+    }
+  }
+
+  /** 同時レビュー項目数を更新 */
+  async updateReviewHistoryConcurrentChecklistCount(
+    id: string,
+    concurrentChecklistCount: number,
+  ): Promise<void> {
+    try {
+      const db = await getDb();
+      await db
+        .update(reviewHistories)
+        .set({
+          concurrentChecklistCount,
+        })
+        .where(eq(reviewHistories.id, id));
+    } catch (err) {
+      throw repositoryError('同時レビュー項目数の更新に失敗しました', err);
     }
   }
 

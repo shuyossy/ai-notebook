@@ -31,6 +31,7 @@ export interface ReviewSourceModalProps {
     documentType?: DocumentType,
     checklistRequirements?: string,
     documentMode?: DocumentMode,
+    concurrentChecklistCount?: number,
     additionalInstructions?: string,
     commentFormat?: string,
     evaluationSettings?: CustomEvaluationSettings,

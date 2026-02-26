@@ -466,6 +466,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
       files: UploadFile[] | undefined,
       documentMode?: DocumentMode,
       retryMode?: RetryMode,
+      concurrentChecklistCount?: number,
     ) => {
       if (!selectedReviewHistoryId) return;
 
@@ -497,6 +498,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
           additionalInstructions || additionalInstructions,
           commentFormat || commentFormat,
           retryMode,
+          concurrentChecklistCount,
           { throwError: true, showAlert: false },
         );
       } catch (error) {
@@ -598,6 +600,7 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
       documentType?: DocumentType,
       checklistRequirements?: string,
       documentMode?: DocumentMode,
+      concurrentChecklistCount?: number,
     ) => {
       if (modalMode === 'extract') {
         await handleExtractChecklist(
@@ -606,7 +609,12 @@ const ReviewArea: React.FC<ReviewAreaProps> = ({ selectedReviewHistoryId }) => {
           checklistRequirements,
         );
       } else if (modalMode === 'review') {
-        await handleExecuteReview(files, documentMode, undefined);
+        await handleExecuteReview(
+          files,
+          documentMode,
+          undefined,
+          concurrentChecklistCount,
+        );
       }
     },
     [modalMode, handleExtractChecklist, handleExecuteReview],

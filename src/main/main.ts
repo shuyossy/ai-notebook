@@ -494,6 +494,7 @@ const setupReviewHandlers = () => {
       evaluationSettings,
       documentMode,
       retryMode,
+      concurrentChecklistCount,
     }) => {
       // 非同期でレビュー実行処理を実行
       const result = reviewService.executeReviewWithNotification(
@@ -504,6 +505,7 @@ const setupReviewHandlers = () => {
         commentFormat,
         documentMode,
         retryMode,
+        concurrentChecklistCount,
       );
 
       if (!result.success) {

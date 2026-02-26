@@ -37,13 +37,6 @@ async function assignCacheIdsToDocuments(
   }
 }
 
-// レビュー機能で利用する定数定義
-
-// 一つのカテゴリに含めるチェックリストの最大数
-export const MAX_CHECKLISTS_PER_CATEGORY = 1;
-// 分割カテゴリの最大数
-export const MAX_CATEGORIES = 50;
-
 // レビュー実行のメインワークフロー入力スキーマ
 export const executeReviewWorkflowInputSchema = z.object({
   reviewHistoryId: z.string().describe('レビュー履歴ID'),
@@ -72,6 +65,13 @@ export const executeReviewWorkflowInputSchema = z.object({
     .describe(
       'ドキュメントモード: small=少量ドキュメント, large=大量ドキュメント, auto=自動判定',
     ),
+  // 同時レビュー項目数
+  concurrentChecklistCount: z
+    .number()
+    .int()
+    .min(1)
+    .default(1)
+    .describe('一度にレビューするチェックリスト項目数'),
   // リトライモード (undefinedの場合は初回レビュー)
   retryMode: z
     .enum(['all', 'uncompleted-only'])
@@ -149,6 +149,7 @@ export const executeReviewWorkflow = createWorkflow({
         return {
           reviewHistoryId: inputData.reviewHistoryId,
           retryMode: inputData.retryMode,
+          concurrentChecklistCount: inputData.concurrentChecklistCount,
         } as z.infer<typeof classifyChecklistsByCategoryStep.inputSchema>;
       })
       .then(classifyChecklistsByCategoryStep)

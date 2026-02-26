@@ -1,5 +1,5 @@
 import { format } from 'date-fns';
-import { ReviewChecklist, UploadFile, ExtractedImage } from '@/types';
+import { UploadFile, ExtractedImage } from '@/types';
 import { FileTextExtractor } from '@/main/lib/textExtractor/FileTextExtractor';
 import { removeImageLinks } from '@/mastra/lib/util';
 
@@ -11,58 +11,95 @@ export function generateReviewTitle(sourceTitles: string[] = []): string {
   return `New Review-${now}`;
 }
 
-// チェックリストを「要素数の差は最大1かつ
-// 1パートあたり maxSize 件以下」に分割する関数
-export function splitChecklistEquallyByMaxSize(
-  checklist: ReviewChecklist[],
-  maxSize: number,
+/**
+ * チェックリストを固定サイズで順番に分割する関数
+ * @param checklists チェックリスト配列
+ * @param size 1チャンクあたりの件数
+ * @returns カテゴリ配列（各カテゴリはsize件、最後のみsize未満を許容）
+ */
+export function splitChecklistByFixedSize(
+  checklists: { id: number; content: string }[],
+  size: number,
 ): { name: string; checklists: { id: number; content: string }[] }[] {
-  // 1) maxSize のバリデーション
-  //    1 未満だと「1パートに1件以上」のルールを守れなくなるのでエラーにする
-  if (maxSize < 1) {
-    throw new Error('maxSize must be at least 1');
+  if (size < 1) {
+    throw new Error('size must be at least 1');
   }
-
-  const n = checklist.length;
-  // 2) 空リストならすぐに空配列を返す
-  if (n === 0) {
+  if (checklists.length === 0) {
     return [];
   }
-
-  // 3) 必要なパート数を計算
-  //    n / maxSize を切り上げることで、
-  //    いずれのパートも maxSize を超えない最小のパート数 parts が得られる
-  const parts = Math.ceil(n / maxSize);
-
-  // 4) 等分割のための基礎情報を計算
-  //    baseSize は「最低保証サイズ」、remainder は余り
-  //    → 先頭 remainder 個のパートに +1 して差を最大1に抑える
-  const baseSize = Math.floor(n / parts);
-  const remainder = n % parts;
 
   const result: {
     name: string;
     checklists: { id: number; content: string }[];
   }[] = [];
-  let offset = 0; // スライス開始インデックス
 
-  // 5) 各パートを順番に切り出す
-  for (let i = 0; i < parts; i++) {
-    // 先頭 remainder 個のパートだけ +1
-    const thisSize = baseSize + (i < remainder ? 1 : 0);
-
-    // slice は end が length を超えても安全に末尾まで取得してくれる
-    const partChecklist = checklist.slice(offset, offset + thisSize);
-
+  for (let i = 0; i < checklists.length; i += size) {
+    const chunk = checklists.slice(i, i + size);
     result.push({
-      name: `Part ${i + 1}`,
-      checklists: partChecklist.map((item) => ({
-        id: item.id,
-        content: item.content,
-      })),
+      name: `Part ${result.length + 1}`,
+      checklists: chunk,
     });
+  }
 
-    offset += thisSize;
+  return result;
+}
+
+/**
+ * AI分類済みカテゴリを同時チェック項目数に合わせて統合する関数
+ * - targetSize以上のカテゴリはtargetSize件ずつチャンク
+ * - targetSize未満のカテゴリのアイテムを集約し、targetSize件ずつ新カテゴリに統合
+ * @param categories AI分類済みカテゴリ配列
+ * @param targetSize 目標サイズ（同時チェック項目数）
+ * @returns 統合後のカテゴリ配列
+ */
+export function consolidateCategories(
+  categories: { name: string; checklists: { id: number; content: string }[] }[],
+  targetSize: number,
+): { name: string; checklists: { id: number; content: string }[] }[] {
+  if (targetSize < 1) {
+    throw new Error('targetSize must be at least 1');
+  }
+
+  const result: {
+    name: string;
+    checklists: { id: number; content: string }[];
+  }[] = [];
+
+  // targetSize未満のカテゴリのアイテムを集約
+  const underflowItems: { id: number; content: string }[] = [];
+
+  for (const category of categories) {
+    if (category.checklists.length >= targetSize) {
+      // targetSize以上のカテゴリはtargetSize件ずつチャンク
+      let partIndex = 1;
+      for (let i = 0; i < category.checklists.length; i += targetSize) {
+        const chunk = category.checklists.slice(i, i + targetSize);
+        if (chunk.length === targetSize) {
+          // 完全なチャンクのみresultに追加
+          const chunkName =
+            i === 0 ? category.name : `${category.name} (Part ${partIndex})`;
+          result.push({ name: chunkName, checklists: chunk });
+          partIndex++;
+        } else {
+          // 端数はunderflowに集約
+          underflowItems.push(...chunk);
+        }
+      }
+    } else {
+      // targetSize未満のカテゴリのアイテムを集約
+      underflowItems.push(...category.checklists);
+    }
+  }
+
+  // 集約アイテムをtargetSize件ずつ新カテゴリに統合
+  if (underflowItems.length > 0) {
+    for (let i = 0; i < underflowItems.length; i += targetSize) {
+      const chunk = underflowItems.slice(i, i + targetSize);
+      const partIndex = Math.floor(i / targetSize) + 1;
+      const totalParts = Math.ceil(underflowItems.length / targetSize);
+      const name = totalParts === 1 ? 'その他' : `その他 (Part ${partIndex})`;
+      result.push({ name, checklists: chunk });
+    }
   }
 
   return result;
