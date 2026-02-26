@@ -14,9 +14,8 @@ import {
 } from '@/mastra/lib/agentUtils';
 import { logError } from '@/main/lib/logger';
 import type { ReviewEvaluation } from '@/types';
-import { createHash } from 'crypto';
 import { extractedDocumentSchema } from '../schema';
-import { saveChecklistErrors } from '../lib';
+import { deduplicateByChecklistId, saveChecklistErrors } from '../lib';
 
 // レビュー結果統合ステップの入力スキーマ
 export const consolidateReviewStepInputSchema = z.object({
@@ -137,6 +136,8 @@ Please provide a consolidated review that synthesizes all individual document re
       // 統合レビューを実行（最大3回まで再試行）
       const maxAttempts = 3;
       let attempt = 0;
+      // リトライ間の重複保存防止: DB保存済みのchecklistIdを追跡
+      const savedChecklistIds = new Set<number>();
 
       while (attempt < maxAttempts) {
         // デフォルトの評価項目
@@ -194,28 +195,36 @@ Please provide a consolidated review that synthesizes all individual document re
           });
         }
 
-        // 統合レビュー結果をDBに保存
+        // 統合レビュー結果をDBに保存（重複排除・リトライ間重複排除を適用）
         if (
           consolidatedResult.object &&
           Array.isArray(consolidatedResult.object)
         ) {
-          await reviewRepository.upsertReviewResult(
-            consolidatedResult.object.map((result) => ({
-              reviewChecklistId: result.checklistId,
-              evaluation: result.evaluation as ReviewEvaluation,
-              comment: result.comment,
-            })),
+          // AI応答内の重複を排除
+          const { deduplicated } = deduplicateByChecklistId(
+            consolidatedResult.object,
           );
+          // リトライ間の重複を排除（既にDB保存済みのchecklistIdをスキップ）
+          const newResults = deduplicated.filter(
+            (result) => !savedChecklistIds.has(result.checklistId),
+          );
+          if (newResults.length > 0) {
+            await reviewRepository.upsertReviewResult(
+              newResults.map((result) => ({
+                reviewChecklistId: result.checklistId,
+                evaluation: result.evaluation as ReviewEvaluation,
+                comment: result.comment,
+              })),
+            );
+            for (const result of newResults) {
+              savedChecklistIds.add(result.checklistId);
+            }
+          }
         }
 
-        // レビュー結果に含まれなかったチェックリストを抽出
-        const reviewedChecklistIds = new Set(
-          consolidatedResult.object && Array.isArray(consolidatedResult.object)
-            ? consolidatedResult.object.map((result) => result.checklistId)
-            : [],
-        );
+        // レビュー結果に含まれなかったチェックリストを抽出（保存済みベース）
         targetChecklists = targetChecklists.filter(
-          (checklist) => !reviewedChecklistIds.has(checklist.id),
+          (checklist) => !savedChecklistIds.has(checklist.id),
         );
 
         if (targetChecklists.length === 0) {

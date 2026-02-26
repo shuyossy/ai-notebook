@@ -14,7 +14,11 @@ import {
 } from '@/mastra/lib/agentUtils';
 import { logError } from '@/main/lib/logger';
 import { createCombinedMessageFromExtractedDocument } from '../../lib';
-import { getChecklistsErrorMessage, saveChecklistErrors } from '../lib';
+import {
+  deduplicateByChecklistId,
+  getChecklistsErrorMessage,
+  saveChecklistErrors,
+} from '../lib';
 import { extractedDocumentSchema } from '../schema';
 import { getReviewRepository } from '@/adapter/db';
 import { buildDocumentFormatContext } from '@/mastra/lib/extractionFormatDescription';
@@ -174,19 +178,26 @@ Checklist Items to Review:\n${checklists.map((item) => `- ID: ${item.id} - ${ite
           });
         }
 
+        // AI応答内の重複を排除
+        const { deduplicated } = deduplicateByChecklistId(reviewResult.object);
+        // allReviewResultsに既に蓄積済みのchecklistIdを除外
+        const allReviewedIds = new Set(
+          allReviewResults.map((r) => r.checklistId),
+        );
+        const newResults = deduplicated.filter(
+          (result) => !allReviewedIds.has(result.checklistId),
+        );
         allReviewResults.push(
-          ...reviewResult.object.map((result) => ({
+          ...newResults.map((result) => ({
             documentId: document.id,
             checklistId: result.checklistId,
             comment: result.comment,
           })),
         );
 
-        // レビュー結果に含まれなかったチェックリストを抽出
+        // レビュー結果に含まれなかったチェックリストを抽出（allReviewResultsベース）
         const reviewedChecklistIds = new Set(
-          reviewResult.object && Array.isArray(reviewResult.object)
-            ? reviewResult.object.map((result) => result.checklistId)
-            : [],
+          allReviewResults.map((r) => r.checklistId),
         );
         targetChecklists = targetChecklists.filter(
           (checklist) => !reviewedChecklistIds.has(checklist.id),

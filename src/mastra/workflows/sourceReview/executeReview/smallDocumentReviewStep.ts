@@ -10,7 +10,6 @@ import {
 } from '@/mastra/lib/agentUtils';
 import { ReviewExecuteAgentRuntimeContext } from '@/mastra/agents/workflowAgents';
 import { internalError, normalizeUnknownError } from '@/main/lib/error';
-import { createHash } from 'crypto';
 import { ReviewEvaluation } from '@/types';
 import { stepStatus } from '../../types';
 import { logError } from '@/main/lib/logger';
@@ -18,7 +17,7 @@ import {
   documentReviewExecutionInputSchema,
   documentReviewExecutionOutputSchema,
 } from '.';
-import { saveChecklistErrors } from './lib';
+import { deduplicateByChecklistId, saveChecklistErrors } from './lib';
 import { buildDocumentFormatContext } from '@/mastra/lib/extractionFormatDescription';
 import { extractedDocumentSchema } from './schema';
 
@@ -133,6 +132,8 @@ export const smallDocumentReviewExecutionStep = createStep({
       // レビュー結果に含まれなかったチェックリストは再度レビューを実行する（最大試行回数は3回）
       const maxAttempts = 3;
       let attempt = 0;
+      // リトライ間の重複保存防止: DB保存済みのchecklistIdを追跡
+      const savedChecklistIds = new Set<number>();
       while (attempt < maxAttempts) {
         // デフォルトの評定項目
         const defaultEvaluationItems = ['A', 'B', 'C', '-'] as const;
@@ -193,24 +194,32 @@ export const smallDocumentReviewExecutionStep = createStep({
             messageParams: { detail: reason },
           });
         }
-        // レビュー結果をDBに保存
+        // レビュー結果をDBに保存（重複排除・リトライ間重複排除を適用）
         if (reviewResult.object && Array.isArray(reviewResult.object)) {
-          await reviewRepository.upsertReviewResult(
-            reviewResult.object.map((result) => ({
-              reviewChecklistId: result.checklistId,
-              evaluation: result.evaluation as ReviewEvaluation,
-              comment: result.comment,
-            })),
+          // AI応答内の重複を排除
+          const { deduplicated } = deduplicateByChecklistId(
+            reviewResult.object,
           );
+          // リトライ間の重複を排除（既にDB保存済みのchecklistIdをスキップ）
+          const newResults = deduplicated.filter(
+            (result) => !savedChecklistIds.has(result.checklistId),
+          );
+          if (newResults.length > 0) {
+            await reviewRepository.upsertReviewResult(
+              newResults.map((result) => ({
+                reviewChecklistId: result.checklistId,
+                evaluation: result.evaluation as ReviewEvaluation,
+                comment: result.comment,
+              })),
+            );
+            for (const result of newResults) {
+              savedChecklistIds.add(result.checklistId);
+            }
+          }
         }
-        // レビュー結果に含まれなかったチェックリストを抽出
-        const reviewedChecklistIds = new Set(
-          reviewResult.object && Array.isArray(reviewResult.object)
-            ? reviewResult.object.map((result) => result.checklistId)
-            : [],
-        );
+        // レビュー結果に含まれなかったチェックリストを抽出（重複排除済みの結果ベース）
         targetChecklists = targetChecklists.filter(
-          (checklist) => !reviewedChecklistIds.has(checklist.id),
+          (checklist) => !savedChecklistIds.has(checklist.id),
         );
         if (targetChecklists.length === 0) {
           // 全てのチェックリストがレビューされた場合、成功

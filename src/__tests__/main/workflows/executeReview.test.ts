@@ -4032,4 +4032,470 @@ describe('executeReviewWorkflow', () => {
       });
     });
   });
+
+  describe('checklistId重複排除', () => {
+    describe('少量ドキュメントモード', () => {
+      it('AI応答にchecklistId重複がある場合、重複排除されてDB保存されること', async () => {
+        // Arrange
+        const reviewHistoryId = 'review-1';
+        const files: UploadFile[] = [
+          {
+            id: 'file-1',
+            name: 'document.txt',
+            path: '/test/document.txt',
+            type: 'text/plain',
+            processMode: 'text',
+          },
+        ];
+        const checklists: ReviewChecklist[] = [
+          {
+            id: 1,
+            content: 'チェック項目1',
+            createdBy: 'user',
+            reviewHistoryId,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          },
+          {
+            id: 2,
+            content: 'チェック項目2',
+            createdBy: 'user',
+            reviewHistoryId,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          },
+        ];
+
+        mockRepository.getChecklists.mockResolvedValue(checklists);
+        mockRepository.createReviewDocumentCache.mockResolvedValue({
+          id: 1,
+          reviewHistoryId,
+          fileName: 'document.txt',
+          processMode: 'text',
+          textContent: 'テストファイルの内容',
+          imageData: undefined,
+          createdAt: '2024-01-01',
+          updatedAt: '2024-01-01',
+        });
+
+        // AI応答にchecklistIdの重複を含む（カテゴリのチェックリストに対して重複を返す）
+        mockReviewExecuteAgent.generateLegacy.mockImplementation(
+          async (_message: any, options: any) => {
+            const checklistItems =
+              options?.runtimeContext?.get('checklistItems') || [];
+            // 対象チェックリストの結果に重複を含めて返す
+            const results = checklistItems.flatMap((item: any) => [
+              {
+                checklistId: item.id,
+                reviewSections: [],
+                comment: `最初のコメント${item.id}`,
+                evaluation: 'A',
+              },
+              {
+                checklistId: item.id,
+                reviewSections: [],
+                comment: `重複コメント${item.id}`,
+                evaluation: 'B',
+              },
+            ]);
+            return {
+              object: results,
+              finishReason: 'stop',
+            };
+          },
+        );
+
+        // Act
+        const run = await executeReviewWorkflow.createRunAsync();
+        const result = await run.start({
+          inputData: {
+            reviewHistoryId,
+            files,
+            documentMode: 'small',
+          },
+        });
+
+        // Assert
+        const checkResult = checkWorkflowResult(result);
+        expect(checkResult.status).toBe('success');
+
+        // upsertReviewResultに渡されたデータの重複確認
+        const upsertCalls = mockRepository.upsertReviewResult.mock.calls;
+        // 各呼び出し（カテゴリごと）でchecklistIdの重複がないこと
+        for (const call of upsertCalls) {
+          const callChecklistIds = call[0].map((r: any) => r.reviewChecklistId);
+          const uniqueIds = new Set(callChecklistIds);
+          expect(callChecklistIds.length).toBe(uniqueIds.size);
+        }
+        // 最初のコメントが保持されていること（重複コメントではなく）
+        const allSavedResults = upsertCalls.flatMap((call) => call[0]);
+        const result1 = allSavedResults.find(
+          (r: any) => r.reviewChecklistId === 1,
+        );
+        expect(result1).toBeDefined();
+        expect(result1!.comment).toBe('最初のコメント1');
+      });
+
+      it('リトライ間でchecklistIdが重複する場合、既に保存済みのchecklistIdはスキップされること', async () => {
+        // Arrange
+        const reviewHistoryId = 'review-1';
+        const files: UploadFile[] = [
+          {
+            id: 'file-1',
+            name: 'document.txt',
+            path: '/test/document.txt',
+            type: 'text/plain',
+            processMode: 'text',
+          },
+        ];
+        const checklists: ReviewChecklist[] = [
+          {
+            id: 1,
+            content: 'チェック項目1',
+            createdBy: 'user',
+            reviewHistoryId,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          },
+          {
+            id: 2,
+            content: 'チェック項目2',
+            createdBy: 'user',
+            reviewHistoryId,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          },
+        ];
+
+        mockRepository.getChecklists.mockResolvedValue(checklists);
+        mockRepository.createReviewDocumentCache.mockResolvedValue({
+          id: 1,
+          reviewHistoryId,
+          fileName: 'document.txt',
+          processMode: 'text',
+          textContent: 'テストファイルの内容',
+          imageData: undefined,
+          createdAt: '2024-01-01',
+          updatedAt: '2024-01-01',
+        });
+
+        // concurrentChecklistCount=2にして両チェックリストを同一カテゴリに配置
+        // → 同一のリトライループ内で重複排除が検証可能になる
+        mockClassifyCategoryAgent.generateLegacy.mockResolvedValue({
+          object: {
+            categories: [{ name: 'テストカテゴリ', checklistIds: [1, 2] }],
+          },
+          finishReason: 'stop',
+        });
+
+        // 1回目: checklistId=1のみ返す（checklistId=2が欠落 → リトライ発生）
+        // 2回目: checklistId=1（重複）とchecklistId=2を返す
+        let callCount = 0;
+        mockReviewExecuteAgent.generateLegacy.mockImplementation(async () => {
+          callCount += 1;
+          if (callCount === 1) {
+            return {
+              object: [
+                {
+                  checklistId: 1,
+                  reviewSections: [],
+                  comment: '1回目のコメント1',
+                  evaluation: 'A',
+                },
+              ],
+              finishReason: 'stop',
+            };
+          }
+          // 2回目以降: 前回保存済みのchecklistId=1を含む（重複）＋ 新規のchecklistId=2
+          return {
+            object: [
+              {
+                checklistId: 1,
+                reviewSections: [],
+                comment: '2回目のコメント1（重複）',
+                evaluation: 'B',
+              },
+              {
+                checklistId: 2,
+                reviewSections: [],
+                comment: '2回目のコメント2',
+                evaluation: 'A',
+              },
+            ],
+            finishReason: 'stop',
+          };
+        });
+
+        // Act
+        const run = await executeReviewWorkflow.createRunAsync();
+        const result = await run.start({
+          inputData: {
+            reviewHistoryId,
+            files,
+            documentMode: 'small',
+            concurrentChecklistCount: 2,
+          },
+        });
+
+        // Assert
+        const checkResult = checkWorkflowResult(result);
+        expect(checkResult.status).toBe('success');
+
+        // upsertReviewResultの全呼び出しを検証
+        const upsertCalls = mockRepository.upsertReviewResult.mock.calls;
+        const allSavedResults = upsertCalls.flatMap((call) => call[0]);
+
+        // checklistId=1は1回のみDB保存されること（2回目の重複分はスキップ）
+        const savedForId1 = allSavedResults.filter(
+          (r: any) => r.reviewChecklistId === 1,
+        );
+        expect(savedForId1).toHaveLength(1);
+        expect(savedForId1[0].comment).toBe('1回目のコメント1');
+
+        // checklistId=2は2回目で正常に保存されること
+        const savedForId2 = allSavedResults.filter(
+          (r: any) => r.reviewChecklistId === 2,
+        );
+        expect(savedForId2).toHaveLength(1);
+        expect(savedForId2[0].comment).toBe('2回目のコメント2');
+
+        // AIは2回呼び出されること（リトライが発生）
+        expect(mockReviewExecuteAgent.generateLegacy).toHaveBeenCalledTimes(2);
+      });
+    });
+
+    describe('大量ドキュメントモード - 個別レビュー', () => {
+      it('AI応答にchecklistId重複がある場合、統合ステップに重複なし結果が渡ること', async () => {
+        // Arrange
+        const reviewHistoryId = 'review-1';
+        const files: UploadFile[] = [
+          {
+            id: 'file-1',
+            name: 'document1.txt',
+            path: '/test/document1.txt',
+            type: 'text/plain',
+            processMode: 'text',
+          },
+        ];
+        const checklists: ReviewChecklist[] = [
+          {
+            id: 1,
+            content: 'チェック項目1',
+            createdBy: 'user',
+            reviewHistoryId,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          },
+          {
+            id: 2,
+            content: 'チェック項目2',
+            createdBy: 'user',
+            reviewHistoryId,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          },
+        ];
+
+        mockRepository.getChecklists.mockResolvedValue(checklists);
+        mockRepository.createReviewDocumentCache.mockResolvedValue({
+          id: 1,
+          reviewHistoryId,
+          fileName: 'document1.txt',
+          processMode: 'text',
+          textContent: 'ファイル1の内容',
+          imageData: undefined,
+          createdAt: '2024-01-01',
+          updatedAt: '2024-01-01',
+        });
+
+        // 個別レビューAIが重複checklistIdを返す（カテゴリのチェックリストに対して重複）
+        mockIndividualDocumentReviewAgent.generateLegacy.mockImplementation(
+          async (_message: any, options: any) => {
+            const checklistItems =
+              options?.runtimeContext?.get('checklistItems') || [];
+            // 対象チェックリストの結果に重複を含めて返す
+            const results = checklistItems.flatMap((item: any) => [
+              {
+                reviewSections: [],
+                checklistId: item.id,
+                comment: `最初のコメント${item.id}`,
+              },
+              {
+                reviewSections: [],
+                checklistId: item.id,
+                comment: `重複コメント${item.id}`,
+              },
+            ]);
+            return {
+              object: results,
+              finishReason: 'stop',
+            };
+          },
+        );
+
+        // 統合レビュー
+        mockConsolidateReviewAgent.generateLegacy.mockImplementation(
+          async (_message: any, options: any) => {
+            const checklistItems =
+              options?.runtimeContext?.get('checklistItems') || [];
+            return {
+              object: checklistItems.map((item: any) => ({
+                checklistId: item.id,
+                comment: `統合コメント${item.id}`,
+                evaluation: 'A',
+              })),
+              finishReason: 'stop',
+            };
+          },
+        );
+
+        // Act
+        const run = await executeReviewWorkflow.createRunAsync();
+        const result = await run.start({
+          inputData: {
+            reviewHistoryId,
+            files,
+            documentMode: 'large',
+          },
+        });
+
+        // Assert
+        const checkResult = checkWorkflowResult(result);
+        expect(checkResult.status).toBe('success');
+
+        // 個別レビュー結果キャッシュに保存されたデータの重複確認
+        const cacheCalls =
+          mockRepository.createReviewLargedocumentResultCache.mock.calls;
+        const cachedChecklistIds = cacheCalls.map(
+          (call: any) => call[0].reviewChecklistId,
+        );
+        // 各checklistIdがドキュメント数分のみキャッシュされていること（重複なし）
+        // 1ファイル × カテゴリ内チェックリスト = checklistIdあたり1回
+        expect(cachedChecklistIds.filter((id: number) => id === 1).length).toBe(
+          1,
+        );
+        // checklistId=2も同様に1回のみキャッシュされていること
+        expect(cachedChecklistIds.filter((id: number) => id === 2).length).toBe(
+          1,
+        );
+      });
+    });
+
+    describe('大量ドキュメントモード - 統合レビュー', () => {
+      it('AI応答にchecklistId重複がある場合、重複排除されてDB保存されること', async () => {
+        // Arrange
+        const reviewHistoryId = 'review-1';
+        const files: UploadFile[] = [
+          {
+            id: 'file-1',
+            name: 'document1.txt',
+            path: '/test/document1.txt',
+            type: 'text/plain',
+            processMode: 'text',
+          },
+        ];
+        const checklists: ReviewChecklist[] = [
+          {
+            id: 1,
+            content: 'チェック項目1',
+            createdBy: 'user',
+            reviewHistoryId,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          },
+          {
+            id: 2,
+            content: 'チェック項目2',
+            createdBy: 'user',
+            reviewHistoryId,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          },
+        ];
+
+        mockRepository.getChecklists.mockResolvedValue(checklists);
+        mockRepository.createReviewDocumentCache.mockResolvedValue({
+          id: 1,
+          reviewHistoryId,
+          fileName: 'document1.txt',
+          processMode: 'text',
+          textContent: 'ファイル1の内容',
+          imageData: undefined,
+          createdAt: '2024-01-01',
+          updatedAt: '2024-01-01',
+        });
+
+        // 個別レビューは正常（重複なし）
+        mockIndividualDocumentReviewAgent.generateLegacy.mockImplementation(
+          async (_message: any, options: any) => {
+            const checklistItems =
+              options?.runtimeContext?.get('checklistItems') || [];
+            return {
+              object: checklistItems.map((item: any) => ({
+                reviewSections: [],
+                checklistId: item.id,
+                comment: `個別コメント${item.id}`,
+              })),
+              finishReason: 'stop',
+            };
+          },
+        );
+
+        // 統合レビューAIが重複checklistIdを返す（カテゴリのチェックリストに対して重複）
+        mockConsolidateReviewAgent.generateLegacy.mockImplementation(
+          async (_message: any, options: any) => {
+            const checklistItems =
+              options?.runtimeContext?.get('checklistItems') || [];
+            // 対象チェックリストの結果に重複を含めて返す
+            const results = checklistItems.flatMap((item: any) => [
+              {
+                checklistId: item.id,
+                comment: `最初の統合コメント${item.id}`,
+                evaluation: 'A',
+              },
+              {
+                checklistId: item.id,
+                comment: `重複統合コメント${item.id}`,
+                evaluation: 'B',
+              },
+            ]);
+            return {
+              object: results,
+              finishReason: 'stop',
+            };
+          },
+        );
+
+        // Act
+        const run = await executeReviewWorkflow.createRunAsync();
+        const result = await run.start({
+          inputData: {
+            reviewHistoryId,
+            files,
+            documentMode: 'large',
+          },
+        });
+
+        // Assert
+        const checkResult = checkWorkflowResult(result);
+        expect(checkResult.status).toBe('success');
+
+        // upsertReviewResultに渡されたデータの重複確認
+        const upsertCalls = mockRepository.upsertReviewResult.mock.calls;
+        // 各呼び出し（カテゴリごと）でchecklistIdの重複がないこと
+        for (const call of upsertCalls) {
+          const callChecklistIds = call[0].map((r: any) => r.reviewChecklistId);
+          const uniqueIds = new Set(callChecklistIds);
+          expect(callChecklistIds.length).toBe(uniqueIds.size);
+        }
+        // 最初のコメントが保持されていること（重複コメントではなく）
+        const allSavedResults = upsertCalls.flatMap((call) => call[0]);
+        const result1 = allSavedResults.find(
+          (r: any) => r.reviewChecklistId === 1,
+        );
+        expect(result1).toBeDefined();
+        expect(result1!.comment).toBe('最初の統合コメント1');
+      });
+    });
+  });
 });
