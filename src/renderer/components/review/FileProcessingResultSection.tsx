@@ -28,6 +28,26 @@ interface FileProcessingResultSectionProps {
   documentCaches: DocumentCacheInfo[];
 }
 
+// テーブルヘッダーセルの共通スタイル
+const headerCellSx = {
+  fontWeight: 'bold',
+  fontSize: '0.75rem',
+  bgcolor: 'grey.50',
+} as const;
+
+/**
+ * ハイフン表示対応のセル値コンポーネント
+ */
+function CellValue({ value }: { value: string }) {
+  return value === '-' ? (
+    <Typography component="span" sx={{ color: 'grey.400' }}>
+      -
+    </Typography>
+  ) : (
+    <>{value}</>
+  );
+}
+
 /**
  * 画像・図形抽出列のバッジを判定
  */
@@ -76,13 +96,13 @@ function getIncludeImagesLabel(cache: DocumentCacheInfo): string {
 }
 
 /**
- * 抽出文字数列の表示を判定
+ * トークン数列の表示を判定
  */
-function getTextCharacterCountLabel(cache: DocumentCacheInfo): string {
+function getTextTokenCountLabel(cache: DocumentCacheInfo): string {
   if (cache.processMode === 'image') {
     return '-';
   }
-  return cache.textCharacterCount.toLocaleString();
+  return cache.textTokenCount.toLocaleString();
 }
 
 /**
@@ -175,68 +195,19 @@ const FileProcessingResultSection: React.FC<
             <Table size="small" stickyHeader>
               <TableHead>
                 <TableRow>
-                  <TableCell
-                    sx={{
-                      fontWeight: 'bold',
-                      fontSize: '0.75rem',
-                      bgcolor: 'grey.50',
-                    }}
-                  >
-                    ファイル名
-                  </TableCell>
-                  <TableCell
-                    sx={{
-                      fontWeight: 'bold',
-                      fontSize: '0.75rem',
-                      bgcolor: 'grey.50',
-                    }}
-                  >
-                    処理モード
-                  </TableCell>
-                  <TableCell
-                    sx={{
-                      fontWeight: 'bold',
-                      fontSize: '0.75rem',
-                      bgcolor: 'grey.50',
-                    }}
-                  >
-                    ファイル内画像
-                  </TableCell>
-                  <TableCell
-                    sx={{
-                      fontWeight: 'bold',
-                      fontSize: '0.75rem',
-                      bgcolor: 'grey.50',
-                    }}
-                  >
-                    画像・図形抽出
-                  </TableCell>
-                  <TableCell
-                    sx={{
-                      fontWeight: 'bold',
-                      fontSize: '0.75rem',
-                      bgcolor: 'grey.50',
-                    }}
-                  >
-                    抽出文字数
-                  </TableCell>
-                  <TableCell
-                    sx={{
-                      fontWeight: 'bold',
-                      fontSize: '0.75rem',
-                      bgcolor: 'grey.50',
-                    }}
-                  >
-                    抽出画像数
-                  </TableCell>
+                  <TableCell sx={headerCellSx}>ファイル名</TableCell>
+                  <TableCell sx={headerCellSx}>処理モード</TableCell>
+                  <TableCell sx={headerCellSx}>ファイル内画像</TableCell>
+                  <TableCell sx={headerCellSx}>画像・図形抽出</TableCell>
+                  <TableCell sx={headerCellSx}>トークン数</TableCell>
+                  <TableCell sx={headerCellSx}>抽出画像数</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {documentCaches.map((cache, index) => {
                   const extractionBadge = getExtractionBadge(cache);
                   const includeImagesLabel = getIncludeImagesLabel(cache);
-                  const textCharacterCountLabel =
-                    getTextCharacterCountLabel(cache);
+                  const textTokenCountLabel = getTextTokenCountLabel(cache);
                   const extractedImageCountLabel =
                     getExtractedImageCountLabel(cache);
 
@@ -253,16 +224,7 @@ const FileProcessingResultSection: React.FC<
                       <TableCell
                         sx={{ fontSize: '0.875rem', color: 'text.secondary' }}
                       >
-                        {includeImagesLabel === '-' ? (
-                          <Typography
-                            component="span"
-                            sx={{ color: 'grey.400' }}
-                          >
-                            -
-                          </Typography>
-                        ) : (
-                          includeImagesLabel
-                        )}
+                        <CellValue value={includeImagesLabel} />
                       </TableCell>
                       <TableCell sx={{ fontSize: '0.875rem' }}>
                         {extractionBadge.label === '-' ? (
@@ -284,30 +246,12 @@ const FileProcessingResultSection: React.FC<
                       <TableCell
                         sx={{ fontSize: '0.875rem', color: 'text.secondary' }}
                       >
-                        {textCharacterCountLabel === '-' ? (
-                          <Typography
-                            component="span"
-                            sx={{ color: 'grey.400' }}
-                          >
-                            -
-                          </Typography>
-                        ) : (
-                          textCharacterCountLabel
-                        )}
+                        <CellValue value={textTokenCountLabel} />
                       </TableCell>
                       <TableCell
                         sx={{ fontSize: '0.875rem', color: 'text.secondary' }}
                       >
-                        {extractedImageCountLabel === '-' ? (
-                          <Typography
-                            component="span"
-                            sx={{ color: 'grey.400' }}
-                          >
-                            -
-                          </Typography>
-                        ) : (
-                          extractedImageCountLabel
-                        )}
+                        <CellValue value={extractedImageCountLabel} />
                       </TableCell>
                     </TableRow>
                   );

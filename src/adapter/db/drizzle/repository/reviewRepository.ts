@@ -26,6 +26,7 @@ import type {
 } from '@/types';
 import { AppError, internalError } from '@/main/lib/error';
 import { repositoryError } from '@/main/lib/error';
+import { getTokenizer } from '@/main/lib/tokenizer';
 import { IReviewRepository } from '@/main/service/port/repository';
 import {
   ReviewCacheHelper,
@@ -679,7 +680,9 @@ export class DrizzleReviewRepository implements IReviewRepository {
           cachePath: '', // 一時的に空文字列を設定
           formatType: cache.formatType ?? null,
           includeImages: cache.includeImages ? 1 : 0,
-          textCharacterCount: cache.textContent?.length ?? 0,
+          textTokenCount: cache.textContent
+            ? getTokenizer().countTokens(cache.textContent)
+            : 0,
           extractedImageCount: cache.extractedImages?.length ?? 0,
         })
         .returning();
@@ -816,7 +819,7 @@ export class DrizzleReviewRepository implements IReviewRepository {
           processMode: reviewDocumentCaches.processMode,
           formatType: reviewDocumentCaches.formatType,
           includeImages: reviewDocumentCaches.includeImages,
-          textCharacterCount: reviewDocumentCaches.textCharacterCount,
+          textTokenCount: reviewDocumentCaches.textTokenCount,
           extractedImageCount: reviewDocumentCaches.extractedImageCount,
         })
         .from(reviewDocumentCaches)
@@ -828,7 +831,7 @@ export class DrizzleReviewRepository implements IReviewRepository {
         processMode: entity.processMode as ProcessMode,
         formatType: entity.formatType ?? null,
         includeImages: entity.includeImages === 1,
-        textCharacterCount: entity.textCharacterCount ?? 0,
+        textTokenCount: entity.textTokenCount ?? 0,
         extractedImageCount: entity.extractedImageCount ?? 0,
       }));
     } catch (err) {

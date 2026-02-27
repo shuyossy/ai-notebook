@@ -105,7 +105,7 @@ export const reviewDocumentCaches = sqliteTable('review_document_caches', {
   cachePath: text('cache_path').notNull(), // ファイル/ディレクトリパス
   formatType: text('format_type'), // テキスト抽出フォーマット識別子
   includeImages: integer('include_images').default(0), // テキスト抽出時に画像を含めるか (0: false, 1: true)
-  textCharacterCount: integer('text_character_count').default(0), // テキスト抽出時の抽出文字数
+  textTokenCount: integer('text_token_count').default(0), // テキスト抽出時のトークン数
   extractedImageCount: integer('extracted_image_count').default(0), // テキスト抽出時に抽出された画像数
   createdAt: text('created_at')
     .notNull()

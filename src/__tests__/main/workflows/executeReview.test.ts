@@ -30,6 +30,13 @@ import type { UploadFile, ReviewChecklist } from '@/types';
 import { IpcChannels } from '@/types';
 import { internalError, repositoryError } from '@/main/lib/error';
 import { APICallError } from 'ai';
+import {
+  DEFAULT_MAX_CONTEXT_LENGTH,
+  DEFAULT_MAX_IMAGE_COUNT,
+  getModelMaxContextLength,
+  getModelMaxImageCount,
+} from '@/config/modelConfig';
+import { getTokenizer } from '@/main/lib/tokenizer';
 
 // モック設定
 jest.mock('@/adapter/db', () => ({
@@ -3063,7 +3070,8 @@ describe('executeReviewWorkflow', () => {
 
         // Assert
         const checkResult = checkWorkflowResult(result);
-        expect(checkResult.status).toBe('success');
+        // PBI #1: 分割上限到達時はfailedステータスで全体が終了する
+        expect(checkResult.status).toBe('failed');
         // エラーがDBに保存されること（ドキュメント名付き）
         expect(mockRepository.upsertReviewErrors).toHaveBeenCalledWith(
           expect.arrayContaining([
@@ -4500,6 +4508,969 @@ describe('executeReviewWorkflow', () => {
         );
         expect(result1).toBeDefined();
         expect(result1!.comment).toBe('最初の統合コメント1');
+      });
+    });
+  });
+
+  describe('事前トークンチェック・事前分割（PBI #1, #2）', () => {
+    describe('事前トークンチェック（PBI #2: foreach前の早期終了）', () => {
+      it('ドキュメントのトークン数がモデルの処理可能上限を超えている場合、AI実行なしに即時終了する', async () => {
+        // Arrange
+        const reviewHistoryId = 'review-1';
+        // テストモデル(test-model)のデフォルトコンテキスト長: 128,000
+        // 最大許容トークン数: 128,000 * 6 * 0.9 = 691,200
+        // この上限を超えるテキストを生成（概ね8文字/トークンとして約5,530,000文字必要）
+        // 実際には 'a' 1文字 ≒ 0.125トークン(8文字で1トークン)なので、700,000トークン分 ≒ 5,600,000文字
+        const maxContextLength = DEFAULT_MAX_CONTEXT_LENGTH; // 128,000
+        const maxAllowable = Math.floor(maxContextLength * 6 * 0.9); // 691,200
+        // トークナイザで実際に必要な文字数を計算
+        const tokenizer = getTokenizer();
+        // 大きなテキストを作成（日本語の方がトークン効率が低いので使いやすい）
+        // 日本語は概ね1文字≒2-3トークンなので、691,200 / 2 ≒ 350,000文字で超過
+        let largeText = '';
+        const targetTokens = maxAllowable + 1000; // 少し余分に
+        // 効率的に大きなテキストを作成
+        const segment = 'テストデータ確認用の文章です。';
+        const segmentTokens = tokenizer.countTokens(segment);
+        const repeatCount = Math.ceil(targetTokens / segmentTokens) + 1;
+        largeText = segment.repeat(repeatCount);
+
+        // 実際にトークン上限を超えていることを確認
+        const actualTokens = tokenizer.countTokens(largeText);
+        expect(actualTokens).toBeGreaterThan(maxAllowable);
+
+        const files: UploadFile[] = [
+          {
+            id: 'file-1',
+            name: 'very-large-document.txt',
+            path: '/test/very-large-document.txt',
+            type: 'text/plain',
+            processMode: 'text',
+          },
+        ];
+        const checklists: ReviewChecklist[] = [
+          {
+            id: 1,
+            content: 'チェック項目1',
+            createdBy: 'user',
+            reviewHistoryId,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          },
+        ];
+
+        mockRepository.getChecklists.mockResolvedValue(checklists);
+        mockRepository.createReviewDocumentCache.mockResolvedValue({
+          id: 1,
+          reviewHistoryId,
+          fileName: 'very-large-document.txt',
+          processMode: 'text',
+          textContent: largeText,
+          imageData: undefined,
+          createdAt: '2024-01-01',
+          updatedAt: '2024-01-01',
+        });
+
+        // テキスト抽出モックを大きなテキストに設定
+        mockExtract.mockResolvedValue({
+          content: largeText,
+          images: [],
+          strategyUsed: 'txt-default',
+          formatType: 'txt-plain',
+        });
+
+        // Act
+        const run = await executeReviewWorkflow.createRunAsync();
+        const result = await run.start({
+          inputData: {
+            reviewHistoryId,
+            files,
+            documentMode: 'large',
+          },
+        });
+
+        // Assert
+        const checkResult = checkWorkflowResult(result);
+        expect(checkResult.status).toBe('failed');
+        expect(checkResult.errorMessage).toContain('トークン数');
+        expect(checkResult.errorMessage).toContain('レビュー可能なトークン数');
+        // AI実行（individualDocumentReviewAgent）が呼ばれていないことを確認
+        expect(
+          mockIndividualDocumentReviewAgent.generateLegacy,
+        ).not.toHaveBeenCalled();
+        // 統合レビューも呼ばれていないことを確認
+        expect(
+          mockConsolidateReviewAgent.generateLegacy,
+        ).not.toHaveBeenCalled();
+        // 全チェックリストにエラーが保存されていること
+        expect(mockRepository.upsertReviewErrors).toHaveBeenCalledWith(
+          expect.arrayContaining([
+            expect.objectContaining({
+              reviewChecklistId: 1,
+              errorMessage: expect.stringContaining('レビュー可能なトークン数'),
+            }),
+          ]),
+        );
+      });
+    });
+
+    describe('事前分割（PBI #2: トークン数に基づく事前分割）', () => {
+      it('ドキュメントのトークン数がコンテキスト長を超える場合、事前に分割されてレビューされる', async () => {
+        // Arrange
+        const reviewHistoryId = 'review-1';
+        const maxContextLength = DEFAULT_MAX_CONTEXT_LENGTH; // 128,000
+
+        // コンテキスト長の利用可能トークン数（チェックリスト分とマージンを引いた値）を超えるテキストを作成
+        // availableTokens = 128,000 - checklistTokens - (128,000 * 0.2)
+        // チェックリストが小さいので概ね 128,000 * 0.8 ≒ 102,400
+        // ただし分割上限(691,200)は超えない程度
+        const tokenizer = getTokenizer();
+        const segment = 'テスト文章の内容を確認します。';
+        const segmentTokens = tokenizer.countTokens(segment);
+        // 150,000トークン程度のテキストを作成（コンテキスト長の128,000を超えるが、分割上限は超えない）
+        const targetTokens = 150_000;
+        const repeatCount = Math.ceil(targetTokens / segmentTokens) + 1;
+        const mediumText = segment.repeat(repeatCount);
+
+        const actualTokens = tokenizer.countTokens(mediumText);
+        expect(actualTokens).toBeGreaterThan(maxContextLength * 0.8); // 利用可能トークン数を超える
+        expect(actualTokens).toBeLessThan(maxContextLength * 6 * 0.9); // 分割上限は超えない
+
+        const files: UploadFile[] = [
+          {
+            id: 'file-1',
+            name: 'medium-document.txt',
+            path: '/test/medium-document.txt',
+            type: 'text/plain',
+            processMode: 'text',
+          },
+        ];
+        const checklists: ReviewChecklist[] = [
+          {
+            id: 1,
+            content: 'チェック項目1',
+            createdBy: 'user',
+            reviewHistoryId,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          },
+        ];
+
+        mockRepository.getChecklists.mockResolvedValue(checklists);
+        let cacheIdCounter = 1;
+        mockRepository.createReviewDocumentCache.mockImplementation(
+          async () => ({
+            id: cacheIdCounter++,
+            reviewHistoryId,
+            fileName: 'medium-document.txt',
+            processMode: 'text',
+            textContent: mediumText,
+            imageData: undefined,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          }),
+        );
+
+        mockExtract.mockResolvedValue({
+          content: mediumText,
+          images: [],
+          strategyUsed: 'txt-default',
+          formatType: 'txt-plain',
+        });
+
+        // 個別レビューが成功するようモック設定
+        mockIndividualDocumentReviewAgent.generateLegacy.mockResolvedValue({
+          object: [
+            {
+              checklistId: 1,
+              comment: 'レビューコメント',
+            },
+          ],
+          finishReason: 'stop',
+        });
+
+        // 統合レビューも成功するようモック設定
+        mockConsolidateReviewAgent.generateLegacy.mockResolvedValue({
+          object: [
+            {
+              checklistId: 1,
+              reviewSections: [],
+              comment: '統合コメント',
+              evaluation: 'A',
+            },
+          ],
+          finishReason: 'stop',
+        });
+
+        // Act
+        const run = await executeReviewWorkflow.createRunAsync();
+        const result = await run.start({
+          inputData: {
+            reviewHistoryId,
+            files,
+            documentMode: 'large',
+          },
+        });
+
+        // Assert
+        const checkResult = checkWorkflowResult(result);
+        expect(checkResult.status).toBe('success');
+        // 事前分割数を計算して具体的な回数を検証
+        const checklistText = checklists.map((c) => c.content).join('\n');
+        const checklistTokens = tokenizer.countTokens(checklistText);
+        const availableTokens =
+          maxContextLength -
+          checklistTokens -
+          Math.floor(maxContextLength * 0.2);
+        const expectedSplitCount = Math.ceil(actualTokens / availableTokens);
+        expect(expectedSplitCount).toBeGreaterThan(1);
+        // 個別レビューが事前分割数と同じ回数呼ばれていること
+        expect(
+          mockIndividualDocumentReviewAgent.generateLegacy,
+        ).toHaveBeenCalledTimes(expectedSplitCount);
+        // 統合レビューも呼ばれていること
+        expect(mockConsolidateReviewAgent.generateLegacy).toHaveBeenCalled();
+      });
+    });
+
+    describe('事前画像数チェック（PBI #2: 画像変換モードの早期終了）', () => {
+      it('画像変換モードで画像数がモデルの処理可能上限を超えている場合、AI実行なしに即時終了する', async () => {
+        // Arrange
+        const reviewHistoryId = 'review-1';
+        // テストモデル(test-model)のデフォルト最大画像数: 20
+        // 最大許容画像数: 20 * 6 = 120
+        const maxImageCount = DEFAULT_MAX_IMAGE_COUNT; // 20
+        const maxAllowableImages = maxImageCount * 6; // 120
+        // 上限を超える画像データを作成
+        const oversizedImageData = Array.from(
+          { length: maxAllowableImages + 10 },
+          (_, i) => `base64-image-data-${i}`,
+        );
+
+        const files: UploadFile[] = [
+          {
+            id: 'file-1',
+            name: 'large-image-document.pdf',
+            path: '/test/large-image-document.pdf',
+            type: 'application/pdf',
+            processMode: 'image',
+            imageMode: 'pages',
+            imageData: oversizedImageData,
+          },
+        ];
+        const checklists: ReviewChecklist[] = [
+          {
+            id: 1,
+            content: 'チェック項目1',
+            createdBy: 'user',
+            reviewHistoryId,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          },
+        ];
+
+        mockRepository.getChecklists.mockResolvedValue(checklists);
+        mockRepository.createReviewDocumentCache.mockResolvedValue({
+          id: 1,
+          reviewHistoryId,
+          fileName: 'large-image-document.pdf',
+          processMode: 'image',
+          textContent: undefined,
+          imageData: oversizedImageData,
+          createdAt: '2024-01-01',
+          updatedAt: '2024-01-01',
+        });
+
+        // テキスト抽出モック（画像モードではテキスト抽出は行われないが、ワークフロー内のテキスト抽出ステップ用）
+        mockExtract.mockResolvedValue({
+          content: '',
+          images: [],
+          strategyUsed: 'txt-default',
+          formatType: 'image-pages',
+        });
+
+        // Act
+        const run = await executeReviewWorkflow.createRunAsync();
+        const result = await run.start({
+          inputData: {
+            reviewHistoryId,
+            files,
+            documentMode: 'large',
+          },
+        });
+
+        // Assert
+        const checkResult = checkWorkflowResult(result);
+        expect(checkResult.status).toBe('failed');
+        expect(checkResult.errorMessage).toContain('画像数');
+        expect(checkResult.errorMessage).toContain('レビュー可能な画像数');
+        // AI実行が呼ばれていないことを確認
+        expect(
+          mockIndividualDocumentReviewAgent.generateLegacy,
+        ).not.toHaveBeenCalled();
+        // 統合レビューも呼ばれていないことを確認
+        expect(
+          mockConsolidateReviewAgent.generateLegacy,
+        ).not.toHaveBeenCalled();
+        // 全チェックリストにエラーが保存されていること
+        expect(mockRepository.upsertReviewErrors).toHaveBeenCalledWith(
+          expect.arrayContaining([
+            expect.objectContaining({
+              reviewChecklistId: 1,
+              errorMessage: expect.stringContaining('画像数'),
+            }),
+          ]),
+        );
+      });
+    });
+
+    describe('事前画像数チェック（PBI #2: テキスト+リッチ戦略+画像含むの早期終了）', () => {
+      it('抽出画像数がモデルの処理可能上限を超えている場合、AI実行なしに即時終了する', async () => {
+        // Arrange
+        const reviewHistoryId = 'review-1';
+        const maxImageCount = DEFAULT_MAX_IMAGE_COUNT; // 20
+        const maxAllowableImages = maxImageCount * 6; // 120
+        // 上限を超える抽出画像を作成
+        const oversizedExtractedImages = Array.from(
+          { length: maxAllowableImages + 10 },
+          (_, i) => ({
+            referenceId: `image_${i}.png`,
+            base64Data: `data:image/png;base64,test-${i}`,
+            mimeType: 'image/png',
+          }),
+        );
+
+        // テキスト中に画像リンクを埋め込む
+        const textWithImages = oversizedExtractedImages
+          .map((img) => `テスト文章 ![画像](${img.referenceId})`)
+          .join('\n');
+
+        const files: UploadFile[] = [
+          {
+            id: 'file-1',
+            name: 'rich-document.docx',
+            path: '/test/rich-document.docx',
+            type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            processMode: 'text',
+            includeImages: true,
+          },
+        ];
+        const checklists: ReviewChecklist[] = [
+          {
+            id: 1,
+            content: 'チェック項目1',
+            createdBy: 'user',
+            reviewHistoryId,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          },
+        ];
+
+        mockRepository.getChecklists.mockResolvedValue(checklists);
+        mockRepository.createReviewDocumentCache.mockResolvedValue({
+          id: 1,
+          reviewHistoryId,
+          fileName: 'rich-document.docx',
+          processMode: 'text',
+          textContent: textWithImages,
+          imageData: undefined,
+          extractedImages: oversizedExtractedImages,
+          formatType: 'docx-rich-v1',
+          includeImages: true,
+          createdAt: '2024-01-01',
+          updatedAt: '2024-01-01',
+        });
+
+        mockExtract.mockResolvedValue({
+          content: textWithImages,
+          images: oversizedExtractedImages,
+          strategyUsed: 'docx-mammoth-rich',
+          formatType: 'docx-rich-v1',
+        });
+
+        // Act
+        const run = await executeReviewWorkflow.createRunAsync();
+        const result = await run.start({
+          inputData: {
+            reviewHistoryId,
+            files,
+            documentMode: 'large',
+          },
+        });
+
+        // Assert
+        const checkResult = checkWorkflowResult(result);
+        expect(checkResult.status).toBe('failed');
+        expect(checkResult.errorMessage).toContain('抽出画像数');
+        expect(checkResult.errorMessage).toContain('レビュー可能な画像数');
+        expect(
+          mockIndividualDocumentReviewAgent.generateLegacy,
+        ).not.toHaveBeenCalled();
+        // 統合レビューも呼ばれていないことを確認
+        expect(
+          mockConsolidateReviewAgent.generateLegacy,
+        ).not.toHaveBeenCalled();
+        expect(mockRepository.upsertReviewErrors).toHaveBeenCalledWith(
+          expect.arrayContaining([
+            expect.objectContaining({
+              reviewChecklistId: 1,
+              errorMessage: expect.stringContaining('抽出画像数'),
+            }),
+          ]),
+        );
+      });
+    });
+
+    describe('事前分割（PBI #2: 画像変換モードの事前分割）', () => {
+      it('画像変換モードで画像数が最大画像数を超える場合、事前に分割されてレビューされる', async () => {
+        // Arrange
+        const reviewHistoryId = 'review-1';
+        const maxImageCount = DEFAULT_MAX_IMAGE_COUNT; // 20
+        // 最大画像数を少し超える画像（30枚）→ 2分割される
+        const imageCount = 30;
+        const imageData = Array.from(
+          { length: imageCount },
+          (_, i) => `base64-image-data-${i}`,
+        );
+
+        const files: UploadFile[] = [
+          {
+            id: 'file-1',
+            name: 'medium-image-document.pdf',
+            path: '/test/medium-image-document.pdf',
+            type: 'application/pdf',
+            processMode: 'image',
+            imageMode: 'pages',
+            imageData,
+          },
+        ];
+        const checklists: ReviewChecklist[] = [
+          {
+            id: 1,
+            content: 'チェック項目1',
+            createdBy: 'user',
+            reviewHistoryId,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          },
+        ];
+
+        mockRepository.getChecklists.mockResolvedValue(checklists);
+        let cacheIdCounter = 1;
+        mockRepository.createReviewDocumentCache.mockImplementation(
+          async () => ({
+            id: cacheIdCounter++,
+            reviewHistoryId,
+            fileName: 'medium-image-document.pdf',
+            processMode: 'image',
+            textContent: undefined,
+            imageData,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          }),
+        );
+
+        mockExtract.mockResolvedValue({
+          content: '',
+          images: [],
+          strategyUsed: 'txt-default',
+          formatType: 'image-pages',
+        });
+
+        // 個別レビューが成功するようモック設定
+        mockIndividualDocumentReviewAgent.generateLegacy.mockResolvedValue({
+          object: [
+            {
+              checklistId: 1,
+              comment: 'レビューコメント',
+            },
+          ],
+          finishReason: 'stop',
+        });
+
+        // 統合レビューも成功するようモック設定
+        mockConsolidateReviewAgent.generateLegacy.mockResolvedValue({
+          object: [
+            {
+              checklistId: 1,
+              reviewSections: [],
+              comment: '統合コメント',
+              evaluation: 'A',
+            },
+          ],
+          finishReason: 'stop',
+        });
+
+        // Act
+        const run = await executeReviewWorkflow.createRunAsync();
+        const result = await run.start({
+          inputData: {
+            reviewHistoryId,
+            files,
+            documentMode: 'large',
+          },
+        });
+
+        // Assert
+        const checkResult = checkWorkflowResult(result);
+        expect(checkResult.status).toBe('success');
+        // 30枚 / 20枚(最大) = ceil(1.5) = 2分割
+        const expectedSplitCount = Math.ceil(imageCount / maxImageCount);
+        expect(expectedSplitCount).toBe(2);
+        // 個別レビューが事前分割数と同じ回数呼ばれていること
+        expect(
+          mockIndividualDocumentReviewAgent.generateLegacy,
+        ).toHaveBeenCalledTimes(expectedSplitCount);
+        // 統合レビューも呼ばれていること
+        expect(mockConsolidateReviewAgent.generateLegacy).toHaveBeenCalled();
+      });
+    });
+
+    describe('事前分割（PBI #2: テキスト+リッチ戦略+画像含むの事前分割）', () => {
+      it('抽出画像数がトークン数より先に上限に達する場合、画像数ベースで分割される', async () => {
+        // Arrange
+        const reviewHistoryId = 'review-1';
+        const maxImageCount = DEFAULT_MAX_IMAGE_COUNT; // 20
+        // 画像数が最大画像数を超えるが、分割上限内（例: 30枚 → 2分割で収まる）
+        const imageCount = 30;
+        // テキストは短い（トークン数ベースでは分割不要）が、画像が多い
+        const extractedImages = Array.from({ length: imageCount }, (_, i) => ({
+          referenceId: `image_${i}.png`,
+          base64Data: `data:image/png;base64,test-${i}`,
+          mimeType: 'image/png',
+        }));
+        // テキスト中に画像リンクを均等に埋め込む
+        const textWithImages = extractedImages
+          .map((img) => `テスト文章 ![画像](${img.referenceId})`)
+          .join('\n');
+
+        const files: UploadFile[] = [
+          {
+            id: 'file-1',
+            name: 'rich-document-with-images.docx',
+            path: '/test/rich-document-with-images.docx',
+            type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            processMode: 'text',
+            includeImages: true,
+          },
+        ];
+        const checklists: ReviewChecklist[] = [
+          {
+            id: 1,
+            content: 'チェック項目1',
+            createdBy: 'user',
+            reviewHistoryId,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          },
+        ];
+
+        mockRepository.getChecklists.mockResolvedValue(checklists);
+        let cacheIdCounter = 1;
+        mockRepository.createReviewDocumentCache.mockImplementation(
+          async () => ({
+            id: cacheIdCounter++,
+            reviewHistoryId,
+            fileName: 'rich-document-with-images.docx',
+            processMode: 'text',
+            textContent: textWithImages,
+            imageData: undefined,
+            extractedImages,
+            formatType: 'docx-rich-v1',
+            includeImages: true,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          }),
+        );
+
+        mockExtract.mockResolvedValue({
+          content: textWithImages,
+          images: extractedImages,
+          strategyUsed: 'docx-mammoth-rich',
+          formatType: 'docx-rich-v1',
+        });
+
+        // 個別レビューが成功するようモック設定
+        mockIndividualDocumentReviewAgent.generateLegacy.mockResolvedValue({
+          object: [
+            {
+              checklistId: 1,
+              comment: 'レビューコメント',
+            },
+          ],
+          finishReason: 'stop',
+        });
+
+        // 統合レビューも成功するようモック設定
+        mockConsolidateReviewAgent.generateLegacy.mockResolvedValue({
+          object: [
+            {
+              checklistId: 1,
+              reviewSections: [],
+              comment: '統合コメント',
+              evaluation: 'A',
+            },
+          ],
+          finishReason: 'stop',
+        });
+
+        // Act
+        const run = await executeReviewWorkflow.createRunAsync();
+        const result = await run.start({
+          inputData: {
+            reviewHistoryId,
+            files,
+            documentMode: 'large',
+          },
+        });
+
+        // Assert
+        const checkResult = checkWorkflowResult(result);
+        expect(checkResult.status).toBe('success');
+        // 30枚 / 20枚(最大) → 少なくとも2分割以上
+        const callCount =
+          mockIndividualDocumentReviewAgent.generateLegacy.mock.calls.length;
+        expect(callCount).toBeGreaterThanOrEqual(2);
+        // 統合レビューも呼ばれていること
+        expect(mockConsolidateReviewAgent.generateLegacy).toHaveBeenCalled();
+      });
+    });
+
+    describe('トークン数が範囲内の場合（分割不要）', () => {
+      it('ドキュメントのトークン数がコンテキスト長以内であれば分割なしでレビューされる', async () => {
+        // Arrange
+        const reviewHistoryId = 'review-1';
+        const smallText = 'これは短いテスト文書です。'; // 数十トークン程度
+
+        const files: UploadFile[] = [
+          {
+            id: 'file-1',
+            name: 'small-document.txt',
+            path: '/test/small-document.txt',
+            type: 'text/plain',
+            processMode: 'text',
+          },
+        ];
+        const checklists: ReviewChecklist[] = [
+          {
+            id: 1,
+            content: 'チェック項目1',
+            createdBy: 'user',
+            reviewHistoryId,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          },
+        ];
+
+        mockRepository.getChecklists.mockResolvedValue(checklists);
+        let cacheIdCounter = 1;
+        mockRepository.createReviewDocumentCache.mockImplementation(
+          async () => ({
+            id: cacheIdCounter++,
+            reviewHistoryId,
+            fileName: 'small-document.txt',
+            processMode: 'text',
+            textContent: smallText,
+            imageData: undefined,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          }),
+        );
+
+        mockExtract.mockResolvedValue({
+          content: smallText,
+          images: [],
+          strategyUsed: 'txt-default',
+          formatType: 'txt-plain',
+        });
+
+        // 個別レビューが成功するようモック設定
+        mockIndividualDocumentReviewAgent.generateLegacy.mockResolvedValue({
+          object: [
+            {
+              checklistId: 1,
+              comment: 'レビューコメント',
+            },
+          ],
+          finishReason: 'stop',
+        });
+
+        // 統合レビューも成功するようモック設定
+        mockConsolidateReviewAgent.generateLegacy.mockResolvedValue({
+          object: [
+            {
+              checklistId: 1,
+              reviewSections: [],
+              comment: '統合コメント',
+              evaluation: 'A',
+            },
+          ],
+          finishReason: 'stop',
+        });
+
+        // Act
+        const run = await executeReviewWorkflow.createRunAsync();
+        const result = await run.start({
+          inputData: {
+            reviewHistoryId,
+            files,
+            documentMode: 'large',
+          },
+        });
+
+        // Assert
+        const checkResult = checkWorkflowResult(result);
+        expect(checkResult.status).toBe('success');
+        // 個別レビューが1回だけ呼ばれていること（分割されていない）
+        expect(
+          mockIndividualDocumentReviewAgent.generateLegacy,
+        ).toHaveBeenCalledTimes(1);
+        // 個別レビューに渡されたドキュメントが分割されていない（ドキュメント名に "split into parts" が含まれない）ことを検証
+        const firstCallArgs =
+          mockIndividualDocumentReviewAgent.generateLegacy.mock.calls[0];
+        const messageContent = firstCallArgs[0].content;
+        const allText = messageContent
+          .filter((c: any) => c.type === 'text')
+          .map((c: any) => c.text)
+          .join('');
+        expect(allText).not.toContain('split into parts');
+      });
+    });
+
+    describe('B-2早期終了（分割後画像数超過）', () => {
+      it('テキスト+リッチ+画像で、B-1は通過するがMAX_SPLIT_COUNT分割後も1チャンクあたり画像数が超過する場合、即時終了する', async () => {
+        // Arrange
+        const reviewHistoryId = 'review-1';
+        const maxImageCount = DEFAULT_MAX_IMAGE_COUNT; // 20
+        const maxAllowableImages = maxImageCount * 6; // 120
+
+        // B-1（全体画像数チェック）は通過するが、B-2（分割後チャンクチェック）で引っかかるケース
+        // 画像数はmaxAllowableImages以内だが、画像が偏在しておりMAX_SPLIT_COUNT分割でも1チャンクに集中する
+        // 例: 100枚の画像をテキストの先頭に集中配置
+        const imageCount = 100; // < 120 なのでB-1は通過
+        const extractedImages = Array.from({ length: imageCount }, (_, i) => ({
+          referenceId: `image_${i}.png`,
+          base64Data: `data:image/png;base64,test-${i}`,
+          mimeType: 'image/png',
+        }));
+
+        // 全画像リンクをテキストの先頭に集中配置（パディングで後半を埋める）
+        const imageLinks = extractedImages
+          .map((img) => `![画像](${img.referenceId})`)
+          .join('\n');
+        const padding = 'パディングテキスト。'.repeat(500);
+        const textWithImages = imageLinks + '\n' + padding;
+
+        const files: UploadFile[] = [
+          {
+            id: 'file-1',
+            name: 'rich-doc-concentrated-images.docx',
+            path: '/test/rich-doc-concentrated-images.docx',
+            type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            processMode: 'text',
+            includeImages: true,
+          },
+        ];
+        const checklists: ReviewChecklist[] = [
+          {
+            id: 1,
+            content: 'チェック項目1',
+            createdBy: 'user',
+            reviewHistoryId,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          },
+        ];
+
+        mockRepository.getChecklists.mockResolvedValue(checklists);
+        mockRepository.createReviewDocumentCache.mockResolvedValue({
+          id: 1,
+          reviewHistoryId,
+          fileName: 'rich-doc-concentrated-images.docx',
+          processMode: 'text',
+          textContent: textWithImages,
+          imageData: undefined,
+          extractedImages,
+          formatType: 'docx-rich-v1',
+          includeImages: true,
+          createdAt: '2024-01-01',
+          updatedAt: '2024-01-01',
+        });
+
+        mockExtract.mockResolvedValue({
+          content: textWithImages,
+          images: extractedImages,
+          strategyUsed: 'docx-mammoth-rich',
+          formatType: 'docx-rich-v1',
+        });
+
+        // Act
+        const run = await executeReviewWorkflow.createRunAsync();
+        const result = await run.start({
+          inputData: {
+            reviewHistoryId,
+            files,
+            documentMode: 'large',
+          },
+        });
+
+        // Assert
+        const checkResult = checkWorkflowResult(result);
+        expect(checkResult.status).toBe('failed');
+        expect(checkResult.errorMessage).toContain(
+          '1チャンクあたりの画像数がモデルの上限',
+        );
+        // AI実行が呼ばれていないことを確認
+        expect(
+          mockIndividualDocumentReviewAgent.generateLegacy,
+        ).not.toHaveBeenCalled();
+        expect(
+          mockConsolidateReviewAgent.generateLegacy,
+        ).not.toHaveBeenCalled();
+        // 全チェックリストにエラーが保存されていること
+        expect(mockRepository.upsertReviewErrors).toHaveBeenCalledWith(
+          expect.arrayContaining([
+            expect.objectContaining({
+              reviewChecklistId: 1,
+              errorMessage: expect.stringContaining('1チャンクあたりの画像数'),
+            }),
+          ]),
+        );
+      });
+    });
+
+    describe('事前分割後のリトライ（retryCount検証）', () => {
+      it('事前分割されたドキュメントがcontent_lengthエラーになった場合、preSplitCountより多い分割数でリトライされる', async () => {
+        // Arrange
+        const reviewHistoryId = 'review-1';
+        const maxContextLength = DEFAULT_MAX_CONTEXT_LENGTH; // 128,000
+        const tokenizer = getTokenizer();
+
+        // 利用可能トークン数を超えるテキストを作成（2分割必要）
+        const segment = 'テスト文章の内容を確認します。';
+        const segmentTokens = tokenizer.countTokens(segment);
+        const targetTokens = 150_000; // → 事前に2分割される
+        const repeatCount = Math.ceil(targetTokens / segmentTokens) + 1;
+        const mediumText = segment.repeat(repeatCount);
+
+        const actualTokens = tokenizer.countTokens(mediumText);
+        const availableTokens = maxContextLength - maxContextLength * 0.2;
+        // 事前分割数を計算（テストの前提確認）
+        const expectedPreSplitCount = Math.ceil(actualTokens / availableTokens);
+        expect(expectedPreSplitCount).toBe(2); // 2分割される想定
+
+        const files: UploadFile[] = [
+          {
+            id: 'file-1',
+            name: 'medium-document.txt',
+            path: '/test/medium-document.txt',
+            type: 'text/plain',
+            processMode: 'text',
+          },
+        ];
+        const checklists: ReviewChecklist[] = [
+          {
+            id: 1,
+            content: 'チェック項目1',
+            createdBy: 'user',
+            reviewHistoryId,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          },
+        ];
+
+        mockRepository.getChecklists.mockResolvedValue(checklists);
+        let cacheIdCounter = 1;
+        mockRepository.createReviewDocumentCache.mockImplementation(
+          async () => ({
+            id: cacheIdCounter++,
+            reviewHistoryId,
+            fileName: 'medium-document.txt',
+            processMode: 'text',
+            textContent: mediumText,
+            imageData: undefined,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          }),
+        );
+
+        mockExtract.mockResolvedValue({
+          content: mediumText,
+          images: [],
+          strategyUsed: 'txt-default',
+          formatType: 'txt-plain',
+        });
+
+        // 事前分割で2分割 → 1回目の個別レビュー(2回呼ばれる)ではcontent_lengthエラー
+        // → リトライで3分割(3回呼ばれる)で成功
+        let callCount = 0;
+        mockIndividualDocumentReviewAgent.generateLegacy.mockImplementation(
+          async (message: any) => {
+            callCount++;
+            if (callCount <= 2) {
+              // 事前分割後の最初のレビュー（2チャンク）でcontent_lengthエラー
+              throw new APICallError({
+                message: 'Context length exceeded',
+                url: 'http://test-api',
+                requestBodyValues: {},
+                statusCode: 400,
+                responseBody: JSON.stringify({
+                  error: 'maximum context length exceeded',
+                }),
+                cause: new Error('maximum context length exceeded'),
+                isRetryable: false,
+              });
+            }
+            // 3分割後のレビューは成功
+            const textContent =
+              message.content.find((c: any) => c.type === 'text')?.text || '';
+            const partMatch = textContent.match(/part (\d+)/);
+            const documentId = partMatch ? `1_part${partMatch[1]}` : '1';
+
+            return {
+              object: [
+                {
+                  checklistId: 1,
+                  comment: 'リトライ後コメント',
+                  documentId,
+                },
+              ],
+              finishReason: 'stop',
+            };
+          },
+        );
+
+        mockConsolidateReviewAgent.generateLegacy.mockResolvedValue({
+          object: [
+            {
+              checklistId: 1,
+              reviewSections: [],
+              comment: '統合コメント',
+              evaluation: 'A',
+            },
+          ],
+          finishReason: 'stop',
+        });
+
+        // Act
+        const run = await executeReviewWorkflow.createRunAsync();
+        const result = await run.start({
+          inputData: {
+            reviewHistoryId,
+            files,
+            documentMode: 'large',
+          },
+        });
+
+        // Assert
+        const checkResult = checkWorkflowResult(result);
+        expect(checkResult.status).toBe('success');
+        // 事前分割(2チャンク) + リトライ(3チャンク) = 5回呼ばれる
+        expect(
+          mockIndividualDocumentReviewAgent.generateLegacy,
+        ).toHaveBeenCalledTimes(5);
+        // 統合レビューも呼ばれること
+        expect(mockConsolidateReviewAgent.generateLegacy).toHaveBeenCalled();
       });
     });
   });

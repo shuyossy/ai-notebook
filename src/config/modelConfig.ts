@@ -29,6 +29,40 @@ export const MODEL_RATE_LIMITS: Record<string, number> = {
 };
 export const DEFAULT_RATE_LIMIT = 15;
 
+// モデルごとの最大コンテキスト長（トークン数）
+export const MODEL_MAX_CONTEXT_LENGTHS: Record<string, number> = {
+  'gpt-4.1-mini': 8_000,
+  'gpt-4o': 8_000,
+  'gpt-5': 8_000,
+};
+export const DEFAULT_MAX_CONTEXT_LENGTH = 128_000;
+
+/**
+ * モデル名に対応する最大コンテキスト長を取得する
+ * @param modelName モデル名
+ * @returns 最大コンテキスト長（トークン数）
+ */
+export const getModelMaxContextLength = (modelName: string): number => {
+  return MODEL_MAX_CONTEXT_LENGTHS[modelName] ?? DEFAULT_MAX_CONTEXT_LENGTH;
+};
+
+// モデルごとの最大画像数（1リクエストあたり）
+export const MODEL_MAX_IMAGE_COUNTS: Record<string, number> = {
+  'gpt-4.1-mini': 2,
+  'gpt-4o': 20,
+  'gpt-5': 50,
+};
+export const DEFAULT_MAX_IMAGE_COUNT = 20;
+
+/**
+ * モデル名に対応する最大画像数を取得する
+ * @param modelName モデル名
+ * @returns 最大画像数
+ */
+export const getModelMaxImageCount = (modelName: string): number => {
+  return MODEL_MAX_IMAGE_COUNTS[modelName] ?? DEFAULT_MAX_IMAGE_COUNT;
+};
+
 // ReasoningEffortの選択肢
 export const REASONING_EFFORT_OPTIONS = [
   'minimal',
