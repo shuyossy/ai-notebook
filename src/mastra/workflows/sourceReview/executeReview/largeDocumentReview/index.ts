@@ -515,8 +515,9 @@ export const largeDocumentReviewWorkflow = createWorkflow({
             logger.warn(`早期終了: ${errorMsg}`);
             // 全チェックリストにエラーを保存
             await saveChecklistErrors(inputData.checklists, errorMsg);
+            // コメント欄とダイアログでエラーが2回表示されないようにステータスは成功にする（チェックリストに対するエラーはコメント欄に表示する方針）
             return bail({
-              status: 'failed' as stepStatus,
+              status: 'success' as stepStatus,
               errorMessage: errorMsg,
             });
           }
@@ -536,8 +537,9 @@ export const largeDocumentReviewWorkflow = createWorkflow({
             const errorMsg = `ドキュメント "${doc.name}" の画像数(${doc.imageData.length})がドキュメント分割上限を考慮した上でのレビュー可能な画像数(${maxAllowableImages})を超えているため、レビューを実行できません`;
             logger.warn(`早期終了（画像数超過）: ${errorMsg}`);
             await saveChecklistErrors(inputData.checklists, errorMsg);
+            // コメント欄とダイアログでエラーが2回表示されないようにステータスは成功にする（チェックリストに対するエラーはコメント欄に表示する方針）
             return bail({
-              status: 'failed' as stepStatus,
+              status: 'success' as stepStatus,
               errorMessage: errorMsg,
             });
           }
@@ -556,8 +558,9 @@ export const largeDocumentReviewWorkflow = createWorkflow({
             const errorMsg = `ドキュメント "${doc.name}" の抽出画像数(${extractedImageCount})がドキュメント分割上限を考慮した上でのレビュー可能な画像数(${maxAllowableImages})を超えているため、レビューを実行できません`;
             logger.warn(`早期終了（抽出画像数超過）: ${errorMsg}`);
             await saveChecklistErrors(inputData.checklists, errorMsg);
+            // コメント欄とダイアログでエラーが2回表示されないようにステータスは成功にする（チェックリストに対するエラーはコメント欄に表示する方針）
             return bail({
-              status: 'failed' as stepStatus,
+              status: 'success' as stepStatus,
               errorMessage: errorMsg,
             });
           }
@@ -588,8 +591,9 @@ export const largeDocumentReviewWorkflow = createWorkflow({
               const errorMsg = `ドキュメント "${doc.name}" の抽出画像数(${extractedImageCount})が多く、最大分割数(${MAX_SPLIT_COUNT})で分割しても1チャンクあたりの画像数がモデルの上限(${maxImageCount})を超えるため、レビューを実行できません`;
               logger.warn(`早期終了（分割後画像数超過）: ${errorMsg}`);
               await saveChecklistErrors(inputData.checklists, errorMsg);
+              // コメント欄とダイアログでエラーが2回表示されないようにステータスは成功にする（チェックリストに対するエラーはコメント欄に表示する方針）
               return bail({
-                status: 'failed' as stepStatus,
+                status: 'success' as stepStatus,
                 errorMessage: errorMsg,
               });
             }
