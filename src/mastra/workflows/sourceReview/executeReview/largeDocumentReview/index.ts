@@ -302,7 +302,8 @@ const individualDocumentReviewWorkflow = createWorkflow({
             originalDocument: initData.originalDocument,
             reviewInput: initData.reviewInput,
             retryCount: nextRetryCount,
-            status: 'failed' as stepStatus,
+            // エラーは保存済みなので、コメント欄とダイアログでエラーが2回表示されないようにステータスは成功にする
+            status: 'success' as stepStatus,
             errorMessage: `${originalName}: ${errorMsg}`,
             finishReason: 'error' as const,
           } as z.infer<typeof individualDocumentReviewRetryWorkflowInputSchema>;
@@ -621,8 +622,6 @@ export const largeDocumentReviewWorkflow = createWorkflow({
           break;
         }
       }
-      // 全チェックリストにエラーを保存
-      await saveChecklistErrors(initData.checklists, errorMessage);
       return bail({
         status: 'failed' as stepStatus,
         errorMessage,
