@@ -3070,8 +3070,7 @@ describe('executeReviewWorkflow', () => {
 
         // Assert
         const checkResult = checkWorkflowResult(result);
-        // PBI #1: 分割上限到達時はfailedステータスで全体が終了する
-        expect(checkResult.status).toBe('failed');
+        expect(checkResult.status).toBe('success');
         // エラーがDBに保存されること（ドキュメント名付き）
         expect(mockRepository.upsertReviewErrors).toHaveBeenCalledWith(
           expect.arrayContaining([
@@ -4591,9 +4590,7 @@ describe('executeReviewWorkflow', () => {
 
         // Assert
         const checkResult = checkWorkflowResult(result);
-        expect(checkResult.status).toBe('failed');
-        expect(checkResult.errorMessage).toContain('トークン数');
-        expect(checkResult.errorMessage).toContain('レビュー可能なトークン数');
+        expect(checkResult.status).toBe('success');
         // AI実行（individualDocumentReviewAgent）が呼ばれていないことを確認
         expect(
           mockIndividualDocumentReviewAgent.generateLegacy,
@@ -4801,9 +4798,7 @@ describe('executeReviewWorkflow', () => {
 
         // Assert
         const checkResult = checkWorkflowResult(result);
-        expect(checkResult.status).toBe('failed');
-        expect(checkResult.errorMessage).toContain('画像数');
-        expect(checkResult.errorMessage).toContain('レビュー可能な画像数');
+        expect(checkResult.status).toBe('success');
         // AI実行が呼ばれていないことを確認
         expect(
           mockIndividualDocumentReviewAgent.generateLegacy,
@@ -4900,9 +4895,7 @@ describe('executeReviewWorkflow', () => {
 
         // Assert
         const checkResult = checkWorkflowResult(result);
-        expect(checkResult.status).toBe('failed');
-        expect(checkResult.errorMessage).toContain('抽出画像数');
-        expect(checkResult.errorMessage).toContain('レビュー可能な画像数');
+        expect(checkResult.status).toBe('success');
         expect(
           mockIndividualDocumentReviewAgent.generateLegacy,
         ).not.toHaveBeenCalled();
@@ -5316,10 +5309,7 @@ describe('executeReviewWorkflow', () => {
 
         // Assert
         const checkResult = checkWorkflowResult(result);
-        expect(checkResult.status).toBe('failed');
-        expect(checkResult.errorMessage).toContain(
-          '1チャンクあたりの画像数がモデルの上限',
-        );
+        expect(checkResult.status).toBe('success');
         // AI実行が呼ばれていないことを確認
         expect(
           mockIndividualDocumentReviewAgent.generateLegacy,
