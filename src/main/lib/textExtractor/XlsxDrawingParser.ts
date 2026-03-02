@@ -164,10 +164,10 @@ export function emuToCm(emu: number): number {
 /**
  * PositionInfoをフォーマット文字列に変換する
  * @param position 位置・サイズ情報
- * @returns フォーマット済み文字列（例: "pos:2.5cm,5.1cm size:7.6cm,3.8cm"）
+ * @returns フォーマット済み文字列（例: "p:2.5,5.1 sz:7.6,3.8"）
  */
 export function formatPosition(position: PositionInfo): string {
-  return `pos:${position.x.toFixed(1)}cm,${position.y.toFixed(1)}cm size:${position.cx.toFixed(1)}cm,${position.cy.toFixed(1)}cm`;
+  return `p:${position.x.toFixed(1)},${position.y.toFixed(1)} sz:${position.cx.toFixed(1)},${position.cy.toFixed(1)}`;
 }
 
 /**
@@ -188,10 +188,10 @@ export function formatImageTag(
 
 /**
  * IDとメタデータを含むフルタグ文字列を生成する
- * @param id 描画要素のID（例: "shape_1", "connector_3"）
+ * @param id 描画要素のID（例: "s1", "c3"）
  * @param metadata 図形メタデータ（オプション）
- * @param connectionPart 接続情報文字列（オプション。例: "shape_1->shape_2", "A3--D6"）
- * @returns フルタグ（例: "[shape_1:rect cell:A1-C3]", "[connector_3:straightConnector1 shape_1->shape_2]"）
+ * @param connectionPart 接続情報文字列（オプション。例: "s1->s2", "A3--D6"）
+ * @returns フルタグ（例: "[s1:rect@A1-C3]", "[c3:straightConnector1 s1->s2]"）
  */
 export function formatDrawingTagFull(
   id: string,
@@ -217,12 +217,12 @@ export function formatDrawingTagFull(
     parts.push(formatPosition(metadata.position));
   }
 
-  // セル範囲
-  if (metadata?.cellRange) {
-    parts.push(`cell:${formatCellRange(metadata.cellRange)}`);
-  }
+  // セル範囲（スペースなしで@で直接連結）
+  const cellRangeSuffix = metadata?.cellRange
+    ? `@${formatCellRange(metadata.cellRange)}`
+    : '';
 
-  return `[${parts.join(' ')}]`;
+  return `[${parts.join(' ')}${cellRangeSuffix}]`;
 }
 
 /**

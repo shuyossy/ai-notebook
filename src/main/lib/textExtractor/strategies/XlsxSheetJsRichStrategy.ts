@@ -114,7 +114,7 @@ export class XlsxSheetJsRichStrategy implements ITextExtractorStrategy {
           ? XLSX.utils.decode_range(sheet['!ref']).s.r
           : 0;
 
-        // 描画情報がなければCSVに[row:N]マーカーを付与して出力
+        // 描画情報がなければCSVに[rN]マーカーを付与して出力
         if (!drawingInfo) {
           this.formatCsvWithRowMarkers(csv, rangeStartRow, parts);
           continue;
@@ -160,7 +160,7 @@ export class XlsxSheetJsRichStrategy implements ITextExtractorStrategy {
         if (!drawingInfo.shapesFailed) {
           for (const shape of drawingInfo.shapeTexts) {
             drawingCounter++;
-            const shapeId = `shape_${drawingCounter}`;
+            const shapeId = `s${drawingCounter}`;
 
             if (shape.drawingObjectId !== undefined) {
               drawingObjectIdToShapeId.set(shape.drawingObjectId, shapeId);
@@ -189,7 +189,7 @@ export class XlsxSheetJsRichStrategy implements ITextExtractorStrategy {
           // コネクタを処理
           for (const connector of drawingInfo.connectors) {
             drawingCounter++;
-            const connectorId = `connector_${drawingCounter}`;
+            const connectorId = `c${drawingCounter}`;
 
             const arrowSymbol = getArrowSymbol(
               connector.headEndType,
@@ -252,7 +252,7 @@ export class XlsxSheetJsRichStrategy implements ITextExtractorStrategy {
           }
         }
 
-        // 描画要素がなければCSVに[row:N]マーカーを付与して出力
+        // 描画要素がなければCSVに[rN]マーカーを付与して出力
         if (drawingsByRow.size === 0) {
           this.formatCsvWithRowMarkers(csv, rangeStartRow, parts);
           continue;
@@ -269,7 +269,7 @@ export class XlsxSheetJsRichStrategy implements ITextExtractorStrategy {
 
           const isNonEmpty = csvLine.replace(/,/g, '').trim().length > 0;
           if (isNonEmpty) {
-            parts.push(`[row:${excelRow}] ${csvLine}`);
+            parts.push(`[r${excelRow}] ${csvLine}`);
           } else {
             parts.push(csvLine);
           }
@@ -315,7 +315,7 @@ export class XlsxSheetJsRichStrategy implements ITextExtractorStrategy {
   }
 
   /**
-   * CSVテキストに[row:N]マーカーを付与してpartsに追加する
+   * CSVテキストに[rN]マーカーを付与してpartsに追加する
    */
   private formatCsvWithRowMarkers(
     csv: string,
@@ -328,7 +328,7 @@ export class XlsxSheetJsRichStrategy implements ITextExtractorStrategy {
       const isNonEmpty = csvLine.replace(/,/g, '').trim().length > 0;
       if (isNonEmpty) {
         const excelRow = rangeStartRow + i + 1;
-        parts.push(`[row:${excelRow}] ${csvLine}`);
+        parts.push(`[r${excelRow}] ${csvLine}`);
       } else {
         parts.push(csvLine);
       }

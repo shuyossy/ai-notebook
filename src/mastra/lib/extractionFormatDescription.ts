@@ -21,8 +21,8 @@ CRITICAL INSTRUCTION - FORMAT NON-DISCLOSURE:
 The formatting conventions described above are internal system representations.
 You MUST NOT reference, mention, or describe any of these conventions in your output.
 Write your response as if you are directly viewing the original files.
-Never use terms like "image link", "shape tag", "shape_N", "connector_N",
-"#sheet:", "#slide:", "#page:", "[row:N]", "pos:", "size:", "cell:", "CSV format", "referenceId",
+Never use terms like "image link", "shape tag", "sN", "cN",
+"#sheet:", "#slide:", "#page:", "[rN]", "p:", "sz:", "@", "CSV format", "referenceId",
 "![image", or any other internal formatting terminology in your response.
 Treat the content as if no format conversion has taken place.
 `.trim();
@@ -58,10 +58,8 @@ export function getFormatDescription(
       const xlsxLines = [
         'Excel spreadsheet content represented in the following format:',
         '- Each sheet is separated by a header line: #sheet:<SheetName>',
-        '- Non-empty rows are prefixed with a row marker: [row:N] (N is the 1-based Excel row number).',
-        '- Cell contents within each sheet are represented in CSV (comma-separated, RFC 4180) format.',
-        '  Cells containing commas, double quotes, or line breaks are enclosed in double quotes.',
-        '  Line breaks within quoted cells are preserved as-is.',
+        '- Non-empty rows are prefixed with a row marker: [rN] (N is the 1-based Excel row number).',
+        '- Cell contents are CSV (RFC 4180 quoting).',
       ];
       if (includeImages) {
         xlsxLines.push(
@@ -70,12 +68,9 @@ export function getFormatDescription(
         );
       }
       xlsxLines.push(
-        '- Shapes are represented as tagged blocks:',
-        '  [shape_N:<GeometryType> cell:<CellRange>]',
-        '  Text content follows on the same line. For multi-line text, subsequent lines use [shape_N] prefix.',
-        '- Connectors are represented as:',
-        '  [connector_N:<Type> <endpointA>-><endpointB> cell:<CellRange>]',
-        '  Endpoints reference shapes (e.g., shape_1) or cell positions (e.g., A3).',
+        '- Shapes: [sN:<GeometryType>@<CellRange>] text (continuation lines: [sN] text).',
+        '- Connectors: [cN:<Type> <endpointA>-><endpointB>@<CellRange>]',
+        '  Endpoints reference shapes (e.g., s1) or cell positions (e.g., A3).',
         '  Arrow notation: -> (one-way), <- (reverse), <-> (bidirectional), -- (no arrow).',
       );
       return xlsxLines.join('\n');
@@ -89,9 +84,7 @@ export function getFormatDescription(
         'Word document content represented in the following format:',
         '- Headings are represented using Markdown header syntax (# through ######).',
         '- Lists are represented using Markdown list syntax (- for unordered, 1. for ordered).',
-        '- Tables are represented in CSV format (comma-separated, RFC 4180).',
-        '  Cells containing commas, double quotes, or line breaks are enclosed in double quotes.',
-        '  Line breaks within quoted cells are preserved as-is.',
+        '- Tables are represented in CSV format (RFC 4180 quoting).',
       ];
       if (includeImages) {
         docxLines.push(
@@ -109,13 +102,9 @@ export function getFormatDescription(
       const pptxLines = [
         'PowerPoint presentation content represented in the following format:',
         '- Each slide is separated by a header line: #slide:<SlideNumber>',
-        '- Shapes are represented as tagged blocks:',
-        '  [shape_N:<GeometryType> pos:<X>cm,<Y>cm size:<W>cm,<H>cm]',
-        '  Text content follows on the same line. For multi-line text, subsequent lines use [shape_N] prefix.',
-        '  Text boxes and placeholders do not have the shape_ prefix.',
-        '- Tables are represented in CSV format (comma-separated, RFC 4180).',
-        '  Cells containing commas, double quotes, or line breaks are enclosed in double quotes.',
-        '  Line breaks within quoted cells are preserved as-is.',
+        '- Shapes: [sN:<GeometryType> p:<X>,<Y> sz:<W>,<H>] text (continuation lines: [sN] text).',
+        '  Text boxes and placeholders have no tag prefix.',
+        '- Tables are in CSV format (RFC 4180 quoting).',
       ];
       if (includeImages) {
         pptxLines.push(
@@ -124,12 +113,11 @@ export function getFormatDescription(
         );
       }
       pptxLines.push(
-        '- Connectors are represented as:',
-        '  [connector_N:<Type> <endpointA>-><endpointB> pos:<X>cm,<Y>cm size:<W>cm,<H>cm]',
+        '- Connectors: [cN:<Type> <endpointA>-><endpointB> p:<X>,<Y> sz:<W>,<H>]',
         '  Arrow notation: -> (one-way), <- (reverse), <-> (bidirectional), -- (no arrow).',
-        '- Coordinate and size values are in cm (converted from EMU, 1 cm = 360,000 EMU, rounded to 1 decimal place).',
+        '- Coordinate and size values are in cm (rounded to 1 decimal place).',
         '- NOTE: Within each slide, elements appear in category order (tables, images, text, shapes, connectors) — not in spatial order.',
-        '  Shapes and connectors have pos/size metadata for inferring spatial layout; tables, images, and text boxes do not.',
+        '  Shapes and connectors have p:/sz: metadata for inferring spatial layout; tables, images, and text boxes do not.',
       );
       return pptxLines.join('\n');
     }

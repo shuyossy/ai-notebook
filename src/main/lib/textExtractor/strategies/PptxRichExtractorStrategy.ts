@@ -171,7 +171,7 @@ export class PptxRichExtractorStrategy implements ITextExtractorStrategy {
               parts.push(shape.text);
             } else {
               drawingCounter++;
-              const shapeId = `shape_${drawingCounter}`;
+              const shapeId = `s${drawingCounter}`;
 
               if (shape.drawingObjectId !== undefined) {
                 drawingObjectIdToShapeId.set(shape.drawingObjectId, shapeId);
@@ -199,7 +199,7 @@ export class PptxRichExtractorStrategy implements ITextExtractorStrategy {
           // コネクタを処理
           for (const connector of result.connectors) {
             drawingCounter++;
-            const connectorId = `connector_${drawingCounter}`;
+            const connectorId = `c${drawingCounter}`;
 
             const arrowSymbol = getArrowSymbol(
               connector.headEndType,

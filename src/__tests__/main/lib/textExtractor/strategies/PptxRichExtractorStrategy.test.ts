@@ -367,13 +367,13 @@ describe('PptxRichExtractorStrategy', () => {
         // Assert
         expect(result.content).toContain('Plain Text Box');
         expect(result.content).toContain('Placeholder Text');
-        // shape_Nプレフィックスが含まれないこと
-        expect(result.content).not.toContain('[shape_');
+        // sNプレフィックスが含まれないこと
+        expect(result.content).not.toContain('[s');
         // formatDrawingTagFullはテキストボックスには呼ばれないこと
         expect(mockFormatDrawingTagFull).not.toHaveBeenCalled();
       });
 
-      it('図形はshape_Nプレフィックス付きで出力されること', async () => {
+      it('図形はsNプレフィックス付きで出力されること', async () => {
         // Arrange
         const fileBuffer = Buffer.from('dummy-pptx');
         mockReadFile.mockResolvedValue(fileBuffer);
@@ -399,14 +399,14 @@ describe('PptxRichExtractorStrategy', () => {
         ]);
         mockSlideParseConnectors.mockReturnValue([]);
         mockSlideParseTables.mockReturnValue([]);
-        mockFormatDrawingTagFull.mockReturnValue('[shape_1:rect]');
+        mockFormatDrawingTagFull.mockReturnValue('[s1:rect]');
 
         // Act
         const result = await strategy.extract('/path/to/test.pptx');
 
         // Assert
-        expect(result.content).toContain('[shape_1:rect] Shape Content');
-        expect(mockFormatDrawingTagFull).toHaveBeenCalledWith('shape_1', {
+        expect(result.content).toContain('[s1:rect] Shape Content');
+        expect(mockFormatDrawingTagFull).toHaveBeenCalledWith('s1', {
           presetGeometry: 'rect',
         });
       });
@@ -435,19 +435,19 @@ describe('PptxRichExtractorStrategy', () => {
         ]);
         mockSlideParseConnectors.mockReturnValue([]);
         mockSlideParseTables.mockReturnValue([]);
-        mockFormatDrawingTagFull.mockReturnValue('[shape_1:ellipse]');
-        mockFormatDrawingTagShort.mockReturnValue('[shape_1]');
+        mockFormatDrawingTagFull.mockReturnValue('[s1:ellipse]');
+        mockFormatDrawingTagShort.mockReturnValue('[s1]');
 
         // Act
         const result = await strategy.extract('/path/to/test.pptx');
 
         // Assert
-        expect(result.content).toContain('[shape_1:ellipse] Line1');
-        expect(result.content).toContain('[shape_1] Line2');
-        expect(result.content).toContain('[shape_1] Line3');
+        expect(result.content).toContain('[s1:ellipse] Line1');
+        expect(result.content).toContain('[s1] Line2');
+        expect(result.content).toContain('[s1] Line3');
       });
 
-      it('コネクタはconnector_Nプレフィックス付きで出力されること', async () => {
+      it('コネクタはcNプレフィックス付きで出力されること', async () => {
         // Arrange
         const fileBuffer = Buffer.from('dummy-pptx');
         mockReadFile.mockResolvedValue(fileBuffer);
@@ -505,11 +505,11 @@ describe('PptxRichExtractorStrategy', () => {
 
         // Assert
         expect(mockGetArrowSymbol).toHaveBeenCalledWith('none', 'triangle');
-        // shape_1, shape_2は図形、connector_3がコネクタ
+        // s1, s2は図形、c3がコネクタ
         expect(mockFormatDrawingTagFull).toHaveBeenCalledWith(
-          'connector_3',
+          'c3',
           { presetGeometry: 'straightConnector1' },
-          'shape_1->shape_2',
+          's1->s2',
         );
       });
 
@@ -1028,7 +1028,7 @@ describe('PptxRichExtractorStrategy', () => {
           return [];
         });
         mockSlideEscapeCsvCell.mockImplementation((val: string) => val);
-        mockFormatDrawingTagFull.mockReturnValue('[shape_1:rect]');
+        mockFormatDrawingTagFull.mockReturnValue('[s1:rect]');
 
         // Act
         const result = await strategy.extract('/path/to/test.pptx');
@@ -1037,7 +1037,7 @@ describe('PptxRichExtractorStrategy', () => {
         expect(result.content).toContain('#slide:1');
         expect(result.content).toContain('#slide:2');
         expect(result.content).toContain('Title');
-        expect(result.content).toContain('[shape_1:rect] Shape Content');
+        expect(result.content).toContain('[s1:rect] Shape Content');
         expect(result.content).toContain('A,B');
         expect(result.content).toContain('C,D');
       });

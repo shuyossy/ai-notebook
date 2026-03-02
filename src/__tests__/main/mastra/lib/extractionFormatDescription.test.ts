@@ -8,6 +8,8 @@ describe('extractionFormatDescription', () => {
   describe('getFormatDescription', () => {
     const allFormatTypes: TextExtractionFormatType[] = [
       'txt-plain',
+      'csv-plain',
+      'md-plain',
       'xlsx-csv-v1',
       'xlsx-rich-v1',
       'docx-plain',
@@ -31,14 +33,14 @@ describe('extractionFormatDescription', () => {
     it('xlsx-rich-v1の説明にシート区切り・行マーカー・画像リンク・図形タグ・コネクタ・RFC 4180の記載がある（includeImages=true）', () => {
       const description = getFormatDescription('xlsx-rich-v1', true);
       expect(description).toContain('#sheet:');
-      expect(description).toContain('[row:');
+      expect(description).toContain('[rN]');
       expect(description).toContain('![image');
-      expect(description).toContain('shape_N');
-      expect(description).toContain('connector_N');
-      expect(description).toContain('cell:');
+      expect(description).toContain('sN');
+      expect(description).toContain('cN');
+      expect(description).toContain('@');
       expect(description).toContain('RFC 4180');
-      // Excelにはpos/sizeがないことを確認
-      expect(description).not.toContain('pos:');
+      // Excelにはp:/sz:がないことを確認
+      expect(description).not.toContain('p:');
       expect(description).not.toContain('EMU');
     });
 
@@ -60,12 +62,12 @@ describe('extractionFormatDescription', () => {
     it('pptx-rich-v1の説明にスライド区切り・図形タグ・CSV表・画像リンク・コネクタ・座標・RFC 4180の記載がある（includeImages=true）', () => {
       const description = getFormatDescription('pptx-rich-v1', true);
       expect(description).toContain('#slide:');
-      expect(description).toContain('shape_N');
-      expect(description).toContain('pos:');
+      expect(description).toContain('sN');
+      expect(description).toContain('p:');
       expect(description).toContain('CSV');
       expect(description).toContain('![image]');
-      expect(description).toContain('connector_N');
-      expect(description).toContain('EMU');
+      expect(description).toContain('cN');
+      expect(description).not.toContain('EMU');
       expect(description).toContain('RFC 4180');
     });
 
@@ -105,15 +107,15 @@ describe('extractionFormatDescription', () => {
     it('includeImages=falseでも画像以外のリッチフォーマット情報は保持される', () => {
       const xlsxDesc = getFormatDescription('xlsx-rich-v1', false);
       expect(xlsxDesc).toContain('#sheet:');
-      expect(xlsxDesc).toContain('[row:');
-      expect(xlsxDesc).toContain('shape_N');
-      expect(xlsxDesc).toContain('connector_N');
+      expect(xlsxDesc).toContain('[rN]');
+      expect(xlsxDesc).toContain('sN');
+      expect(xlsxDesc).toContain('cN');
 
       const pptxDesc = getFormatDescription('pptx-rich-v1', false);
       expect(pptxDesc).toContain('#slide:');
-      expect(pptxDesc).toContain('shape_N');
-      expect(pptxDesc).toContain('connector_N');
-      expect(pptxDesc).toContain('EMU');
+      expect(pptxDesc).toContain('sN');
+      expect(pptxDesc).toContain('cN');
+      expect(pptxDesc).not.toContain('EMU');
 
       const docxDesc = getFormatDescription('docx-rich-v1', false);
       expect(docxDesc).toContain('Markdown');
@@ -210,7 +212,7 @@ describe('extractionFormatDescription', () => {
       expect(result).toContain('"#sheet:"');
       expect(result).toContain('"#slide:"');
       expect(result).toContain('"#page:"');
-      expect(result).toContain('"[row:N]"');
+      expect(result).toContain('"[rN]"');
     });
 
     it('テキストモードでformatType未設定のファイルはスキップされる', () => {
@@ -265,11 +267,11 @@ describe('extractionFormatDescription', () => {
           processMode: 'text',
         },
       ]);
-      expect(result).toContain('"shape_N"');
-      expect(result).toContain('"connector_N"');
-      expect(result).toContain('"pos:"');
-      expect(result).toContain('"size:"');
-      expect(result).toContain('"cell:"');
+      expect(result).toContain('"sN"');
+      expect(result).toContain('"cN"');
+      expect(result).toContain('"p:"');
+      expect(result).toContain('"sz:"');
+      expect(result).toContain('"@"');
       expect(result).toContain('"![image"');
     });
 
@@ -423,6 +425,8 @@ describe('extractionFormatDescription', () => {
   describe('getFormatDescription - 網羅性', () => {
     const allFormatTypes: TextExtractionFormatType[] = [
       'txt-plain',
+      'csv-plain',
+      'md-plain',
       'xlsx-csv-v1',
       'xlsx-rich-v1',
       'docx-plain',

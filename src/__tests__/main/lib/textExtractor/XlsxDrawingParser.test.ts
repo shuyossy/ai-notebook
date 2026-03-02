@@ -139,14 +139,12 @@ describe('formatPosition', () => {
   describe('正常系', () => {
     it('位置・サイズ情報がフォーマットされること', () => {
       const position: PositionInfo = { x: 2.5, y: 5.1, cx: 7.6, cy: 3.8 };
-      expect(formatPosition(position)).toBe('pos:2.5cm,5.1cm size:7.6cm,3.8cm');
+      expect(formatPosition(position)).toBe('p:2.5,5.1 sz:7.6,3.8');
     });
 
     it('整数値でも小数点1桁で表示されること', () => {
       const position: PositionInfo = { x: 0, y: 0, cx: 10, cy: 5 };
-      expect(formatPosition(position)).toBe(
-        'pos:0.0cm,0.0cm size:10.0cm,5.0cm',
-      );
+      expect(formatPosition(position)).toBe('p:0.0,0.0 sz:10.0,5.0');
     });
   });
 });
@@ -190,9 +188,7 @@ describe('formatDrawingTagFull', () => {
       const metadata: ShapeMetadata = {
         cellRange: { fromCol: 0, fromRow: 0, toCol: 2, toRow: 2 },
       };
-      expect(formatDrawingTagFull('shape_1', metadata)).toBe(
-        '[shape_1 cell:A1-C3]',
-      );
+      expect(formatDrawingTagFull('shape_1', metadata)).toBe('[shape_1@A1-C3]');
     });
 
     it('メタデータにpositionがある場合、位置付きタグが生成されること', () => {
@@ -200,7 +196,7 @@ describe('formatDrawingTagFull', () => {
         position: { x: 1.0, y: 2.0, cx: 3.0, cy: 4.0 },
       };
       expect(formatDrawingTagFull('shape_1', metadata)).toBe(
-        '[shape_1 pos:1.0cm,2.0cm size:3.0cm,4.0cm]',
+        '[shape_1 p:1.0,2.0 sz:3.0,4.0]',
       );
     });
 
@@ -219,7 +215,7 @@ describe('formatDrawingTagFull', () => {
       expect(
         formatDrawingTagFull('connector_1', metadata, 'shape_1->shape_2'),
       ).toBe(
-        '[connector_1:straightConnector1 shape_1->shape_2 pos:1.0cm,2.0cm size:3.0cm,4.0cm cell:A1-F6]',
+        '[connector_1:straightConnector1 shape_1->shape_2 p:1.0,2.0 sz:3.0,4.0@A1-F6]',
       );
     });
 
