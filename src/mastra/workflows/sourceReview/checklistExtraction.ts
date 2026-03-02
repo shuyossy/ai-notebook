@@ -797,7 +797,7 @@ export const checklistExtractionWorkflow = createWorkflow({
           }
         })
         // Step2: 各トピックに対してチェックリスト作成（foreachでループ）
-        .foreach(topicChecklistCreationStep)
+        .foreach(topicChecklistCreationStep, { concurrency: 5 })
         // Step3用入力データ変換（foreachの結果を統合してchecklistRefinementStepに渡す）
         .map(async ({ inputData, getInitData }) => {
           const initData = getInitData();
