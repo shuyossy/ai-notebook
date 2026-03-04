@@ -1,905 +1,152 @@
-diff --git a/CLAUDE.md b/CLAUDE.md
-index 4c4b14863..d1c4c6b88 100644
---- a/CLAUDE.md
-+++ b/CLAUDE.md
-@@ -243,41 +243,10 @@ ElectronのIPCを使用してフロントエンド・バックエンド間の通
- ```
- 
- # ID: 1
--- PBI名: 大量ドキュメントレビューに早期終了判定を追加
--- ステータス: in progress
-+- PBI名: 失敗しているテストの分析
-+- ステータス: to do
- - 受け入れ基準
--  - 大量ドキュメントレビューで一つでも分割上限に達してもコンテキスト長エラーになったドキュメントがあれば、その他のチェックリストについても分割上限でエラーになるはずなので、即時終了する 
--
--# ID: 2
--- PBI名: 大量ドキュメントレビュー時の分割レビュー効率化
--- ステータス: inprogress
--- 背景
--  - 現状は事前のトークン測定なしに当てずっぽうでAIにドキュメントを送信して、コンテキスト長エラーだった場合はその都度ドキュメントを分割して再度レビューを実施している
--    - API発行回数や実行時間が長くなってしまう
--- 受け入れ基準
--  - テキスト抽出の処理結果として保存している文字数をトークン数に置き換える
--    - 画面のファイル処理結果欄もトークン数に置き換える
--  - 大量レビューの場合は、個別レビュー実行時に以下の様に事前に対象ドキュメントのトークン数・画像の数を元にどの程度分割するのか決める
--    - テキスト抽出の場合
--      - リッチ戦略が成功している場合
--        - テキストとそれに紐づく画像がコンテキスト長に収まるまで分割する
--      - リッチ戦略が成功していない場合
--        - テキストがコンテキスト長に収まるまで分割する
--    - 画像変換の場合
--      - 画像数がAIの最大画像数に収まるまで分割する
--  - 大量レビューの場合は、個別レビュー実行前に以下の様に事前に対象ドキュメントのトークン数・画像の数を元に早期終了を判定する
--    - テキスト抽出の場合
--      - 対象ドキュメントのトークン数がAIのコンテキスト長×分割上限を超えていた場合はその時点で大量ドキュメントレビューを早期終了させる
--      - さらに、リッチ戦略が成功しており、画像を含めるとユーザが選択していた場合
--        - 画像数がAIの最大画像数×分割上限を超えていた場合
--          - その時点で大量ドキュメントレビューを早期終了させる
--        - 画像数がAIの最大画像数を超えていた場合
--          - 分割上限までドキュメント分割を実行して各チャンクに含まれる画像数を確認し、一つでもAIの最大画像数を超えていた場合はその時点で大量ドキュメントレビューを早期終了させる
--    - 画像変換の場合
--      - 対象ドキュメントの画像数がAIの最大画像数×分割上限を超えていた場合はその時点で大量ドキュメントレビューを早期終了させる
--  - モデル毎に最大コンテキスト長・最大画像数を登録できる
-+  - 以下のテストが一部失敗しているので、プロダクションコード・テストコードどちらに問題があるのか分析し、最終的に全てのテストがパスしている状態にすること
-+    - `executeReview.test.ts`
- - 注意事項
--  - 現状はopenAI系のモデルを利用する想定なのでトークナイザはgpt-tokenizerを利用する
--  - ただし、将来的に他のモデルも利用できる様に、利用しているモデルに合わせてトークナイザを出し分けられる様な土台にしておくこと
--- 指摘事項
--  - ドキュメントの事前分割を実行した場合は、それに合わせたretryCountを設定する必要がある
-+- 指摘事項（in progressの場合のみ）
-diff --git a/src/__tests__/main/config/modelConfig.test.ts b/src/__tests__/main/config/modelConfig.test.ts
-index 1ca0b23dd..eb7e4c3be 100644
---- a/src/__tests__/main/config/modelConfig.test.ts
-+++ b/src/__tests__/main/config/modelConfig.test.ts
-@@ -9,18 +9,6 @@ import {
- 
- describe('modelConfig', () => {
-   describe('getModelMaxContextLength', () => {
--    it('gpt-4oのコンテキスト長を正しく返す', () => {
--      expect(getModelMaxContextLength('gpt-4o')).toBe(128_000);
--    });
--
--    it('gpt-4.1-miniのコンテキスト長を正しく返す', () => {
--      expect(getModelMaxContextLength('gpt-4.1-mini')).toBe(1_047_576);
--    });
--
--    it('gpt-5のコンテキスト長を正しく返す', () => {
--      expect(getModelMaxContextLength('gpt-5')).toBe(1_047_576);
--    });
--
-     it('未知のモデル名の場合はデフォルト値を返す', () => {
-       expect(getModelMaxContextLength('unknown-model')).toBe(
-         DEFAULT_MAX_CONTEXT_LENGTH,
-@@ -41,18 +29,6 @@ describe('modelConfig', () => {
-   });
- 
-   describe('getModelMaxImageCount', () => {
--    it('gpt-4oの最大画像数を正しく返す', () => {
--      expect(getModelMaxImageCount('gpt-4o')).toBe(20);
--    });
--
--    it('gpt-4.1-miniの最大画像数を正しく返す', () => {
--      expect(getModelMaxImageCount('gpt-4.1-mini')).toBe(20);
--    });
--
--    it('gpt-5の最大画像数を正しく返す', () => {
--      expect(getModelMaxImageCount('gpt-5')).toBe(50);
--    });
--
-     it('未知のモデル名の場合はデフォルト値を返す', () => {
-       expect(getModelMaxImageCount('unknown-model')).toBe(
-         DEFAULT_MAX_IMAGE_COUNT,
-diff --git a/src/__tests__/main/lib/textExtractor/XlsxDrawingParser.test.ts b/src/__tests__/main/lib/textExtractor/XlsxDrawingParser.test.ts
-index 234a1d2e2..da6b54067 100644
---- a/src/__tests__/main/lib/textExtractor/XlsxDrawingParser.test.ts
-+++ b/src/__tests__/main/lib/textExtractor/XlsxDrawingParser.test.ts
-@@ -139,14 +139,12 @@ describe('formatPosition', () => {
-   describe('正常系', () => {
-     it('位置・サイズ情報がフォーマットされること', () => {
-       const position: PositionInfo = { x: 2.5, y: 5.1, cx: 7.6, cy: 3.8 };
--      expect(formatPosition(position)).toBe('pos:2.5cm,5.1cm size:7.6cm,3.8cm');
-+      expect(formatPosition(position)).toBe('p:2.5,5.1 sz:7.6,3.8');
-     });
- 
-     it('整数値でも小数点1桁で表示されること', () => {
-       const position: PositionInfo = { x: 0, y: 0, cx: 10, cy: 5 };
--      expect(formatPosition(position)).toBe(
--        'pos:0.0cm,0.0cm size:10.0cm,5.0cm',
--      );
-+      expect(formatPosition(position)).toBe('p:0.0,0.0 sz:10.0,5.0');
-     });
-   });
- });
-@@ -190,9 +188,7 @@ describe('formatDrawingTagFull', () => {
-       const metadata: ShapeMetadata = {
-         cellRange: { fromCol: 0, fromRow: 0, toCol: 2, toRow: 2 },
-       };
--      expect(formatDrawingTagFull('shape_1', metadata)).toBe(
--        '[shape_1 cell:A1-C3]',
--      );
-+      expect(formatDrawingTagFull('shape_1', metadata)).toBe('[shape_1@A1-C3]');
-     });
- 
-     it('メタデータにpositionがある場合、位置付きタグが生成されること', () => {
-@@ -200,7 +196,7 @@ describe('formatDrawingTagFull', () => {
-         position: { x: 1.0, y: 2.0, cx: 3.0, cy: 4.0 },
-       };
-       expect(formatDrawingTagFull('shape_1', metadata)).toBe(
--        '[shape_1 pos:1.0cm,2.0cm size:3.0cm,4.0cm]',
-+        '[shape_1 p:1.0,2.0 sz:3.0,4.0]',
-       );
-     });
- 
-@@ -219,7 +215,7 @@ describe('formatDrawingTagFull', () => {
-       expect(
-         formatDrawingTagFull('connector_1', metadata, 'shape_1->shape_2'),
-       ).toBe(
--        '[connector_1:straightConnector1 shape_1->shape_2 pos:1.0cm,2.0cm size:3.0cm,4.0cm cell:A1-F6]',
-+        '[connector_1:straightConnector1 shape_1->shape_2 p:1.0,2.0 sz:3.0,4.0@A1-F6]',
-       );
-     });
- 
-diff --git a/src/__tests__/main/lib/textExtractor/strategies/PptxRichExtractorStrategy.test.ts b/src/__tests__/main/lib/textExtractor/strategies/PptxRichExtractorStrategy.test.ts
-index a991909cc..2623b57f0 100644
---- a/src/__tests__/main/lib/textExtractor/strategies/PptxRichExtractorStrategy.test.ts
-+++ b/src/__tests__/main/lib/textExtractor/strategies/PptxRichExtractorStrategy.test.ts
-@@ -367,13 +367,13 @@ describe('PptxRichExtractorStrategy', () => {
-         // Assert
-         expect(result.content).toContain('Plain Text Box');
-         expect(result.content).toContain('Placeholder Text');
--        // shape_Nプレフィックスが含まれないこと
--        expect(result.content).not.toContain('[shape_');
-+        // sNプレフィックスが含まれないこと
-+        expect(result.content).not.toContain('[s');
-         // formatDrawingTagFullはテキストボックスには呼ばれないこと
-         expect(mockFormatDrawingTagFull).not.toHaveBeenCalled();
-       });
- 
--      it('図形はshape_Nプレフィックス付きで出力されること', async () => {
-+      it('図形はsNプレフィックス付きで出力されること', async () => {
-         // Arrange
-         const fileBuffer = Buffer.from('dummy-pptx');
-         mockReadFile.mockResolvedValue(fileBuffer);
-@@ -399,14 +399,14 @@ describe('PptxRichExtractorStrategy', () => {
-         ]);
-         mockSlideParseConnectors.mockReturnValue([]);
-         mockSlideParseTables.mockReturnValue([]);
--        mockFormatDrawingTagFull.mockReturnValue('[shape_1:rect]');
-+        mockFormatDrawingTagFull.mockReturnValue('[s1:rect]');
- 
-         // Act
-         const result = await strategy.extract('/path/to/test.pptx');
- 
-         // Assert
--        expect(result.content).toContain('[shape_1:rect] Shape Content');
--        expect(mockFormatDrawingTagFull).toHaveBeenCalledWith('shape_1', {
-+        expect(result.content).toContain('[s1:rect] Shape Content');
-+        expect(mockFormatDrawingTagFull).toHaveBeenCalledWith('s1', {
-           presetGeometry: 'rect',
-         });
-       });
-@@ -435,19 +435,19 @@ describe('PptxRichExtractorStrategy', () => {
-         ]);
-         mockSlideParseConnectors.mockReturnValue([]);
-         mockSlideParseTables.mockReturnValue([]);
--        mockFormatDrawingTagFull.mockReturnValue('[shape_1:ellipse]');
--        mockFormatDrawingTagShort.mockReturnValue('[shape_1]');
-+        mockFormatDrawingTagFull.mockReturnValue('[s1:ellipse]');
-+        mockFormatDrawingTagShort.mockReturnValue('[s1]');
- 
-         // Act
-         const result = await strategy.extract('/path/to/test.pptx');
- 
-         // Assert
--        expect(result.content).toContain('[shape_1:ellipse] Line1');
--        expect(result.content).toContain('[shape_1] Line2');
--        expect(result.content).toContain('[shape_1] Line3');
-+        expect(result.content).toContain('[s1:ellipse] Line1');
-+        expect(result.content).toContain('[s1] Line2');
-+        expect(result.content).toContain('[s1] Line3');
-       });
- 
--      it('コネクタはconnector_Nプレフィックス付きで出力されること', async () => {
-+      it('コネクタはcNプレフィックス付きで出力されること', async () => {
-         // Arrange
-         const fileBuffer = Buffer.from('dummy-pptx');
-         mockReadFile.mockResolvedValue(fileBuffer);
-@@ -505,11 +505,11 @@ describe('PptxRichExtractorStrategy', () => {
- 
-         // Assert
-         expect(mockGetArrowSymbol).toHaveBeenCalledWith('none', 'triangle');
--        // shape_1, shape_2は図形、connector_3がコネクタ
-+        // s1, s2は図形、c3がコネクタ
-         expect(mockFormatDrawingTagFull).toHaveBeenCalledWith(
--          'connector_3',
-+          'c3',
-           { presetGeometry: 'straightConnector1' },
--          'shape_1->shape_2',
-+          's1->s2',
-         );
-       });
- 
-@@ -1028,7 +1028,7 @@ describe('PptxRichExtractorStrategy', () => {
-           return [];
-         });
-         mockSlideEscapeCsvCell.mockImplementation((val: string) => val);
--        mockFormatDrawingTagFull.mockReturnValue('[shape_1:rect]');
-+        mockFormatDrawingTagFull.mockReturnValue('[s1:rect]');
- 
-         // Act
-         const result = await strategy.extract('/path/to/test.pptx');
-@@ -1037,7 +1037,7 @@ describe('PptxRichExtractorStrategy', () => {
-         expect(result.content).toContain('#slide:1');
-         expect(result.content).toContain('#slide:2');
-         expect(result.content).toContain('Title');
--        expect(result.content).toContain('[shape_1:rect] Shape Content');
-+        expect(result.content).toContain('[s1:rect] Shape Content');
-         expect(result.content).toContain('A,B');
-         expect(result.content).toContain('C,D');
-       });
-diff --git a/src/__tests__/main/lib/textExtractor/strategies/XlsxSheetJsRichStrategy.test.ts b/src/__tests__/main/lib/textExtractor/strategies/XlsxSheetJsRichStrategy.test.ts
-index 9135a5a22..232a75ab1 100644
---- a/src/__tests__/main/lib/textExtractor/strategies/XlsxSheetJsRichStrategy.test.ts
-+++ b/src/__tests__/main/lib/textExtractor/strategies/XlsxSheetJsRichStrategy.test.ts
-@@ -205,8 +205,8 @@ describe('XlsxSheetJsRichStrategy', () => {
- 
-         // Assert
-         expect(result.content).toContain('#sheet:Sheet1');
--        expect(result.content).toContain('[row:1] A,B,C');
--        expect(result.content).toContain('[row:2] 1,2,3');
-+        expect(result.content).toContain('[r1] A,B,C');
-+        expect(result.content).toContain('[r2] 1,2,3');
-         expect(result.images).toEqual([]);
-         expect(mockReadFile).toHaveBeenCalledWith('/path/to/test.xlsx');
-       });
-@@ -349,15 +349,13 @@ describe('XlsxSheetJsRichStrategy', () => {
-           },
-         ]);
-         mockParseConnectors.mockReturnValue([]);
--        mockFormatDrawingTagFull.mockReturnValue('[shape_1:rect cell:A1-C3]');
-+        mockFormatDrawingTagFull.mockReturnValue('[s1:rect@A1-C3]');
- 
-         // Act
-         const result = await strategy.extract('/path/to/test.xlsx');
- 
-         // Assert
--        expect(result.content).toContain(
--          '[shape_1:rect cell:A1-C3] Shape Text',
--        );
-+        expect(result.content).toContain('[s1:rect@A1-C3] Shape Text');
-         expect(result.images).toEqual([]);
-       });
- 
-@@ -409,16 +407,16 @@ describe('XlsxSheetJsRichStrategy', () => {
-           },
-         ]);
-         mockParseConnectors.mockReturnValue([]);
--        mockFormatDrawingTagFull.mockReturnValue('[shape_1:rect]');
--        mockFormatDrawingTagShort.mockReturnValue('[shape_1]');
-+        mockFormatDrawingTagFull.mockReturnValue('[s1:rect]');
-+        mockFormatDrawingTagShort.mockReturnValue('[s1]');
- 
-         // Act
-         const result = await strategy.extract('/path/to/test.xlsx');
- 
-         // Assert
--        expect(result.content).toContain('[shape_1:rect] Line1');
--        expect(result.content).toContain('[shape_1] Line2');
--        expect(result.content).toContain('[shape_1] Line3');
-+        expect(result.content).toContain('[s1:rect] Line1');
-+        expect(result.content).toContain('[s1] Line2');
-+        expect(result.content).toContain('[s1] Line3');
-       });
- 
-       it('コネクタ付きシートの抽出が成功すること', async () => {
-@@ -496,13 +494,13 @@ describe('XlsxSheetJsRichStrategy', () => {
-         const result = await strategy.extract('/path/to/test.xlsx');
- 
-         // Assert
--        // shape_1(Start), shape_2(End), connector_3のコネクタが生成される
-+        // s1(Start), s2(End), c3のコネクタが生成される
-         expect(result.content).toContain('#sheet:Sheet1');
-         expect(mockGetArrowSymbol).toHaveBeenCalledWith('none', 'triangle');
-         expect(mockFormatDrawingTagFull).toHaveBeenCalledWith(
--          'connector_3',
-+          'c3',
-           { presetGeometry: 'straightConnector1' },
--          'shape_1->shape_2',
-+          's1->s2',
-         );
-       });
- 
-@@ -575,7 +573,7 @@ describe('XlsxSheetJsRichStrategy', () => {
-           undefined,
-         );
-         expect(mockFormatDrawingTagFull).toHaveBeenCalledWith(
--          'connector_1',
-+          'c1',
-           {
-             presetGeometry: 'straightConnector1',
-             cellRange: { fromCol: 0, fromRow: 2, toCol: 3, toRow: 5 },
-@@ -624,7 +622,7 @@ describe('XlsxSheetJsRichStrategy', () => {
-         mockResolveRelativePath.mockReturnValue('xl/drawings/drawing1.xml');
-         mockParseImages.mockReturnValue([]);
-         mockResolveImagePaths.mockReturnValue(new Map());
--        // shape_1を登録（drawingObjectId=10）
-+        // s1を登録（drawingObjectId=10）
-         mockParseShapeTexts.mockReturnValue([
-           {
-             text: 'Start',
-@@ -657,18 +655,18 @@ describe('XlsxSheetJsRichStrategy', () => {
-         await strategy.extract('/path/to/test.xlsx');
- 
-         // Assert
--        // startLabel=shape_1（解決済み）、endLabel=D6（セル範囲から）
-+        // startLabel=s1（解決済み）、endLabel=D6（セル範囲から）
-         expect(mockFormatDrawingTagFull).toHaveBeenCalledWith(
--          'connector_2',
-+          'c2',
-           {
-             presetGeometry: 'straightConnector1',
-             cellRange: { fromCol: 0, fromRow: 2, toCol: 3, toRow: 5 },
-           },
--          'shape_1->D6',
-+          's1->D6',
-         );
-       });
- 
--      it('[row:N]マーカーが正しく付与されること', async () => {
-+      it('[rN]マーカーが正しく付与されること', async () => {
-         // Arrange
-         const fileBuffer = Buffer.from('dummy-xlsx');
-         mockReadFile.mockResolvedValue(fileBuffer);
-@@ -692,9 +690,9 @@ describe('XlsxSheetJsRichStrategy', () => {
- 
-         // Assert
-         // rangeStartRow=2なので、行番号はExcel行3,4,5になる
--        expect(result.content).toContain('[row:3] X,Y,Z');
--        expect(result.content).toContain('[row:4] 1,2,3');
--        expect(result.content).toContain('[row:5] 4,5,6');
-+        expect(result.content).toContain('[r3] X,Y,Z');
-+        expect(result.content).toContain('[r4] 1,2,3');
-+        expect(result.content).toContain('[r5] 4,5,6');
-       });
- 
-       it('空行にはマーカーが付与されないこと', async () => {
-@@ -721,12 +719,12 @@ describe('XlsxSheetJsRichStrategy', () => {
- 
-         // Assert
-         const lines = result.content.split('\n');
--        // #sheet:Sheet1, [row:1] A,B,C, (空行), [row:3] 1,2,3
--        expect(lines).toContain('[row:1] A,B,C');
-+        // #sheet:Sheet1, [r1] A,B,C, (空行), [r3] 1,2,3
-+        expect(lines).toContain('[r1] A,B,C');
-         expect(lines).toContain(',,');
--        expect(lines).toContain('[row:3] 1,2,3');
--        // 空行には[row:N]が付与されていないことを確認
--        expect(lines.find((l) => l.includes('[row:2]'))).toBeUndefined();
-+        expect(lines).toContain('[r3] 1,2,3');
-+        // 空行には[rN]が付与されていないことを確認
-+        expect(lines.find((l) => l.includes('[r2]'))).toBeUndefined();
-       });
- 
-       it('シートにsheetデータがnullの場合スキップされること', async () => {
-@@ -777,7 +775,7 @@ describe('XlsxSheetJsRichStrategy', () => {
- 
-         // Assert
-         // rangeStartRow=0のため、行番号は1から開始
--        expect(result.content).toContain('[row:1] A,B');
-+        expect(result.content).toContain('[r1] A,B');
-         // decode_rangeは呼ばれないこと
-         expect(mockDecodeRange).not.toHaveBeenCalled();
-       });
-@@ -831,7 +829,7 @@ describe('XlsxSheetJsRichStrategy', () => {
-           },
-         ]);
-         mockParseConnectors.mockReturnValue([]);
--        mockFormatDrawingTagFull.mockReturnValue('[shape_1:rect]');
-+        mockFormatDrawingTagFull.mockReturnValue('[s1:rect]');
- 
-         // Act
-         const result = await strategy.extract('/path/to/test.xlsx');
-@@ -840,7 +838,7 @@ describe('XlsxSheetJsRichStrategy', () => {
-         const lines = result.content.split('\n');
-         // CSV範囲外の描画要素が末尾に配置されること
-         const lastNonEmptyLine = lines.filter((l) => l.trim()).pop();
--        expect(lastNonEmptyLine).toBe('[shape_1:rect] OutOfRange');
-+        expect(lastNonEmptyLine).toBe('[s1:rect] OutOfRange');
-       });
- 
-       it('描画情報ありだがdrawingsByRowが空の場合、CSV行マーカーのみ出力されること', async () => {
-@@ -891,13 +889,13 @@ describe('XlsxSheetJsRichStrategy', () => {
-         const result = await strategy.extract('/path/to/test.xlsx');
- 
-         // Assert
--        // 描画要素がないためCSVに[row:N]マーカーが付与される
--        expect(result.content).toContain('[row:1] A');
-+        // 描画要素がないためCSVに[rN]マーカーが付与される
-+        expect(result.content).toContain('[r1] A');
-       });
-     });
- 
--    describe('セル内改行の[row:N]マーカー付与', () => {
--      it('セル内改行を含むCSVで行ごとに正しく[row:N]マーカーが付与される', async () => {
-+    describe('セル内改行の[rN]マーカー付与', () => {
-+      it('セル内改行を含むCSVで行ごとに正しく[rN]マーカーが付与される', async () => {
-         // Arrange
-         const fileBuffer = Buffer.from('dummy-xlsx');
-         mockReadFile.mockResolvedValue(fileBuffer);
-@@ -924,11 +922,11 @@ describe('XlsxSheetJsRichStrategy', () => {
-         const lines = result.content.split('\n');
- 
-         // Assert
--        const rowLines = lines.filter((l: string) => l.startsWith('[row:'));
--        // セル内改行があっても行ごとに1つの[row:N]マーカーが付与される（2行分）
-+        const rowLines = lines.filter((l: string) => /^\[r\d+\] /.test(l));
-+        // セル内改行があっても行ごとに1つの[rN]マーカーが付与される（2行分）
-         expect(rowLines).toHaveLength(2);
--        expect(rowLines[0]).toMatch(/^\[row:1\]/);
--        expect(rowLines[1]).toMatch(/^\[row:2\]/);
-+        expect(rowLines[0]).toMatch(/^\[r1\]/);
-+        expect(rowLines[1]).toMatch(/^\[r2\]/);
-       });
- 
-       it('セル内改行を含むセルがRFC 4180形式（ダブルクォート囲み）で出力される', async () => {
-@@ -957,9 +955,9 @@ describe('XlsxSheetJsRichStrategy', () => {
- 
-         // Assert
-         // 改行を含むセルがダブルクォートで囲まれていること
--        expect(result.content).toContain('[row:1] 通常セル,"改行\nあり"');
-+        expect(result.content).toContain('[r1] 通常セル,"改行\nあり"');
-         // 通常セルはダブルクォートで囲まれない
--        expect(result.content).toMatch(/\[row:1\] 通常セル,/);
-+        expect(result.content).toMatch(/\[r1\] 通常セル,/);
-       });
- 
-       it('同一行の複数セルが全て改行を含むケース', async () => {
-@@ -987,9 +985,8 @@ describe('XlsxSheetJsRichStrategy', () => {
-         const result = await strategy.extract('/path/to/test.xlsx');
- 
-         // Assert
--        // [row:N]マーカーは1行分のみ
--        const rowMarkerCount = (result.content.match(/\[row:\d+\]/g) || [])
--          .length;
-+        // [rN]マーカーは1行分のみ
-+        const rowMarkerCount = (result.content.match(/\[r\d+\]/g) || []).length;
-         expect(rowMarkerCount).toBe(1);
-         // 全セルがダブルクォートで囲まれ、改行が保持されていること
-         expect(result.content).toContain('"セル1行1\nセル1行2"');
-@@ -1059,7 +1056,7 @@ describe('XlsxSheetJsRichStrategy', () => {
-         ]);
-         mockParseConnectors.mockReturnValue([]);
-         mockFormatDrawingTagFull.mockReturnValue(
--          '[shape_1:rect cell:A1-C3] 図形テキスト',
-+          '[s1:rect@A1-C3] 図形テキスト',
-         );
-         mockDecodeRange.mockReturnValue({ s: { r: 0 }, e: { r: 1 } });
- 
-@@ -1068,8 +1065,8 @@ describe('XlsxSheetJsRichStrategy', () => {
-         const lines = result.content.split('\n');
- 
-         // Assert
--        // [row:N]マーカーの数をチェック（セル内改行を論理行として扱うので2つ）
--        const rowLines = lines.filter((l: string) => l.startsWith('[row:'));
-+        // [rN]マーカーの数をチェック（セル内改行を論理行として扱うので2つ）
-+        const rowLines = lines.filter((l: string) => /^\[r\d+\] /.test(l));
-         expect(rowLines).toHaveLength(2);
-       });
-     });
-@@ -1485,7 +1482,7 @@ describe('XlsxSheetJsRichStrategy', () => {
-       ]);
-       mockParseConnectors.mockReturnValue([]);
-       mockFormatDrawingTagFull.mockReturnValue(
--        '[shape_1:rect cell:A1-C3] Strict形式テスト',
-+        '[s1:rect@A1-C3] Strict形式テスト',
-       );
- 
-       // Act
-diff --git a/src/__tests__/main/mastra/lib/extractionFormatDescription.test.ts b/src/__tests__/main/mastra/lib/extractionFormatDescription.test.ts
-index 3a6a5fac4..d980e4ca8 100644
---- a/src/__tests__/main/mastra/lib/extractionFormatDescription.test.ts
-+++ b/src/__tests__/main/mastra/lib/extractionFormatDescription.test.ts
-@@ -8,6 +8,8 @@ describe('extractionFormatDescription', () => {
-   describe('getFormatDescription', () => {
-     const allFormatTypes: TextExtractionFormatType[] = [
-       'txt-plain',
-+      'csv-plain',
-+      'md-plain',
-       'xlsx-csv-v1',
-       'xlsx-rich-v1',
-       'docx-plain',
-@@ -31,14 +33,14 @@ describe('extractionFormatDescription', () => {
-     it('xlsx-rich-v1の説明にシート区切り・行マーカー・画像リンク・図形タグ・コネクタ・RFC 4180の記載がある（includeImages=true）', () => {
-       const description = getFormatDescription('xlsx-rich-v1', true);
-       expect(description).toContain('#sheet:');
--      expect(description).toContain('[row:');
-+      expect(description).toContain('[rN]');
-       expect(description).toContain('![image');
--      expect(description).toContain('shape_N');
--      expect(description).toContain('connector_N');
--      expect(description).toContain('cell:');
-+      expect(description).toContain('sN');
-+      expect(description).toContain('cN');
-+      expect(description).toContain('@');
-       expect(description).toContain('RFC 4180');
--      // Excelにはpos/sizeがないことを確認
--      expect(description).not.toContain('pos:');
-+      // Excelにはp:/sz:がないことを確認
-+      expect(description).not.toContain('p:');
-       expect(description).not.toContain('EMU');
-     });
- 
-@@ -60,12 +62,12 @@ describe('extractionFormatDescription', () => {
-     it('pptx-rich-v1の説明にスライド区切り・図形タグ・CSV表・画像リンク・コネクタ・座標・RFC 4180の記載がある（includeImages=true）', () => {
-       const description = getFormatDescription('pptx-rich-v1', true);
-       expect(description).toContain('#slide:');
--      expect(description).toContain('shape_N');
--      expect(description).toContain('pos:');
-+      expect(description).toContain('sN');
-+      expect(description).toContain('p:');
-       expect(description).toContain('CSV');
-       expect(description).toContain('![image]');
--      expect(description).toContain('connector_N');
--      expect(description).toContain('EMU');
-+      expect(description).toContain('cN');
-+      expect(description).not.toContain('EMU');
-       expect(description).toContain('RFC 4180');
-     });
- 
-@@ -105,15 +107,15 @@ describe('extractionFormatDescription', () => {
-     it('includeImages=falseでも画像以外のリッチフォーマット情報は保持される', () => {
-       const xlsxDesc = getFormatDescription('xlsx-rich-v1', false);
-       expect(xlsxDesc).toContain('#sheet:');
--      expect(xlsxDesc).toContain('[row:');
--      expect(xlsxDesc).toContain('shape_N');
--      expect(xlsxDesc).toContain('connector_N');
-+      expect(xlsxDesc).toContain('[rN]');
-+      expect(xlsxDesc).toContain('sN');
-+      expect(xlsxDesc).toContain('cN');
- 
-       const pptxDesc = getFormatDescription('pptx-rich-v1', false);
-       expect(pptxDesc).toContain('#slide:');
--      expect(pptxDesc).toContain('shape_N');
--      expect(pptxDesc).toContain('connector_N');
--      expect(pptxDesc).toContain('EMU');
-+      expect(pptxDesc).toContain('sN');
-+      expect(pptxDesc).toContain('cN');
-+      expect(pptxDesc).not.toContain('EMU');
- 
-       const docxDesc = getFormatDescription('docx-rich-v1', false);
-       expect(docxDesc).toContain('Markdown');
-@@ -210,7 +212,7 @@ describe('extractionFormatDescription', () => {
-       expect(result).toContain('"#sheet:"');
-       expect(result).toContain('"#slide:"');
-       expect(result).toContain('"#page:"');
--      expect(result).toContain('"[row:N]"');
-+      expect(result).toContain('"[rN]"');
-     });
- 
-     it('テキストモードでformatType未設定のファイルはスキップされる', () => {
-@@ -265,11 +267,11 @@ describe('extractionFormatDescription', () => {
-           processMode: 'text',
-         },
-       ]);
--      expect(result).toContain('"shape_N"');
--      expect(result).toContain('"connector_N"');
--      expect(result).toContain('"pos:"');
--      expect(result).toContain('"size:"');
--      expect(result).toContain('"cell:"');
-+      expect(result).toContain('"sN"');
-+      expect(result).toContain('"cN"');
-+      expect(result).toContain('"p:"');
-+      expect(result).toContain('"sz:"');
-+      expect(result).toContain('"@"');
-       expect(result).toContain('"![image"');
-     });
- 
-@@ -423,6 +425,8 @@ describe('extractionFormatDescription', () => {
-   describe('getFormatDescription - 網羅性', () => {
-     const allFormatTypes: TextExtractionFormatType[] = [
-       'txt-plain',
-+      'csv-plain',
-+      'md-plain',
-       'xlsx-csv-v1',
-       'xlsx-rich-v1',
-       'docx-plain',
-diff --git a/src/__tests__/main/workflows/executeReview.test.ts b/src/__tests__/main/workflows/executeReview.test.ts
-index 2e8fd70ff..b6678afb9 100644
---- a/src/__tests__/main/workflows/executeReview.test.ts
-+++ b/src/__tests__/main/workflows/executeReview.test.ts
-@@ -3070,8 +3070,7 @@ describe('executeReviewWorkflow', () => {
- 
-         // Assert
-         const checkResult = checkWorkflowResult(result);
--        // PBI #1: 分割上限到達時はfailedステータスで全体が終了する
--        expect(checkResult.status).toBe('failed');
-+        expect(checkResult.status).toBe('success');
-         // エラーがDBに保存されること（ドキュメント名付き）
-         expect(mockRepository.upsertReviewErrors).toHaveBeenCalledWith(
-           expect.arrayContaining([
-@@ -4591,9 +4590,7 @@ describe('executeReviewWorkflow', () => {
- 
-         // Assert
-         const checkResult = checkWorkflowResult(result);
--        expect(checkResult.status).toBe('failed');
--        expect(checkResult.errorMessage).toContain('トークン数');
--        expect(checkResult.errorMessage).toContain('レビュー可能なトークン数');
-+        expect(checkResult.status).toBe('success');
-         // AI実行（individualDocumentReviewAgent）が呼ばれていないことを確認
-         expect(
-           mockIndividualDocumentReviewAgent.generateLegacy,
-@@ -4801,9 +4798,7 @@ describe('executeReviewWorkflow', () => {
- 
-         // Assert
-         const checkResult = checkWorkflowResult(result);
--        expect(checkResult.status).toBe('failed');
--        expect(checkResult.errorMessage).toContain('画像数');
--        expect(checkResult.errorMessage).toContain('レビュー可能な画像数');
-+        expect(checkResult.status).toBe('success');
-         // AI実行が呼ばれていないことを確認
-         expect(
-           mockIndividualDocumentReviewAgent.generateLegacy,
-@@ -4900,9 +4895,7 @@ describe('executeReviewWorkflow', () => {
- 
-         // Assert
-         const checkResult = checkWorkflowResult(result);
--        expect(checkResult.status).toBe('failed');
--        expect(checkResult.errorMessage).toContain('抽出画像数');
--        expect(checkResult.errorMessage).toContain('レビュー可能な画像数');
-+        expect(checkResult.status).toBe('success');
-         expect(
-           mockIndividualDocumentReviewAgent.generateLegacy,
-         ).not.toHaveBeenCalled();
-@@ -5316,10 +5309,7 @@ describe('executeReviewWorkflow', () => {
- 
-         // Assert
-         const checkResult = checkWorkflowResult(result);
--        expect(checkResult.status).toBe('failed');
--        expect(checkResult.errorMessage).toContain(
--          '1チャンクあたりの画像数がモデルの上限',
--        );
-+        expect(checkResult.status).toBe('success');
-         // AI実行が呼ばれていないことを確認
-         expect(
-           mockIndividualDocumentReviewAgent.generateLegacy,
-diff --git a/src/main/lib/textExtractor/XlsxDrawingParser.ts b/src/main/lib/textExtractor/XlsxDrawingParser.ts
-index c5b19b55b..7f9104401 100644
---- a/src/main/lib/textExtractor/XlsxDrawingParser.ts
-+++ b/src/main/lib/textExtractor/XlsxDrawingParser.ts
-@@ -164,10 +164,10 @@ export function emuToCm(emu: number): number {
- /**
-  * PositionInfoをフォーマット文字列に変換する
-  * @param position 位置・サイズ情報
-- * @returns フォーマット済み文字列（例: "pos:2.5cm,5.1cm size:7.6cm,3.8cm"）
-+ * @returns フォーマット済み文字列（例: "p:2.5,5.1 sz:7.6,3.8"）
-  */
- export function formatPosition(position: PositionInfo): string {
--  return `pos:${position.x.toFixed(1)}cm,${position.y.toFixed(1)}cm size:${position.cx.toFixed(1)}cm,${position.cy.toFixed(1)}cm`;
-+  return `p:${position.x.toFixed(1)},${position.y.toFixed(1)} sz:${position.cx.toFixed(1)},${position.cy.toFixed(1)}`;
- }
- 
- /**
-@@ -188,10 +188,10 @@ export function formatImageTag(
- 
- /**
-  * IDとメタデータを含むフルタグ文字列を生成する
-- * @param id 描画要素のID（例: "shape_1", "connector_3"）
-+ * @param id 描画要素のID（例: "s1", "c3"）
-  * @param metadata 図形メタデータ（オプション）
-- * @param connectionPart 接続情報文字列（オプション。例: "shape_1->shape_2", "A3--D6"）
-- * @returns フルタグ（例: "[shape_1:rect cell:A1-C3]", "[connector_3:straightConnector1 shape_1->shape_2]"）
-+ * @param connectionPart 接続情報文字列（オプション。例: "s1->s2", "A3--D6"）
-+ * @returns フルタグ（例: "[s1:rect@A1-C3]", "[c3:straightConnector1 s1->s2]"）
-  */
- export function formatDrawingTagFull(
-   id: string,
-@@ -217,12 +217,12 @@ export function formatDrawingTagFull(
-     parts.push(formatPosition(metadata.position));
-   }
- 
--  // セル範囲
--  if (metadata?.cellRange) {
--    parts.push(`cell:${formatCellRange(metadata.cellRange)}`);
--  }
-+  // セル範囲（スペースなしで@で直接連結）
-+  const cellRangeSuffix = metadata?.cellRange
-+    ? `@${formatCellRange(metadata.cellRange)}`
-+    : '';
- 
--  return `[${parts.join(' ')}]`;
-+  return `[${parts.join(' ')}${cellRangeSuffix}]`;
- }
- 
- /**
-diff --git a/src/main/lib/textExtractor/strategies/PptxRichExtractorStrategy.ts b/src/main/lib/textExtractor/strategies/PptxRichExtractorStrategy.ts
-index 0b28d3116..b17aa9d59 100644
---- a/src/main/lib/textExtractor/strategies/PptxRichExtractorStrategy.ts
-+++ b/src/main/lib/textExtractor/strategies/PptxRichExtractorStrategy.ts
-@@ -171,7 +171,7 @@ export class PptxRichExtractorStrategy implements ITextExtractorStrategy {
-               parts.push(shape.text);
-             } else {
-               drawingCounter++;
--              const shapeId = `shape_${drawingCounter}`;
-+              const shapeId = `s${drawingCounter}`;
- 
-               if (shape.drawingObjectId !== undefined) {
-                 drawingObjectIdToShapeId.set(shape.drawingObjectId, shapeId);
-@@ -199,7 +199,7 @@ export class PptxRichExtractorStrategy implements ITextExtractorStrategy {
-           // コネクタを処理
-           for (const connector of result.connectors) {
-             drawingCounter++;
--            const connectorId = `connector_${drawingCounter}`;
-+            const connectorId = `c${drawingCounter}`;
- 
-             const arrowSymbol = getArrowSymbol(
-               connector.headEndType,
-diff --git a/src/main/lib/textExtractor/strategies/XlsxSheetJsRichStrategy.ts b/src/main/lib/textExtractor/strategies/XlsxSheetJsRichStrategy.ts
-index d51e77aeb..5e57d8d52 100644
---- a/src/main/lib/textExtractor/strategies/XlsxSheetJsRichStrategy.ts
-+++ b/src/main/lib/textExtractor/strategies/XlsxSheetJsRichStrategy.ts
-@@ -114,7 +114,7 @@ export class XlsxSheetJsRichStrategy implements ITextExtractorStrategy {
-           ? XLSX.utils.decode_range(sheet['!ref']).s.r
-           : 0;
- 
--        // 描画情報がなければCSVに[row:N]マーカーを付与して出力
-+        // 描画情報がなければCSVに[rN]マーカーを付与して出力
-         if (!drawingInfo) {
-           this.formatCsvWithRowMarkers(csv, rangeStartRow, parts);
-           continue;
-@@ -160,7 +160,7 @@ export class XlsxSheetJsRichStrategy implements ITextExtractorStrategy {
-         if (!drawingInfo.shapesFailed) {
-           for (const shape of drawingInfo.shapeTexts) {
-             drawingCounter++;
--            const shapeId = `shape_${drawingCounter}`;
-+            const shapeId = `s${drawingCounter}`;
- 
-             if (shape.drawingObjectId !== undefined) {
-               drawingObjectIdToShapeId.set(shape.drawingObjectId, shapeId);
-@@ -189,7 +189,7 @@ export class XlsxSheetJsRichStrategy implements ITextExtractorStrategy {
-           // コネクタを処理
-           for (const connector of drawingInfo.connectors) {
-             drawingCounter++;
--            const connectorId = `connector_${drawingCounter}`;
-+            const connectorId = `c${drawingCounter}`;
- 
-             const arrowSymbol = getArrowSymbol(
-               connector.headEndType,
-@@ -252,7 +252,7 @@ export class XlsxSheetJsRichStrategy implements ITextExtractorStrategy {
-           }
-         }
- 
--        // 描画要素がなければCSVに[row:N]マーカーを付与して出力
-+        // 描画要素がなければCSVに[rN]マーカーを付与して出力
-         if (drawingsByRow.size === 0) {
-           this.formatCsvWithRowMarkers(csv, rangeStartRow, parts);
-           continue;
-@@ -269,7 +269,7 @@ export class XlsxSheetJsRichStrategy implements ITextExtractorStrategy {
- 
-           const isNonEmpty = csvLine.replace(/,/g, '').trim().length > 0;
-           if (isNonEmpty) {
--            parts.push(`[row:${excelRow}] ${csvLine}`);
-+            parts.push(`[r${excelRow}] ${csvLine}`);
-           } else {
-             parts.push(csvLine);
-           }
-@@ -315,7 +315,7 @@ export class XlsxSheetJsRichStrategy implements ITextExtractorStrategy {
-   }
- 
-   /**
--   * CSVテキストに[row:N]マーカーを付与してpartsに追加する
-+   * CSVテキストに[rN]マーカーを付与してpartsに追加する
-    */
-   private formatCsvWithRowMarkers(
-     csv: string,
-@@ -328,7 +328,7 @@ export class XlsxSheetJsRichStrategy implements ITextExtractorStrategy {
-       const isNonEmpty = csvLine.replace(/,/g, '').trim().length > 0;
-       if (isNonEmpty) {
-         const excelRow = rangeStartRow + i + 1;
--        parts.push(`[row:${excelRow}] ${csvLine}`);
-+        parts.push(`[r${excelRow}] ${csvLine}`);
-       } else {
-         parts.push(csvLine);
-       }
+diff --git a/src/mastra/agents/prompts.ts b/src/mastra/agents/prompts.ts
+index facd02110..852241bf6 100644
+--- a/src/mastra/agents/prompts.ts
++++ b/src/mastra/agents/prompts.ts
+@@ -598,9 +598,10 @@ IMPORTANT CONTEXT:
+ - Include ALL relevant information in your comments that will help in final consolidation
+ 
+ DOCUMENT PART CONTEXT:
+-- If the document name contains "(part X)" or similar indicators, you are reviewing a split portion
++- If the document name contains "_part" or similar indicators, you are reviewing a split portion
+ - Focus on what's available in this specific part while being aware it's part of a larger whole
+ - Look for incomplete information that might be continued in other parts
++- IMPORTANT: Document splitting is an internal system process. Never mention "part", "_part", "split", "chunk", or document splitting terminology in your comments. Reference content using the document's natural sections, chapters, or page numbers.
+ 
+ Checklist items to evaluate:
+ ${formattedList}
+@@ -998,6 +999,7 @@ CONSOLIDATION CONTEXT:
+ - Each individual review provides detailed analysis of specific document portions
+ - Your task is to synthesize these individual reviews into a unified, comprehensive assessment
+ - Some documents may have been split into parts due to length constraints
++- Documents that exceed context length are split into sequential chunks named with the "_partN" suffix (e.g., "document.pdf_part1", "document.pdf_part2"). This is an internal system process; never reference this naming convention or the splitting process in your output.
+ 
+ Checklist items for final evaluation:
+ ${formattedList}
+@@ -1043,7 +1045,8 @@ ${actualFormat}
+    d) Give actionable improvement suggestions based on the complete analysis
+    e) Write as if you reviewed the complete original document set directly
+    f) Always use the original file names when mentioning documents in your consolidated comments
+-   g) **Do NOT mention** "individual document review", "consolidation", or any internal process terms
++   g) **Do NOT mention** "individual document review", "consolidation", "part", "chunk", "split", "_part", or any internal process terms in your output
++   h) Never reveal that documents were split into parts for processing; always use original file names only
+ 
+ 5. Rating assignment logic:
+    - **Most Important**: Base your rating on the checklist item's requirement type (individual vs. unified)
 diff --git a/src/mastra/lib/extractionFormatDescription.ts b/src/mastra/lib/extractionFormatDescription.ts
-index 960a9dd80..98d7bdd80 100644
+index 98d7bdd80..ed954d35b 100644
 --- a/src/mastra/lib/extractionFormatDescription.ts
 +++ b/src/mastra/lib/extractionFormatDescription.ts
-@@ -21,8 +21,8 @@ CRITICAL INSTRUCTION - FORMAT NON-DISCLOSURE:
- The formatting conventions described above are internal system representations.
- You MUST NOT reference, mention, or describe any of these conventions in your output.
- Write your response as if you are directly viewing the original files.
--Never use terms like "image link", "shape tag", "shape_N", "connector_N",
--"#sheet:", "#slide:", "#page:", "[row:N]", "pos:", "size:", "cell:", "CSV format", "referenceId",
-+Never use terms like "image link", "shape tag", "sN", "cN",
-+"#sheet:", "#slide:", "#page:", "[rN]", "p:", "sz:", "@", "CSV format", "referenceId",
- "![image", or any other internal formatting terminology in your response.
- Treat the content as if no format conversion has taken place.
- `.trim();
-@@ -58,10 +58,8 @@ export function getFormatDescription(
-       const xlsxLines = [
+@@ -52,6 +52,7 @@ export function getFormatDescription(
          'Excel spreadsheet content represented in the following format:',
          '- Each sheet is separated by a header line: #sheet:<SheetName>',
--        '- Non-empty rows are prefixed with a row marker: [row:N] (N is the 1-based Excel row number).',
--        '- Cell contents within each sheet are represented in CSV (comma-separated, RFC 4180) format.',
--        '  Cells containing commas, double quotes, or line breaks are enclosed in double quotes.',
--        '  Line breaks within quoted cells are preserved as-is.',
-+        '- Non-empty rows are prefixed with a row marker: [rN] (N is the 1-based Excel row number).',
-+        '- Cell contents are CSV (RFC 4180 quoting).',
-       ];
-       if (includeImages) {
-         xlsxLines.push(
-@@ -70,12 +68,9 @@ export function getFormatDescription(
+         '- Cell contents within each sheet are represented in CSV (comma-separated) format.',
++        'Note: These conventions are for your understanding only; do not reference them in your output.',
+       ].join('\n');
+ 
+     case 'xlsx-rich-v1': {
+@@ -68,10 +69,13 @@ export function getFormatDescription(
          );
        }
        xlsxLines.push(
--        '- Shapes are represented as tagged blocks:',
--        '  [shape_N:<GeometryType> cell:<CellRange>]',
--        '  Text content follows on the same line. For multi-line text, subsequent lines use [shape_N] prefix.',
--        '- Connectors are represented as:',
--        '  [connector_N:<Type> <endpointA>-><endpointB> cell:<CellRange>]',
--        '  Endpoints reference shapes (e.g., shape_1) or cell positions (e.g., A3).',
-+        '- Shapes: [sN:<GeometryType>@<CellRange>] text (continuation lines: [sN] text).',
-+        '- Connectors: [cN:<Type> <endpointA>-><endpointB>@<CellRange>]',
-+        '  Endpoints reference shapes (e.g., s1) or cell positions (e.g., A3).',
+-        '- Shapes: [sN:<GeometryType>@<CellRange>] text (continuation lines: [sN] text).',
+-        '- Connectors: [cN:<Type> <endpointA>-><endpointB>@<CellRange>]',
++        '- Shapes are represented as tagged blocks:',
++        '  [sN:<GeometryType>@<CellRange>] (N is a sequential shape ID.) Text on same line. Multi-line: [sN] prefix.',
++        '- Connectors are represented as:',
++        '  [cN:<Type> <endpointA>-><endpointB>@<CellRange>] (N is a sequential connector ID.)',
+         '  Endpoints reference shapes (e.g., s1) or cell positions (e.g., A3).',
          '  Arrow notation: -> (one-way), <- (reverse), <-> (bidirectional), -- (no arrow).',
++        'Note: These conventions are for your understanding only; do not reference them in your output.',
        );
        return xlsxLines.join('\n');
-@@ -89,9 +84,7 @@ export function getFormatDescription(
-         'Word document content represented in the following format:',
-         '- Headings are represented using Markdown header syntax (# through ######).',
-         '- Lists are represented using Markdown list syntax (- for unordered, 1. for ordered).',
--        '- Tables are represented in CSV format (comma-separated, RFC 4180).',
--        '  Cells containing commas, double quotes, or line breaks are enclosed in double quotes.',
--        '  Line breaks within quoted cells are preserved as-is.',
-+        '- Tables are represented in CSV format (RFC 4180 quoting).',
-       ];
-       if (includeImages) {
-         docxLines.push(
-@@ -109,13 +102,9 @@ export function getFormatDescription(
+     }
+@@ -92,6 +96,9 @@ export function getFormatDescription(
+           '  The actual image data is provided separately with the corresponding referenceId.',
+         );
+       }
++      docxLines.push(
++        'Note: These conventions are for your understanding only; do not reference them in your output.',
++      );
+       return docxLines.join('\n');
+     }
+ 
+@@ -102,9 +109,10 @@ export function getFormatDescription(
        const pptxLines = [
          'PowerPoint presentation content represented in the following format:',
          '- Each slide is separated by a header line: #slide:<SlideNumber>',
--        '- Shapes are represented as tagged blocks:',
--        '  [shape_N:<GeometryType> pos:<X>cm,<Y>cm size:<W>cm,<H>cm]',
--        '  Text content follows on the same line. For multi-line text, subsequent lines use [shape_N] prefix.',
--        '  Text boxes and placeholders do not have the shape_ prefix.',
--        '- Tables are represented in CSV format (comma-separated, RFC 4180).',
--        '  Cells containing commas, double quotes, or line breaks are enclosed in double quotes.',
--        '  Line breaks within quoted cells are preserved as-is.',
-+        '- Shapes: [sN:<GeometryType> p:<X>,<Y> sz:<W>,<H>] text (continuation lines: [sN] text).',
-+        '  Text boxes and placeholders have no tag prefix.',
-+        '- Tables are in CSV format (RFC 4180 quoting).',
+-        '- Shapes: [sN:<GeometryType> p:<X>,<Y> sz:<W>,<H>] text (continuation lines: [sN] text).',
+-        '  Text boxes and placeholders have no tag prefix.',
+-        '- Tables are in CSV format (RFC 4180 quoting).',
++        '- Shapes are represented as tagged blocks:',
++        '  [sN:<GeometryType> p:<X>,<Y> sz:<W>,<H>] (N is a sequential shape ID.) Text on same line. Multi-line: [sN] prefix.',
++        '  Text boxes and placeholders do not have the shape prefix.',
++        '- Tables are represented in CSV format (comma-separated, RFC 4180 quoting).',
        ];
        if (includeImages) {
          pptxLines.push(
-@@ -124,12 +113,11 @@ export function getFormatDescription(
+@@ -113,11 +121,13 @@ export function getFormatDescription(
          );
        }
        pptxLines.push(
--        '- Connectors are represented as:',
--        '  [connector_N:<Type> <endpointA>-><endpointB> pos:<X>cm,<Y>cm size:<W>cm,<H>cm]',
-+        '- Connectors: [cN:<Type> <endpointA>-><endpointB> p:<X>,<Y> sz:<W>,<H>]',
+-        '- Connectors: [cN:<Type> <endpointA>-><endpointB> p:<X>,<Y> sz:<W>,<H>]',
++        '- Connectors are represented as:',
++        '  [cN:<Type> <endpointA>-><endpointB> p:<X>,<Y> sz:<W>,<H>] (N is a sequential connector ID.)',
          '  Arrow notation: -> (one-way), <- (reverse), <-> (bidirectional), -- (no arrow).',
--        '- Coordinate and size values are in cm (converted from EMU, 1 cm = 360,000 EMU, rounded to 1 decimal place).',
-+        '- Coordinate and size values are in cm (rounded to 1 decimal place).',
-         '- NOTE: Within each slide, elements appear in category order (tables, images, text, shapes, connectors) — not in spatial order.',
--        '  Shapes and connectors have pos/size metadata for inferring spatial layout; tables, images, and text boxes do not.',
-+        '  Shapes and connectors have p:/sz: metadata for inferring spatial layout; tables, images, and text boxes do not.',
+         '- Coordinate and size values are in cm (rounded to 1 decimal place).',
+-        '- NOTE: Within each slide, elements appear in category order (tables, images, text, shapes, connectors) — not in spatial order.',
++        'Note: Within each slide, elements appear in category order (tables, images, text, shapes, connectors) — not in spatial order.',
+         '  Shapes and connectors have p:/sz: metadata for inferring spatial layout; tables, images, and text boxes do not.',
++        'Note: These conventions are for your understanding only; do not reference them in your output.',
        );
        return pptxLines.join('\n');
      }
-diff --git a/src/mastra/workflows/sourceReview/checklistExtraction.ts b/src/mastra/workflows/sourceReview/checklistExtraction.ts
-index c285e2b13..6bb3fa673 100644
---- a/src/mastra/workflows/sourceReview/checklistExtraction.ts
-+++ b/src/mastra/workflows/sourceReview/checklistExtraction.ts
-@@ -797,7 +797,7 @@ export const checklistExtractionWorkflow = createWorkflow({
-           }
-         })
-         // Step2: 各トピックに対してチェックリスト作成（foreachでループ）
--        .foreach(topicChecklistCreationStep)
-+        .foreach(topicChecklistCreationStep, { concurrency: 5 })
-         // Step3用入力データ変換（foreachの結果を統合してchecklistRefinementStepに渡す）
-         .map(async ({ inputData, getInitData }) => {
-           const initData = getInitData();
+@@ -137,6 +147,9 @@ export function getFormatDescription(
+           '  The actual image data is provided separately with the corresponding referenceId.',
+         );
+       }
++      pdfLines.push(
++        'Note: These conventions are for your understanding only; do not reference them in your output.',
++      );
+       return pdfLines.join('\n');
+     }
+ 
+diff --git a/src/mastra/workflows/sourceReview/executeReview/largeDocumentReview/index.ts b/src/mastra/workflows/sourceReview/executeReview/largeDocumentReview/index.ts
+index a0add92ac..85509c9fd 100644
+--- a/src/mastra/workflows/sourceReview/executeReview/largeDocumentReview/index.ts
++++ b/src/mastra/workflows/sourceReview/executeReview/largeDocumentReview/index.ts
+@@ -119,7 +119,7 @@ const individualDocumentReviewWorkflow = createWorkflow({
+           document: {
+             ...inputData.document,
+             id: `${inputData.document.id}_part${index + 1}`,
+-            name: `${inputData.document.name} (part ${index + 1}) (split into parts because the full content did not fit into context)`,
++            name: `${inputData.document.name}_part${index + 1}`,
+             originalName:
+               inputData.document.originalName || inputData.document.name,
+             imageData: chunk,
+@@ -198,7 +198,7 @@ const individualDocumentReviewWorkflow = createWorkflow({
+               document: {
+                 ...inputData.document,
+                 id: `${inputData.document.id}_part${index + 1}`,
+-                name: `${inputData.document.name} (part ${index + 1}) (split into parts because the full content did not fit into context)`,
++                name: `${inputData.document.name}_part${index + 1}`,
+                 originalName:
+                   inputData.document.originalName || inputData.document.name,
+                 textContent: chunk,
+@@ -334,7 +334,7 @@ const individualDocumentReviewWorkflow = createWorkflow({
+                 document: {
+                   ...initData.originalDocument,
+                   id: `${initData.originalDocument.id}_part${index + 1}`,
+-                  name: `${initData.originalDocument.name} (part ${index + 1}) (split into parts because the full content did not fit into context)`,
++                  name: `${initData.originalDocument.name}_part${index + 1}`,
+                   originalName:
+                     initData.originalDocument.originalName ||
+                     initData.originalDocument.name,
+@@ -371,7 +371,7 @@ const individualDocumentReviewWorkflow = createWorkflow({
+               document: {
+                 ...initData.originalDocument,
+                 id: `${initData.originalDocument.id}_part${index + 1}`,
+-                name: `${initData.originalDocument.name} (part ${index + 1}) (split into parts because the full content did not fit into context)`,
++                name: `${initData.originalDocument.name}_part${index + 1}`,
+                 originalName:
+                   initData.originalDocument.originalName ||
+                   initData.originalDocument.name,
