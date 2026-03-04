@@ -598,9 +598,10 @@ IMPORTANT CONTEXT:
 - Include ALL relevant information in your comments that will help in final consolidation
 
 DOCUMENT PART CONTEXT:
-- If the document name contains "(part X)" or similar indicators, you are reviewing a split portion
+- If the document name contains "_part" or similar indicators, you are reviewing a split portion
 - Focus on what's available in this specific part while being aware it's part of a larger whole
 - Look for incomplete information that might be continued in other parts
+- IMPORTANT: Document splitting is an internal system process. Never mention "part", "_part", "split", "chunk", or document splitting terminology in your comments. Reference content using the document's natural sections, chapters, or page numbers.
 
 Checklist items to evaluate:
 ${formattedList}
@@ -998,6 +999,7 @@ CONSOLIDATION CONTEXT:
 - Each individual review provides detailed analysis of specific document portions
 - Your task is to synthesize these individual reviews into a unified, comprehensive assessment
 - Some documents may have been split into parts due to length constraints
+- Documents that exceed context length are split into sequential chunks named with the "_partN" suffix (e.g., "document.pdf_part1", "document.pdf_part2"). This is an internal system process; never reference this naming convention or the splitting process in your output.
 
 Checklist items for final evaluation:
 ${formattedList}
@@ -1043,7 +1045,8 @@ ${actualFormat}
    d) Give actionable improvement suggestions based on the complete analysis
    e) Write as if you reviewed the complete original document set directly
    f) Always use the original file names when mentioning documents in your consolidated comments
-   g) **Do NOT mention** "individual document review", "consolidation", or any internal process terms
+   g) **Do NOT mention** "individual document review", "consolidation", "part", "chunk", "split", "_part", or any internal process terms in your output
+   h) Never reveal that documents were split into parts for processing; always use original file names only
 
 5. Rating assignment logic:
    - **Most Important**: Base your rating on the checklist item's requirement type (individual vs. unified)

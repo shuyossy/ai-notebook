@@ -52,6 +52,7 @@ export function getFormatDescription(
         'Excel spreadsheet content represented in the following format:',
         '- Each sheet is separated by a header line: #sheet:<SheetName>',
         '- Cell contents within each sheet are represented in CSV (comma-separated) format.',
+        'Note: These conventions are for your understanding only; do not reference them in your output.',
       ].join('\n');
 
     case 'xlsx-rich-v1': {
@@ -68,10 +69,13 @@ export function getFormatDescription(
         );
       }
       xlsxLines.push(
-        '- Shapes: [sN:<GeometryType>@<CellRange>] text (continuation lines: [sN] text).',
-        '- Connectors: [cN:<Type> <endpointA>-><endpointB>@<CellRange>]',
+        '- Shapes are represented as tagged blocks:',
+        '  [sN:<GeometryType>@<CellRange>] (N is a sequential shape ID.) Text on same line. Multi-line: [sN] prefix.',
+        '- Connectors are represented as:',
+        '  [cN:<Type> <endpointA>-><endpointB>@<CellRange>] (N is a sequential connector ID.)',
         '  Endpoints reference shapes (e.g., s1) or cell positions (e.g., A3).',
         '  Arrow notation: -> (one-way), <- (reverse), <-> (bidirectional), -- (no arrow).',
+        'Note: These conventions are for your understanding only; do not reference them in your output.',
       );
       return xlsxLines.join('\n');
     }
@@ -92,6 +96,9 @@ export function getFormatDescription(
           '  The actual image data is provided separately with the corresponding referenceId.',
         );
       }
+      docxLines.push(
+        'Note: These conventions are for your understanding only; do not reference them in your output.',
+      );
       return docxLines.join('\n');
     }
 
@@ -102,9 +109,10 @@ export function getFormatDescription(
       const pptxLines = [
         'PowerPoint presentation content represented in the following format:',
         '- Each slide is separated by a header line: #slide:<SlideNumber>',
-        '- Shapes: [sN:<GeometryType> p:<X>,<Y> sz:<W>,<H>] text (continuation lines: [sN] text).',
-        '  Text boxes and placeholders have no tag prefix.',
-        '- Tables are in CSV format (RFC 4180 quoting).',
+        '- Shapes are represented as tagged blocks:',
+        '  [sN:<GeometryType> p:<X>,<Y> sz:<W>,<H>] (N is a sequential shape ID.) Text on same line. Multi-line: [sN] prefix.',
+        '  Text boxes and placeholders do not have the shape prefix.',
+        '- Tables are represented in CSV format (comma-separated, RFC 4180 quoting).',
       ];
       if (includeImages) {
         pptxLines.push(
@@ -113,11 +121,13 @@ export function getFormatDescription(
         );
       }
       pptxLines.push(
-        '- Connectors: [cN:<Type> <endpointA>-><endpointB> p:<X>,<Y> sz:<W>,<H>]',
+        '- Connectors are represented as:',
+        '  [cN:<Type> <endpointA>-><endpointB> p:<X>,<Y> sz:<W>,<H>] (N is a sequential connector ID.)',
         '  Arrow notation: -> (one-way), <- (reverse), <-> (bidirectional), -- (no arrow).',
         '- Coordinate and size values are in cm (rounded to 1 decimal place).',
-        '- NOTE: Within each slide, elements appear in category order (tables, images, text, shapes, connectors) — not in spatial order.',
+        'Note: Within each slide, elements appear in category order (tables, images, text, shapes, connectors) — not in spatial order.',
         '  Shapes and connectors have p:/sz: metadata for inferring spatial layout; tables, images, and text boxes do not.',
+        'Note: These conventions are for your understanding only; do not reference them in your output.',
       );
       return pptxLines.join('\n');
     }
@@ -137,6 +147,9 @@ export function getFormatDescription(
           '  The actual image data is provided separately with the corresponding referenceId.',
         );
       }
+      pdfLines.push(
+        'Note: These conventions are for your understanding only; do not reference them in your output.',
+      );
       return pdfLines.join('\n');
     }
 

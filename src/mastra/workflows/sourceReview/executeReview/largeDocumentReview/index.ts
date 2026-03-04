@@ -119,7 +119,7 @@ const individualDocumentReviewWorkflow = createWorkflow({
           document: {
             ...inputData.document,
             id: `${inputData.document.id}_part${index + 1}`,
-            name: `${inputData.document.name} (part ${index + 1}) (split into parts because the full content did not fit into context)`,
+            name: `${inputData.document.name}_part${index + 1}`,
             originalName:
               inputData.document.originalName || inputData.document.name,
             imageData: chunk,
@@ -198,7 +198,7 @@ const individualDocumentReviewWorkflow = createWorkflow({
               document: {
                 ...inputData.document,
                 id: `${inputData.document.id}_part${index + 1}`,
-                name: `${inputData.document.name} (part ${index + 1}) (split into parts because the full content did not fit into context)`,
+                name: `${inputData.document.name}_part${index + 1}`,
                 originalName:
                   inputData.document.originalName || inputData.document.name,
                 textContent: chunk,
@@ -334,7 +334,7 @@ const individualDocumentReviewWorkflow = createWorkflow({
                 document: {
                   ...initData.originalDocument,
                   id: `${initData.originalDocument.id}_part${index + 1}`,
-                  name: `${initData.originalDocument.name} (part ${index + 1}) (split into parts because the full content did not fit into context)`,
+                  name: `${initData.originalDocument.name}_part${index + 1}`,
                   originalName:
                     initData.originalDocument.originalName ||
                     initData.originalDocument.name,
@@ -371,7 +371,7 @@ const individualDocumentReviewWorkflow = createWorkflow({
               document: {
                 ...initData.originalDocument,
                 id: `${initData.originalDocument.id}_part${index + 1}`,
-                name: `${initData.originalDocument.name} (part ${index + 1}) (split into parts because the full content did not fit into context)`,
+                name: `${initData.originalDocument.name}_part${index + 1}`,
                 originalName:
                   initData.originalDocument.originalName ||
                   initData.originalDocument.name,
