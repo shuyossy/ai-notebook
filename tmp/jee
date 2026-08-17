@@ -1,0 +1,306 @@
+# Jakarta EE 10 (JSF) 読み合わせ資料
+## 〜 Spring Boot 経験者のための「本質」理解ガイド 〜
+
+> **この資料の目的**
+> ストーリーポイント見積もりの前に、Jakarta EE 10 / JSF が Spring Boot と「何が同じで、何が違うか」をチームで揃えることを目的とします。
+> 細かい API を覚える資料ではなく、**見積もりの感覚に効く違い**にフォーカスしています。
+
+---
+
+## 1. まず結論(3行サマリ)
+
+1. **ビジネスロジック(Model)の作り方はほぼ変わらない。** DI + トランザクション + JPA という構造は Spring Boot と同じ発想で書ける。
+2. **一番違うのは View / Controller 層。** Spring MVC は「リクエスト駆動(自分で Controller を書く)」、JSF は「コンポーネント駆動(Controller はフレームワークが持っていて、開発者は書かない)」。
+3. **実行環境も違う。** Spring Boot は AP サーバ内包(実行可能 JAR)、Jakarta EE は外部 AP サーバに WAR をデプロイする。環境構築・デプロイ・ローカル開発の回し方に一定の手間が乗る。
+
+---
+
+## 2. Jakarta EE とは何か
+
+- Java EE (Enterprise Edition) が Oracle から Eclipse Foundation に移管され、**Jakarta EE** に改名されたもの。
+- Jakarta EE 9 以降、パッケージ名が `javax.*` → `jakarta.*` に変更された(ネット上の古い記事は `javax` のままなので注意)。
+- Jakarta EE は「仕様(API)の集合」であり、実装は AP サーバベンダーが提供する。
+
+| 仕様(Jakarta EE 10 での名称) | 役割 | Spring Boot での対応物 |
+|---|---|---|
+| Jakarta Faces 4.0 (JSF) | 画面(View + Controller) | Spring MVC + Thymeleaf |
+| Jakarta CDI 4.0 | DI コンテナ | Spring DI (`@Autowired` など) |
+| Jakarta Persistence 3.1 (JPA) | O/R マッパー | Spring Data JPA(中身は同じ JPA) |
+| Jakarta Transactions (JTA) | トランザクション管理 | `@Transactional` |
+| Jakarta Bean Validation 3.0 | 入力検証 | 同じもの(Spring でも利用) |
+| Jakarta Servlet 6.0 | HTTP 処理の土台 | 内蔵 Tomcat の Servlet |
+
+> **ポイント**: JPA や Bean Validation は Spring Boot でも同じ仕様を使っていたので、**知識がそのまま流用できる領域が意外と広い**。
+
+---
+
+## 3. アーキテクチャの違い①: AP サーバを内包しない
+
+### 3.1 構造の比較
+
+```mermaid
+flowchart LR
+    subgraph SB["Spring Boot (これまで)"]
+        direction TB
+        jar["実行可能 JAR<br>(java -jar app.jar)"]
+        jar --> tomcat["内蔵 Tomcat/Jetty"]
+        tomcat --> app1["アプリケーション"]
+    end
+
+    subgraph JEE["Jakarta EE (これから)"]
+        direction TB
+        server["外部 AP サーバ<br>(WildFly / Payara / Open Liberty /<br>WebLogic / WebSphere など)"]
+        server --> war["WAR をデプロイ"]
+        war --> app2["アプリケーション"]
+    end
+```
+
+- Spring Boot: アプリが実行環境を「持って歩く」。`java -jar` で完結。
+- Jakarta EE: AP サーバという「土台」が先にあり、そこにアプリ(WAR)を「載せる」。CDI・JTA・JSF 実装などのライブラリは **AP サーバ側が提供**する(WAR には入れない = `provided` スコープ)。
+
+### 3.2 DataSource の持ち場の違い(典型例)
+
+```mermaid
+flowchart TB
+    subgraph SB2["Spring Boot"]
+        prop["application.properties<br>spring.datasource.url=..."] --> ds1["アプリ内で DataSource 生成"]
+    end
+    subgraph JEE2["Jakarta EE"]
+        admin["AP サーバの設定<br>(管理コンソール / 設定ファイル)"] --> jndi["JNDI に DataSource 登録<br>java:/jdbc/MyDS"]
+        jndi --> lookup["アプリは JNDI 名で参照<br>(persistence.xml など)"]
+    end
+```
+
+環境ごとの接続先切り替えは「プロファイル切替」ではなく「**サーバ側の設定を環境ごとに変える**」のが基本形になります。
+
+---
+
+## 4. アーキテクチャの違い②: JSF の MVC — Controller は「書かない」
+
+### 4.1 Spring MVC のおさらい(リクエスト駆動)
+
+Spring Boot では、URL とメソッドを自分で紐づける Controller を**明示的に書いていた**:
+
+```java
+@Controller
+public class UserController {
+    @GetMapping("/users")
+    public String list(Model model) {
+        model.addAttribute("users", userService.findAll());
+        return "user/list";   // → Thymeleaf テンプレート
+    }
+    @PostMapping("/users")
+    public String create(@ModelAttribute UserForm form) { ... }
+}
+```
+
+### 4.2 JSF の場合(コンポーネント駆動)
+
+JSF では、**Controller に相当する `FacesServlet` をフレームワークが 1 つだけ持っており、開発者は Controller を書かない**。
+
+開発者が書くのは次の 2 つ:
+
+1. **Facelets(XHTML)** … 画面テンプレート(View)
+2. **バッキングBean(Managed Bean)** … 画面の状態とアクションを持つ CDI Bean
+
+```xhtml
+<!-- userList.xhtml (View) -->
+<h:form>
+    <h:dataTable value="#{userBean.users}" var="u">
+        <h:column>#{u.name}</h:column>
+    </h:dataTable>
+    <h:inputText value="#{userBean.newName}" />
+    <h:commandButton value="登録" action="#{userBean.create}" />
+</h:form>
+```
+
+```java
+// UserBean.java (バッキングBean)
+@Named
+@ViewScoped
+public class UserBean implements Serializable {
+    @Inject
+    private UserService userService;   // ← Model(ここは Spring と同じ発想)
+
+    private List<User> users;
+    private String newName;            // 画面の入力値が自動でバインドされる
+
+    public String create() {           // ボタン押下で呼ばれる「アクション」
+        userService.create(newName);
+        return "userList";             // 遷移先(nullなら同一画面)
+    }
+    // getter/setter ...
+}
+```
+
+**URL マッピングも、リクエストパラメータの取り出しも、Model への詰め替えも書いていない**ことに注目。EL 式 `#{userBean.newName}` によって、入力値のバインドとアクション呼び出しをフレームワークが行う。
+
+### 4.3 MVC の対応関係まとめ
+
+```mermaid
+flowchart LR
+    subgraph MVC["MVC の担当者"]
+        direction TB
+        C["Controller"]
+        V["View"]
+        M["Model"]
+    end
+
+    subgraph S["Spring Boot"]
+        direction TB
+        sc["@Controller<br>(自分で書く)"]
+        sv["Thymeleaf テンプレート"]
+        sm["@Service / @Repository / Entity"]
+    end
+
+    subgraph J["JSF"]
+        direction TB
+        jc["FacesServlet<br>(フレームワーク提供・書かない)<br>+ バッキングBeanのアクション"]
+        jv["Facelets (XHTML)<br>+ UIコンポーネントツリー"]
+        jm["CDI Bean / Entity<br>(Springとほぼ同じ)"]
+    end
+
+    C --- sc
+    C --- jc
+    V --- sv
+    V --- jv
+    M --- sm
+    M --- jm
+```
+
+| 観点 | Spring MVC | JSF |
+|---|---|---|
+| 発想 | リクエスト駆動(URL 中心) | コンポーネント駆動(画面部品中心) |
+| Controller | 開発者が書く | FacesServlet(書かない) |
+| 開発者が書くもの | Controller + テンプレート + Model | XHTML + バッキングBean + Model |
+| 入力値の受け取り | `@ModelAttribute` / `@RequestParam` | EL 式で Bean のプロパティに自動バインド |
+| 画面遷移 | Controller の戻り値 / redirect | アクションメソッドの戻り値(暗黙ナビゲーション) |
+| 状態管理 | 基本ステートレス | **ステートフル**(ViewState を保持) ← 重要な違い |
+
+### 4.4 リクエスト処理の流れ比較(シーケンス)
+
+```mermaid
+sequenceDiagram
+    participant B as ブラウザ
+    participant DS as DispatcherServlet<br>(Spring)
+    participant C as @Controller
+    participant S as @Service (Model)
+    Note over B,S: 【Spring MVC】
+    B->>DS: POST /users
+    DS->>C: ルーティング
+    C->>S: ビジネスロジック呼び出し
+    S-->>C: 結果
+    C-->>DS: ビュー名 + Model
+    DS-->>B: Thymeleaf で HTML 生成
+```
+
+```mermaid
+sequenceDiagram
+    participant B as ブラウザ
+    participant FS as FacesServlet<br>(JSF・書かない)
+    participant BB as バッキングBean
+    participant S as CDI Bean (Model)
+    Note over B,S: 【JSF】
+    B->>FS: POST (フォーム送信 + ViewState)
+    FS->>FS: 画面の状態を復元・入力値検証
+    FS->>BB: プロパティに値を自動セット
+    FS->>BB: アクションメソッド呼び出し
+    BB->>S: ビジネスロジック呼び出し(← Spring と同じ)
+    S-->>BB: 結果
+    BB-->>FS: 遷移先(戻り値)
+    FS-->>B: Facelets で HTML 生成
+```
+
+**Model 呼び出しから先は両者まったく同じ構造**であることが分かります。違いは「FacesServlet が Controller の仕事を肩代わりし、その前後で自動処理が多い」こと。
+
+### 4.5 JSF ライフサイクル(自動処理の正体)
+
+FacesServlet はリクエストごとに次の 6 フェーズを実行します。**Spring では Controller 内に自分で書いていた処理(値の取得・変換・検証・詰め替え)が、フェーズとして自動実行される**イメージです。
+
+```mermaid
+flowchart TB
+    p1["1. Restore View<br>(画面のコンポーネントツリーを復元)"]
+    p2["2. Apply Request Values<br>(リクエスト値を各部品へ)"]
+    p3["3. Process Validations<br>(型変換 + Bean Validation)"]
+    p4["4. Update Model Values<br>(バッキングBeanのプロパティへ反映)"]
+    p5["5. Invoke Application<br>(アクションメソッド実行)"]
+    p6["6. Render Response<br>(HTML 生成)"]
+    p1 --> p2 --> p3 --> p4 --> p5 --> p6
+    p3 -. "検証エラー時はスキップして<br>直接レンダリング(エラー表示)" .-> p6
+```
+
+- **便利な点**: 検証エラー時の「入力値を保持したまま同一画面にエラー表示」が自動で手に入る(Spring では自分で組んでいた部分)。
+- **難しい点**: 「値がセットされない」「アクションが呼ばれない」等の不具合調査には、このライフサイクルの理解が必須。**JSF のハマりどころの大半はここ**であり、未経験チームの初期ベロシティに影響する。
+
+### 4.6 スコープと「ステートフル」という性質
+
+JSF は画面の状態(コンポーネントツリー)をサーバまたはクライアントに保持する**ステートフルな**フレームワークです。バッキングBeanのスコープ選択が設計の勘所になります。
+
+| スコープ | 生存期間 | Spring での近い概念 | 主な用途 |
+|---|---|---|---|
+| `@RequestScoped` | 1リクエスト | request スコープ | 単純な表示 |
+| `@ViewScoped` | **同じ画面にいる間** | (相当なし・JSF特有) | **一覧+編集など画面内で完結する操作。JSF の主役** |
+| `@SessionScoped` | セッション | session スコープ | ログインユーザ情報など |
+| `@ApplicationScoped` | アプリ全体 | singleton(デフォルト) | 共有サービス・キャッシュ |
+
+> **注意点**
+> - `@ViewScoped` は Spring 経験者には馴染みがなく、最初は戸惑いやすいが、これを使いこなすのが JSF らしい開発。
+> - セッションにビュー状態が乗るため、**Bean は `Serializable` にする**、**大きなデータを Bean に抱えすぎない**、といった作法がある。
+> - スコープを間違えると「別画面の値が残る」「入力が消える」系の不具合になる(初期によく踏む)。
+
+---
+
+## 5. Model(ビジネスロジック)は変わらない
+
+ここが本資料で 2 番目に大事なメッセージです。**Controller/View から下は、Spring Boot の経験がそのまま通用します。**
+
+| レイヤ | Spring Boot | Jakarta EE | 差分 |
+|---|---|---|---|
+| DI | `@Autowired` / `@Component` | `@Inject` / `@Named`・スコープアノテーション | アノテーション名が違うだけ |
+| サービス | `@Service` | `@ApplicationScoped` な CDI Bean | 同上 |
+| トランザクション | `@Transactional` (Spring) | `@Transactional` (JTA) | ほぼ同じ感覚で使える |
+| 永続化 | Spring Data JPA | JPA (`EntityManager`) | **JPA 仕様は同一**。Repository の自動実装がない分、EntityManager を直接使う場面は増える |
+| 検証 | Bean Validation | Bean Validation | 同一仕様 |
+
+```java
+// Jakarta EE でのサービス層 — Spring 経験者ならそのまま読める
+@ApplicationScoped
+public class UserService {
+    @PersistenceContext
+    private EntityManager em;
+
+    @Transactional
+    public void create(String name) {
+        em.persist(new User(name));
+    }
+}
+```
+
+> **見積もりへの示唆**: ビジネスロジック中心のストーリーは Spring Boot 時代と同程度のポイント感でよい。**ポイントを上乗せすべきなのは「画面(JSF)が絡む部分」と「環境・デプロイが絡む部分」**。
+
+---
+
+## 6. 共通部品について
+
+以下の横断的関心事は**社内共通部品として提供済み**のため、各ストーリーの見積もりに個別実装コストを積む必要はありません(利用方法の学習コストのみ考慮)。
+
+- ロギング
+- エラーハンドリング(例外の共通処理・エラー画面遷移)
+- 共通マスタへの接続
+- 認可処理
+
+
+---
+
+## 7. まとめ(見積もりの心構え)
+
+```mermaid
+flowchart LR
+    A["ストーリーの内容"] --> B{"どの層が中心?"}
+    B -->|"ビジネスロジック中心"| C["Spring Boot 時代と<br>同程度のポイントでOK"]
+    B -->|"画面(JSF)中心"| D["ライフサイクル/スコープ/Ajax の<br>学習コストを上乗せ"]
+    B -->|"環境・デプロイ関連"| E["独立タスク/スパイクとして<br>明示的に積む"]
+```
+
+- **同じところ**: DI・トランザクション・JPA・Bean Validation。Model 層の設計スキルは全部使える。
+- **違うところ**: Controller を書かない代わりに「JSF の流儀(ライフサイクル・スコープ・EL)」を覚える。AP サーバが外にある分、環境系の手間が増える。
