@@ -1,0 +1,196 @@
+<mxfile host="65bd71144e">
+    <diagram id="sbom-flow-1" name="SBOM生成フロー(9月末断面)">
+        <mxGraphModel dx="1240" dy="684" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1460" pageHeight="1550" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="title" value="&lt;b&gt;SBOM生成フロー(9月末断面)&lt;/b&gt;" style="text;html=1;align=left;verticalAlign=middle;fontSize=20;fontColor=#1F3864;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="20" width="900" height="36" as="geometry"/>
+                </mxCell>
+                <mxCell id="subtitle" value="開発部のCIからサイバー部のSBOM生成パイプラインを呼び出してSBOMを生成・格納し、セキュリティ企画部のCIパイプラインでtrivy脆弱性スキャンを実行する&#xa;※ServiceNowへのSBOM入力は9月末までに準備が間に合わないため本断面では前提としない(10月以降の連携は将来像として点線で記載)" style="text;html=1;align=left;verticalAlign=middle;fontSize=11;fontColor=#666666;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="56" width="1160" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="bankNW" value="&lt;b&gt;行内NW&lt;/b&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFE599;strokeColor=#BF9000;verticalAlign=top;align=left;spacingLeft=10;spacingTop=6;fontSize=14;fontColor=#7F6000;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="130" width="1190" height="990" as="geometry"/>
+                </mxCell>
+                <mxCell id="internetNW" value="&lt;b&gt;インターネット&lt;/b&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#76c4e5;strokeWidth=1;verticalAlign=top;align=left;spacingLeft=10;spacingTop=6;fontSize=13;fontColor=#1F6E8C;dashed=1;" parent="1" vertex="1">
+                    <mxGeometry x="1250" y="130" width="190" height="170" as="geometry"/>
+                </mxCell>
+                <mxCell id="kohaku" value="&lt;b&gt;KOHAKU&lt;/b&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#7F6000;strokeWidth=2;fontSize=12;" parent="1" vertex="1">
+                    <mxGeometry x="560" y="160" width="240" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="snowFuture" value="&lt;b&gt;(将来)ServiceNow&lt;/b&gt;&#xa;※10月以降、受入準備が&#xa;整い次第連携開始" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#E1D5E7;strokeColor=#9673A6;strokeWidth=2;dashed=1;fontSize=11;fontColor=#5C3D73;opacity=70;" parent="1" vertex="1">
+                    <mxGeometry x="1260" y="175" width="170" height="90" as="geometry"/>
+                </mxCell>
+                <mxCell id="eSnowFuture" value="&lt;font style=&quot;font-size: 9px;&quot;&gt;【10月以降】SBOMをアップロード&#xa;(手動 or API経由)&lt;/font&gt;" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#9673A6;strokeWidth=2;dashed=1;fontSize=9;fontColor=#5C3D73;labelBackgroundColor=#FFFFFF;exitX=1;exitY=0.25;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="kohaku" target="snowFuture" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="1240" y="175"/>
+                            <mxPoint x="1240" y="220"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="devNW" value="&lt;b&gt;開発NW&lt;/b&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFDE7;strokeColor=#BF9000;verticalAlign=top;align=left;spacingLeft=10;spacingTop=6;fontSize=13;fontColor=#7F6000;" parent="1" vertex="1">
+                    <mxGeometry x="60" y="250" width="1150" height="840" as="geometry"/>
+                </mxCell>
+                <mxCell id="deploy" value="&lt;b&gt;&amp;nbsp;(準本)DEPLOY&lt;/b&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFE6CC;strokeWidth=1;strokeColor=light-dark(#FFCC99,#EDEDED);align=left;labelPosition=center;verticalLabelPosition=middle;verticalAlign=top;spacingTop=6;spacingLeft=10;fontSize=13;" parent="1" vertex="1">
+                    <mxGeometry x="70" y="290" width="920" height="720" as="geometry"/>
+                </mxCell>
+                <mxCell id="gitlab" value="&lt;b&gt;(準本)GitLab&lt;/b&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#F5F5F5;strokeColor=#666666;verticalAlign=top;align=left;spacingLeft=10;spacingTop=6;fontSize=13;fontColor=#333333;" parent="1" vertex="1">
+                    <mxGeometry x="80" y="330" width="640" height="670" as="geometry"/>
+                </mxCell>
+                <mxCell id="devproj" value="&lt;b&gt;開発部プロジェクト&lt;/b&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#6C8EBF;verticalAlign=top;align=left;spacingLeft=8;spacingTop=4;fontSize=12;fontColor=#1F3864;" parent="1" vertex="1">
+                    <mxGeometry x="100" y="365" width="280" height="160" as="geometry"/>
+                </mxCell>
+                <mxCell id="repo" value="コードリポジトリ&#xa;(依存関係定義ファイル)&#xa;※mainブランチ=常に最新リリース断面" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#6C8EBF;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="110" y="395" width="260" height="55" as="geometry"/>
+                </mxCell>
+                <mxCell id="ci" value="&lt;b&gt;① CIパイプライン実行&lt;/b&gt;(ビルド・テスト等)&#xa;※mainブランチ更新の都度実行" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#6C8EBF;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="110" y="460" width="260" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="calloutMain" value="&lt;b&gt;◆ mainブランチ運用 ◆&lt;/b&gt;&lt;br&gt;mainを常に最新リリース断面とするよう開発部にアナウンス。main更新の都度SBOMを自動生成。&lt;br&gt;&lt;b&gt;【課題】&lt;/b&gt;main更新からリリースまでにタイムラグがあり、その間はスキャン対象が未リリース版のSBOMになる。&lt;br&gt;&lt;b&gt;【対策案(要検討)】&lt;/b&gt;複数断面のSBOMを保管し全てスキャン / SBOMにリリース予定日を付与 / SOE部提供のリリーススクリプト実行時にSBOMにマーキング / ズレを許容" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#DEEBF7;strokeColor=#2E75B6;strokeWidth=2;dashed=1;fontSize=10;fontColor=#1F4E79;align=left;spacing=6;" parent="1" vertex="1">
+                    <mxGeometry x="420" y="365" width="290" height="160" as="geometry"/>
+                </mxCell>
+                <mxCell id="calloutMainLine" style="endArrow=none;dashed=1;html=1;strokeColor=#2E75B6;strokeWidth=2;exitX=0;exitY=0.3;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="calloutMain" target="ci" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="cybproj" value="&lt;b&gt;サイバー部 SBOM生成用プロジェクト ※開発部は編集不可・実行権限のみ・SOE部が保守&lt;/b&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#D5E8D4;strokeColor=#82B366;verticalAlign=top;align=left;spacingLeft=8;spacingTop=4;fontSize=12;fontColor=#1F5C3F;" parent="1" vertex="1">
+                    <mxGeometry x="100" y="600" width="600" height="135" as="geometry"/>
+                </mxCell>
+                <mxCell id="genA" value="&lt;b&gt;③ SBOM生成&lt;/b&gt;&#xa;依存関係定義&#xa;ファイルから" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#82B366;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="110" y="645" width="170" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="genB" value="&lt;b&gt;④ SBOM生成&lt;/b&gt;&#xa;ビルド成果物・&#xa;コンテナイメージから" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#82B366;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="300" y="645" width="180" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="merge" value="&lt;b&gt;⑤ SBOMマージ&lt;/b&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#82B366;strokeWidth=2;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="500" y="645" width="180" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="secproj" value="&lt;b&gt;セキュリティ企画部 trivyスキャンCIパイプライン用プロジェクト ※セキュリティ企画部が保守&lt;/b&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFF2CC;strokeColor=#BF8F00;verticalAlign=top;align=left;spacingLeft=8;spacingTop=4;fontSize=12;fontColor=#7F6000;" parent="1" vertex="1">
+                    <mxGeometry x="100" y="800" width="600" height="180" as="geometry"/>
+                </mxCell>
+                <mxCell id="runPipeline" value="&lt;b&gt;⑦ スキャンCIパイプライン実行&lt;/b&gt;&#xa;・手動実行&#xa;・定期実行&#xa;のいずれも可能" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#BF8F00;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="110" y="845" width="170" height="90" as="geometry"/>
+                </mxCell>
+                <mxCell id="fetch" value="&lt;b&gt;⑧ SBOM取得&lt;/b&gt;&#xa;格納場所(GitLab or Nexus)から&#xa;・手動指定(実行時環境変数)&#xa;・または格納ルールに従い&#xa;　全SBOMをループで取得" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#BF8F00;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="310" y="845" width="180" height="90" as="geometry"/>
+                </mxCell>
+                <mxCell id="scan" value="&lt;b&gt;⑨ trivyスキャン実行・結果保存&lt;/b&gt;&#xa;CycloneDX形式SBOMに脆弱性&#xa;情報が付与された結果を&#xa;CI artifactとして保存" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#BF8F00;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="510" y="845" width="180" height="90" as="geometry"/>
+                </mxCell>
+                <mxCell id="eScan1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#BF8F00;strokeWidth=2;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="runPipeline" target="fetch" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="eScan2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#BF8F00;strokeWidth=2;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="fetch" target="scan" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="nexusArtifacts" value="&lt;b&gt;(準本Hosted)Nexus&lt;/b&gt;&#xa;ビルド成果物 / コンテナイメージ" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFF2CC;strokeColor=#D6B656;strokeWidth=2;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="760" y="360" width="220" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="sbomStore" value="&lt;b&gt;SBOM格納場所【検討中】&lt;/b&gt;&#xa;案1: (準本)GitLab&#xa;案2: (準本Hosted)Nexus&#xa;※格納方式・命名ルールも&#xa;併せて検討" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FCE4D6;strokeColor=#C55A11;strokeWidth=2;dashed=1;fontSize=11;fontColor=#833C00;" parent="1" vertex="1">
+                    <mxGeometry x="760" y="480" width="220" height="140" as="geometry"/>
+                </mxCell>
+                <mxCell id="calloutStore" value="&lt;b&gt;◆ 格納先の検討ポイント ◆&lt;/b&gt;&lt;br&gt;・改ざん防止の権限設計&lt;br&gt;(格納先決定後に具体化)&lt;br&gt;・格納ルール/命名規則&lt;br&gt;(全件ループスキャンの&lt;br&gt;可否に影響)&lt;br&gt;・本番環境への移送（将来的なServiceNowアップロードを踏まえて）" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#F8CECC;strokeColor=#B85450;strokeWidth=2;dashed=1;fontSize=10;fontColor=#B85450;align=left;spacing=6;" parent="1" vertex="1">
+                    <mxGeometry x="1010" y="450" width="185" height="170" as="geometry"/>
+                </mxCell>
+                <mxCell id="calloutStoreLine" style="endArrow=none;dashed=1;html=1;strokeColor=#B85450;strokeWidth=2;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="calloutStore" target="sbomStore" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="calloutTamper" value="&lt;b&gt;◆ 改ざん防止(GitLab) ◆&lt;/b&gt;&#xa;SBOM生成用・スキャン用&#xa;プロジェクトは開発部に&#xa;編集権限を付与しない&#xa;(実行権限のみ付与)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#F8CECC;strokeColor=#B85450;strokeWidth=2;dashed=1;fontSize=10;fontColor=#B85450;align=left;spacing=6;" parent="1" vertex="1">
+                    <mxGeometry x="1010" y="680" width="185" height="120" as="geometry"/>
+                </mxCell>
+                <mxCell id="calloutTamperLine1" style="endArrow=none;dashed=1;html=1;strokeColor=#B85450;strokeWidth=2;exitX=0;exitY=0.3;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="calloutTamper" target="cybproj" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="calloutTamperLine2" style="endArrow=none;dashed=1;html=1;strokeColor=#B85450;strokeWidth=2;exitX=0;exitY=0.7;exitDx=0;exitDy=0;entryX=1;entryY=0.3;entryDx=0;entryDy=0;" parent="1" source="calloutTamper" target="secproj" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="eTrigger" value="&lt;b&gt;② Downstream Pipeline / Trigger API で呼び出し&lt;/b&gt;&#xa;(呼び出し情報を連携)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#1F3864;strokeWidth=3;fontSize=10;fontColor=#1F3864;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.233;entryY=0;entryDx=0;entryDy=0;" parent="1" source="ci" target="cybproj" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="eRepo" value="依存関係定義ファイルを取得" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#6C8EBF;strokeWidth=2;fontSize=9;fontColor=#1F3864;labelBackgroundColor=#FFFFFF;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="repo" target="genA" edge="1">
+                    <mxGeometry x="-0.7273" relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="90" y="422"/>
+                            <mxPoint x="90" y="675"/>
+                        </Array>
+                        <mxPoint as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="eNexusIn" value="ビルド成果物・コンテナイメージを取得&#xa;(格納されている場合に利用)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#D6B656;strokeWidth=2;fontSize=9;fontColor=#7F6000;labelBackgroundColor=#FFFFFF;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="nexusArtifacts" target="genB" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="740" y="395"/>
+                            <mxPoint x="740" y="575"/>
+                            <mxPoint x="390" y="575"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="eA2M" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#82B366;strokeWidth=2;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" parent="1" source="genA" target="merge" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="195" y="720"/>
+                            <mxPoint x="590" y="720"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="eB2M" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#82B366;strokeWidth=2;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="genB" target="merge" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="eStore" value="&lt;b&gt;⑥ SBOMを格納場所へ保存&lt;/b&gt;&#xa;(格納先はGitLab / Nexusで検討中)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#BF8F00;strokeWidth=3;fontSize=10;fontColor=#7F6000;labelBackgroundColor=#FFFFFF;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.3;entryDx=0;entryDy=0;" parent="1" source="merge" target="sbomStore" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="730" y="675"/>
+                            <mxPoint x="730" y="522"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="eFetch" value="SBOMを取得" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#C55A11;strokeWidth=3;fontSize=10;fontColor=#833C00;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="sbomStore" target="fetch" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="870" y="770"/>
+                            <mxPoint x="400" y="770"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="eK1" value="GUIアクセス可" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#999999;strokeWidth=1.5;fontSize=9;fontColor=#777777;labelBackgroundColor=#FFFFFF;exitX=0.25;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="kohaku" target="gitlab" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="620" y="260"/>
+                            <mxPoint x="400" y="260"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="eKStore" value="SBOMの閲覧/ダウンロード" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#9673A6;strokeWidth=2;fontSize=9;fontColor=#5C3D73;labelBackgroundColor=#FFFFFF;exitX=0.75;exitY=1;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="kohaku" target="sbomStore" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="740" y="240"/>
+                            <mxPoint x="995" y="240"/>
+                            <mxPoint x="995" y="550"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="eKResult" value="&lt;b&gt;スキャン結果(⑨のCI artifact)の閲覧/ダウンロード&lt;/b&gt;" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#9673A6;strokeWidth=3;fontSize=10;fontColor=#5C3D73;labelBackgroundColor=#FFFFFF;exitX=1;exitY=0.75;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="kohaku" target="scan" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="1202" y="205"/>
+                            <mxPoint x="1202" y="890"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="notes" value="&lt;b&gt;【検討事項一覧】&lt;/b&gt;&lt;br&gt;&lt;b&gt;1. SBOM格納場所の決定:&lt;/b&gt; GitLab or Nexusのどちらにするか。併せて格納方式・ディレクトリ/ファイル命名ルールを決定(全件ループスキャンの実現可否に直結)。&lt;br&gt;&lt;b&gt;2. 改ざん防止・権限設計:&lt;/b&gt; 格納先決定後に具体化。Nexus案: 一般ユーザは閲覧/DLのみ・アップロードはCIサービスアカウント限定・再デプロイ禁止推奨 / GitLab案: プロジェクト権限・保護ブランチ等で同等の統制を設計。&lt;br&gt;&lt;b&gt;3. リリース断面とSBOMのズレ対策:&lt;/b&gt; 複数断面のSBOMを格納し全断面をスキャン / SBOMにリリース予定日を付与しスキャン対象を判定 / ズレを許容、のいずれかを決定。&lt;br&gt;&lt;b&gt;4. スキャン対象の指定方式:&lt;/b&gt; 実行時環境変数による手動指定と、格納ルールに基づく全件ループスキャンの使い分け(定期実行時は全件ループを想定)。&lt;br&gt;&lt;b&gt;5. スキャン運用の詳細:&lt;/b&gt; 定期実行の頻度、スキャン結果(artifact)の確認者・開発部への通知/連携方法、検知後のトリアージ基準。&lt;br&gt;&lt;b&gt;6. ServiceNow連携(10月以降):&lt;/b&gt; アップロード方式(手動 / API経由)の選定、行内NWからインターネット上のServiceNowへの接続経路・許可の確認、受入可能なCycloneDXバージョンの確認、登録運用の設計。" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#8EA9DB;align=left;verticalAlign=top;spacing=10;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="1150" width="1170" height="190" as="geometry"/>
+                </mxCell>
+                <mxCell id="2" value="&lt;b&gt;MUIT用の開発段階チェックは別途SBOM生成&amp;amp;trivyチェックのパイプラインテンプレートを提供する。trivyチェックが失敗したらパイプラインを失敗とする&lt;/b&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#DEEBF7;strokeColor=#2E75B6;strokeWidth=2;dashed=1;fontSize=10;fontColor=#1F4E79;align=left;spacing=6;" vertex="1" parent="1">
+                    <mxGeometry x="170" y="175" width="210" height="90" as="geometry"/>
+                </mxCell>
+                <mxCell id="3" style="endArrow=none;dashed=1;html=1;strokeColor=#2E75B6;strokeWidth=2;exitX=0;exitY=0.3;exitDx=0;exitDy=0;entryX=0.607;entryY=0.156;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" target="devproj">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="280" y="265" as="sourcePoint"/>
+                        <mxPoint x="230" y="337" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>
