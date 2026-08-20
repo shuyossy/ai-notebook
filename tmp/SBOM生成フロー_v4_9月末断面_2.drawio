@@ -7,9 +7,6 @@
                 <mxCell id="title" value="&lt;b&gt;SBOM生成フロー(9月末断面)&lt;/b&gt;" style="text;html=1;align=left;verticalAlign=middle;fontSize=20;fontColor=#1F3864;" parent="1" vertex="1">
                     <mxGeometry x="40" y="20" width="900" height="36" as="geometry"/>
                 </mxCell>
-                <mxCell id="subtitle" value="開発部のCIからサイバー部のSBOM生成パイプラインを呼び出してSBOMを生成・格納し、セキュリティ企画部のCIパイプラインでtrivy脆弱性スキャンを実行する&#xa;※ServiceNowへのSBOM入力は9月末までに準備が間に合わないため本断面では前提としない(10月以降の連携は将来像として点線で記載)" style="text;html=1;align=left;verticalAlign=middle;fontSize=11;fontColor=#666666;" parent="1" vertex="1">
-                    <mxGeometry x="40" y="56" width="1160" height="40" as="geometry"/>
-                </mxCell>
                 <mxCell id="bankNW" value="&lt;b&gt;行内NW&lt;/b&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFE599;strokeColor=#BF9000;verticalAlign=top;align=left;spacingLeft=10;spacingTop=6;fontSize=14;fontColor=#7F6000;" parent="1" vertex="1">
                     <mxGeometry x="40" y="130" width="1190" height="990" as="geometry"/>
                 </mxCell>
@@ -42,19 +39,19 @@
                 <mxCell id="devproj" value="&lt;b&gt;開発部プロジェクト&lt;/b&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#6C8EBF;verticalAlign=top;align=left;spacingLeft=8;spacingTop=4;fontSize=12;fontColor=#1F3864;" parent="1" vertex="1">
                     <mxGeometry x="100" y="365" width="280" height="160" as="geometry"/>
                 </mxCell>
-                <mxCell id="repo" value="コードリポジトリ&#xa;(依存関係定義ファイル)&#xa;※mainブランチ=常に最新リリース断面" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#6C8EBF;fontSize=10;" parent="1" vertex="1">
+                <mxCell id="repo" value="コードリポジトリ&lt;br&gt;(依存関係定義ファイル)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#6C8EBF;fontSize=10;" parent="1" vertex="1">
                     <mxGeometry x="110" y="395" width="260" height="55" as="geometry"/>
                 </mxCell>
                 <mxCell id="ci" value="&lt;b&gt;① CIパイプライン実行&lt;/b&gt;(ビルド・テスト等)&#xa;※mainブランチ更新の都度実行" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#6C8EBF;fontSize=10;" parent="1" vertex="1">
                     <mxGeometry x="110" y="460" width="260" height="50" as="geometry"/>
                 </mxCell>
-                <mxCell id="calloutMain" value="&lt;b&gt;◆ リリースブランチ運用◆&lt;/b&gt;&lt;div&gt;案①：mainを常に最新リリース断面とする&lt;/div&gt;&lt;div&gt;案②：リリースブランチ管理用プロジェクトを別途作成し、開発部ごとにリリースブランチ名/タグ名を指定してもらう（Semantic Releaseのリリースタグを指定できるのでGPと相性が良い）&lt;br&gt;【割り切り可能か確認】&lt;/div&gt;&lt;div&gt;・最終的に本番リリース作業をするのは開発部なので、本当にリリースブランチの資源がリリースされているかは保証できない（極めて本番にある可能性が高いSBOMという取り扱いになる）※1&lt;/div&gt;&lt;div&gt;・リリースブランチ更新からリリースまでにタイムラグがあり、その間はスキャン対象が未リリース版のSBOMになる※2&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#DEEBF7;strokeColor=#2E75B6;strokeWidth=2;dashed=1;fontSize=10;fontColor=#1F4E79;align=left;spacing=6;" parent="1" vertex="1">
-                    <mxGeometry x="410" y="365" width="300" height="175" as="geometry"/>
+                <mxCell id="calloutMain" value="&lt;b&gt;◆ リリースブランチ運用◆【検討中】※1&lt;/b&gt;&lt;div&gt;案①：mainを常に最新リリース断面とする&lt;/div&gt;&lt;div&gt;案②：リリースブランチ管理用プロジェクトを別途作成し、開発部ごとにリリースブランチ名/タグ名を指定してもらう（Semantic Releaseのリリースタグを指定できるのでGPと相性が良い）&lt;br&gt;&lt;br&gt;&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#DEEBF7;strokeColor=#2E75B6;strokeWidth=2;dashed=1;fontSize=10;fontColor=#1F4E79;align=left;spacing=6;" parent="1" vertex="1">
+                    <mxGeometry x="410" y="365" width="300" height="115" as="geometry"/>
                 </mxCell>
                 <mxCell id="calloutMainLine" style="endArrow=none;dashed=1;html=1;strokeColor=#2E75B6;strokeWidth=2;exitX=0;exitY=0.3;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="calloutMain" target="ci" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
-                <mxCell id="cybproj" value="&lt;b&gt;サイバー部 SBOM生成用プロジェクト ※開発部は編集不可・実行権限のみ・SOE部が保守&lt;/b&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#D5E8D4;strokeColor=#82B366;verticalAlign=top;align=left;spacingLeft=8;spacingTop=4;fontSize=12;fontColor=#1F5C3F;" parent="1" vertex="1">
+                <mxCell id="cybproj" value="&lt;b&gt;サイバー部プロジェクト(SBOM生成CIパイプライン実行用)&lt;/b&gt;&lt;div&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;※開発部は編集不可・実行権限のみ・SOE部が保守&lt;/font&gt;&lt;/div&gt;&lt;div&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;br&gt;&lt;/font&gt;&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#D5E8D4;strokeColor=#82B366;verticalAlign=top;align=left;spacingLeft=8;spacingTop=4;fontSize=12;fontColor=#1F5C3F;" parent="1" vertex="1">
                     <mxGeometry x="100" y="600" width="600" height="135" as="geometry"/>
                 </mxCell>
                 <mxCell id="genA" value="&lt;b&gt;③ SBOM生成&lt;/b&gt;&#xa;依存関係定義&#xa;ファイルから" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#82B366;fontSize=10;" parent="1" vertex="1">
@@ -66,7 +63,7 @@
                 <mxCell id="merge" value="&lt;b&gt;⑤ SBOMマージ&lt;/b&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#82B366;strokeWidth=2;fontSize=10;" parent="1" vertex="1">
                     <mxGeometry x="500" y="645" width="180" height="60" as="geometry"/>
                 </mxCell>
-                <mxCell id="secproj" value="&lt;b&gt;セキュリティ企画部 trivyスキャンCIパイプライン用プロジェクト ※セキュリティ企画部が保守&lt;/b&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFF2CC;strokeColor=#BF8F00;verticalAlign=top;align=left;spacingLeft=8;spacingTop=4;fontSize=12;fontColor=#7F6000;" parent="1" vertex="1">
+                <mxCell id="secproj" value="&lt;b&gt;セキュリティ企画部プロジェクト(trivyスキャンCIパイプライン実行用)&lt;/b&gt;&lt;div&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;※セキュリティ企画部が保守&lt;/font&gt;&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFF2CC;strokeColor=#BF8F00;verticalAlign=top;align=left;spacingLeft=8;spacingTop=4;fontSize=12;fontColor=#7F6000;" parent="1" vertex="1">
                     <mxGeometry x="100" y="800" width="600" height="180" as="geometry"/>
                 </mxCell>
                 <mxCell id="runPipeline" value="&lt;b&gt;⑦ スキャンCIパイプライン実行&lt;/b&gt;&#xa;・手動実行&#xa;・定期実行&#xa;のいずれも可能" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#BF8F00;fontSize=10;" parent="1" vertex="1">
@@ -105,7 +102,7 @@
                 <mxCell id="calloutTamperLine2" style="endArrow=none;dashed=1;html=1;strokeColor=#B85450;strokeWidth=2;exitX=0;exitY=0.7;exitDx=0;exitDy=0;entryX=1;entryY=0.3;entryDx=0;entryDy=0;" parent="1" source="calloutTamper" target="secproj" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
-                <mxCell id="eTrigger" value="&lt;b&gt;② Downstream Pipeline / Trigger API で呼び出し&lt;/b&gt;&#xa;(呼び出し情報を連携)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#1F3864;strokeWidth=3;fontSize=10;fontColor=#1F3864;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.233;entryY=0;entryDx=0;entryDy=0;" parent="1" source="ci" target="cybproj" edge="1">
+                <mxCell id="eTrigger" value="&lt;b&gt;② Trigger API で呼び出し&lt;/b&gt;" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#1F3864;strokeWidth=3;fontSize=10;fontColor=#1F3864;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.233;entryY=0;entryDx=0;entryDy=0;" parent="1" source="ci" target="cybproj" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
                 <mxCell id="eRepo" value="依存関係定義ファイルを取得" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#6C8EBF;strokeWidth=2;fontSize=9;fontColor=#1F3864;labelBackgroundColor=#FFFFFF;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="repo" target="genA" edge="1">
@@ -178,10 +175,10 @@
                         </Array>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="notes" value="&lt;b&gt;【サイバーQA】&lt;/b&gt;&lt;div&gt;&lt;b&gt;・システム開発段階のSBOMチェックは&lt;/b&gt;&lt;b style=&quot;color: rgb(63, 63, 63); scrollbar-color: rgb(226, 226, 226) rgb(251, 251, 251); font-size: 10px;&quot;&gt;サイバーの関心領域外という認識でよいか&lt;/b&gt;&lt;/div&gt;&lt;div&gt;&lt;b&gt;&lt;span style=&quot;font-size: 10px;&quot;&gt;・リリースブランチ運用の割り切り事項については問題ないか（コンテナスキャンやthenableスキャンも同じように完全に本番リリース断面をチェックできてない場合がありそう？）&lt;/span&gt;&lt;/b&gt;&lt;/div&gt;&lt;div&gt;&lt;b&gt;&lt;span style=&quot;font-size: 10px;&quot;&gt;&lt;br&gt;&lt;/span&gt;&lt;/b&gt;&lt;/div&gt;&lt;div&gt;&lt;b&gt;&lt;span style=&quot;font-size: 10px;&quot;&gt;※1&lt;/span&gt;&lt;/b&gt;&lt;/div&gt;&lt;div&gt;&lt;b&gt;&lt;span style=&quot;font-size: 10px;&quot;&gt;SOE部が提供しているリリース用VCONスクリプトを利用している場合は以下のようにGitLab格納資源のリリースであればチェック可能&lt;/span&gt;&lt;/b&gt;&lt;/div&gt;&lt;div&gt;&lt;b&gt;&lt;span style=&quot;font-size: 10px;&quot;&gt;・GitLab格納資源のリリース：コミットハッシュを指定するのでリリースブランチの資源かどうかチェック可能&lt;/span&gt;&lt;/b&gt;&lt;/div&gt;&lt;div&gt;&lt;b&gt;&lt;span style=&quot;font-size: 10px;&quot;&gt;・Nexus格納資源のリリース：GPを導入していればNexus格納資源にバージョン名が付与されるのでチェック可能だが、GP未導入のプロジェクトも多いので現状は不可能&lt;br&gt;&lt;/span&gt;&lt;/b&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;※2&lt;/div&gt;&lt;div&gt;複数断面のSBOMを保管し全てスキャン / SBOMにリリース予定日を付与などしてある程度対策は可能か&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#8EA9DB;align=left;verticalAlign=top;spacing=10;fontSize=11;" parent="1" vertex="1">
+                <mxCell id="notes" value="&lt;b&gt;【サイバーQA】&lt;/b&gt;&lt;div&gt;&lt;b&gt;・システム開発段階（本番環境以外）のSBOMチェックは&lt;/b&gt;&lt;b style=&quot;color: rgb(63, 63, 63); scrollbar-color: rgb(226, 226, 226) rgb(251, 251, 251); font-size: 10px;&quot;&gt;サイバーの関心領域外という認識でよいか&lt;/b&gt;&lt;/div&gt;&lt;div&gt;&lt;b&gt;&lt;span style=&quot;font-size: 10px;&quot;&gt;&lt;br&gt;&lt;/span&gt;&lt;/b&gt;&lt;/div&gt;&lt;div&gt;&lt;b&gt;&lt;span style=&quot;font-size: 10px;&quot;&gt;※1&lt;/span&gt;&lt;/b&gt;&lt;/div&gt;&lt;div&gt;&lt;b&gt;&lt;span style=&quot;font-size: 10px;&quot;&gt;■リリースブランチ断面が本番環境で稼働しているかのチェックについて&lt;/span&gt;&lt;/b&gt;&lt;/div&gt;&lt;div&gt;&lt;b&gt;&lt;span style=&quot;font-size: 10px;&quot;&gt;SOE部が提供しているリリース用VCONスクリプトを利用している場合は以下のようにGitLab格納資源のリリースであればチェック可能&lt;/span&gt;&lt;/b&gt;&lt;/div&gt;&lt;div&gt;&lt;b&gt;&lt;span style=&quot;font-size: 10px;&quot;&gt;・GitLab格納資源のリリース：コミットハッシュを指定するのでリリースブランチの資源かどうかチェック可能&lt;/span&gt;&lt;/b&gt;&lt;/div&gt;&lt;div&gt;&lt;b&gt;&lt;span style=&quot;font-size: 10px;&quot;&gt;・Nexus格納資源のリリース：GPを導入していればリリースブランチから作成されたかどうかファイル名に付与できるのでチェック可能&lt;/span&gt;&lt;/b&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;■リリースブランチ更新から実際のリリースまでラグがあることへの対策&lt;/div&gt;&lt;div&gt;・複数世代SBOMを保持しておいてチェック?&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#8EA9DB;align=left;verticalAlign=top;spacing=10;fontSize=11;" parent="1" vertex="1">
                     <mxGeometry x="41" y="1152" width="1170" height="188" as="geometry"/>
                 </mxCell>
-                <mxCell id="2" value="&lt;b&gt;◆MUIT用の開発段階チェック◆※サイバーの関心領域外という認識でよい？&lt;/b&gt;&lt;div&gt;案①：別途SBOM生成&amp;amp;trivyチェックのパイプラインテンプレートを提供する。trivyチェックが失敗したらパイプラインを失敗とする&lt;/div&gt;&lt;div&gt;案②：サイバー部 SBOM生成用プロジェクトで開発ブランチ分も合わせてSBOM生成してServiceNowへ送る。ServiceNowで本番同様にチェックする。&lt;/div&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;→9月末までは案②不可能なので案①か&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#DEEBF7;strokeColor=#2E75B6;strokeWidth=2;dashed=1;fontSize=10;fontColor=#1F4E79;align=left;spacing=6;" vertex="1" parent="1">
+                <mxCell id="2" value="&lt;b&gt;◆MUIT用の開発段階チェック◆※サイバーの関心領域外という認識でよい？&lt;/b&gt;&lt;div&gt;案①：別途SBOM生成&amp;amp;trivyチェックのパイプラインテンプレートを提供する。trivyチェックが失敗したらパイプラインを失敗とする&lt;/div&gt;&lt;div&gt;案②：サイバー部 SBOM生成用プロジェクトで開発ブランチ分も合わせてSBOM生成してServiceNowへ送る。ServiceNowで本番同様にチェックする。&lt;/div&gt;&lt;div&gt;→どちらかor組み合わせ&lt;/div&gt;&lt;div&gt;→9月末までは案②厳しいので案①か&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#DEEBF7;strokeColor=#2E75B6;strokeWidth=2;dashed=1;fontSize=10;fontColor=#1F4E79;align=left;spacing=6;" vertex="1" parent="1">
                     <mxGeometry x="140" y="96" width="360" height="145" as="geometry"/>
                 </mxCell>
                 <mxCell id="3" style="endArrow=none;dashed=1;html=1;strokeColor=#2E75B6;strokeWidth=2;exitX=0.386;exitY=0.976;exitDx=0;exitDy=0;entryX=0.607;entryY=0.156;entryDx=0;entryDy=0;entryPerimeter=0;exitPerimeter=0;" edge="1" parent="1" source="2" target="devproj">
