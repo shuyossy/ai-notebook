@@ -61,10 +61,10 @@ jest.mock('@/main/lib/textExtractor/XlsxDrawingParser', () => ({
 
 // mimeUtils モック
 const mockGetMimeFromExt = jest.fn();
-const mockIsAiCompatibleMime = jest.fn();
+const mockIsAiSupportedImageExtension = jest.fn();
 jest.mock('@/main/lib/textExtractor/mimeUtils', () => ({
   getMimeFromExt: (...args: any[]) => mockGetMimeFromExt(...args),
-  isAiCompatibleMime: (...args: any[]) => mockIsAiCompatibleMime(...args),
+  isAiSupportedImageExtension: (...args: any[]) => mockIsAiSupportedImageExtension(...args),
 }));
 
 // JSZip モック
@@ -154,7 +154,7 @@ describe('XlsxSheetJsRichStrategy', () => {
 
     // デフォルトのモック設定
     mockGetMimeFromExt.mockReturnValue('image/png');
-    mockIsAiCompatibleMime.mockReturnValue(true);
+    mockIsAiSupportedImageExtension.mockReturnValue(true);
     mockFormatImageTag.mockImplementation((refId: string, cellRange?: any) =>
       cellRange ? `![image at A1-C3](${refId})` : `![image](${refId})`,
     );
@@ -173,8 +173,8 @@ describe('XlsxSheetJsRichStrategy', () => {
       expect(strategy.getStrategyType()).toBe('xlsx-sheetjs-rich');
     });
 
-    it('フォーマットタイプがxlsx-rich-v1であること', () => {
-      expect(strategy.getFormatType()).toBe('xlsx-rich-v1');
+    it('フォーマットタイプがxlsx-rich-v2であること', () => {
+      expect(strategy.getFormatType()).toBe('xlsx-rich-v2');
     });
   });
 
@@ -205,8 +205,8 @@ describe('XlsxSheetJsRichStrategy', () => {
 
         // Assert
         expect(result.content).toContain('#sheet:Sheet1');
-        expect(result.content).toContain('[r1] A,B,C');
-        expect(result.content).toContain('[r2] 1,2,3');
+        expect(result.content).toContain('[row1] A,B,C');
+        expect(result.content).toContain('[row2] 1,2,3');
         expect(result.images).toEqual([]);
         expect(mockReadFile).toHaveBeenCalledWith('/path/to/test.xlsx');
       });
@@ -494,13 +494,13 @@ describe('XlsxSheetJsRichStrategy', () => {
         const result = await strategy.extract('/path/to/test.xlsx');
 
         // Assert
-        // s1(Start), s2(End), c3のコネクタが生成される
+        // shape1(Start), shape2(End), connector3のコネクタが生成される
         expect(result.content).toContain('#sheet:Sheet1');
         expect(mockGetArrowSymbol).toHaveBeenCalledWith('none', 'triangle');
         expect(mockFormatDrawingTagFull).toHaveBeenCalledWith(
-          'c3',
+          'connector3',
           { presetGeometry: 'straightConnector1' },
-          's1->s2',
+          'shape1->shape2',
         );
       });
 
@@ -573,7 +573,7 @@ describe('XlsxSheetJsRichStrategy', () => {
           undefined,
         );
         expect(mockFormatDrawingTagFull).toHaveBeenCalledWith(
-          'c1',
+          'connector1',
           {
             presetGeometry: 'straightConnector1',
             cellRange: { fromCol: 0, fromRow: 2, toCol: 3, toRow: 5 },
@@ -622,7 +622,7 @@ describe('XlsxSheetJsRichStrategy', () => {
         mockResolveRelativePath.mockReturnValue('xl/drawings/drawing1.xml');
         mockParseImages.mockReturnValue([]);
         mockResolveImagePaths.mockReturnValue(new Map());
-        // s1を登録（drawingObjectId=10）
+        // shape1を登録（drawingObjectId=10）
         mockParseShapeTexts.mockReturnValue([
           {
             text: 'Start',
@@ -655,18 +655,18 @@ describe('XlsxSheetJsRichStrategy', () => {
         await strategy.extract('/path/to/test.xlsx');
 
         // Assert
-        // startLabel=s1（解決済み）、endLabel=D6（セル範囲から）
+        // startLabel=shape1（解決済み）、endLabel=D6（セル範囲から）
         expect(mockFormatDrawingTagFull).toHaveBeenCalledWith(
-          'c2',
+          'connector2',
           {
             presetGeometry: 'straightConnector1',
             cellRange: { fromCol: 0, fromRow: 2, toCol: 3, toRow: 5 },
           },
-          's1->D6',
+          'shape1->D6',
         );
       });
 
-      it('[rN]マーカーが正しく付与されること', async () => {
+      it('[rowN]マーカーが正しく付与されること', async () => {
         // Arrange
         const fileBuffer = Buffer.from('dummy-xlsx');
         mockReadFile.mockResolvedValue(fileBuffer);
@@ -690,9 +690,9 @@ describe('XlsxSheetJsRichStrategy', () => {
 
         // Assert
         // rangeStartRow=2なので、行番号はExcel行3,4,5になる
-        expect(result.content).toContain('[r3] X,Y,Z');
-        expect(result.content).toContain('[r4] 1,2,3');
-        expect(result.content).toContain('[r5] 4,5,6');
+        expect(result.content).toContain('[row3] X,Y,Z');
+        expect(result.content).toContain('[row4] 1,2,3');
+        expect(result.content).toContain('[row5] 4,5,6');
       });
 
       it('空行にはマーカーが付与されないこと', async () => {
@@ -719,12 +719,12 @@ describe('XlsxSheetJsRichStrategy', () => {
 
         // Assert
         const lines = result.content.split('\n');
-        // #sheet:Sheet1, [r1] A,B,C, (空行), [r3] 1,2,3
-        expect(lines).toContain('[r1] A,B,C');
+        // #sheet:Sheet1, [row1] A,B,C, (空行), [row3] 1,2,3
+        expect(lines).toContain('[row1] A,B,C');
         expect(lines).toContain(',,');
-        expect(lines).toContain('[r3] 1,2,3');
-        // 空行には[rN]が付与されていないことを確認
-        expect(lines.find((l) => l.includes('[r2]'))).toBeUndefined();
+        expect(lines).toContain('[row3] 1,2,3');
+        // 空行には[rowN]が付与されていないことを確認
+        expect(lines.find((l) => l.includes('[row2]'))).toBeUndefined();
       });
 
       it('シートにsheetデータがnullの場合スキップされること', async () => {
@@ -775,7 +775,7 @@ describe('XlsxSheetJsRichStrategy', () => {
 
         // Assert
         // rangeStartRow=0のため、行番号は1から開始
-        expect(result.content).toContain('[r1] A,B');
+        expect(result.content).toContain('[row1] A,B');
         // decode_rangeは呼ばれないこと
         expect(mockDecodeRange).not.toHaveBeenCalled();
       });
@@ -889,13 +889,13 @@ describe('XlsxSheetJsRichStrategy', () => {
         const result = await strategy.extract('/path/to/test.xlsx');
 
         // Assert
-        // 描画要素がないためCSVに[rN]マーカーが付与される
-        expect(result.content).toContain('[r1] A');
+        // 描画要素がないためCSVに[rowN]マーカーが付与される
+        expect(result.content).toContain('[row1] A');
       });
     });
 
-    describe('セル内改行の[rN]マーカー付与', () => {
-      it('セル内改行を含むCSVで行ごとに正しく[rN]マーカーが付与される', async () => {
+    describe('セル内改行の[rowN]マーカー付与', () => {
+      it('セル内改行を含むCSVで行ごとに正しく[rowN]マーカーが付与される', async () => {
         // Arrange
         const fileBuffer = Buffer.from('dummy-xlsx');
         mockReadFile.mockResolvedValue(fileBuffer);
@@ -922,11 +922,11 @@ describe('XlsxSheetJsRichStrategy', () => {
         const lines = result.content.split('\n');
 
         // Assert
-        const rowLines = lines.filter((l: string) => /^\[r\d+\] /.test(l));
-        // セル内改行があっても行ごとに1つの[rN]マーカーが付与される（2行分）
+        const rowLines = lines.filter((l: string) => /^\[row\d+\] /.test(l));
+        // セル内改行があっても行ごとに1つの[rowN]マーカーが付与される（2行分）
         expect(rowLines).toHaveLength(2);
-        expect(rowLines[0]).toMatch(/^\[r1\]/);
-        expect(rowLines[1]).toMatch(/^\[r2\]/);
+        expect(rowLines[0]).toMatch(/^\[row1\]/);
+        expect(rowLines[1]).toMatch(/^\[row2\]/);
       });
 
       it('セル内改行を含むセルがRFC 4180形式（ダブルクォート囲み）で出力される', async () => {
@@ -955,9 +955,9 @@ describe('XlsxSheetJsRichStrategy', () => {
 
         // Assert
         // 改行を含むセルがダブルクォートで囲まれていること
-        expect(result.content).toContain('[r1] 通常セル,"改行\nあり"');
+        expect(result.content).toContain('[row1] 通常セル,"改行\nあり"');
         // 通常セルはダブルクォートで囲まれない
-        expect(result.content).toMatch(/\[r1\] 通常セル,/);
+        expect(result.content).toMatch(/\[row1\] 通常セル,/);
       });
 
       it('同一行の複数セルが全て改行を含むケース', async () => {
@@ -985,8 +985,8 @@ describe('XlsxSheetJsRichStrategy', () => {
         const result = await strategy.extract('/path/to/test.xlsx');
 
         // Assert
-        // [rN]マーカーは1行分のみ
-        const rowMarkerCount = (result.content.match(/\[r\d+\]/g) || []).length;
+        // [rowN]マーカーは1行分のみ
+        const rowMarkerCount = (result.content.match(/\[row\d+\]/g) || []).length;
         expect(rowMarkerCount).toBe(1);
         // 全セルがダブルクォートで囲まれ、改行が保持されていること
         expect(result.content).toContain('"セル1行1\nセル1行2"');
@@ -1065,8 +1065,8 @@ describe('XlsxSheetJsRichStrategy', () => {
         const lines = result.content.split('\n');
 
         // Assert
-        // [rN]マーカーの数をチェック（セル内改行を論理行として扱うので2つ）
-        const rowLines = lines.filter((l: string) => /^\[r\d+\] /.test(l));
+        // [rowN]マーカーの数をチェック（セル内改行を論理行として扱うので2つ）
+        const rowLines = lines.filter((l: string) => /^\[row\d+\] /.test(l));
         expect(rowLines).toHaveLength(2);
       });
     });
@@ -1144,7 +1144,7 @@ describe('XlsxSheetJsRichStrategy', () => {
 
         // EMF → AI非互換
         mockGetMimeFromExt.mockReturnValue('image/x-emf');
-        mockIsAiCompatibleMime.mockReturnValue(false);
+        mockIsAiSupportedImageExtension.mockReturnValue(false);
 
         // Act
         const result = await strategy.extract('/path/to/test.xlsx');
@@ -1239,10 +1239,8 @@ describe('XlsxSheetJsRichStrategy', () => {
         mockParseConnectors.mockReturnValue([]);
 
         // PNG → 互換, EMF → 非互換
-        mockGetMimeFromExt
-          .mockReturnValueOnce('image/png')
-          .mockReturnValueOnce('image/x-emf');
-        mockIsAiCompatibleMime
+        mockGetMimeFromExt.mockReturnValue('image/png');
+        mockIsAiSupportedImageExtension
           .mockReturnValueOnce(true)
           .mockReturnValueOnce(false);
         mockFormatImageTag.mockReturnValue('![image at A1-C3](image_1.png)');

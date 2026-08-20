@@ -156,8 +156,10 @@ export type TextExtractionFormatType =
   | 'pdf-text-v1'
   | 'image-pages'
   | 'docx-rich-v1'
-  | 'xlsx-rich-v1'
-  | 'pptx-rich-v1'
+  | 'xlsx-rich-v1' // 旧フォーマット：[rN]/[sN]/[cN]マーカー。既存キャッシュ互換用に保持
+  | 'xlsx-rich-v2' // 新フォーマット：[rowN]/[shapeN]/[connectorN]マーカー
+  | 'pptx-rich-v1' // 旧フォーマット：[sN]/[cN]マーカー。既存キャッシュ互換用に保持
+  | 'pptx-rich-v2' // 新フォーマット：[shapeN]/[connectorN]マーカー
   | 'pdf-rich-v1';
 
 // テキスト抽出時に取得された画像データ

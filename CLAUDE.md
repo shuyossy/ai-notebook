@@ -243,10 +243,34 @@ ElectronのIPCを使用してフロントエンド・バックエンド間の通
 ```
 
 # ID: 1
-- PBI名: 失敗しているテストの分析
+- PBI名: 新規Electronアプリ開発に向けたノウハウ抽出 
 - ステータス: to do
+- 背景
+  - 別のElectronアプリの作成が決定しており、このプロジェクトで培ったロギング、メッセージング、エラーハンドリング等の汎用的な仕組みを再利用できるようにしたい
+  - 初期のカスタムボイラープレートを`/Users/yoshidashuhei/Documents/vscode_workspace/electron-react-boilerplate-custom`に配置済み
+    - `electron-react-boilerplate`のコピー
 - 受け入れ基準
-  - 以下のテストが一部失敗しているので、プロダクションコード・テストコードどちらに問題があるのか分析し、最終的に全てのテストがパスしている状態にすること
-    - `executeReview.test.ts`
+  - カスタムボイラープレートに対し、以下の変更が加えられていること
+    - 本プロジェクトから、ロギング、メッセージング、エラーハンドリング、IPC通信周り、カスタムAPPDATAの仕組みがコピーされていること
+      - 一部コードが汚い場合があるので、リファクタリングが必要であれば実施すること
+    - テストランナーがjestからvitestに変更されていること
+    - テストについてはunit,integration,e2eディレクトリに分けること
+      - 実際に作成するテストは本プロジェクトからコピーしてきたモジュールのみで良い
+    - docsフォルダに以下の設計書が作成されていること
+      - 技術設計書（以下のセクションを含む）
+        - フォルダ構成
+        - IPC通信
+        - エラーハンドリング
+        - ロギング
+        - メッセージング
+  - カスタムボイラープレートのビルドが成功し、アプリもエラーなく起動できること
 - 注意事項
+  - `実装上の注意`セクションはあくまで本プロジェクトにおける実装上の注意である
+  - ボイラープレート整備には関係ないので注意
 - 指摘事項（in progressの場合のみ）
+- 指摘事項
+  - ~~prettierやeslint等の各種lintが問題ないか確認する必要がある~~ → 対応済み
+    - `npm run lint` がランタイム生成物(`dev_appdata`)と`.erb`の走査でハングしていたため、`.eslintignore`/`.prettierignore`で除外
+    - 派生元(ai-notebook)の規約に合わせて`.eslintrc.js`のルール（`import/prefer-default-export`,`class-methods-use-this`,`no-restricted-syntax`,test向けenv）を整合
+    - `eslint --fix`/`prettier --write`でフォーマット修正、`format`スクリプトを追加
+    - 結果: `npm run check`/`npm run lint`/prettier/`npm test`/`npm run build` が全てエラーなく完了

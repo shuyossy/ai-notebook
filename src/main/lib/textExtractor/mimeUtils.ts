@@ -3,21 +3,6 @@
  * テキスト抽出戦略間で共有する
  */
 
-/** AIが認識可能な画像MIMEタイプの許可リスト */
-export const AI_COMPATIBLE_MIME_TYPES: ReadonlySet<string> = new Set([
-  'image/png',
-  'image/jpeg',
-]);
-
-/**
- * MIMEタイプがAI互換かどうかを判定する
- * @param mimeType MIMEタイプ
- * @returns AI互換の場合true
- */
-export function isAiCompatibleMime(mimeType: string): boolean {
-  return AI_COMPATIBLE_MIME_TYPES.has(mimeType);
-}
-
 /** MIMEタイプから拡張子へのマッピング */
 export const MIME_TO_EXT: Record<string, string> = {
   'image/png': 'png',
@@ -65,4 +50,34 @@ export function getMimeFromExt(
   defaultMime: string = 'image/png',
 ): string {
   return EXT_TO_MIME[ext.toLowerCase()] ?? defaultMime;
+}
+
+/**
+ * AIビジョンモデルがサポートする画像拡張子のセット
+ * JPEG/PNGのみ許可（アローリスト方式）
+ */
+const AI_SUPPORTED_IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg']);
+
+/**
+ * AIビジョンモデルがサポートする画像MIMEタイプのセット
+ * JPEG/PNGのみ許可（アローリスト方式）
+ */
+const AI_SUPPORTED_IMAGE_MIMES = new Set(['image/png', 'image/jpeg']);
+
+/**
+ * 指定された拡張子がAIビジョンモデルでサポートされているか判定する
+ * @param ext 拡張子（ドットなし、小文字推奨）
+ * @returns サポートされている場合true
+ */
+export function isAiSupportedImageExtension(ext: string): boolean {
+  return AI_SUPPORTED_IMAGE_EXTENSIONS.has(ext.toLowerCase());
+}
+
+/**
+ * 指定されたMIMEタイプがAIビジョンモデルでサポートされているか判定する
+ * @param mimeType MIMEタイプ
+ * @returns サポートされている場合true
+ */
+export function isAiSupportedImageMime(mimeType: string): boolean {
+  return AI_SUPPORTED_IMAGE_MIMES.has(mimeType);
 }

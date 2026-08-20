@@ -60,10 +60,10 @@ jest.mock('@/main/lib/textExtractor/XlsxDrawingParser', () => ({
 
 // mimeUtils モック
 const mockGetMimeFromExt = jest.fn();
-const mockIsAiCompatibleMime = jest.fn();
+const mockIsAiSupportedImageExtension = jest.fn();
 jest.mock('@/main/lib/textExtractor/mimeUtils', () => ({
   getMimeFromExt: (...args: any[]) => mockGetMimeFromExt(...args),
-  isAiCompatibleMime: (...args: any[]) => mockIsAiCompatibleMime(...args),
+  isAiSupportedImageExtension: (...args: any[]) => mockIsAiSupportedImageExtension(...args),
 }));
 
 // JSZip モック
@@ -187,7 +187,7 @@ describe('PptxRichExtractorStrategy', () => {
 
     // デフォルトのモック設定
     mockGetMimeFromExt.mockReturnValue('image/png');
-    mockIsAiCompatibleMime.mockReturnValue(true);
+    mockIsAiSupportedImageExtension.mockReturnValue(true);
     mockFormatImageTag.mockImplementation(
       (refId: string) => `![image](${refId})`,
     );
@@ -206,8 +206,8 @@ describe('PptxRichExtractorStrategy', () => {
       expect(strategy.getStrategyType()).toBe('pptx-rich');
     });
 
-    it('フォーマットタイプがpptx-rich-v1であること', () => {
-      expect(strategy.getFormatType()).toBe('pptx-rich-v1');
+    it('フォーマットタイプがpptx-rich-v2であること', () => {
+      expect(strategy.getFormatType()).toBe('pptx-rich-v2');
     });
   });
 
@@ -406,7 +406,7 @@ describe('PptxRichExtractorStrategy', () => {
 
         // Assert
         expect(result.content).toContain('[s1:rect] Shape Content');
-        expect(mockFormatDrawingTagFull).toHaveBeenCalledWith('s1', {
+        expect(mockFormatDrawingTagFull).toHaveBeenCalledWith('shape1', {
           presetGeometry: 'rect',
         });
       });
@@ -505,11 +505,11 @@ describe('PptxRichExtractorStrategy', () => {
 
         // Assert
         expect(mockGetArrowSymbol).toHaveBeenCalledWith('none', 'triangle');
-        // s1, s2は図形、c3がコネクタ
+        // shape1, shape2は図形、connector3がコネクタ
         expect(mockFormatDrawingTagFull).toHaveBeenCalledWith(
-          'c3',
+          'connector3',
           { presetGeometry: 'straightConnector1' },
-          's1->s2',
+          'shape1->shape2',
         );
       });
 
@@ -658,7 +658,7 @@ describe('PptxRichExtractorStrategy', () => {
 
         // WMF → AI非互換
         mockGetMimeFromExt.mockReturnValue('image/x-wmf');
-        mockIsAiCompatibleMime.mockReturnValue(false);
+        mockIsAiSupportedImageExtension.mockReturnValue(false);
 
         // Act
         const result = await strategy.extract('/path/to/test.pptx');
@@ -725,10 +725,8 @@ describe('PptxRichExtractorStrategy', () => {
         mockSlideParseTables.mockReturnValue([]);
 
         // PNG → 互換, WMF → 非互換
-        mockGetMimeFromExt
-          .mockReturnValueOnce('image/png')
-          .mockReturnValueOnce('image/x-wmf');
-        mockIsAiCompatibleMime
+        mockGetMimeFromExt.mockReturnValue('image/png');
+        mockIsAiSupportedImageExtension
           .mockReturnValueOnce(true)
           .mockReturnValueOnce(false);
         mockFormatImageTag.mockReturnValue('![image](image_1.png)');

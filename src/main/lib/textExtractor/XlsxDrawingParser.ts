@@ -173,25 +173,34 @@ export function formatPosition(position: PositionInfo): string {
 /**
  * 画像タグ文字列を生成する
  * @param referenceId 画像参照ID（例: "image_1.png"）
- * @param cellRange セル範囲情報（オプション）
- * @returns 画像タグ（例: "![image at A6-C11](image_1.png)"）
+ * @param cellRange セル範囲情報（オプション、XLSX用）
+ * @param position 位置・サイズ情報（オプション、PPTX用）
+ * @returns 画像タグ（例: "![image p:2.5,5.1 sz:7.6,3.8](image_1.png)", "![image at A6-C11](image_1.png)"）
  */
 export function formatImageTag(
   referenceId: string,
   cellRange?: CellRange,
+  position?: PositionInfo,
 ): string {
-  if (cellRange) {
-    return `![image at ${formatCellRange(cellRange)}](${referenceId})`;
+  const parts: string[] = ['image'];
+
+  if (position) {
+    parts.push(formatPosition(position));
   }
-  return `![image](${referenceId})`;
+
+  if (cellRange) {
+    parts.push(`at ${formatCellRange(cellRange)}`);
+  }
+
+  return `![${parts.join(' ')}](${referenceId})`;
 }
 
 /**
  * IDとメタデータを含むフルタグ文字列を生成する
- * @param id 描画要素のID（例: "s1", "c3"）
+ * @param id 描画要素のID（例: "shape1", "connector3"）
  * @param metadata 図形メタデータ（オプション）
- * @param connectionPart 接続情報文字列（オプション。例: "s1->s2", "A3--D6"）
- * @returns フルタグ（例: "[s1:rect@A1-C3]", "[c3:straightConnector1 s1->s2]"）
+ * @param connectionPart 接続情報文字列（オプション。例: "shape1->shape2", "A3--D6"）
+ * @returns フルタグ（例: "[shape1:rect@A1-C3]", "[connector3:straightConnector1 shape1->shape2]"）
  */
 export function formatDrawingTagFull(
   id: string,

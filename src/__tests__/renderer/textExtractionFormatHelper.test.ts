@@ -6,11 +6,17 @@ import {
 
 describe('textExtractionFormatHelper', () => {
   describe('isRichFormatType', () => {
-    it('リッチフォーマット（-rich-v1で終わる）の場合trueを返す', () => {
+    it('リッチフォーマット（-rich-vNで終わる）の場合trueを返す', () => {
       expect(isRichFormatType('xlsx-rich-v1')).toBe(true);
       expect(isRichFormatType('docx-rich-v1')).toBe(true);
       expect(isRichFormatType('pptx-rich-v1')).toBe(true);
       expect(isRichFormatType('pdf-rich-v1')).toBe(true);
+    });
+
+    it('v2以降のリッチフォーマットの場合もtrueを返す', () => {
+      expect(isRichFormatType('xlsx-rich-v2')).toBe(true);
+      expect(isRichFormatType('pptx-rich-v2')).toBe(true);
+      expect(isRichFormatType('pdf-rich-v10')).toBe(true);
     });
 
     it('リッチフォーマットでない場合falseを返す', () => {

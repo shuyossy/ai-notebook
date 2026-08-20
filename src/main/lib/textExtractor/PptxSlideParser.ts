@@ -18,6 +18,8 @@ import { escapeCsvCell as escapeCsvCellUtil } from './csvUtils';
 export interface PptxImage {
   /** リレーションシップID */
   rId: string;
+  /** 位置・サイズ情報（cm単位） */
+  position?: PositionInfo;
 }
 
 /**
@@ -49,7 +51,11 @@ export class PptxSlideParser {
       const blip = blipFill.find('a\\:blip, blip');
       const rId = blip.attr('r:embed') || blip.attr('r:link');
       if (rId) {
-        images.push({ rId });
+        // <p:spPr>から位置・サイズ情報を抽出
+        const spPr = $(pic).find('p\\:spPr, spPr').first();
+        const position =
+          spPr.length > 0 ? this.extractPositionFromSpPr(spPr) : undefined;
+        images.push({ rId, ...(position && { position }) });
       }
     });
 

@@ -29,7 +29,7 @@ import type {
   DrawingConnector,
 } from '../XlsxDrawingParser';
 import { splitCsvIntoLogicalRows } from '../csvUtils';
-import { getMimeFromExt, isAiCompatibleMime } from '../mimeUtils';
+import { getMimeFromExt, isAiSupportedImageExtension } from '../mimeUtils';
 import { getMainLogger } from '@/main/lib/logger';
 
 /**
@@ -60,7 +60,7 @@ export class XlsxSheetJsRichStrategy implements ITextExtractorStrategy {
   }
 
   getFormatType(): TextExtractionFormatType {
-    return 'xlsx-rich-v1';
+    return 'xlsx-rich-v2';
   }
 
   async extract(filePath: string): Promise<TextExtractionResult> {
@@ -114,7 +114,7 @@ export class XlsxSheetJsRichStrategy implements ITextExtractorStrategy {
           ? XLSX.utils.decode_range(sheet['!ref']).s.r
           : 0;
 
-        // 描画情報がなければCSVに[rN]マーカーを付与して出力
+        // 描画情報がなければCSVに[rowN]マーカーを付与して出力
         if (!drawingInfo) {
           this.formatCsvWithRowMarkers(csv, rangeStartRow, parts);
           continue;
@@ -133,15 +133,15 @@ export class XlsxSheetJsRichStrategy implements ITextExtractorStrategy {
             if (!imgFile) continue;
 
             const ext = path.extname(imgPath).slice(1).toLowerCase() || 'png';
-            const mimeType = getMimeFromExt(ext);
 
-            // AI非互換画像はスキップ（EMF, WMF等）
-            if (!isAiCompatibleMime(mimeType)) {
+            // AI非対応画像はスキップ（EMF, WMF等）
+            if (!isAiSupportedImageExtension(ext)) {
               continue;
             }
 
             imageCounter++;
             const imgBuffer = await imgFile.async('nodebuffer');
+            const mimeType = getMimeFromExt(ext);
             const referenceId = `image_${imageCounter}.${ext}`;
 
             allImages.push({
@@ -160,7 +160,7 @@ export class XlsxSheetJsRichStrategy implements ITextExtractorStrategy {
         if (!drawingInfo.shapesFailed) {
           for (const shape of drawingInfo.shapeTexts) {
             drawingCounter++;
-            const shapeId = `s${drawingCounter}`;
+            const shapeId = `shape${drawingCounter}`;
 
             if (shape.drawingObjectId !== undefined) {
               drawingObjectIdToShapeId.set(shape.drawingObjectId, shapeId);
@@ -189,7 +189,7 @@ export class XlsxSheetJsRichStrategy implements ITextExtractorStrategy {
           // コネクタを処理
           for (const connector of drawingInfo.connectors) {
             drawingCounter++;
-            const connectorId = `c${drawingCounter}`;
+            const connectorId = `connector${drawingCounter}`;
 
             const arrowSymbol = getArrowSymbol(
               connector.headEndType,
@@ -252,7 +252,7 @@ export class XlsxSheetJsRichStrategy implements ITextExtractorStrategy {
           }
         }
 
-        // 描画要素がなければCSVに[rN]マーカーを付与して出力
+        // 描画要素がなければCSVに[rowN]マーカーを付与して出力
         if (drawingsByRow.size === 0) {
           this.formatCsvWithRowMarkers(csv, rangeStartRow, parts);
           continue;
@@ -269,7 +269,7 @@ export class XlsxSheetJsRichStrategy implements ITextExtractorStrategy {
 
           const isNonEmpty = csvLine.replace(/,/g, '').trim().length > 0;
           if (isNonEmpty) {
-            parts.push(`[r${excelRow}] ${csvLine}`);
+            parts.push(`[row${excelRow}] ${csvLine}`);
           } else {
             parts.push(csvLine);
           }
@@ -315,7 +315,7 @@ export class XlsxSheetJsRichStrategy implements ITextExtractorStrategy {
   }
 
   /**
-   * CSVテキストに[rN]マーカーを付与してpartsに追加する
+   * CSVテキストに[rowN]マーカーを付与してpartsに追加する
    */
   private formatCsvWithRowMarkers(
     csv: string,
@@ -328,7 +328,7 @@ export class XlsxSheetJsRichStrategy implements ITextExtractorStrategy {
       const isNonEmpty = csvLine.replace(/,/g, '').trim().length > 0;
       if (isNonEmpty) {
         const excelRow = rangeStartRow + i + 1;
-        parts.push(`[r${excelRow}] ${csvLine}`);
+        parts.push(`[row${excelRow}] ${csvLine}`);
       } else {
         parts.push(csvLine);
       }

@@ -29,10 +29,10 @@ jest.mock('@/main/lib/textExtractor/DocxHtmlToTextConverter', () => ({
 
 // mimeUtils のモック
 const mockGetExtFromMime = jest.fn();
-const mockIsAiCompatibleMime = jest.fn();
+const mockIsAiSupportedImageMime = jest.fn();
 jest.mock('@/main/lib/textExtractor/mimeUtils', () => ({
   getExtFromMime: (...args: any[]) => mockGetExtFromMime(...args),
-  isAiCompatibleMime: (...args: any[]) => mockIsAiCompatibleMime(...args),
+  isAiSupportedImageMime: (...args: any[]) => mockIsAiSupportedImageMime(...args),
 }));
 
 import { DocxMammothRichStrategy } from '@/main/lib/textExtractor/strategies/DocxMammothRichStrategy';
@@ -47,7 +47,7 @@ describe('DocxMammothRichStrategy', () => {
 
     // デフォルトのモック動作
     mockGetExtFromMime.mockReturnValue('png');
-    mockIsAiCompatibleMime.mockReturnValue(true);
+    mockIsAiSupportedImageMime.mockReturnValue(true);
   });
 
   describe('メタ情報', () => {
@@ -214,7 +214,7 @@ describe('DocxMammothRichStrategy', () => {
             const imageHandler = options.convertImage.callback;
 
             // EMF画像（AI非互換）
-            mockIsAiCompatibleMime.mockReturnValueOnce(false);
+            mockIsAiSupportedImageMime.mockReturnValueOnce(false);
             const emfResult = await imageHandler({
               readAsBase64String: async () => 'emf_data',
               contentType: 'image/x-emf',
@@ -251,7 +251,7 @@ describe('DocxMammothRichStrategy', () => {
             const imageHandler = options.convertImage.callback;
 
             // 1つ目: PNG（AI互換）
-            mockIsAiCompatibleMime.mockReturnValueOnce(true);
+            mockIsAiSupportedImageMime.mockReturnValueOnce(true);
             mockGetExtFromMime.mockReturnValueOnce('png');
             const pngResult = await imageHandler({
               readAsBase64String: async () => 'png_base64_data',
@@ -260,7 +260,7 @@ describe('DocxMammothRichStrategy', () => {
             expect(pngResult).toEqual({ src: 'image_1.png' });
 
             // 2つ目: EMF（AI非互換）→ スキップ
-            mockIsAiCompatibleMime.mockReturnValueOnce(false);
+            mockIsAiSupportedImageMime.mockReturnValueOnce(false);
             const emfResult = await imageHandler({
               readAsBase64String: async () => 'emf_data',
               contentType: 'image/x-emf',

@@ -11,7 +11,7 @@ import type {
   ExtractedImage,
 } from '@/types';
 import { DocxHtmlToTextConverter } from '../DocxHtmlToTextConverter';
-import { getExtFromMime, isAiCompatibleMime } from '../mimeUtils';
+import { getExtFromMime, isAiSupportedImageMime } from '../mimeUtils';
 
 /**
  * Word文書（.docx）のリッチ抽出戦略
@@ -44,8 +44,8 @@ export class DocxMammothRichStrategy implements ITextExtractorStrategy {
       const convertImage = mammoth.images.imgElement(async (image) => {
         const mimeType = image.contentType || 'image/png';
 
-        // AI非互換画像はスキップ（EMF, WMF等）
-        if (!isAiCompatibleMime(mimeType)) {
+        // AI非対応画像形式はスキップ（空srcを返しテキストにリンクを埋め込まない）
+        if (!isAiSupportedImageMime(mimeType)) {
           return { src: '' };
         }
 

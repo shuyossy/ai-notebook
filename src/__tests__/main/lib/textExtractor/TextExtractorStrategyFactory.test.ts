@@ -61,7 +61,7 @@ describe('TextExtractorStrategyFactory', () => {
           TextExtractorStrategyFactory.getStrategiesInPriorityOrder('.xlsx');
         expect(strategies).toHaveLength(2);
         expect(strategies[0].getStrategyType()).toBe('xlsx-sheetjs-rich');
-        expect(strategies[0].getFormatType()).toBe('xlsx-rich-v1');
+        expect(strategies[0].getFormatType()).toBe('xlsx-rich-v2');
         expect(strategies[1].getStrategyType()).toBe('powershell-excel');
         expect(strategies[1].getFormatType()).toBe('xlsx-csv-v1');
       });
@@ -78,7 +78,7 @@ describe('TextExtractorStrategyFactory', () => {
           TextExtractorStrategyFactory.getStrategiesInPriorityOrder('.pptx');
         expect(strategies).toHaveLength(2);
         expect(strategies[0].getStrategyType()).toBe('pptx-rich');
-        expect(strategies[0].getFormatType()).toBe('pptx-rich-v1');
+        expect(strategies[0].getFormatType()).toBe('pptx-rich-v2');
         expect(strategies[1].getStrategyType()).toBe('powershell-ppt');
         expect(strategies[1].getFormatType()).toBe('pptx-plain');
       });

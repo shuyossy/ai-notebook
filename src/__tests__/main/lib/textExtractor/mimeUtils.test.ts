@@ -8,8 +8,8 @@ import {
   EXT_TO_MIME,
   getExtFromMime,
   getMimeFromExt,
-  AI_COMPATIBLE_MIME_TYPES,
-  isAiCompatibleMime,
+  isAiSupportedImageExtension,
+  isAiSupportedImageMime,
 } from '@/main/lib/textExtractor/mimeUtils';
 
 describe('mimeUtils', () => {
@@ -165,27 +165,45 @@ describe('mimeUtils', () => {
     });
   });
 
-  describe('AI_COMPATIBLE_MIME_TYPES', () => {
-    it('許可リストが2件であること', () => {
-      expect(AI_COMPATIBLE_MIME_TYPES.size).toBe(2);
+  describe('isAiSupportedImageExtension', () => {
+    describe('正常系', () => {
+      it.each([
+        ['png', true],
+        ['jpg', true],
+        ['jpeg', true],
+        ['PNG', true],
+        ['JPG', true],
+      ])('AIサポート拡張子 "%s" の場合 %s が返ること', (ext, expected) => {
+        expect(isAiSupportedImageExtension(ext)).toBe(expected);
+      });
     });
 
-    it('image/pngが含まれること', () => {
-      expect(AI_COMPATIBLE_MIME_TYPES.has('image/png')).toBe(true);
-    });
+    describe('異常系', () => {
+      it.each([
+        ['emf'],
+        ['wmf'],
+        ['gif'],
+        ['webp'],
+        ['bmp'],
+        ['tiff'],
+        ['svg'],
+      ])('AI非サポート拡張子 "%s" の場合 false が返ること', (ext) => {
+        expect(isAiSupportedImageExtension(ext)).toBe(false);
+      });
 
-    it('image/jpegが含まれること', () => {
-      expect(AI_COMPATIBLE_MIME_TYPES.has('image/jpeg')).toBe(true);
+      it('空文字列の場合 false が返ること', () => {
+        expect(isAiSupportedImageExtension('')).toBe(false);
+      });
     });
   });
 
-  describe('isAiCompatibleMime', () => {
+  describe('isAiSupportedImageMime', () => {
     describe('正常系', () => {
       it.each([
         ['image/png', true],
         ['image/jpeg', true],
-      ])('AI互換MIMEタイプ "%s" の場合 %s が返ること', (mime, expected) => {
-        expect(isAiCompatibleMime(mime)).toBe(expected);
+      ])('AIサポートMIMEタイプ "%s" の場合 %s が返ること', (mime, expected) => {
+        expect(isAiSupportedImageMime(mime)).toBe(expected);
       });
     });
 
@@ -198,20 +216,20 @@ describe('mimeUtils', () => {
         ['image/bmp'],
         ['image/tiff'],
         ['image/svg+xml'],
-      ])('AI非互換MIMEタイプ "%s" の場合 false が返ること', (mime) => {
-        expect(isAiCompatibleMime(mime)).toBe(false);
+      ])('AI非サポートMIMEタイプ "%s" の場合 false が返ること', (mime) => {
+        expect(isAiSupportedImageMime(mime)).toBe(false);
       });
 
       it('空文字列の場合 false が返ること', () => {
-        expect(isAiCompatibleMime('')).toBe(false);
+        expect(isAiSupportedImageMime('')).toBe(false);
       });
 
       it('未知のMIMEタイプの場合 false が返ること', () => {
-        expect(isAiCompatibleMime('image/unknown')).toBe(false);
+        expect(isAiSupportedImageMime('image/unknown')).toBe(false);
       });
 
       it('MIMEタイプ形式でない文字列の場合 false が返ること', () => {
-        expect(isAiCompatibleMime('not-a-mime-type')).toBe(false);
+        expect(isAiSupportedImageMime('not-a-mime-type')).toBe(false);
       });
     });
   });

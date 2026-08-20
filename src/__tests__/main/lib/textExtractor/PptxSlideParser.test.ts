@@ -76,6 +76,52 @@ describe('PptxSlideParser', () => {
         expect(result[1].rId).toBe('rId2');
         expect(result[2].rId).toBe('rId3');
       });
+
+      it('spPr内のxfrmから位置・サイズ情報が抽出されること', () => {
+        const xml = `
+<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+       xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+       xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:cSld><p:spTree>
+    <p:pic>
+      <p:blipFill><a:blip r:embed="rId2"/></p:blipFill>
+      <p:spPr>
+        <a:xfrm>
+          <a:off x="900000" y="1800000"/>
+          <a:ext cx="2700000" cy="1440000"/>
+        </a:xfrm>
+      </p:spPr>
+    </p:pic>
+  </p:spTree></p:cSld>
+</p:sld>`;
+
+        const result = parser.parseImages(xml);
+        expect(result).toHaveLength(1);
+        expect(result[0].rId).toBe('rId2');
+        expect(result[0].position).toEqual({
+          x: 2.5,
+          y: 5.0,
+          cx: 7.5,
+          cy: 4.0,
+        });
+      });
+
+      it('spPrなしの画像はpositionがundefinedになること', () => {
+        const xml = `
+<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+       xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+       xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:cSld><p:spTree>
+    <p:pic>
+      <p:blipFill><a:blip r:embed="rId2"/></p:blipFill>
+    </p:pic>
+  </p:spTree></p:cSld>
+</p:sld>`;
+
+        const result = parser.parseImages(xml);
+        expect(result).toHaveLength(1);
+        expect(result[0].position).toBeUndefined();
+      });
     });
 
     describe('異常系', () => {

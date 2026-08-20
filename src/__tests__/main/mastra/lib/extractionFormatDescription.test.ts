@@ -12,10 +12,12 @@ describe('extractionFormatDescription', () => {
       'md-plain',
       'xlsx-csv-v1',
       'xlsx-rich-v1',
+      'xlsx-rich-v2',
       'docx-plain',
       'docx-rich-v1',
       'pptx-plain',
       'pptx-rich-v1',
+      'pptx-rich-v2',
       'pdf-text-v1',
       'pdf-rich-v1',
       'image-pages',
@@ -44,6 +46,31 @@ describe('extractionFormatDescription', () => {
       expect(description).not.toContain('EMU');
     });
 
+    it('xlsx-rich-v2の説明にシート区切り・[rowN]マーカー・画像リンク・shapeN/connectorNタグ・RFC 4180の記載がある（includeImages=true）', () => {
+      const description = getFormatDescription('xlsx-rich-v2', true);
+      expect(description).toContain('#sheet:');
+      expect(description).toContain('[rowN]');
+      expect(description).toContain('![image');
+      expect(description).toContain('shapeN');
+      expect(description).toContain('connectorN');
+      expect(description).toContain('@');
+      expect(description).toContain('RFC 4180');
+      // 旧マーカー[rN]が含まれないことを確認
+      expect(description).not.toContain('[rN]');
+    });
+
+    it('pptx-rich-v2の説明にスライド区切り・shapeN/connectorNタグ・位置情報付き画像リンク・CSV表・RFC 4180の記載がある（includeImages=true）', () => {
+      const description = getFormatDescription('pptx-rich-v2', true);
+      expect(description).toContain('#slide:');
+      expect(description).toContain('shapeN');
+      expect(description).toContain('connectorN');
+      expect(description).toContain('p:');
+      expect(description).toContain('CSV');
+      expect(description).toContain('![image p:<X>,<Y> sz:<W>,<H>]');
+      expect(description).not.toContain('EMU');
+      expect(description).toContain('RFC 4180');
+    });
+
     it('docx-rich-v1の説明にMarkdownヘッダ・画像リンク・CSV表・RFC 4180の記載がある（includeImages=true）', () => {
       const description = getFormatDescription('docx-rich-v1', true);
       expect(description).toContain('#');
@@ -65,7 +92,7 @@ describe('extractionFormatDescription', () => {
       expect(description).toContain('sN');
       expect(description).toContain('p:');
       expect(description).toContain('CSV');
-      expect(description).toContain('![image]');
+      expect(description).toContain('![image p:<X>,<Y> sz:<W>,<H>]');
       expect(description).toContain('cN');
       expect(description).not.toContain('EMU');
       expect(description).toContain('RFC 4180');
@@ -74,8 +101,10 @@ describe('extractionFormatDescription', () => {
     describe('includeImages=falseの場合、リッチフォーマットの説明に画像関連の記載が含まれない', () => {
       const richFormatsWithImageLines: TextExtractionFormatType[] = [
         'xlsx-rich-v1',
+        'xlsx-rich-v2',
         'docx-rich-v1',
         'pptx-rich-v1',
+        'pptx-rich-v2',
         'pdf-rich-v1',
       ];
 
@@ -150,7 +179,7 @@ describe('extractionFormatDescription', () => {
       expect(result).toContain('DOCUMENT FORMAT INFORMATION:');
       expect(result).toContain('report.xlsx');
       expect(result).toContain('#sheet:');
-      expect(result).toContain('FORMAT NON-DISCLOSURE');
+      expect(result).toContain('NON-DISCLOSURE REQUIREMENT');
     });
 
     it('同じフォーマットの複数ファイルがグループ化される', () => {
@@ -204,9 +233,9 @@ describe('extractionFormatDescription', () => {
           processMode: 'text',
         },
       ]);
-      expect(result).toContain('FORMAT NON-DISCLOSURE');
+      expect(result).toContain('NON-DISCLOSURE REQUIREMENT');
       expect(result).toContain(
-        'MUST NOT reference, mention, or describe any of these conventions',
+        'reference, quote, mention, or paraphrase any of these internal tokens',
       );
       // 全ての内部フォーマット用語が非開示リストに含まれている
       expect(result).toContain('"#sheet:"');
@@ -269,9 +298,12 @@ describe('extractionFormatDescription', () => {
       ]);
       expect(result).toContain('"sN"');
       expect(result).toContain('"cN"');
+      expect(result).toContain('"shapeN"');
+      expect(result).toContain('"connectorN"');
+      expect(result).toContain('"[rowN]"');
       expect(result).toContain('"p:"');
       expect(result).toContain('"sz:"');
-      expect(result).toContain('"@"');
+      expect(result).toContain('"@<CellRange>"');
       expect(result).toContain('"![image"');
     });
 
@@ -302,7 +334,7 @@ describe('extractionFormatDescription', () => {
       expect(result).toContain('doc.txt');
       expect(result).toContain('report.xlsx');
       expect(result).toContain('#sheet:');
-      expect(result).toContain('FORMAT NON-DISCLOSURE');
+      expect(result).toContain('NON-DISCLOSURE REQUIREMENT');
     });
 
     it('同じフォーマットでincludeImagesが異なるファイルは同グループになり、画像ありverの説明が使われる', () => {
@@ -323,7 +355,7 @@ describe('extractionFormatDescription', () => {
       // 同グループとして表示される
       expect(result).toContain('report1.xlsx, report2.xlsx');
       // 1つでもincludeImages=trueがあるので画像ありverの説明が使われる
-      const nonDisclosureIndex = result.indexOf('FORMAT NON-DISCLOSURE');
+      const nonDisclosureIndex = result.indexOf('NON-DISCLOSURE REQUIREMENT');
       const formatDescriptionPart = result.slice(0, nonDisclosureIndex);
       expect(formatDescriptionPart).toContain('![image');
       expect(formatDescriptionPart).toContain('referenceId');
@@ -372,7 +404,7 @@ describe('extractionFormatDescription', () => {
       expect(result).toContain('no-images.xlsx');
       expect(result).toContain('#sheet:');
       // フォーマット説明部分（非開示指示より前）に画像リンクの記述がないことを確認
-      const nonDisclosureIndex = result.indexOf('FORMAT NON-DISCLOSURE');
+      const nonDisclosureIndex = result.indexOf('NON-DISCLOSURE REQUIREMENT');
       const formatDescriptionPart = result.slice(0, nonDisclosureIndex);
       expect(formatDescriptionPart).not.toContain('![image');
       expect(formatDescriptionPart).not.toContain('referenceId');
@@ -415,7 +447,7 @@ describe('extractionFormatDescription', () => {
       // 同グループとして表示される
       expect(result).toContain('report1.xlsx, report2.xlsx');
       // 全ファイルがincludeImages=falseなので画像なしverの説明が使われる
-      const nonDisclosureIndex = result.indexOf('FORMAT NON-DISCLOSURE');
+      const nonDisclosureIndex = result.indexOf('NON-DISCLOSURE REQUIREMENT');
       const formatDescriptionPart = result.slice(0, nonDisclosureIndex);
       expect(formatDescriptionPart).not.toContain('![image');
       expect(formatDescriptionPart).not.toContain('referenceId');
@@ -429,10 +461,12 @@ describe('extractionFormatDescription', () => {
       'md-plain',
       'xlsx-csv-v1',
       'xlsx-rich-v1',
+      'xlsx-rich-v2',
       'docx-plain',
       'docx-rich-v1',
       'pptx-plain',
       'pptx-rich-v1',
+      'pptx-rich-v2',
       'pdf-text-v1',
       'pdf-rich-v1',
       'image-pages',

@@ -170,6 +170,26 @@ describe('formatImageTag', () => {
     it('cellRangeがundefinedの場合、シンプルなタグが生成されること', () => {
       expect(formatImageTag('img.png', undefined)).toBe('![image](img.png)');
     });
+
+    it('positionありの場合、p:/sz:付きタグが生成されること（PPTX用）', () => {
+      const position: PositionInfo = { x: 2.5, y: 5.0, cx: 7.5, cy: 4.0 };
+      expect(formatImageTag('image_1.png', undefined, position)).toBe(
+        '![image p:2.5,5.0 sz:7.5,4.0](image_1.png)',
+      );
+    });
+
+    it('positionとcellRange両方指定時は両方が出力されること', () => {
+      const cellRange: CellRange = {
+        fromCol: 0,
+        fromRow: 5,
+        toCol: 2,
+        toRow: 10,
+      };
+      const position: PositionInfo = { x: 1.0, y: 2.0, cx: 3.0, cy: 4.0 };
+      expect(formatImageTag('image_1.png', cellRange, position)).toBe(
+        '![image p:1.0,2.0 sz:3.0,4.0 at A6-C11](image_1.png)',
+      );
+    });
   });
 });
 

@@ -20,7 +20,7 @@ import {
   getArrowSymbol,
 } from '../XlsxDrawingParser';
 import type { DrawingShapeText, DrawingConnector } from '../XlsxDrawingParser';
-import { getMimeFromExt, isAiCompatibleMime } from '../mimeUtils';
+import { getMimeFromExt, isAiSupportedImageExtension } from '../mimeUtils';
 import { getMainLogger } from '@/main/lib/logger';
 
 /**
@@ -53,7 +53,7 @@ export class PptxRichExtractorStrategy implements ITextExtractorStrategy {
   }
 
   getFormatType(): TextExtractionFormatType {
-    return 'pptx-rich-v1';
+    return 'pptx-rich-v2';
   }
 
   async extract(filePath: string): Promise<TextExtractionResult> {
@@ -142,15 +142,15 @@ export class PptxRichExtractorStrategy implements ITextExtractorStrategy {
             if (!imgFile) continue;
 
             const ext = path.extname(imgPath).slice(1).toLowerCase() || 'png';
-            const mimeType = getMimeFromExt(ext);
 
-            // AI非互換画像はスキップ（EMF, WMF等）
-            if (!isAiCompatibleMime(mimeType)) {
+            // AI非対応画像はスキップ（EMF, WMF等）
+            if (!isAiSupportedImageExtension(ext)) {
               continue;
             }
 
             imageCounter++;
             const imgBuffer = await imgFile.async('nodebuffer');
+            const mimeType = getMimeFromExt(ext);
             const referenceId = `image_${imageCounter}.${ext}`;
 
             allImages.push({
@@ -159,7 +159,7 @@ export class PptxRichExtractorStrategy implements ITextExtractorStrategy {
               mimeType,
             });
 
-            parts.push(formatImageTag(referenceId));
+            parts.push(formatImageTag(referenceId, undefined, img.position));
           }
         }
 
@@ -171,7 +171,7 @@ export class PptxRichExtractorStrategy implements ITextExtractorStrategy {
               parts.push(shape.text);
             } else {
               drawingCounter++;
-              const shapeId = `s${drawingCounter}`;
+              const shapeId = `shape${drawingCounter}`;
 
               if (shape.drawingObjectId !== undefined) {
                 drawingObjectIdToShapeId.set(shape.drawingObjectId, shapeId);
@@ -199,7 +199,7 @@ export class PptxRichExtractorStrategy implements ITextExtractorStrategy {
           // コネクタを処理
           for (const connector of result.connectors) {
             drawingCounter++;
-            const connectorId = `c${drawingCounter}`;
+            const connectorId = `connector${drawingCounter}`;
 
             const arrowSymbol = getArrowSymbol(
               connector.headEndType,
