@@ -1,152 +1,1401 @@
-diff --git a/src/mastra/agents/prompts.ts b/src/mastra/agents/prompts.ts
-index facd02110..852241bf6 100644
---- a/src/mastra/agents/prompts.ts
-+++ b/src/mastra/agents/prompts.ts
-@@ -598,9 +598,10 @@ IMPORTANT CONTEXT:
- - Include ALL relevant information in your comments that will help in final consolidation
+diff --git a/CLAUDE.md b/CLAUDE.md
+index d1c4c6b88..91519f7de 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -243,10 +243,34 @@ ElectronのIPCを使用してフロントエンド・バックエンド間の通
+ ```
  
- DOCUMENT PART CONTEXT:
--- If the document name contains "(part X)" or similar indicators, you are reviewing a split portion
-+- If the document name contains "_part" or similar indicators, you are reviewing a split portion
- - Focus on what's available in this specific part while being aware it's part of a larger whole
- - Look for incomplete information that might be continued in other parts
-+- IMPORTANT: Document splitting is an internal system process. Never mention "part", "_part", "split", "chunk", or document splitting terminology in your comments. Reference content using the document's natural sections, chapters, or page numbers.
+ # ID: 1
+-- PBI名: 失敗しているテストの分析
++- PBI名: 新規Electronアプリ開発に向けたノウハウ抽出 
+ - ステータス: to do
++- 背景
++  - 別のElectronアプリの作成が決定しており、このプロジェクトで培ったロギング、メッセージング、エラーハンドリング等の汎用的な仕組みを再利用できるようにしたい
++  - 初期のカスタムボイラープレートを`/Users/yoshidashuhei/Documents/vscode_workspace/electron-react-boilerplate-custom`に配置済み
++    - `electron-react-boilerplate`のコピー
+ - 受け入れ基準
+-  - 以下のテストが一部失敗しているので、プロダクションコード・テストコードどちらに問題があるのか分析し、最終的に全てのテストがパスしている状態にすること
+-    - `executeReview.test.ts`
++  - カスタムボイラープレートに対し、以下の変更が加えられていること
++    - 本プロジェクトから、ロギング、メッセージング、エラーハンドリング、IPC通信周り、カスタムAPPDATAの仕組みがコピーされていること
++      - 一部コードが汚い場合があるので、リファクタリングが必要であれば実施すること
++    - テストランナーがjestからvitestに変更されていること
++    - テストについてはunit,integration,e2eディレクトリに分けること
++      - 実際に作成するテストは本プロジェクトからコピーしてきたモジュールのみで良い
++    - docsフォルダに以下の設計書が作成されていること
++      - 技術設計書（以下のセクションを含む）
++        - フォルダ構成
++        - IPC通信
++        - エラーハンドリング
++        - ロギング
++        - メッセージング
++  - カスタムボイラープレートのビルドが成功し、アプリもエラーなく起動できること
+ - 注意事項
++  - `実装上の注意`セクションはあくまで本プロジェクトにおける実装上の注意である
++  - ボイラープレート整備には関係ないので注意
+ - 指摘事項（in progressの場合のみ）
++- 指摘事項
++  - ~~prettierやeslint等の各種lintが問題ないか確認する必要がある~~ → 対応済み
++    - `npm run lint` がランタイム生成物(`dev_appdata`)と`.erb`の走査でハングしていたため、`.eslintignore`/`.prettierignore`で除外
++    - 派生元(ai-notebook)の規約に合わせて`.eslintrc.js`のルール（`import/prefer-default-export`,`class-methods-use-this`,`no-restricted-syntax`,test向けenv）を整合
++    - `eslint --fix`/`prettier --write`でフォーマット修正、`format`スクリプトを追加
++    - 結果: `npm run check`/`npm run lint`/prettier/`npm test`/`npm run build` が全てエラーなく完了
+diff --git a/src/__tests__/main/lib/textExtractor/PptxSlideParser.test.ts b/src/__tests__/main/lib/textExtractor/PptxSlideParser.test.ts
+index 1cf28e0b9..edec8bdd2 100644
+--- a/src/__tests__/main/lib/textExtractor/PptxSlideParser.test.ts
++++ b/src/__tests__/main/lib/textExtractor/PptxSlideParser.test.ts
+@@ -76,6 +76,52 @@ describe('PptxSlideParser', () => {
+         expect(result[1].rId).toBe('rId2');
+         expect(result[2].rId).toBe('rId3');
+       });
++
++      it('spPr内のxfrmから位置・サイズ情報が抽出されること', () => {
++        const xml = `
++<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
++       xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
++       xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
++  <p:cSld><p:spTree>
++    <p:pic>
++      <p:blipFill><a:blip r:embed="rId2"/></p:blipFill>
++      <p:spPr>
++        <a:xfrm>
++          <a:off x="900000" y="1800000"/>
++          <a:ext cx="2700000" cy="1440000"/>
++        </a:xfrm>
++      </p:spPr>
++    </p:pic>
++  </p:spTree></p:cSld>
++</p:sld>`;
++
++        const result = parser.parseImages(xml);
++        expect(result).toHaveLength(1);
++        expect(result[0].rId).toBe('rId2');
++        expect(result[0].position).toEqual({
++          x: 2.5,
++          y: 5.0,
++          cx: 7.5,
++          cy: 4.0,
++        });
++      });
++
++      it('spPrなしの画像はpositionがundefinedになること', () => {
++        const xml = `
++<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
++       xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
++       xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
++  <p:cSld><p:spTree>
++    <p:pic>
++      <p:blipFill><a:blip r:embed="rId2"/></p:blipFill>
++    </p:pic>
++  </p:spTree></p:cSld>
++</p:sld>`;
++
++        const result = parser.parseImages(xml);
++        expect(result).toHaveLength(1);
++        expect(result[0].position).toBeUndefined();
++      });
+     });
  
- Checklist items to evaluate:
- ${formattedList}
-@@ -998,6 +999,7 @@ CONSOLIDATION CONTEXT:
- - Each individual review provides detailed analysis of specific document portions
- - Your task is to synthesize these individual reviews into a unified, comprehensive assessment
- - Some documents may have been split into parts due to length constraints
-+- Documents that exceed context length are split into sequential chunks named with the "_partN" suffix (e.g., "document.pdf_part1", "document.pdf_part2"). This is an internal system process; never reference this naming convention or the splitting process in your output.
+     describe('異常系', () => {
+diff --git a/src/__tests__/main/lib/textExtractor/TextExtractorStrategyFactory.test.ts b/src/__tests__/main/lib/textExtractor/TextExtractorStrategyFactory.test.ts
+index 32afd5235..1c7a27d41 100644
+--- a/src/__tests__/main/lib/textExtractor/TextExtractorStrategyFactory.test.ts
++++ b/src/__tests__/main/lib/textExtractor/TextExtractorStrategyFactory.test.ts
+@@ -61,7 +61,7 @@ describe('TextExtractorStrategyFactory', () => {
+           TextExtractorStrategyFactory.getStrategiesInPriorityOrder('.xlsx');
+         expect(strategies).toHaveLength(2);
+         expect(strategies[0].getStrategyType()).toBe('xlsx-sheetjs-rich');
+-        expect(strategies[0].getFormatType()).toBe('xlsx-rich-v1');
++        expect(strategies[0].getFormatType()).toBe('xlsx-rich-v2');
+         expect(strategies[1].getStrategyType()).toBe('powershell-excel');
+         expect(strategies[1].getFormatType()).toBe('xlsx-csv-v1');
+       });
+@@ -78,7 +78,7 @@ describe('TextExtractorStrategyFactory', () => {
+           TextExtractorStrategyFactory.getStrategiesInPriorityOrder('.pptx');
+         expect(strategies).toHaveLength(2);
+         expect(strategies[0].getStrategyType()).toBe('pptx-rich');
+-        expect(strategies[0].getFormatType()).toBe('pptx-rich-v1');
++        expect(strategies[0].getFormatType()).toBe('pptx-rich-v2');
+         expect(strategies[1].getStrategyType()).toBe('powershell-ppt');
+         expect(strategies[1].getFormatType()).toBe('pptx-plain');
+       });
+diff --git a/src/__tests__/main/lib/textExtractor/XlsxDrawingParser.test.ts b/src/__tests__/main/lib/textExtractor/XlsxDrawingParser.test.ts
+index da6b54067..e33031274 100644
+--- a/src/__tests__/main/lib/textExtractor/XlsxDrawingParser.test.ts
++++ b/src/__tests__/main/lib/textExtractor/XlsxDrawingParser.test.ts
+@@ -170,6 +170,26 @@ describe('formatImageTag', () => {
+     it('cellRangeがundefinedの場合、シンプルなタグが生成されること', () => {
+       expect(formatImageTag('img.png', undefined)).toBe('![image](img.png)');
+     });
++
++    it('positionありの場合、p:/sz:付きタグが生成されること（PPTX用）', () => {
++      const position: PositionInfo = { x: 2.5, y: 5.0, cx: 7.5, cy: 4.0 };
++      expect(formatImageTag('image_1.png', undefined, position)).toBe(
++        '![image p:2.5,5.0 sz:7.5,4.0](image_1.png)',
++      );
++    });
++
++    it('positionとcellRange両方指定時は両方が出力されること', () => {
++      const cellRange: CellRange = {
++        fromCol: 0,
++        fromRow: 5,
++        toCol: 2,
++        toRow: 10,
++      };
++      const position: PositionInfo = { x: 1.0, y: 2.0, cx: 3.0, cy: 4.0 };
++      expect(formatImageTag('image_1.png', cellRange, position)).toBe(
++        '![image p:1.0,2.0 sz:3.0,4.0 at A6-C11](image_1.png)',
++      );
++    });
+   });
+ });
  
- Checklist items for final evaluation:
- ${formattedList}
-@@ -1043,7 +1045,8 @@ ${actualFormat}
-    d) Give actionable improvement suggestions based on the complete analysis
-    e) Write as if you reviewed the complete original document set directly
-    f) Always use the original file names when mentioning documents in your consolidated comments
--   g) **Do NOT mention** "individual document review", "consolidation", or any internal process terms
-+   g) **Do NOT mention** "individual document review", "consolidation", "part", "chunk", "split", "_part", or any internal process terms in your output
-+   h) Never reveal that documents were split into parts for processing; always use original file names only
+diff --git a/src/__tests__/main/lib/textExtractor/mimeUtils.test.ts b/src/__tests__/main/lib/textExtractor/mimeUtils.test.ts
+index 3c85409ee..5fab81747 100644
+--- a/src/__tests__/main/lib/textExtractor/mimeUtils.test.ts
++++ b/src/__tests__/main/lib/textExtractor/mimeUtils.test.ts
+@@ -8,8 +8,8 @@ import {
+   EXT_TO_MIME,
+   getExtFromMime,
+   getMimeFromExt,
+-  AI_COMPATIBLE_MIME_TYPES,
+-  isAiCompatibleMime,
++  isAiSupportedImageExtension,
++  isAiSupportedImageMime,
+ } from '@/main/lib/textExtractor/mimeUtils';
  
- 5. Rating assignment logic:
-    - **Most Important**: Base your rating on the checklist item's requirement type (individual vs. unified)
+ describe('mimeUtils', () => {
+@@ -165,27 +165,45 @@ describe('mimeUtils', () => {
+     });
+   });
+ 
+-  describe('AI_COMPATIBLE_MIME_TYPES', () => {
+-    it('許可リストが2件であること', () => {
+-      expect(AI_COMPATIBLE_MIME_TYPES.size).toBe(2);
++  describe('isAiSupportedImageExtension', () => {
++    describe('正常系', () => {
++      it.each([
++        ['png', true],
++        ['jpg', true],
++        ['jpeg', true],
++        ['PNG', true],
++        ['JPG', true],
++      ])('AIサポート拡張子 "%s" の場合 %s が返ること', (ext, expected) => {
++        expect(isAiSupportedImageExtension(ext)).toBe(expected);
++      });
+     });
+ 
+-    it('image/pngが含まれること', () => {
+-      expect(AI_COMPATIBLE_MIME_TYPES.has('image/png')).toBe(true);
+-    });
++    describe('異常系', () => {
++      it.each([
++        ['emf'],
++        ['wmf'],
++        ['gif'],
++        ['webp'],
++        ['bmp'],
++        ['tiff'],
++        ['svg'],
++      ])('AI非サポート拡張子 "%s" の場合 false が返ること', (ext) => {
++        expect(isAiSupportedImageExtension(ext)).toBe(false);
++      });
+ 
+-    it('image/jpegが含まれること', () => {
+-      expect(AI_COMPATIBLE_MIME_TYPES.has('image/jpeg')).toBe(true);
++      it('空文字列の場合 false が返ること', () => {
++        expect(isAiSupportedImageExtension('')).toBe(false);
++      });
+     });
+   });
+ 
+-  describe('isAiCompatibleMime', () => {
++  describe('isAiSupportedImageMime', () => {
+     describe('正常系', () => {
+       it.each([
+         ['image/png', true],
+         ['image/jpeg', true],
+-      ])('AI互換MIMEタイプ "%s" の場合 %s が返ること', (mime, expected) => {
+-        expect(isAiCompatibleMime(mime)).toBe(expected);
++      ])('AIサポートMIMEタイプ "%s" の場合 %s が返ること', (mime, expected) => {
++        expect(isAiSupportedImageMime(mime)).toBe(expected);
+       });
+     });
+ 
+@@ -198,20 +216,20 @@ describe('mimeUtils', () => {
+         ['image/bmp'],
+         ['image/tiff'],
+         ['image/svg+xml'],
+-      ])('AI非互換MIMEタイプ "%s" の場合 false が返ること', (mime) => {
+-        expect(isAiCompatibleMime(mime)).toBe(false);
++      ])('AI非サポートMIMEタイプ "%s" の場合 false が返ること', (mime) => {
++        expect(isAiSupportedImageMime(mime)).toBe(false);
+       });
+ 
+       it('空文字列の場合 false が返ること', () => {
+-        expect(isAiCompatibleMime('')).toBe(false);
++        expect(isAiSupportedImageMime('')).toBe(false);
+       });
+ 
+       it('未知のMIMEタイプの場合 false が返ること', () => {
+-        expect(isAiCompatibleMime('image/unknown')).toBe(false);
++        expect(isAiSupportedImageMime('image/unknown')).toBe(false);
+       });
+ 
+       it('MIMEタイプ形式でない文字列の場合 false が返ること', () => {
+-        expect(isAiCompatibleMime('not-a-mime-type')).toBe(false);
++        expect(isAiSupportedImageMime('not-a-mime-type')).toBe(false);
+       });
+     });
+   });
+diff --git a/src/__tests__/main/lib/textExtractor/strategies/DocxMammothRichStrategy.test.ts b/src/__tests__/main/lib/textExtractor/strategies/DocxMammothRichStrategy.test.ts
+index 4bef4f618..57a4b6861 100644
+--- a/src/__tests__/main/lib/textExtractor/strategies/DocxMammothRichStrategy.test.ts
++++ b/src/__tests__/main/lib/textExtractor/strategies/DocxMammothRichStrategy.test.ts
+@@ -29,10 +29,10 @@ jest.mock('@/main/lib/textExtractor/DocxHtmlToTextConverter', () => ({
+ 
+ // mimeUtils のモック
+ const mockGetExtFromMime = jest.fn();
+-const mockIsAiCompatibleMime = jest.fn();
++const mockIsAiSupportedImageMime = jest.fn();
+ jest.mock('@/main/lib/textExtractor/mimeUtils', () => ({
+   getExtFromMime: (...args: any[]) => mockGetExtFromMime(...args),
+-  isAiCompatibleMime: (...args: any[]) => mockIsAiCompatibleMime(...args),
++  isAiSupportedImageMime: (...args: any[]) => mockIsAiSupportedImageMime(...args),
+ }));
+ 
+ import { DocxMammothRichStrategy } from '@/main/lib/textExtractor/strategies/DocxMammothRichStrategy';
+@@ -47,7 +47,7 @@ describe('DocxMammothRichStrategy', () => {
+ 
+     // デフォルトのモック動作
+     mockGetExtFromMime.mockReturnValue('png');
+-    mockIsAiCompatibleMime.mockReturnValue(true);
++    mockIsAiSupportedImageMime.mockReturnValue(true);
+   });
+ 
+   describe('メタ情報', () => {
+@@ -214,7 +214,7 @@ describe('DocxMammothRichStrategy', () => {
+             const imageHandler = options.convertImage.callback;
+ 
+             // EMF画像（AI非互換）
+-            mockIsAiCompatibleMime.mockReturnValueOnce(false);
++            mockIsAiSupportedImageMime.mockReturnValueOnce(false);
+             const emfResult = await imageHandler({
+               readAsBase64String: async () => 'emf_data',
+               contentType: 'image/x-emf',
+@@ -251,7 +251,7 @@ describe('DocxMammothRichStrategy', () => {
+             const imageHandler = options.convertImage.callback;
+ 
+             // 1つ目: PNG（AI互換）
+-            mockIsAiCompatibleMime.mockReturnValueOnce(true);
++            mockIsAiSupportedImageMime.mockReturnValueOnce(true);
+             mockGetExtFromMime.mockReturnValueOnce('png');
+             const pngResult = await imageHandler({
+               readAsBase64String: async () => 'png_base64_data',
+@@ -260,7 +260,7 @@ describe('DocxMammothRichStrategy', () => {
+             expect(pngResult).toEqual({ src: 'image_1.png' });
+ 
+             // 2つ目: EMF（AI非互換）→ スキップ
+-            mockIsAiCompatibleMime.mockReturnValueOnce(false);
++            mockIsAiSupportedImageMime.mockReturnValueOnce(false);
+             const emfResult = await imageHandler({
+               readAsBase64String: async () => 'emf_data',
+               contentType: 'image/x-emf',
+diff --git a/src/__tests__/main/lib/textExtractor/strategies/PptxRichExtractorStrategy.test.ts b/src/__tests__/main/lib/textExtractor/strategies/PptxRichExtractorStrategy.test.ts
+index 2623b57f0..130fa4cff 100644
+--- a/src/__tests__/main/lib/textExtractor/strategies/PptxRichExtractorStrategy.test.ts
++++ b/src/__tests__/main/lib/textExtractor/strategies/PptxRichExtractorStrategy.test.ts
+@@ -60,10 +60,10 @@ jest.mock('@/main/lib/textExtractor/XlsxDrawingParser', () => ({
+ 
+ // mimeUtils モック
+ const mockGetMimeFromExt = jest.fn();
+-const mockIsAiCompatibleMime = jest.fn();
++const mockIsAiSupportedImageExtension = jest.fn();
+ jest.mock('@/main/lib/textExtractor/mimeUtils', () => ({
+   getMimeFromExt: (...args: any[]) => mockGetMimeFromExt(...args),
+-  isAiCompatibleMime: (...args: any[]) => mockIsAiCompatibleMime(...args),
++  isAiSupportedImageExtension: (...args: any[]) => mockIsAiSupportedImageExtension(...args),
+ }));
+ 
+ // JSZip モック
+@@ -187,7 +187,7 @@ describe('PptxRichExtractorStrategy', () => {
+ 
+     // デフォルトのモック設定
+     mockGetMimeFromExt.mockReturnValue('image/png');
+-    mockIsAiCompatibleMime.mockReturnValue(true);
++    mockIsAiSupportedImageExtension.mockReturnValue(true);
+     mockFormatImageTag.mockImplementation(
+       (refId: string) => `![image](${refId})`,
+     );
+@@ -206,8 +206,8 @@ describe('PptxRichExtractorStrategy', () => {
+       expect(strategy.getStrategyType()).toBe('pptx-rich');
+     });
+ 
+-    it('フォーマットタイプがpptx-rich-v1であること', () => {
+-      expect(strategy.getFormatType()).toBe('pptx-rich-v1');
++    it('フォーマットタイプがpptx-rich-v2であること', () => {
++      expect(strategy.getFormatType()).toBe('pptx-rich-v2');
+     });
+   });
+ 
+@@ -406,7 +406,7 @@ describe('PptxRichExtractorStrategy', () => {
+ 
+         // Assert
+         expect(result.content).toContain('[s1:rect] Shape Content');
+-        expect(mockFormatDrawingTagFull).toHaveBeenCalledWith('s1', {
++        expect(mockFormatDrawingTagFull).toHaveBeenCalledWith('shape1', {
+           presetGeometry: 'rect',
+         });
+       });
+@@ -505,11 +505,11 @@ describe('PptxRichExtractorStrategy', () => {
+ 
+         // Assert
+         expect(mockGetArrowSymbol).toHaveBeenCalledWith('none', 'triangle');
+-        // s1, s2は図形、c3がコネクタ
++        // shape1, shape2は図形、connector3がコネクタ
+         expect(mockFormatDrawingTagFull).toHaveBeenCalledWith(
+-          'c3',
++          'connector3',
+           { presetGeometry: 'straightConnector1' },
+-          's1->s2',
++          'shape1->shape2',
+         );
+       });
+ 
+@@ -658,7 +658,7 @@ describe('PptxRichExtractorStrategy', () => {
+ 
+         // WMF → AI非互換
+         mockGetMimeFromExt.mockReturnValue('image/x-wmf');
+-        mockIsAiCompatibleMime.mockReturnValue(false);
++        mockIsAiSupportedImageExtension.mockReturnValue(false);
+ 
+         // Act
+         const result = await strategy.extract('/path/to/test.pptx');
+@@ -725,10 +725,8 @@ describe('PptxRichExtractorStrategy', () => {
+         mockSlideParseTables.mockReturnValue([]);
+ 
+         // PNG → 互換, WMF → 非互換
+-        mockGetMimeFromExt
+-          .mockReturnValueOnce('image/png')
+-          .mockReturnValueOnce('image/x-wmf');
+-        mockIsAiCompatibleMime
++        mockGetMimeFromExt.mockReturnValue('image/png');
++        mockIsAiSupportedImageExtension
+           .mockReturnValueOnce(true)
+           .mockReturnValueOnce(false);
+         mockFormatImageTag.mockReturnValue('![image](image_1.png)');
+diff --git a/src/__tests__/main/lib/textExtractor/strategies/XlsxSheetJsRichStrategy.test.ts b/src/__tests__/main/lib/textExtractor/strategies/XlsxSheetJsRichStrategy.test.ts
+index 232a75ab1..da360c858 100644
+--- a/src/__tests__/main/lib/textExtractor/strategies/XlsxSheetJsRichStrategy.test.ts
++++ b/src/__tests__/main/lib/textExtractor/strategies/XlsxSheetJsRichStrategy.test.ts
+@@ -61,10 +61,10 @@ jest.mock('@/main/lib/textExtractor/XlsxDrawingParser', () => ({
+ 
+ // mimeUtils モック
+ const mockGetMimeFromExt = jest.fn();
+-const mockIsAiCompatibleMime = jest.fn();
++const mockIsAiSupportedImageExtension = jest.fn();
+ jest.mock('@/main/lib/textExtractor/mimeUtils', () => ({
+   getMimeFromExt: (...args: any[]) => mockGetMimeFromExt(...args),
+-  isAiCompatibleMime: (...args: any[]) => mockIsAiCompatibleMime(...args),
++  isAiSupportedImageExtension: (...args: any[]) => mockIsAiSupportedImageExtension(...args),
+ }));
+ 
+ // JSZip モック
+@@ -154,7 +154,7 @@ describe('XlsxSheetJsRichStrategy', () => {
+ 
+     // デフォルトのモック設定
+     mockGetMimeFromExt.mockReturnValue('image/png');
+-    mockIsAiCompatibleMime.mockReturnValue(true);
++    mockIsAiSupportedImageExtension.mockReturnValue(true);
+     mockFormatImageTag.mockImplementation((refId: string, cellRange?: any) =>
+       cellRange ? `![image at A1-C3](${refId})` : `![image](${refId})`,
+     );
+@@ -173,8 +173,8 @@ describe('XlsxSheetJsRichStrategy', () => {
+       expect(strategy.getStrategyType()).toBe('xlsx-sheetjs-rich');
+     });
+ 
+-    it('フォーマットタイプがxlsx-rich-v1であること', () => {
+-      expect(strategy.getFormatType()).toBe('xlsx-rich-v1');
++    it('フォーマットタイプがxlsx-rich-v2であること', () => {
++      expect(strategy.getFormatType()).toBe('xlsx-rich-v2');
+     });
+   });
+ 
+@@ -205,8 +205,8 @@ describe('XlsxSheetJsRichStrategy', () => {
+ 
+         // Assert
+         expect(result.content).toContain('#sheet:Sheet1');
+-        expect(result.content).toContain('[r1] A,B,C');
+-        expect(result.content).toContain('[r2] 1,2,3');
++        expect(result.content).toContain('[row1] A,B,C');
++        expect(result.content).toContain('[row2] 1,2,3');
+         expect(result.images).toEqual([]);
+         expect(mockReadFile).toHaveBeenCalledWith('/path/to/test.xlsx');
+       });
+@@ -494,13 +494,13 @@ describe('XlsxSheetJsRichStrategy', () => {
+         const result = await strategy.extract('/path/to/test.xlsx');
+ 
+         // Assert
+-        // s1(Start), s2(End), c3のコネクタが生成される
++        // shape1(Start), shape2(End), connector3のコネクタが生成される
+         expect(result.content).toContain('#sheet:Sheet1');
+         expect(mockGetArrowSymbol).toHaveBeenCalledWith('none', 'triangle');
+         expect(mockFormatDrawingTagFull).toHaveBeenCalledWith(
+-          'c3',
++          'connector3',
+           { presetGeometry: 'straightConnector1' },
+-          's1->s2',
++          'shape1->shape2',
+         );
+       });
+ 
+@@ -573,7 +573,7 @@ describe('XlsxSheetJsRichStrategy', () => {
+           undefined,
+         );
+         expect(mockFormatDrawingTagFull).toHaveBeenCalledWith(
+-          'c1',
++          'connector1',
+           {
+             presetGeometry: 'straightConnector1',
+             cellRange: { fromCol: 0, fromRow: 2, toCol: 3, toRow: 5 },
+@@ -622,7 +622,7 @@ describe('XlsxSheetJsRichStrategy', () => {
+         mockResolveRelativePath.mockReturnValue('xl/drawings/drawing1.xml');
+         mockParseImages.mockReturnValue([]);
+         mockResolveImagePaths.mockReturnValue(new Map());
+-        // s1を登録（drawingObjectId=10）
++        // shape1を登録（drawingObjectId=10）
+         mockParseShapeTexts.mockReturnValue([
+           {
+             text: 'Start',
+@@ -655,18 +655,18 @@ describe('XlsxSheetJsRichStrategy', () => {
+         await strategy.extract('/path/to/test.xlsx');
+ 
+         // Assert
+-        // startLabel=s1（解決済み）、endLabel=D6（セル範囲から）
++        // startLabel=shape1（解決済み）、endLabel=D6（セル範囲から）
+         expect(mockFormatDrawingTagFull).toHaveBeenCalledWith(
+-          'c2',
++          'connector2',
+           {
+             presetGeometry: 'straightConnector1',
+             cellRange: { fromCol: 0, fromRow: 2, toCol: 3, toRow: 5 },
+           },
+-          's1->D6',
++          'shape1->D6',
+         );
+       });
+ 
+-      it('[rN]マーカーが正しく付与されること', async () => {
++      it('[rowN]マーカーが正しく付与されること', async () => {
+         // Arrange
+         const fileBuffer = Buffer.from('dummy-xlsx');
+         mockReadFile.mockResolvedValue(fileBuffer);
+@@ -690,9 +690,9 @@ describe('XlsxSheetJsRichStrategy', () => {
+ 
+         // Assert
+         // rangeStartRow=2なので、行番号はExcel行3,4,5になる
+-        expect(result.content).toContain('[r3] X,Y,Z');
+-        expect(result.content).toContain('[r4] 1,2,3');
+-        expect(result.content).toContain('[r5] 4,5,6');
++        expect(result.content).toContain('[row3] X,Y,Z');
++        expect(result.content).toContain('[row4] 1,2,3');
++        expect(result.content).toContain('[row5] 4,5,6');
+       });
+ 
+       it('空行にはマーカーが付与されないこと', async () => {
+@@ -719,12 +719,12 @@ describe('XlsxSheetJsRichStrategy', () => {
+ 
+         // Assert
+         const lines = result.content.split('\n');
+-        // #sheet:Sheet1, [r1] A,B,C, (空行), [r3] 1,2,3
+-        expect(lines).toContain('[r1] A,B,C');
++        // #sheet:Sheet1, [row1] A,B,C, (空行), [row3] 1,2,3
++        expect(lines).toContain('[row1] A,B,C');
+         expect(lines).toContain(',,');
+-        expect(lines).toContain('[r3] 1,2,3');
+-        // 空行には[rN]が付与されていないことを確認
+-        expect(lines.find((l) => l.includes('[r2]'))).toBeUndefined();
++        expect(lines).toContain('[row3] 1,2,3');
++        // 空行には[rowN]が付与されていないことを確認
++        expect(lines.find((l) => l.includes('[row2]'))).toBeUndefined();
+       });
+ 
+       it('シートにsheetデータがnullの場合スキップされること', async () => {
+@@ -775,7 +775,7 @@ describe('XlsxSheetJsRichStrategy', () => {
+ 
+         // Assert
+         // rangeStartRow=0のため、行番号は1から開始
+-        expect(result.content).toContain('[r1] A,B');
++        expect(result.content).toContain('[row1] A,B');
+         // decode_rangeは呼ばれないこと
+         expect(mockDecodeRange).not.toHaveBeenCalled();
+       });
+@@ -889,13 +889,13 @@ describe('XlsxSheetJsRichStrategy', () => {
+         const result = await strategy.extract('/path/to/test.xlsx');
+ 
+         // Assert
+-        // 描画要素がないためCSVに[rN]マーカーが付与される
+-        expect(result.content).toContain('[r1] A');
++        // 描画要素がないためCSVに[rowN]マーカーが付与される
++        expect(result.content).toContain('[row1] A');
+       });
+     });
+ 
+-    describe('セル内改行の[rN]マーカー付与', () => {
+-      it('セル内改行を含むCSVで行ごとに正しく[rN]マーカーが付与される', async () => {
++    describe('セル内改行の[rowN]マーカー付与', () => {
++      it('セル内改行を含むCSVで行ごとに正しく[rowN]マーカーが付与される', async () => {
+         // Arrange
+         const fileBuffer = Buffer.from('dummy-xlsx');
+         mockReadFile.mockResolvedValue(fileBuffer);
+@@ -922,11 +922,11 @@ describe('XlsxSheetJsRichStrategy', () => {
+         const lines = result.content.split('\n');
+ 
+         // Assert
+-        const rowLines = lines.filter((l: string) => /^\[r\d+\] /.test(l));
+-        // セル内改行があっても行ごとに1つの[rN]マーカーが付与される（2行分）
++        const rowLines = lines.filter((l: string) => /^\[row\d+\] /.test(l));
++        // セル内改行があっても行ごとに1つの[rowN]マーカーが付与される（2行分）
+         expect(rowLines).toHaveLength(2);
+-        expect(rowLines[0]).toMatch(/^\[r1\]/);
+-        expect(rowLines[1]).toMatch(/^\[r2\]/);
++        expect(rowLines[0]).toMatch(/^\[row1\]/);
++        expect(rowLines[1]).toMatch(/^\[row2\]/);
+       });
+ 
+       it('セル内改行を含むセルがRFC 4180形式（ダブルクォート囲み）で出力される', async () => {
+@@ -955,9 +955,9 @@ describe('XlsxSheetJsRichStrategy', () => {
+ 
+         // Assert
+         // 改行を含むセルがダブルクォートで囲まれていること
+-        expect(result.content).toContain('[r1] 通常セル,"改行\nあり"');
++        expect(result.content).toContain('[row1] 通常セル,"改行\nあり"');
+         // 通常セルはダブルクォートで囲まれない
+-        expect(result.content).toMatch(/\[r1\] 通常セル,/);
++        expect(result.content).toMatch(/\[row1\] 通常セル,/);
+       });
+ 
+       it('同一行の複数セルが全て改行を含むケース', async () => {
+@@ -985,8 +985,8 @@ describe('XlsxSheetJsRichStrategy', () => {
+         const result = await strategy.extract('/path/to/test.xlsx');
+ 
+         // Assert
+-        // [rN]マーカーは1行分のみ
+-        const rowMarkerCount = (result.content.match(/\[r\d+\]/g) || []).length;
++        // [rowN]マーカーは1行分のみ
++        const rowMarkerCount = (result.content.match(/\[row\d+\]/g) || []).length;
+         expect(rowMarkerCount).toBe(1);
+         // 全セルがダブルクォートで囲まれ、改行が保持されていること
+         expect(result.content).toContain('"セル1行1\nセル1行2"');
+@@ -1065,8 +1065,8 @@ describe('XlsxSheetJsRichStrategy', () => {
+         const lines = result.content.split('\n');
+ 
+         // Assert
+-        // [rN]マーカーの数をチェック（セル内改行を論理行として扱うので2つ）
+-        const rowLines = lines.filter((l: string) => /^\[r\d+\] /.test(l));
++        // [rowN]マーカーの数をチェック（セル内改行を論理行として扱うので2つ）
++        const rowLines = lines.filter((l: string) => /^\[row\d+\] /.test(l));
+         expect(rowLines).toHaveLength(2);
+       });
+     });
+@@ -1144,7 +1144,7 @@ describe('XlsxSheetJsRichStrategy', () => {
+ 
+         // EMF → AI非互換
+         mockGetMimeFromExt.mockReturnValue('image/x-emf');
+-        mockIsAiCompatibleMime.mockReturnValue(false);
++        mockIsAiSupportedImageExtension.mockReturnValue(false);
+ 
+         // Act
+         const result = await strategy.extract('/path/to/test.xlsx');
+@@ -1239,10 +1239,8 @@ describe('XlsxSheetJsRichStrategy', () => {
+         mockParseConnectors.mockReturnValue([]);
+ 
+         // PNG → 互換, EMF → 非互換
+-        mockGetMimeFromExt
+-          .mockReturnValueOnce('image/png')
+-          .mockReturnValueOnce('image/x-emf');
+-        mockIsAiCompatibleMime
++        mockGetMimeFromExt.mockReturnValue('image/png');
++        mockIsAiSupportedImageExtension
+           .mockReturnValueOnce(true)
+           .mockReturnValueOnce(false);
+         mockFormatImageTag.mockReturnValue('![image at A1-C3](image_1.png)');
+diff --git a/src/__tests__/main/mastra/lib/extractionFormatDescription.test.ts b/src/__tests__/main/mastra/lib/extractionFormatDescription.test.ts
+index d980e4ca8..3bd02304b 100644
+--- a/src/__tests__/main/mastra/lib/extractionFormatDescription.test.ts
++++ b/src/__tests__/main/mastra/lib/extractionFormatDescription.test.ts
+@@ -12,10 +12,12 @@ describe('extractionFormatDescription', () => {
+       'md-plain',
+       'xlsx-csv-v1',
+       'xlsx-rich-v1',
++      'xlsx-rich-v2',
+       'docx-plain',
+       'docx-rich-v1',
+       'pptx-plain',
+       'pptx-rich-v1',
++      'pptx-rich-v2',
+       'pdf-text-v1',
+       'pdf-rich-v1',
+       'image-pages',
+@@ -44,6 +46,31 @@ describe('extractionFormatDescription', () => {
+       expect(description).not.toContain('EMU');
+     });
+ 
++    it('xlsx-rich-v2の説明にシート区切り・[rowN]マーカー・画像リンク・shapeN/connectorNタグ・RFC 4180の記載がある（includeImages=true）', () => {
++      const description = getFormatDescription('xlsx-rich-v2', true);
++      expect(description).toContain('#sheet:');
++      expect(description).toContain('[rowN]');
++      expect(description).toContain('![image');
++      expect(description).toContain('shapeN');
++      expect(description).toContain('connectorN');
++      expect(description).toContain('@');
++      expect(description).toContain('RFC 4180');
++      // 旧マーカー[rN]が含まれないことを確認
++      expect(description).not.toContain('[rN]');
++    });
++
++    it('pptx-rich-v2の説明にスライド区切り・shapeN/connectorNタグ・位置情報付き画像リンク・CSV表・RFC 4180の記載がある（includeImages=true）', () => {
++      const description = getFormatDescription('pptx-rich-v2', true);
++      expect(description).toContain('#slide:');
++      expect(description).toContain('shapeN');
++      expect(description).toContain('connectorN');
++      expect(description).toContain('p:');
++      expect(description).toContain('CSV');
++      expect(description).toContain('![image p:<X>,<Y> sz:<W>,<H>]');
++      expect(description).not.toContain('EMU');
++      expect(description).toContain('RFC 4180');
++    });
++
+     it('docx-rich-v1の説明にMarkdownヘッダ・画像リンク・CSV表・RFC 4180の記載がある（includeImages=true）', () => {
+       const description = getFormatDescription('docx-rich-v1', true);
+       expect(description).toContain('#');
+@@ -65,7 +92,7 @@ describe('extractionFormatDescription', () => {
+       expect(description).toContain('sN');
+       expect(description).toContain('p:');
+       expect(description).toContain('CSV');
+-      expect(description).toContain('![image]');
++      expect(description).toContain('![image p:<X>,<Y> sz:<W>,<H>]');
+       expect(description).toContain('cN');
+       expect(description).not.toContain('EMU');
+       expect(description).toContain('RFC 4180');
+@@ -74,8 +101,10 @@ describe('extractionFormatDescription', () => {
+     describe('includeImages=falseの場合、リッチフォーマットの説明に画像関連の記載が含まれない', () => {
+       const richFormatsWithImageLines: TextExtractionFormatType[] = [
+         'xlsx-rich-v1',
++        'xlsx-rich-v2',
+         'docx-rich-v1',
+         'pptx-rich-v1',
++        'pptx-rich-v2',
+         'pdf-rich-v1',
+       ];
+ 
+@@ -150,7 +179,7 @@ describe('extractionFormatDescription', () => {
+       expect(result).toContain('DOCUMENT FORMAT INFORMATION:');
+       expect(result).toContain('report.xlsx');
+       expect(result).toContain('#sheet:');
+-      expect(result).toContain('FORMAT NON-DISCLOSURE');
++      expect(result).toContain('NON-DISCLOSURE REQUIREMENT');
+     });
+ 
+     it('同じフォーマットの複数ファイルがグループ化される', () => {
+@@ -204,9 +233,9 @@ describe('extractionFormatDescription', () => {
+           processMode: 'text',
+         },
+       ]);
+-      expect(result).toContain('FORMAT NON-DISCLOSURE');
++      expect(result).toContain('NON-DISCLOSURE REQUIREMENT');
+       expect(result).toContain(
+-        'MUST NOT reference, mention, or describe any of these conventions',
++        'reference, quote, mention, or paraphrase any of these internal tokens',
+       );
+       // 全ての内部フォーマット用語が非開示リストに含まれている
+       expect(result).toContain('"#sheet:"');
+@@ -269,9 +298,12 @@ describe('extractionFormatDescription', () => {
+       ]);
+       expect(result).toContain('"sN"');
+       expect(result).toContain('"cN"');
++      expect(result).toContain('"shapeN"');
++      expect(result).toContain('"connectorN"');
++      expect(result).toContain('"[rowN]"');
+       expect(result).toContain('"p:"');
+       expect(result).toContain('"sz:"');
+-      expect(result).toContain('"@"');
++      expect(result).toContain('"@<CellRange>"');
+       expect(result).toContain('"![image"');
+     });
+ 
+@@ -302,7 +334,7 @@ describe('extractionFormatDescription', () => {
+       expect(result).toContain('doc.txt');
+       expect(result).toContain('report.xlsx');
+       expect(result).toContain('#sheet:');
+-      expect(result).toContain('FORMAT NON-DISCLOSURE');
++      expect(result).toContain('NON-DISCLOSURE REQUIREMENT');
+     });
+ 
+     it('同じフォーマットでincludeImagesが異なるファイルは同グループになり、画像ありverの説明が使われる', () => {
+@@ -323,7 +355,7 @@ describe('extractionFormatDescription', () => {
+       // 同グループとして表示される
+       expect(result).toContain('report1.xlsx, report2.xlsx');
+       // 1つでもincludeImages=trueがあるので画像ありverの説明が使われる
+-      const nonDisclosureIndex = result.indexOf('FORMAT NON-DISCLOSURE');
++      const nonDisclosureIndex = result.indexOf('NON-DISCLOSURE REQUIREMENT');
+       const formatDescriptionPart = result.slice(0, nonDisclosureIndex);
+       expect(formatDescriptionPart).toContain('![image');
+       expect(formatDescriptionPart).toContain('referenceId');
+@@ -372,7 +404,7 @@ describe('extractionFormatDescription', () => {
+       expect(result).toContain('no-images.xlsx');
+       expect(result).toContain('#sheet:');
+       // フォーマット説明部分（非開示指示より前）に画像リンクの記述がないことを確認
+-      const nonDisclosureIndex = result.indexOf('FORMAT NON-DISCLOSURE');
++      const nonDisclosureIndex = result.indexOf('NON-DISCLOSURE REQUIREMENT');
+       const formatDescriptionPart = result.slice(0, nonDisclosureIndex);
+       expect(formatDescriptionPart).not.toContain('![image');
+       expect(formatDescriptionPart).not.toContain('referenceId');
+@@ -415,7 +447,7 @@ describe('extractionFormatDescription', () => {
+       // 同グループとして表示される
+       expect(result).toContain('report1.xlsx, report2.xlsx');
+       // 全ファイルがincludeImages=falseなので画像なしverの説明が使われる
+-      const nonDisclosureIndex = result.indexOf('FORMAT NON-DISCLOSURE');
++      const nonDisclosureIndex = result.indexOf('NON-DISCLOSURE REQUIREMENT');
+       const formatDescriptionPart = result.slice(0, nonDisclosureIndex);
+       expect(formatDescriptionPart).not.toContain('![image');
+       expect(formatDescriptionPart).not.toContain('referenceId');
+@@ -429,10 +461,12 @@ describe('extractionFormatDescription', () => {
+       'md-plain',
+       'xlsx-csv-v1',
+       'xlsx-rich-v1',
++      'xlsx-rich-v2',
+       'docx-plain',
+       'docx-rich-v1',
+       'pptx-plain',
+       'pptx-rich-v1',
++      'pptx-rich-v2',
+       'pdf-text-v1',
+       'pdf-rich-v1',
+       'image-pages',
+diff --git a/src/__tests__/main/workflows/executeReview.test.ts b/src/__tests__/main/workflows/executeReview.test.ts
+index b6678afb9..4742e6197 100644
+--- a/src/__tests__/main/workflows/executeReview.test.ts
++++ b/src/__tests__/main/workflows/executeReview.test.ts
+@@ -1811,7 +1811,7 @@ describe('executeReviewWorkflow', () => {
+                 comment: '分割後コメント',
+                 totalChunks: 2,
+                 chunkIndex: 0,
+-                individualFileName: expect.stringContaining('part 1'),
++                individualFileName: expect.stringContaining('_part1'),
+               }),
+             ]),
+             expect.arrayContaining([
+@@ -1821,7 +1821,7 @@ describe('executeReviewWorkflow', () => {
+                 comment: '分割後コメント',
+                 totalChunks: 2,
+                 chunkIndex: 1,
+-                individualFileName: expect.stringContaining('part 2'),
++                individualFileName: expect.stringContaining('_part2'),
+               }),
+             ]),
+           ]),
+@@ -1955,7 +1955,7 @@ describe('executeReviewWorkflow', () => {
+                 comment: '分割後コメント',
+                 totalChunks: 2,
+                 chunkIndex: 0,
+-                individualFileName: expect.stringContaining('part 1'),
++                individualFileName: expect.stringContaining('_part1'),
+               }),
+             ]),
+             expect.arrayContaining([
+@@ -1965,7 +1965,7 @@ describe('executeReviewWorkflow', () => {
+                 comment: '分割後コメント',
+                 totalChunks: 2,
+                 chunkIndex: 1,
+-                individualFileName: expect.stringContaining('part 2'),
++                individualFileName: expect.stringContaining('_part2'),
+               }),
+             ]),
+           ]),
+diff --git a/src/__tests__/renderer/textExtractionFormatHelper.test.ts b/src/__tests__/renderer/textExtractionFormatHelper.test.ts
+index 7bc929fd7..4738b921d 100644
+--- a/src/__tests__/renderer/textExtractionFormatHelper.test.ts
++++ b/src/__tests__/renderer/textExtractionFormatHelper.test.ts
+@@ -6,13 +6,19 @@ import {
+ 
+ describe('textExtractionFormatHelper', () => {
+   describe('isRichFormatType', () => {
+-    it('リッチフォーマット（-rich-v1で終わる）の場合trueを返す', () => {
++    it('リッチフォーマット（-rich-vNで終わる）の場合trueを返す', () => {
+       expect(isRichFormatType('xlsx-rich-v1')).toBe(true);
+       expect(isRichFormatType('docx-rich-v1')).toBe(true);
+       expect(isRichFormatType('pptx-rich-v1')).toBe(true);
+       expect(isRichFormatType('pdf-rich-v1')).toBe(true);
+     });
+ 
++    it('v2以降のリッチフォーマットの場合もtrueを返す', () => {
++      expect(isRichFormatType('xlsx-rich-v2')).toBe(true);
++      expect(isRichFormatType('pptx-rich-v2')).toBe(true);
++      expect(isRichFormatType('pdf-rich-v10')).toBe(true);
++    });
++
+     it('リッチフォーマットでない場合falseを返す', () => {
+       expect(isRichFormatType('txt-plain')).toBe(false);
+       expect(isRichFormatType('csv-plain')).toBe(false);
+diff --git a/src/main/lib/textExtractor/PptxSlideParser.ts b/src/main/lib/textExtractor/PptxSlideParser.ts
+index 8666be4b7..cf121ac71 100644
+--- a/src/main/lib/textExtractor/PptxSlideParser.ts
++++ b/src/main/lib/textExtractor/PptxSlideParser.ts
+@@ -18,6 +18,8 @@ import { escapeCsvCell as escapeCsvCellUtil } from './csvUtils';
+ export interface PptxImage {
+   /** リレーションシップID */
+   rId: string;
++  /** 位置・サイズ情報（cm単位） */
++  position?: PositionInfo;
+ }
+ 
+ /**
+@@ -49,7 +51,11 @@ export class PptxSlideParser {
+       const blip = blipFill.find('a\\:blip, blip');
+       const rId = blip.attr('r:embed') || blip.attr('r:link');
+       if (rId) {
+-        images.push({ rId });
++        // <p:spPr>から位置・サイズ情報を抽出
++        const spPr = $(pic).find('p\\:spPr, spPr').first();
++        const position =
++          spPr.length > 0 ? this.extractPositionFromSpPr(spPr) : undefined;
++        images.push({ rId, ...(position && { position }) });
+       }
+     });
+ 
+diff --git a/src/main/lib/textExtractor/XlsxDrawingParser.ts b/src/main/lib/textExtractor/XlsxDrawingParser.ts
+index 7f9104401..6cde624f1 100644
+--- a/src/main/lib/textExtractor/XlsxDrawingParser.ts
++++ b/src/main/lib/textExtractor/XlsxDrawingParser.ts
+@@ -173,25 +173,34 @@ export function formatPosition(position: PositionInfo): string {
+ /**
+  * 画像タグ文字列を生成する
+  * @param referenceId 画像参照ID（例: "image_1.png"）
+- * @param cellRange セル範囲情報（オプション）
+- * @returns 画像タグ（例: "![image at A6-C11](image_1.png)"）
++ * @param cellRange セル範囲情報（オプション、XLSX用）
++ * @param position 位置・サイズ情報（オプション、PPTX用）
++ * @returns 画像タグ（例: "![image p:2.5,5.1 sz:7.6,3.8](image_1.png)", "![image at A6-C11](image_1.png)"）
+  */
+ export function formatImageTag(
+   referenceId: string,
+   cellRange?: CellRange,
++  position?: PositionInfo,
+ ): string {
++  const parts: string[] = ['image'];
++
++  if (position) {
++    parts.push(formatPosition(position));
++  }
++
+   if (cellRange) {
+-    return `![image at ${formatCellRange(cellRange)}](${referenceId})`;
++    parts.push(`at ${formatCellRange(cellRange)}`);
+   }
+-  return `![image](${referenceId})`;
++
++  return `![${parts.join(' ')}](${referenceId})`;
+ }
+ 
+ /**
+  * IDとメタデータを含むフルタグ文字列を生成する
+- * @param id 描画要素のID（例: "s1", "c3"）
++ * @param id 描画要素のID（例: "shape1", "connector3"）
+  * @param metadata 図形メタデータ（オプション）
+- * @param connectionPart 接続情報文字列（オプション。例: "s1->s2", "A3--D6"）
+- * @returns フルタグ（例: "[s1:rect@A1-C3]", "[c3:straightConnector1 s1->s2]"）
++ * @param connectionPart 接続情報文字列（オプション。例: "shape1->shape2", "A3--D6"）
++ * @returns フルタグ（例: "[shape1:rect@A1-C3]", "[connector3:straightConnector1 shape1->shape2]"）
+  */
+ export function formatDrawingTagFull(
+   id: string,
+diff --git a/src/main/lib/textExtractor/mimeUtils.ts b/src/main/lib/textExtractor/mimeUtils.ts
+index c65202cbb..6f6405451 100644
+--- a/src/main/lib/textExtractor/mimeUtils.ts
++++ b/src/main/lib/textExtractor/mimeUtils.ts
+@@ -3,21 +3,6 @@
+  * テキスト抽出戦略間で共有する
+  */
+ 
+-/** AIが認識可能な画像MIMEタイプの許可リスト */
+-export const AI_COMPATIBLE_MIME_TYPES: ReadonlySet<string> = new Set([
+-  'image/png',
+-  'image/jpeg',
+-]);
+-
+-/**
+- * MIMEタイプがAI互換かどうかを判定する
+- * @param mimeType MIMEタイプ
+- * @returns AI互換の場合true
+- */
+-export function isAiCompatibleMime(mimeType: string): boolean {
+-  return AI_COMPATIBLE_MIME_TYPES.has(mimeType);
+-}
+-
+ /** MIMEタイプから拡張子へのマッピング */
+ export const MIME_TO_EXT: Record<string, string> = {
+   'image/png': 'png',
+@@ -66,3 +51,33 @@ export function getMimeFromExt(
+ ): string {
+   return EXT_TO_MIME[ext.toLowerCase()] ?? defaultMime;
+ }
++
++/**
++ * AIビジョンモデルがサポートする画像拡張子のセット
++ * JPEG/PNGのみ許可（アローリスト方式）
++ */
++const AI_SUPPORTED_IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg']);
++
++/**
++ * AIビジョンモデルがサポートする画像MIMEタイプのセット
++ * JPEG/PNGのみ許可（アローリスト方式）
++ */
++const AI_SUPPORTED_IMAGE_MIMES = new Set(['image/png', 'image/jpeg']);
++
++/**
++ * 指定された拡張子がAIビジョンモデルでサポートされているか判定する
++ * @param ext 拡張子（ドットなし、小文字推奨）
++ * @returns サポートされている場合true
++ */
++export function isAiSupportedImageExtension(ext: string): boolean {
++  return AI_SUPPORTED_IMAGE_EXTENSIONS.has(ext.toLowerCase());
++}
++
++/**
++ * 指定されたMIMEタイプがAIビジョンモデルでサポートされているか判定する
++ * @param mimeType MIMEタイプ
++ * @returns サポートされている場合true
++ */
++export function isAiSupportedImageMime(mimeType: string): boolean {
++  return AI_SUPPORTED_IMAGE_MIMES.has(mimeType);
++}
+diff --git a/src/main/lib/textExtractor/strategies/DocxMammothRichStrategy.ts b/src/main/lib/textExtractor/strategies/DocxMammothRichStrategy.ts
+index ee806b21d..bb25658dc 100644
+--- a/src/main/lib/textExtractor/strategies/DocxMammothRichStrategy.ts
++++ b/src/main/lib/textExtractor/strategies/DocxMammothRichStrategy.ts
+@@ -11,7 +11,7 @@ import type {
+   ExtractedImage,
+ } from '@/types';
+ import { DocxHtmlToTextConverter } from '../DocxHtmlToTextConverter';
+-import { getExtFromMime, isAiCompatibleMime } from '../mimeUtils';
++import { getExtFromMime, isAiSupportedImageMime } from '../mimeUtils';
+ 
+ /**
+  * Word文書（.docx）のリッチ抽出戦略
+@@ -44,8 +44,8 @@ export class DocxMammothRichStrategy implements ITextExtractorStrategy {
+       const convertImage = mammoth.images.imgElement(async (image) => {
+         const mimeType = image.contentType || 'image/png';
+ 
+-        // AI非互換画像はスキップ（EMF, WMF等）
+-        if (!isAiCompatibleMime(mimeType)) {
++        // AI非対応画像形式はスキップ（空srcを返しテキストにリンクを埋め込まない）
++        if (!isAiSupportedImageMime(mimeType)) {
+           return { src: '' };
+         }
+ 
+diff --git a/src/main/lib/textExtractor/strategies/PptxRichExtractorStrategy.ts b/src/main/lib/textExtractor/strategies/PptxRichExtractorStrategy.ts
+index b17aa9d59..c145fa331 100644
+--- a/src/main/lib/textExtractor/strategies/PptxRichExtractorStrategy.ts
++++ b/src/main/lib/textExtractor/strategies/PptxRichExtractorStrategy.ts
+@@ -20,7 +20,7 @@ import {
+   getArrowSymbol,
+ } from '../XlsxDrawingParser';
+ import type { DrawingShapeText, DrawingConnector } from '../XlsxDrawingParser';
+-import { getMimeFromExt, isAiCompatibleMime } from '../mimeUtils';
++import { getMimeFromExt, isAiSupportedImageExtension } from '../mimeUtils';
+ import { getMainLogger } from '@/main/lib/logger';
+ 
+ /**
+@@ -53,7 +53,7 @@ export class PptxRichExtractorStrategy implements ITextExtractorStrategy {
+   }
+ 
+   getFormatType(): TextExtractionFormatType {
+-    return 'pptx-rich-v1';
++    return 'pptx-rich-v2';
+   }
+ 
+   async extract(filePath: string): Promise<TextExtractionResult> {
+@@ -142,15 +142,15 @@ export class PptxRichExtractorStrategy implements ITextExtractorStrategy {
+             if (!imgFile) continue;
+ 
+             const ext = path.extname(imgPath).slice(1).toLowerCase() || 'png';
+-            const mimeType = getMimeFromExt(ext);
+ 
+-            // AI非互換画像はスキップ（EMF, WMF等）
+-            if (!isAiCompatibleMime(mimeType)) {
++            // AI非対応画像はスキップ（EMF, WMF等）
++            if (!isAiSupportedImageExtension(ext)) {
+               continue;
+             }
+ 
+             imageCounter++;
+             const imgBuffer = await imgFile.async('nodebuffer');
++            const mimeType = getMimeFromExt(ext);
+             const referenceId = `image_${imageCounter}.${ext}`;
+ 
+             allImages.push({
+@@ -159,7 +159,7 @@ export class PptxRichExtractorStrategy implements ITextExtractorStrategy {
+               mimeType,
+             });
+ 
+-            parts.push(formatImageTag(referenceId));
++            parts.push(formatImageTag(referenceId, undefined, img.position));
+           }
+         }
+ 
+@@ -171,7 +171,7 @@ export class PptxRichExtractorStrategy implements ITextExtractorStrategy {
+               parts.push(shape.text);
+             } else {
+               drawingCounter++;
+-              const shapeId = `s${drawingCounter}`;
++              const shapeId = `shape${drawingCounter}`;
+ 
+               if (shape.drawingObjectId !== undefined) {
+                 drawingObjectIdToShapeId.set(shape.drawingObjectId, shapeId);
+@@ -199,7 +199,7 @@ export class PptxRichExtractorStrategy implements ITextExtractorStrategy {
+           // コネクタを処理
+           for (const connector of result.connectors) {
+             drawingCounter++;
+-            const connectorId = `c${drawingCounter}`;
++            const connectorId = `connector${drawingCounter}`;
+ 
+             const arrowSymbol = getArrowSymbol(
+               connector.headEndType,
+diff --git a/src/main/lib/textExtractor/strategies/XlsxSheetJsRichStrategy.ts b/src/main/lib/textExtractor/strategies/XlsxSheetJsRichStrategy.ts
+index 5e57d8d52..9ec59db5b 100644
+--- a/src/main/lib/textExtractor/strategies/XlsxSheetJsRichStrategy.ts
++++ b/src/main/lib/textExtractor/strategies/XlsxSheetJsRichStrategy.ts
+@@ -29,7 +29,7 @@ import type {
+   DrawingConnector,
+ } from '../XlsxDrawingParser';
+ import { splitCsvIntoLogicalRows } from '../csvUtils';
+-import { getMimeFromExt, isAiCompatibleMime } from '../mimeUtils';
++import { getMimeFromExt, isAiSupportedImageExtension } from '../mimeUtils';
+ import { getMainLogger } from '@/main/lib/logger';
+ 
+ /**
+@@ -60,7 +60,7 @@ export class XlsxSheetJsRichStrategy implements ITextExtractorStrategy {
+   }
+ 
+   getFormatType(): TextExtractionFormatType {
+-    return 'xlsx-rich-v1';
++    return 'xlsx-rich-v2';
+   }
+ 
+   async extract(filePath: string): Promise<TextExtractionResult> {
+@@ -114,7 +114,7 @@ export class XlsxSheetJsRichStrategy implements ITextExtractorStrategy {
+           ? XLSX.utils.decode_range(sheet['!ref']).s.r
+           : 0;
+ 
+-        // 描画情報がなければCSVに[rN]マーカーを付与して出力
++        // 描画情報がなければCSVに[rowN]マーカーを付与して出力
+         if (!drawingInfo) {
+           this.formatCsvWithRowMarkers(csv, rangeStartRow, parts);
+           continue;
+@@ -133,15 +133,15 @@ export class XlsxSheetJsRichStrategy implements ITextExtractorStrategy {
+             if (!imgFile) continue;
+ 
+             const ext = path.extname(imgPath).slice(1).toLowerCase() || 'png';
+-            const mimeType = getMimeFromExt(ext);
+ 
+-            // AI非互換画像はスキップ（EMF, WMF等）
+-            if (!isAiCompatibleMime(mimeType)) {
++            // AI非対応画像はスキップ（EMF, WMF等）
++            if (!isAiSupportedImageExtension(ext)) {
+               continue;
+             }
+ 
+             imageCounter++;
+             const imgBuffer = await imgFile.async('nodebuffer');
++            const mimeType = getMimeFromExt(ext);
+             const referenceId = `image_${imageCounter}.${ext}`;
+ 
+             allImages.push({
+@@ -160,7 +160,7 @@ export class XlsxSheetJsRichStrategy implements ITextExtractorStrategy {
+         if (!drawingInfo.shapesFailed) {
+           for (const shape of drawingInfo.shapeTexts) {
+             drawingCounter++;
+-            const shapeId = `s${drawingCounter}`;
++            const shapeId = `shape${drawingCounter}`;
+ 
+             if (shape.drawingObjectId !== undefined) {
+               drawingObjectIdToShapeId.set(shape.drawingObjectId, shapeId);
+@@ -189,7 +189,7 @@ export class XlsxSheetJsRichStrategy implements ITextExtractorStrategy {
+           // コネクタを処理
+           for (const connector of drawingInfo.connectors) {
+             drawingCounter++;
+-            const connectorId = `c${drawingCounter}`;
++            const connectorId = `connector${drawingCounter}`;
+ 
+             const arrowSymbol = getArrowSymbol(
+               connector.headEndType,
+@@ -252,7 +252,7 @@ export class XlsxSheetJsRichStrategy implements ITextExtractorStrategy {
+           }
+         }
+ 
+-        // 描画要素がなければCSVに[rN]マーカーを付与して出力
++        // 描画要素がなければCSVに[rowN]マーカーを付与して出力
+         if (drawingsByRow.size === 0) {
+           this.formatCsvWithRowMarkers(csv, rangeStartRow, parts);
+           continue;
+@@ -269,7 +269,7 @@ export class XlsxSheetJsRichStrategy implements ITextExtractorStrategy {
+ 
+           const isNonEmpty = csvLine.replace(/,/g, '').trim().length > 0;
+           if (isNonEmpty) {
+-            parts.push(`[r${excelRow}] ${csvLine}`);
++            parts.push(`[row${excelRow}] ${csvLine}`);
+           } else {
+             parts.push(csvLine);
+           }
+@@ -315,7 +315,7 @@ export class XlsxSheetJsRichStrategy implements ITextExtractorStrategy {
+   }
+ 
+   /**
+-   * CSVテキストに[rN]マーカーを付与してpartsに追加する
++   * CSVテキストに[rowN]マーカーを付与してpartsに追加する
+    */
+   private formatCsvWithRowMarkers(
+     csv: string,
+@@ -328,7 +328,7 @@ export class XlsxSheetJsRichStrategy implements ITextExtractorStrategy {
+       const isNonEmpty = csvLine.replace(/,/g, '').trim().length > 0;
+       if (isNonEmpty) {
+         const excelRow = rangeStartRow + i + 1;
+-        parts.push(`[r${excelRow}] ${csvLine}`);
++        parts.push(`[row${excelRow}] ${csvLine}`);
+       } else {
+         parts.push(csvLine);
+       }
+diff --git a/src/main/lib/utils/formatHelper.ts b/src/main/lib/utils/formatHelper.ts
+index d6cc52ec0..4078d6d2c 100644
+--- a/src/main/lib/utils/formatHelper.ts
++++ b/src/main/lib/utils/formatHelper.ts
+@@ -4,10 +4,12 @@
+ 
+ /**
+  * リッチフォーマット（画像リンク・図形タグ等を含む）かどうかを判定
++ * -rich-v1, -rich-v2 等のバージョンを全て受容する
+  */
++const RICH_FORMAT_PATTERN = /-rich-v\d+$/;
+ export function isRichFormatType(
+   formatType: string | null | undefined,
+ ): boolean {
+   if (!formatType) return false;
+-  return formatType.endsWith('-rich-v1');
++  return RICH_FORMAT_PATTERN.test(formatType);
+ }
 diff --git a/src/mastra/lib/extractionFormatDescription.ts b/src/mastra/lib/extractionFormatDescription.ts
-index 98d7bdd80..ed954d35b 100644
+index ed954d35b..42fe1dc32 100644
 --- a/src/mastra/lib/extractionFormatDescription.ts
 +++ b/src/mastra/lib/extractionFormatDescription.ts
-@@ -52,6 +52,7 @@ export function getFormatDescription(
+@@ -7,24 +7,39 @@ import type { TextExtractionFormatType } from '@/types/review';
+ const RICH_FORMAT_TYPES: ReadonlySet<string> = new Set([
+   'xlsx-csv-v1',
+   'xlsx-rich-v1',
++  'xlsx-rich-v2',
+   'docx-rich-v1',
+   'pptx-rich-v1',
++  'pptx-rich-v2',
+   'pdf-rich-v1',
+   'image-pages',
+ ]);
+ 
+ /**
+  * フォーマット非開示指示（全ファイル共通）
++ *
++ * 本アプリが内部的にドキュメントを整形した痕跡（行マーカー・図形タグ・シート区切り等）が
++ * AI出力に漏れ出さないよう、Markdown強調と違反/遵守のfew-shotで明示的に禁止する。
+  */
+ const FORMAT_NON_DISCLOSURE_INSTRUCTION = `
+-CRITICAL INSTRUCTION - FORMAT NON-DISCLOSURE:
+-The formatting conventions described above are internal system representations.
+-You MUST NOT reference, mention, or describe any of these conventions in your output.
+-Write your response as if you are directly viewing the original files.
+-Never use terms like "image link", "shape tag", "sN", "cN",
+-"#sheet:", "#slide:", "#page:", "[rN]", "p:", "sz:", "@", "CSV format", "referenceId",
+-"![image", or any other internal formatting terminology in your response.
+-Treat the content as if no format conversion has taken place.
++**CRITICAL INSTRUCTION — ABSOLUTE NON-DISCLOSURE REQUIREMENT**
++
++The formatting conventions described above are **internal system representations** produced by the pre-processing pipeline. They do **NOT** appear in the original documents the user authored.
++
++You **MUST NEVER, UNDER ANY CIRCUMSTANCES**, reference, quote, mention, or paraphrase any of these internal tokens, tags, markers, or conventions in your output. Write your response **as if you are directly viewing the original files** — no format conversion has taken place from the user's perspective.
++
++**Forbidden terms / tokens (non-exhaustive):**
++"image link", "shape tag", "row marker",
++"sN", "cN", "shapeN", "connectorN",
++"#sheet:", "#slide:", "#page:",
++"[rN]", "[rowN]", "[sN]", "[shapeN]", "[cN]", "[connectorN]",
++"p:", "sz:", "@<CellRange>", "CSV format", "referenceId", "![image".
++
++**Examples:**
++- BAD:  "The value in row5 is 100." / "In [row5], the total is..." / "Shape shape1 contains the title."
++- GOOD: "The value in the 5th row is 100." / "In the header row, the total is..." / "The title shape contains..."
++
++This is a **hard constraint**. Any reference to these internal tokens is a critical failure of the task, regardless of how helpful it might seem for clarity.
+ `.trim();
+ 
+ /**
+@@ -42,10 +57,10 @@ export function getFormatDescription(
+       return 'Plain text content with no conversion applied.';
+ 
+     case 'csv-plain':
+-      return 'CSV file content read as plain text.';
++      return 'CSV (Comma-Separated Values) content with no conversion applied.';
+ 
+     case 'md-plain':
+-      return 'Markdown file content read as plain text.';
++      return 'Markdown document content with no conversion applied.';
+ 
+     case 'xlsx-csv-v1':
+       return [
+@@ -60,7 +75,7 @@ export function getFormatDescription(
          'Excel spreadsheet content represented in the following format:',
          '- Each sheet is separated by a header line: #sheet:<SheetName>',
-         '- Cell contents within each sheet are represented in CSV (comma-separated) format.',
-+        'Note: These conventions are for your understanding only; do not reference them in your output.',
-       ].join('\n');
- 
-     case 'xlsx-rich-v1': {
-@@ -68,10 +69,13 @@ export function getFormatDescription(
-         );
-       }
-       xlsxLines.push(
--        '- Shapes: [sN:<GeometryType>@<CellRange>] text (continuation lines: [sN] text).',
--        '- Connectors: [cN:<Type> <endpointA>-><endpointB>@<CellRange>]',
-+        '- Shapes are represented as tagged blocks:',
-+        '  [sN:<GeometryType>@<CellRange>] (N is a sequential shape ID.) Text on same line. Multi-line: [sN] prefix.',
-+        '- Connectors are represented as:',
-+        '  [cN:<Type> <endpointA>-><endpointB>@<CellRange>] (N is a sequential connector ID.)',
-         '  Endpoints reference shapes (e.g., s1) or cell positions (e.g., A3).',
-         '  Arrow notation: -> (one-way), <- (reverse), <-> (bidirectional), -- (no arrow).',
-+        'Note: These conventions are for your understanding only; do not reference them in your output.',
-       );
+         '- Non-empty rows are prefixed with a row marker: [rN] (N is the 1-based Excel row number).',
+-        '- Cell contents are CSV (RFC 4180 quoting).',
++        '- Cell contents within each sheet are represented in CSV (comma-separated, RFC 4180 quoting) format.',
+       ];
+       if (includeImages) {
+         xlsxLines.push(
+@@ -80,6 +95,31 @@ export function getFormatDescription(
        return xlsxLines.join('\n');
      }
-@@ -92,6 +96,9 @@ export function getFormatDescription(
-           '  The actual image data is provided separately with the corresponding referenceId.',
-         );
-       }
-+      docxLines.push(
+ 
++    case 'xlsx-rich-v2': {
++      const xlsxLines = [
++        'Excel spreadsheet content represented in the following format:',
++        '- Each sheet is separated by a header line: #sheet:<SheetName>',
++        '- Non-empty rows are prefixed with a row marker: [rowN] (N is the 1-based Excel row number).',
++        '- Cell contents within each sheet are represented in CSV (comma-separated, RFC 4180 quoting) format.',
++      ];
++      if (includeImages) {
++        xlsxLines.push(
++          '- Embedded images are represented as: ![image at <CellRange>](<referenceId>)',
++          '  The actual image data is provided separately with the corresponding referenceId.',
++        );
++      }
++      xlsxLines.push(
++        '- Shapes are represented as tagged blocks:',
++        '  [shapeN:<GeometryType>@<CellRange>] (N is a sequential shape ID.) Text on same line. Multi-line: [shapeN] prefix.',
++        '- Connectors are represented as:',
++        '  [connectorN:<Type> <endpointA>-><endpointB>@<CellRange>] (N is a sequential connector ID.)',
++        '  Endpoints reference shapes (e.g., shape1) or cell positions (e.g., A3).',
++        '  Arrow notation: -> (one-way), <- (reverse), <-> (bidirectional), -- (no arrow).',
 +        'Note: These conventions are for your understanding only; do not reference them in your output.',
 +      );
-       return docxLines.join('\n');
-     }
++      return xlsxLines.join('\n');
++    }
++
+     case 'docx-plain':
+       return 'Word document content extracted as plain text without structural information.';
  
-@@ -102,9 +109,10 @@ export function getFormatDescription(
-       const pptxLines = [
-         'PowerPoint presentation content represented in the following format:',
-         '- Each slide is separated by a header line: #slide:<SlideNumber>',
--        '- Shapes: [sN:<GeometryType> p:<X>,<Y> sz:<W>,<H>] text (continuation lines: [sN] text).',
--        '  Text boxes and placeholders have no tag prefix.',
--        '- Tables are in CSV format (RFC 4180 quoting).',
-+        '- Shapes are represented as tagged blocks:',
-+        '  [sN:<GeometryType> p:<X>,<Y> sz:<W>,<H>] (N is a sequential shape ID.) Text on same line. Multi-line: [sN] prefix.',
-+        '  Text boxes and placeholders do not have the shape prefix.',
+@@ -88,7 +128,7 @@ export function getFormatDescription(
+         'Word document content represented in the following format:',
+         '- Headings are represented using Markdown header syntax (# through ######).',
+         '- Lists are represented using Markdown list syntax (- for unordered, 1. for ordered).',
+-        '- Tables are represented in CSV format (RFC 4180 quoting).',
 +        '- Tables are represented in CSV format (comma-separated, RFC 4180 quoting).',
        ];
        if (includeImages) {
+         docxLines.push(
+@@ -116,8 +156,8 @@ export function getFormatDescription(
+       ];
+       if (includeImages) {
          pptxLines.push(
-@@ -113,11 +121,13 @@ export function getFormatDescription(
+-          '- Embedded images are represented as: ![image](<referenceId>)',
+-          '  The actual image data is provided separately with the corresponding referenceId.',
++          '- Embedded images are represented as: ![image p:<X>,<Y> sz:<W>,<H>](<referenceId>)',
++          '  Position (p:) and size (sz:) values are in cm. The actual image data is provided separately with the corresponding referenceId.',
          );
        }
        pptxLines.push(
--        '- Connectors: [cN:<Type> <endpointA>-><endpointB> p:<X>,<Y> sz:<W>,<H>]',
-+        '- Connectors are represented as:',
-+        '  [cN:<Type> <endpointA>-><endpointB> p:<X>,<Y> sz:<W>,<H>] (N is a sequential connector ID.)',
+@@ -126,7 +166,34 @@ export function getFormatDescription(
          '  Arrow notation: -> (one-way), <- (reverse), <-> (bidirectional), -- (no arrow).',
          '- Coordinate and size values are in cm (rounded to 1 decimal place).',
--        '- NOTE: Within each slide, elements appear in category order (tables, images, text, shapes, connectors) — not in spatial order.',
-+        'Note: Within each slide, elements appear in category order (tables, images, text, shapes, connectors) — not in spatial order.',
-         '  Shapes and connectors have p:/sz: metadata for inferring spatial layout; tables, images, and text boxes do not.',
-+        'Note: These conventions are for your understanding only; do not reference them in your output.',
-       );
-       return pptxLines.join('\n');
-     }
-@@ -137,6 +147,9 @@ export function getFormatDescription(
-           '  The actual image data is provided separately with the corresponding referenceId.',
-         );
-       }
-+      pdfLines.push(
+         'Note: Within each slide, elements appear in category order (tables, images, text, shapes, connectors) — not in spatial order.',
+-        '  Shapes and connectors have p:/sz: metadata for inferring spatial layout; tables, images, and text boxes do not.',
++        '  Shapes, images, and connectors have p:/sz: metadata for inferring spatial layout; tables and text boxes do not.',
 +        'Note: These conventions are for your understanding only; do not reference them in your output.',
 +      );
-       return pdfLines.join('\n');
++      return pptxLines.join('\n');
++    }
++
++    case 'pptx-rich-v2': {
++      const pptxLines = [
++        'PowerPoint presentation content represented in the following format:',
++        '- Each slide is separated by a header line: #slide:<SlideNumber>',
++        '- Shapes are represented as tagged blocks:',
++        '  [shapeN:<GeometryType> p:<X>,<Y> sz:<W>,<H>] (N is a sequential shape ID.) Text on same line. Multi-line: [shapeN] prefix.',
++        '  Text boxes and placeholders do not have the shape prefix.',
++        '- Tables are represented in CSV format (comma-separated, RFC 4180 quoting).',
++      ];
++      if (includeImages) {
++        pptxLines.push(
++          '- Embedded images are represented as: ![image p:<X>,<Y> sz:<W>,<H>](<referenceId>)',
++          '  Position (p:) and size (sz:) values are in cm. The actual image data is provided separately with the corresponding referenceId.',
++        );
++      }
++      pptxLines.push(
++        '- Connectors are represented as:',
++        '  [connectorN:<Type> <endpointA>-><endpointB> p:<X>,<Y> sz:<W>,<H>] (N is a sequential connector ID.)',
++        '  Arrow notation: -> (one-way), <- (reverse), <-> (bidirectional), -- (no arrow).',
++        '- Coordinate and size values are in cm (rounded to 1 decimal place).',
++        'Note: Within each slide, elements appear in category order (tables, images, text, shapes, connectors) — not in spatial order.',
++        '  Shapes, images, and connectors have p:/sz: metadata for inferring spatial layout; tables and text boxes do not.',
+         'Note: These conventions are for your understanding only; do not reference them in your output.',
+       );
+       return pptxLines.join('\n');
+@@ -154,7 +221,7 @@ export function getFormatDescription(
      }
  
-diff --git a/src/mastra/workflows/sourceReview/executeReview/largeDocumentReview/index.ts b/src/mastra/workflows/sourceReview/executeReview/largeDocumentReview/index.ts
-index a0add92ac..85509c9fd 100644
---- a/src/mastra/workflows/sourceReview/executeReview/largeDocumentReview/index.ts
-+++ b/src/mastra/workflows/sourceReview/executeReview/largeDocumentReview/index.ts
-@@ -119,7 +119,7 @@ const individualDocumentReviewWorkflow = createWorkflow({
-           document: {
-             ...inputData.document,
-             id: `${inputData.document.id}_part${index + 1}`,
--            name: `${inputData.document.name} (part ${index + 1}) (split into parts because the full content did not fit into context)`,
-+            name: `${inputData.document.name}_part${index + 1}`,
-             originalName:
-               inputData.document.originalName || inputData.document.name,
-             imageData: chunk,
-@@ -198,7 +198,7 @@ const individualDocumentReviewWorkflow = createWorkflow({
-               document: {
-                 ...inputData.document,
-                 id: `${inputData.document.id}_part${index + 1}`,
--                name: `${inputData.document.name} (part ${index + 1}) (split into parts because the full content did not fit into context)`,
-+                name: `${inputData.document.name}_part${index + 1}`,
-                 originalName:
-                   inputData.document.originalName || inputData.document.name,
-                 textContent: chunk,
-@@ -334,7 +334,7 @@ const individualDocumentReviewWorkflow = createWorkflow({
-                 document: {
-                   ...initData.originalDocument,
-                   id: `${initData.originalDocument.id}_part${index + 1}`,
--                  name: `${initData.originalDocument.name} (part ${index + 1}) (split into parts because the full content did not fit into context)`,
-+                  name: `${initData.originalDocument.name}_part${index + 1}`,
-                   originalName:
-                     initData.originalDocument.originalName ||
-                     initData.originalDocument.name,
-@@ -371,7 +371,7 @@ const individualDocumentReviewWorkflow = createWorkflow({
-               document: {
-                 ...initData.originalDocument,
-                 id: `${initData.originalDocument.id}_part${index + 1}`,
--                name: `${initData.originalDocument.name} (part ${index + 1}) (split into parts because the full content did not fit into context)`,
-+                name: `${initData.originalDocument.name}_part${index + 1}`,
-                 originalName:
-                   initData.originalDocument.originalName ||
-                   initData.originalDocument.name,
+     case 'image-pages':
+-      return 'Document pages converted to images. Each page is provided as a separate image.';
++      return 'Document pages converted to images. Each page is provided as a separate image.\nNote: These conventions are for your understanding only; do not reference them in your output.';
+ 
+     default: {
+       // 網羅性チェック: TextExtractionFormatTypeに新しい値を追加した場合、
+diff --git a/src/renderer/lib/textExtractionFormatHelper.ts b/src/renderer/lib/textExtractionFormatHelper.ts
+index 1fea38542..2b9a787ca 100644
+--- a/src/renderer/lib/textExtractionFormatHelper.ts
++++ b/src/renderer/lib/textExtractionFormatHelper.ts
+@@ -5,10 +5,12 @@
+ 
+ /**
+  * リッチフォーマット（画像リンク・図形タグ等を含む）かどうかを判定
++ * -rich-v1, -rich-v2 等のバージョンを全て受容する
+  */
++const RICH_FORMAT_PATTERN = /-rich-v\d+$/;
+ export function isRichFormatType(formatType: string | null): boolean {
+   if (!formatType) return false;
+-  return formatType.endsWith('-rich-v1');
++  return RICH_FORMAT_PATTERN.test(formatType);
+ }
+ 
+ /**
+diff --git a/src/types/review.ts b/src/types/review.ts
+index ec82d9e18..d3fdb5515 100644
+--- a/src/types/review.ts
++++ b/src/types/review.ts
+@@ -130,7 +130,7 @@ export interface ReviewLargedocumentResultCache {
+   comment: string;
+   totalChunks: number; // ドキュメント分割総数
+   chunkIndex: number; // 何番目のチャンクか（0から始まる）
+-  individualFileName: string; // 分割後の個別ドキュメント名（"xxx (part 1)" など）
++  individualFileName: string; // 分割後の個別ドキュメント名（"xxx_part1" など）
+ }
+ 
+ // テキスト抽出方式の識別子
+@@ -156,8 +156,10 @@ export type TextExtractionFormatType =
+   | 'pdf-text-v1'
+   | 'image-pages'
+   | 'docx-rich-v1'
+-  | 'xlsx-rich-v1'
+-  | 'pptx-rich-v1'
++  | 'xlsx-rich-v1' // 旧フォーマット：[rN]/[sN]/[cN]マーカー。既存キャッシュ互換用に保持
++  | 'xlsx-rich-v2' // 新フォーマット：[rowN]/[shapeN]/[connectorN]マーカー
++  | 'pptx-rich-v1' // 旧フォーマット：[sN]/[cN]マーカー。既存キャッシュ互換用に保持
++  | 'pptx-rich-v2' // 新フォーマット：[shapeN]/[connectorN]マーカー
+   | 'pdf-rich-v1';
+ 
+ // テキスト抽出時に取得された画像データ
