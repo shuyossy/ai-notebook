@@ -1,48 +1,15 @@
-package com.example.demo.config;
+お疲れさまです。
+コンシェルジュチームから来ているC#のPackageReference移行の件、方針をまとめましたので、問題ないかご確認いただけますでしょうか。
 
-import com.azure.ai.openai.OpenAIClientBuilder;
-import jakarta.servlet.http.HttpSession;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.ai.model.azure.openai.autoconfigure.AzureOpenAIClientBuilderCustomizer;
-import org.springframework.web.context.request.RequestAttributes;
-import org.springframework.web.context.request.RequestContextHolder;
-import reactor.netty.http.client.HttpClient;
+■状況
+C#の依存関係定義ファイルとして古い書き方（packages.config）と新しい書き方（PackageReference）の2種類があります。PackageReference形式はパッケージ間の親子関係を読み取れるかつVisual Studioの標準移行ツールで比較的簡単に移行可能ということで、こちらへの切り替えを依頼していました。
+ところがこのPJは .NET Framework 4.8 の「ASP.NET（Webアプリ）」プロジェクトというこが分かり、この種別だけはVisual Studioの標準移行ツールが対応しておらず、手作業で書き換えるしかないことが分かりました。
+https://learn.microsoft.com/ja-jp/nuget/consume-packages/migrate-packages-config-to-package-reference
 
-@Configuration
-public class AzureOpenAiConfig {
+■方針案：移行はせず、今の形式のままSBOMを生成する
+・今の形式（packages.config）でも、cdxgenは公式に対応しており、そのままSBOMを生成できます。
+　https://github.com/cdxgen/cdxgen/blob/master/docs/PROJECT_TYPES.md
+・出力は「使っているパッケージと確定バージョンの一覧」になり、どのパッケージがどれを引き連れてきたかという親子関係までは出ませんが、後続の脆弱性分析はパッケージ名＋バージョンで照合するので、分析への影響はほぼありません。
+・一方で手作業の移行は、古いパッケージが新形式で動かなくなるリスクがあるなど、ビルドや動作確認の負荷も大きいです。SBOMを作るという目的に対して、そこまでするメリットは小さいと考えています。
 
-    /**
-     * AzureOpenAIClientBuilder をカスタマイズして、
-     * 各リクエスト時にセッションから USER_ID を取得し、
-     * X-User-Id ヘッダとして追加します。
-     */
-    @Bean
-    public AzureOpenAIClientBuilderCustomizer headerCustomizer() {
-        return new AzureOpenAIClientBuilderCustomizer() {
-            @Override
-            public void customize(OpenAIClientBuilder builder) {
-                // Reactor Netty の HTTP クライアントを生成
-                HttpClient httpClient = HttpClient.create()
-                    .doOnRequest((request, connection) -> {
-                        // RequestContextHolder から現在のリクエストスコープ属性を取得
-                        RequestAttributes attrs = RequestContextHolder.getRequestAttributes();
-                        if (attrs != null) {
-                            Object sessionObj = attrs.resolveReference(RequestAttributes.REFERENCE_SESSION);
-                            if (sessionObj instanceof HttpSession) {
-                                HttpSession session = (HttpSession) sessionObj;
-                                String userId = (String) session.getAttribute("USER_ID");
-                                if (userId != null) {
-                                    // X-User-Id ヘッダをセット
-                                    request.requestHeaders().set("X-User-Id", userId);
-                                }
-                            }
-                        }
-                    });
-
-                // カスタム HttpClient をビルダーにセット
-                builder.httpClient(httpClient);
-            }
-        };
-    }
-}
+この方針で問題なければ、コンシェルジュチームへ回答します。ご確認よろしくお願いします。
