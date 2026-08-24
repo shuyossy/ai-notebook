@@ -1,15 +1,16 @@
-お疲れさまです。
-コンシェルジュチームから来ているC#のPackageReference移行の件、方針をまとめましたので、問題ないかご確認いただけますでしょうか。
-
-■状況
-C#の依存関係定義ファイルとして古い書き方（packages.config）と新しい書き方（PackageReference）の2種類があります。PackageReference形式はパッケージ間の親子関係を読み取れるかつVisual Studioの標準移行ツールで比較的簡単に移行可能ということで、こちらへの切り替えを依頼していました。
-ところがこのPJは .NET Framework 4.8 の「ASP.NET（Webアプリ）」プロジェクトというこが分かり、この種別だけはVisual Studioの標準移行ツールが対応しておらず、手作業で書き換えるしかないことが分かりました。
-https://learn.microsoft.com/ja-jp/nuget/consume-packages/migrate-packages-config-to-package-reference
-
-■方針案：移行はせず、今の形式のままSBOMを生成する
-・今の形式（packages.config）でも、cdxgenは公式に対応しており、そのままSBOMを生成できます。
-　https://github.com/cdxgen/cdxgen/blob/master/docs/PROJECT_TYPES.md
-・出力は「使っているパッケージと確定バージョンの一覧」になり、どのパッケージがどれを引き連れてきたかという親子関係までは出ませんが、後続の脆弱性分析はパッケージ名＋バージョンで照合するので、分析への影響はほぼありません。
-・一方で手作業の移行は、古いパッケージが新形式で動かなくなるリスクがあるなど、ビルドや動作確認の負荷も大きいです。SBOMを作るという目的に対して、そこまでするメリットは小さいと考えています。
-
-この方針で問題なければ、コンシェルジュチームへ回答します。ご確認よろしくお願いします。
+{
+  "metadata": {
+    "component": {
+      "type": "application",
+      "group": "S12345",
+      "name": "payment-api",
+      "version": "2.3.1"
+    },
+    "properties": [
+      { "name": "mufg:sid", "value": "S12345" },
+      { "name": "mufg:repository", "value": "dev-dept/payment-api" },
+      { "name": "mufg:commit", "value": "abc1234" },
+      { "name": "mufg:pipeline-id", "value": "987654" }
+    ]
+  }
+}
