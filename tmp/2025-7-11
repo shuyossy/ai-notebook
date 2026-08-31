@@ -1,16 +1,590 @@
-{
-  "metadata": {
-    "component": {
-      "type": "application",
-      "group": "S12345",
-      "name": "payment-api",
-      "version": "2.3.1"
-    },
-    "properties": [
-      { "name": "mufg:sid", "value": "S12345" },
-      { "name": "mufg:repository", "value": "dev-dept/payment-api" },
-      { "name": "mufg:commit", "value": "abc1234" },
-      { "name": "mufg:pipeline-id", "value": "987654" }
-    ]
-  }
-}
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <!-- プロジェクトの基本情報 -->
+  <groupId>jp.mufg.it.inhousecommons</groupId>
+  <artifactId>muit-inhousecommons-slimdarwin-bom</artifactId>
+  <version>${project.version}</version>
+  <packaging>pom</packaging>
+
+  <!-- プロジェクト全体で使用するプロパティの定義 -->
+  <properties>
+    <project.version>1.0.1</project.version>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+    <project.lineEnding>LF</project.lineEnding>
+    <java.version>17</java.version>
+    <maven.compiler.source>17</maven.compiler.source>
+    <maven.compiler.target>17</maven.compiler.target>
+    <!-- SonarQubeの設定 -->
+    <sonar.host.url>https://sonarqube.rp.dss.itmufg</sonar.host.url>
+    <sonar.qualitygate.wait>true</sonar.qualitygate.wait>
+    <sonar.coverage.jacoco.xmlReportPaths>${basedir}/target/site/jacoco/jacoco.xml</sonar.coverage.jacoco.xmlReportPaths>
+    <sonar.java.checkstyle.reportPaths>${basedir}/target/checkstyle-result.xml</sonar.java.checkstyle.reportPaths>
+    <sonar.java.spotbugs.reportPaths>${basedir}/target/spotbugsXml.xml</sonar.java.spotbugs.reportPaths>
+    <sonar.java.pmd.reportPaths>${basedir}/target/pmd.xml</sonar.java.pmd.reportPaths>
+    <!-- WildFly / Jakarta EE のバージョン管理 -->
+    <!-- WildFly 41.0.1（EE 10版）に対応するBOMバージョン -->
+    <version.wildfly>41.0.1.Final</version.wildfly>
+    <version.jakartaee-bom>10.0.0</version.jakartaee-bom>
+    <version.arquillian-bom>1.8.0.Final</version.arquillian-bom>
+    <!-- BOMで管理できないライブラリのversion管理 -->
+    <version.data>1.8</version.data>
+    <version.serviceid>1.8</version.serviceid>
+    <!-- Red Hatビルド(redhat-00001)はEAP専用のため、コミュニティ版に変更 -->
+    <version.postgresql>42.7.5</version.postgresql>
+    <!-- 要確認: サーバに導入するKeycloak SAMLアダプタ(Galleon feature-pack等)のバージョンに合わせること -->
+    <version.keycloak-saml-adapter-api-public>26.0.0</version.keycloak-saml-adapter-api-public>
+    <!-- WildFly 41のサーバモジュールに同梱されるJacksonのバージョンに合わせること -->
+    <version.jackson>2.21.4</version.jackson>
+    <version.parsson>1.1.7</version.parsson>
+    <version.jakarta.el>5.0.0-M1</version.jakarta.el>
+    <version.junit-jupiter>5.10.3</version.junit-jupiter>
+    <version.jmockit>1.49</version.jmockit>
+    <version.jacoco>0.8.12</version.jacoco>
+    <version.assertj-core>3.26.3</version.assertj-core>
+    <version.commons-logging>1.2</version.commons-logging>
+    <version.maven-surefire-plugin>3.1.0</version.maven-surefire-plugin>
+    <version.maven-compiler-plugin>3.11.0</version.maven-compiler-plugin>
+    <version.maven-war-plugin>3.3.2</version.maven-war-plugin>
+    <version.maven-javadoc-plugin>3.5.0</version.maven-javadoc-plugin>
+    <version.maven-checkstyle-plugin>3.2.2</version.maven-checkstyle-plugin>
+    <version.checkstyle>10.6.0</version.checkstyle>
+    <version.maven-pmd-plugin>3.20.0</version.maven-pmd-plugin>
+    <version.spotbugs-maven-plugin>4.7.3.4</version.spotbugs-maven-plugin>
+    <version.mockito-core>5.12.0</version.mockito-core>
+  </properties>
+
+  <!-- リポジトリの定義(DSSのNexus) -->
+  <!-- 注意: WildFlyコミュニティ版のアーティファクト(org.wildfly.bom等)はMaven Central由来のため、
+	     Nexus側にMaven Centralのproxyリポジトリが必要 -->
+  <repositories>
+    <repository>
+      <id>maven-dss</id>
+      <url>https://repository.rp.dss.itmufg/repository/maven-dss/</url>
+    </repository>
+    <repository>
+      <id>maven-apf</id>
+      <url>https://repository.rp.dss.itmufg/repository/maven-apf/</url>
+    </repository>
+    <repository>
+      <id>maven-mst-hosted</id>
+      <url>https://repository.rp.dss.itmufg/repository/maven-mst-hosted/</url>
+    </repository>
+  </repositories>
+
+  <!-- プラグインリポジトリの定義(DSSのNexus) -->
+  <pluginRepositories>
+    <pluginRepository>
+      <id>maven-dss</id>
+      <url>https://repository.rp.dss.itmufg/repository/maven-dss/</url>
+    </pluginRepository>
+    <pluginRepository>
+      <id>maven-mst-hosted</id>
+      <url>https://repository.rp.dss.itmufg/repository/maven-mst-hosted/</url>
+    </pluginRepository>
+  </pluginRepositories>
+
+  <!-- ディストリビューション管理(DSSのNexus) -->
+  <distributionManagement>
+    <repository>
+      <id>release-repository</id>
+      <url>https://repository.rp.dss.itmufg/repository/maven-mst-hosted/</url>
+    </repository>
+    <snapshotRepository>
+      <id>snapshot-repository</id>
+      <url>https://repository.rp.dss.itmufg/repository/maven-mst-hosted/</url>
+    </snapshotRepository>
+  </distributionManagement>
+
+  <!-- 依存関係の管理 -->
+  <dependencyManagement>
+    <dependencies>
+      <!-- WildFly 41 (EE 10版) EE BOM: サーバ本体(wildfly-ee-10 feature-pack)が提供する
+			     Jakarta EE API・Hibernate・RESTEasy等のバージョンを管理 -->
+      <dependency>
+        <groupId>org.wildfly.bom</groupId>
+        <artifactId>wildfly-ee-10</artifactId>
+        <version>${version.wildfly}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+      <!-- WildFly 41 (EE 10版) Expansion BOM: MicroProfile / Micrometer / OpenTelemetry等、
+			     wildfly feature-pack併用時に提供される機能のバージョンを管理 -->
+      <dependency>
+        <groupId>org.wildfly.bom</groupId>
+        <artifactId>wildfly-expansion-ee-10</artifactId>
+        <version>${version.wildfly}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+      <!-- Jakarta EE 10 BOM: jakarta.jakartaee-api(集約API)等のバージョンを管理 -->
+      <dependency>
+        <groupId>jakarta.platform</groupId>
+        <artifactId>jakarta.jakartaee-bom</artifactId>
+        <version>${version.jakartaee-bom}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+      <!-- Arquillian BOM -->
+      <dependency>
+        <groupId>org.jboss.arquillian</groupId>
+        <artifactId>arquillian-bom</artifactId>
+        <version>${version.arquillian-bom}</version>
+        <scope>import</scope>
+        <type>pom</type>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
+  <dependencies>
+    <!-- for JakartaEE10 (バージョンはjakarta.jakartaee-bomが管理、サーバ提供のためprovided) -->
+    <dependency>
+      <groupId>jakarta.platform</groupId>
+      <artifactId>jakarta.jakartaee-api</artifactId>
+      <scope>provided</scope>
+    </dependency>
+    <!-- for Lombok -->
+    <dependency>
+      <groupId>org.projectlombok</groupId>
+      <artifactId>lombok</artifactId>
+      <version>1.18.36</version>
+    </dependency>
+    <!-- for sonarqube -->
+    <dependency>
+      <groupId>org.codehaus.mojo</groupId>
+      <artifactId>sonar-maven-plugin</artifactId>
+      <version>3.11.0.3922</version>
+    </dependency>
+    <!-- PostgreSQLデータベースとの接続に使用 (BOM管理外・コミュニティ版) -->
+    <!-- ドライバをWildFlyのモジュール/デプロイメントとしてサーバ側に配置する場合はprovidedに変更すること -->
+    <dependency>
+      <groupId>org.postgresql</groupId>
+      <artifactId>postgresql</artifactId>
+      <version>${version.postgresql}</version>
+    </dependency>
+
+    <!-- Webサーバ利用ライブラリ -->
+    <!-- Jakarta XML Web Services API (バージョンはwildfly-ee-10 BOMが管理) -->
+    <dependency>
+      <groupId>org.jboss.spec.jakarta.xml.ws</groupId>
+      <artifactId>jboss-jakarta-xml-ws-api_4.0_spec</artifactId>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.jboss.spec.jakarta.xml.soap</groupId>
+      <artifactId>jboss-saaj-api_3.0_spec</artifactId>
+      <scope>provided</scope>
+    </dependency>
+    <!-- RESTEasyで使用 (バージョンはwildfly-ee-10 BOMが管理) -->
+    <dependency>
+      <groupId>org.jboss.resteasy</groupId>
+      <artifactId>resteasy-client</artifactId>
+      <scope>provided</scope>
+    </dependency>
+    <!-- Hibernate Core (バージョンはwildfly-ee-10 BOMが管理、WildFly 41 EE10版はORM 6.6) -->
+    <dependency>
+      <groupId>org.hibernate.orm</groupId>
+      <artifactId>hibernate-core</artifactId>
+      <scope>provided</scope>
+    </dependency>
+    <!-- Hibernate Validator (バージョンはwildfly-ee-10 BOMが管理) -->
+    <dependency>
+      <groupId>org.hibernate.validator</groupId>
+      <artifactId>hibernate-validator</artifactId>
+      <scope>provided</scope>
+    </dependency>
+    <!-- 注: hibernate-commons-annotationsはHibernate ORM 6.3以降では不要となり、
+		     wildfly-ee-10 BOMでも管理されないため削除 -->
+    <!-- Jakarta Persistence API (バージョンはwildfly-ee-10 BOMが管理) -->
+    <dependency>
+      <groupId>jakarta.persistence</groupId>
+      <artifactId>jakarta.persistence-api</artifactId>
+      <scope>provided</scope>
+    </dependency>
+    <!-- Jackson Datatype JDK8 (バージョンはwildfly-ee-10 BOMが管理) -->
+    <dependency>
+      <groupId>com.fasterxml.jackson.datatype</groupId>
+      <artifactId>jackson-datatype-jdk8</artifactId>
+      <scope>provided</scope>
+    </dependency>
+    <!-- Jackson Databind (BOM管理外のためバージョン明示、サーバモジュール同梱版に合わせる) -->
+    <dependency>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+      <version>${version.jackson}</version>
+      <scope>provided</scope>
+    </dependency>
+    <!-- Keycloak SAMLアダプタ (BOM管理外・コミュニティ版。サーバに導入するSAMLアダプタと同一バージョンにすること) -->
+    <dependency>
+      <groupId>org.keycloak</groupId>
+      <artifactId>keycloak-saml-adapter-api-public</artifactId>
+      <version>${version.keycloak-saml-adapter-api-public}</version>
+      <scope>provided</scope>
+    </dependency>
+    <!-- Apache Commons lang (BOM管理外) -->
+    <dependency>
+      <groupId>org.apache.commons</groupId>
+      <artifactId>commons-lang3</artifactId>
+      <version>3.12.0</version>
+    </dependency>
+    <!-- PrimeFaces (BOM管理外・アプリに同梱するためcompileのまま) -->
+    <dependency>
+      <groupId>org.primefaces</groupId>
+      <artifactId>primefaces</artifactId>
+      <version>14.0.12</version>
+      <classifier>jakarta</classifier>
+    </dependency>
+    <!-- Test用のライブラリ -->
+    <!-- for SpotBugs -->
+    <dependency>
+      <groupId>com.github.spotbugs</groupId>
+      <artifactId>spotbugs</artifactId>
+      <version>4.9.3</version>
+      <scope>test</scope>
+    </dependency>
+    <!-- for Junit5 -->
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <version>${version.junit-jupiter}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.vintage</groupId>
+      <artifactId>junit-vintage-engine</artifactId>
+      <version>${version.junit-jupiter}</version>
+      <scope>test</scope>
+    </dependency>
+    <!-- for jmockit -->
+    <dependency>
+      <groupId>org.jmockit</groupId>
+      <artifactId>jmockit</artifactId>
+      <version>${version.jmockit}</version>
+      <scope>test</scope>
+    </dependency>
+    <!-- for mockito -->
+    <dependency>
+      <groupId>org.mockito</groupId>
+      <artifactId>mockito-junit-jupiter</artifactId>
+      <version>${version.mockito-core}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.mockito</groupId>
+      <artifactId>mockito-core</artifactId>
+      <version>${version.mockito-core}</version>
+      <scope>test</scope>
+    </dependency>
+    <!-- for JaCoCo -->
+    <dependency>
+      <groupId>org.jacoco</groupId>
+      <artifactId>jacoco-maven-plugin</artifactId>
+      <version>${version.jacoco}</version>
+      <scope>test</scope>
+    </dependency>
+    <!-- for bootstrap -->
+    <dependency>
+      <groupId>org.webjars</groupId>
+      <artifactId>bootstrap</artifactId>
+      <version>5.3.3</version>
+    </dependency>
+    <!-- for Selenide -->
+    <dependency>
+      <groupId>com.codeborne</groupId>
+      <artifactId>selenide</artifactId>
+      <version>7.7.3</version>
+      <scope>test</scope>
+    </dependency>
+    <!-- Jakarta JSON Processing API (バージョンはwildfly-ee-10 BOMが管理) -->
+    <dependency>
+      <groupId>jakarta.json</groupId>
+      <artifactId>jakarta.json-api</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <!-- Parsson、Jakarta JSON Processingの実装 (BOM管理外のためバージョン明示) -->
+    <dependency>
+      <groupId>org.eclipse.parsson</groupId>
+      <artifactId>parsson</artifactId>
+      <version>${version.parsson}</version>
+      <scope>test</scope>
+    </dependency>
+    <!-- 注: org.glassfish:jakarta.json(旧統合アーティファクト)はjakarta.json-api + parssonと
+		     重複するため削除 -->
+    <!-- Jakarta Expression Language、EL式の評価に使用 -->
+    <dependency>
+      <groupId>org.glassfish</groupId>
+      <artifactId>jakarta.el</artifactId>
+      <version>${version.jakarta.el}</version>
+      <scope>test</scope>
+    </dependency>
+    <!-- AssertJ、フルエントなアサーションを提供するテストライブラリ -->
+    <dependency>
+      <groupId>org.assertj</groupId>
+      <artifactId>assertj-core</artifactId>
+      <version>${version.assertj-core}</version>
+      <scope>test</scope>
+    </dependency>
+    <!-- Commons Logging、ログ出力のための軽量API -->
+    <dependency>
+      <groupId>commons-logging</groupId>
+      <artifactId>commons-logging</artifactId>
+      <version>${version.commons-logging}</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <pluginManagement>
+      <plugins>
+        <!-- プロジェクトのクリーンアップを行う -->
+        <plugin>
+          <artifactId>maven-clean-plugin</artifactId>
+          <version>3.4.1</version>
+        </plugin>
+        <!-- リソースのコピーと処理を行う -->
+        <plugin>
+          <artifactId>maven-resources-plugin</artifactId>
+          <version>3.3.1</version>
+        </plugin>
+        <!-- 統合テストを実行する -->
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-failsafe-plugin</artifactId>
+          <version>3.2.5</version>
+        </plugin>
+        <!-- ソースコードのコンパイルを行う -->
+        <plugin>
+          <artifactId>maven-compiler-plugin</artifactId>
+          <version>3.13.0</version>
+        </plugin>
+        <!-- ユニットテストを実行する -->
+        <plugin>
+          <artifactId>maven-surefire-plugin</artifactId>
+          <version>3.3.1</version>
+        </plugin>
+        <!-- JARファイルを生成する -->
+        <plugin>
+          <artifactId>maven-jar-plugin</artifactId>
+          <version>3.4.2</version>
+        </plugin>
+        <!-- ローカルリポジトリへのインストールを行う -->
+        <plugin>
+          <artifactId>maven-install-plugin</artifactId>
+          <version>3.1.4</version>
+        </plugin>
+        <!-- リモートリポジトリへのデプロイを行う -->
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-deploy-plugin</artifactId>
+          <version>3.1.4</version>
+          <configuration>
+            <retryFailedDeploymentCount>3</retryFailedDeploymentCount>
+          </configuration>
+        </plugin>
+        <!-- サイトドキュメントの生成を行う -->
+        <plugin>
+          <artifactId>maven-site-plugin</artifactId>
+          <version>3.12.1</version>
+        </plugin>
+        <!-- プロジェクト情報レポートを生成する -->
+        <plugin>
+          <artifactId>maven-project-info-reports-plugin</artifactId>
+          <version>3.6.2</version>
+        </plugin>
+      </plugins>
+    </pluginManagement>
+    <plugins>
+      <!-- for CheckStyle -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-checkstyle-plugin</artifactId>
+        <version>3.4.0</version>
+        <dependencies>
+          <dependency>
+            <groupId>com.puppycrawl.tools</groupId>
+            <artifactId>checkstyle</artifactId>
+            <version>10.22.0</version>
+          </dependency>
+        </dependencies>
+        <configuration>
+          <configLocation>rules/slimdarwin-google-checks.xml</configLocation>
+          <outputFile>${project.build.directory}/checkstyle-result.xml</outputFile>
+          <linkXRef>false</linkXRef>
+        </configuration>
+        <executions>
+          <execution>
+            <phase>verify</phase>
+            <goals>
+              <goal>checkstyle</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+      <!-- for PMD -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-pmd-plugin</artifactId>
+        <version>3.24.0</version>
+        <configuration>
+          <format>xml</format>
+          <linkXRef>false</linkXRef>
+          <outputFile>${project.build.directory}/pmd.xml</outputFile>
+          <targetJdk>${java.version}</targetJdk>
+        </configuration>
+        <executions>
+          <execution>
+            <phase>verify</phase>
+            <goals>
+              <goal>cpd</goal>
+              <goal>pmd</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+      <!-- for SpotBugs -->
+      <plugin>
+        <groupId>com.github.spotbugs</groupId>
+        <artifactId>spotbugs-maven-plugin</artifactId>
+        <version>4.9.3.0</version>
+        <configuration>
+          <xmlOutput>true</xmlOutput>
+          <xmlOutputDirectory>${project.build.directory}</xmlOutputDirectory>
+          <excludeFilterFile>${basedir}/rules/spotbugs_exclude_filter.xml</excludeFilterFile>
+        </configuration>
+        <dependencies>
+          <dependency>
+            <groupId>com.github.spotbugs</groupId>
+            <artifactId>spotbugs</artifactId>
+            <version>4.9.3</version>
+          </dependency>
+        </dependencies>
+        <executions>
+          <execution>
+            <phase>verify</phase>
+            <goals>
+              <goal>spotbugs</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+      <!-- for JaCoCo -->
+      <plugin>
+        <groupId>org.jacoco</groupId>
+        <artifactId>jacoco-maven-plugin</artifactId>
+        <version>${version.jacoco}</version>
+        <executions>
+          <execution>
+            <id>prepare-agent</id>
+            <goals>
+              <goal>prepare-agent</goal>
+            </goals>
+          </execution>
+          <execution>
+            <id>report</id>
+            <goals>
+              <goal>report</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+
+      <!-- for JUnit, SpotBugs, CheckStyle, PMD, JaCoCo -->
+      <plugin>
+        <artifactId>maven-site-plugin</artifactId>
+        <version>3.12.1</version>
+      </plugin>
+      <!-- for JUnit -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <version>3.3.1</version>
+        <configuration>
+          <argLine>
+            -javaagent:${settings.localRepository}/org/jmockit/jmockit/${version.jmockit}/jmockit-${version.jmockit}.jar
+            -Duser.language=en -Duser.country=US -Dfile.encoding=UTF-8
+</argLine>
+          <useSystemClassLoader>false</useSystemClassLoader>
+        </configuration>
+      </plugin>
+      <!-- for sonarqube -->
+      <plugin>
+        <groupId>org.sonarsource.scanner.maven</groupId>
+        <artifactId>sonar-maven-plugin</artifactId>
+        <version>3.11.0.3922</version>
+        <configuration>
+          <exclusions>src/doc/**</exclusions>
+        </configuration>
+      </plugin>
+      <!-- for formatter-->
+      <plugin>
+        <groupId>net.revelc.code.formatter</groupId>
+        <artifactId>formatter-maven-plugin</artifactId>
+        <version>2.26.0</version>
+        <configuration>
+          <configFile>rules/eclipse-java-google-style.xml</configFile>
+          <lineEnding>${project.lineEnding}</lineEnding>
+          <encoding>${project.build.sourceEncoding}</encoding>
+        </configuration>
+        <executions>
+          <execution>
+            <goals>
+              <goal>format</goal>
+            </goals>
+            <phase>process-sources</phase>
+          </execution>
+        </executions>
+      </plugin>
+      <!-- for Maven Versions Plugin -->
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>versions-maven-plugin</artifactId>
+        <version>2.10.0</version>
+        <executions>
+          <execution>
+            <goals>
+              <goal>set</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+
+  <scm>
+    <connection>${config.scm.connection}</connection>
+    <developerConnection>${config.scm.developerConnection}</developerConnection>
+    <tag>v1.0.0</tag>
+  </scm>
+  <profiles>
+    <profile>
+      <id>scm-connection</id>
+      <properties>
+        <config.scm.connection>scm:git:${env.CI_REPOSITORY_URL}</config.scm.connection>
+        <config.scm.developerConnection>scm:git:${env.CI_REPOSITORY_URL}</config.scm.developerConnection>
+      </properties>
+    </profile>
+    <profile>
+      <id>java8</id>
+      <properties>
+        <java.version>1.8</java.version>
+      </properties>
+    </profile>
+    <profile>
+      <id>java11</id>
+      <properties>
+        <java.version>11</java.version>
+      </properties>
+    </profile>
+    <profile>
+      <id>java17</id>
+      <activation>
+        <activeByDefault />
+      </activation>
+      <properties>
+        <java.version>17</java.version>
+      </properties>
+    </profile>
+  </profiles>
+</project>
