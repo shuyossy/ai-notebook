@@ -1,0 +1,191 @@
+<mxfile host="65bd71144e">
+    <diagram id="mochikaeri-sbom-flow-v3" name="持ち帰り開発SBOM生成フロー">
+        <mxGraphModel dx="989" dy="673" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="0" fold="1" page="1" pageScale="1" pageWidth="1500" pageHeight="1330" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="title" value="&lt;b&gt;持ち帰り開発におけるSBOM生成レベルと判定フロー(9月末時点)&lt;/b&gt;" style="text;html=1;align=left;verticalAlign=middle;fontSize=20;fontColor=#1F3864;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="16" width="900" height="32" as="geometry"/>
+                </mxCell>
+                <mxCell id="subtitle" value="&lt;b&gt;9月末については、なるべく上位レベルとなるように調整&lt;/b&gt;" style="text;html=1;align=left;verticalAlign=middle;fontSize=11;fontColor=#666666;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="50" width="1300" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="start" value="&lt;b&gt;判定開始&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F5F5F5;strokeColor=#666666;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="190" y="90" width="260" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="q1" value="&lt;b&gt;Q2&lt;/b&gt;&amp;nbsp;ソースコード全量を行内に持ち込み、&lt;div&gt;行内でビルドすることは可能か&lt;br&gt;&lt;/div&gt;" style="rhombus;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#6C8EBF;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="180" y="300" width="280" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="q2" value="&lt;b&gt;Q1&lt;/b&gt;&amp;nbsp;ビルドツール移行依頼&lt;br&gt;に準拠しているか？&lt;br&gt;&lt;font style=&quot;font-size:9px&quot;&gt;= cdxgen適用可能な構成&lt;/font&gt;" style="rhombus;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#6C8EBF;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="180" y="165" width="280" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="q3" value="&lt;b&gt;Q3&lt;/b&gt; ロックファイルを&#xa;行内に持ち込めるか？" style="rhombus;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#6C8EBF;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="180" y="420" width="280" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="q4" value="&lt;b&gt;Q4&lt;/b&gt; ベンダーが外部ビルド環境にてcdxgenで&lt;br&gt;SBOMを生成・納品できるか？" style="rhombus;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#6C8EBF;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="180" y="580" width="280" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="q5" value="&lt;b&gt;Q5&lt;/b&gt;&amp;nbsp;依存関係定義ファイル(pom.xml等)&lt;br&gt;等を行内に持ち込んでcdxgenでSBOM生成できるか？" style="rhombus;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#6C8EBF;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="180" y="720" width="280" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="lv1" value="&lt;b&gt;【Lv4】本番環境で稼働しているビルド成果物が利用しているライブラリを完全にトレース&lt;/b&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#D5E8D4;strokeColor=#82B366;strokeWidth=2;fontSize=11;align=left;spacingLeft=10;" parent="1" vertex="1">
+                    <mxGeometry x="640" y="305" width="480" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="lv2" value="&lt;b&gt;【Lv3】本番環境で稼働しているビルド成果物が利用しているライブラリを限りなくトレース&lt;/b&gt;&lt;br&gt;ロックファイル（ビルド成果物が利用している推移的依存含むライブラリのバージョンが固定で一覧化されている）を利用すればビルド成果物の依存関係を忠実にトレースできるものの、&lt;span style=&quot;color: rgb(63, 63, 63); background-color: transparent;&quot;&gt;ロックファイル改ざんの可能性は捨てきれないためLvは下がる&lt;/span&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#E2F0D9;strokeColor=#82B366;fontSize=11;align=left;spacingLeft=10;" parent="1" vertex="1">
+                    <mxGeometry x="640" y="425" width="480" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="lv4" value="&lt;b&gt;【Lv2】&lt;/b&gt;&lt;b style=&quot;color: rgb(63, 63, 63); scrollbar-color: rgb(226, 226, 226) rgb(251, 251, 251);&quot;&gt;行内で再解決した「推定」の依存ライブラリをトレースしている(実ビルドと乖離しうる)&lt;/b&gt;&lt;br&gt;pom.xml等から行内で依存解決して生成(乖離リスク残存)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFE6CC;strokeColor=#D79B00;fontSize=11;align=left;spacingLeft=10;" parent="1" vertex="1">
+                    <mxGeometry x="640" y="725" width="480" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="lv6" value="&lt;b&gt;【Lv1】トレース精度が完全にベンダーに依存する&lt;/b&gt;&lt;br&gt;恐らく、ベンダーが手動で作成するしかないため精度は完全にベンダー依存" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#F8CECC;strokeColor=#B85450;strokeWidth=2;fontSize=11;align=left;spacingLeft=10;" parent="1" vertex="1">
+                    <mxGeometry x="640" y="850" width="480" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="precArrow" style="endArrow=classic;html=1;strokeColor=#1F3864;strokeWidth=3;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="1300" y="180" as="sourcePoint"/>
+                        <mxPoint x="1300" y="1000" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="precHigh" value="&lt;b&gt;高&lt;/b&gt;&#xa;本番稼働物への&#xa;トレース精度" style="text;html=1;align=center;verticalAlign=middle;fontSize=11;fontColor=#1F3864;" parent="1" vertex="1">
+                    <mxGeometry x="1250" y="120" width="110" height="56" as="geometry"/>
+                </mxCell>
+                <mxCell id="precLow" value="&lt;b&gt;低&lt;/b&gt;" style="text;html=1;align=center;verticalAlign=middle;fontSize=12;fontColor=#1F3864;" parent="1" vertex="1">
+                    <mxGeometry x="1280" y="1005" width="40" height="24" as="geometry"/>
+                </mxCell>
+                <mxCell id="nego" value="&lt;b&gt;移行可否確認&lt;/b&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#F5F5F5;strokeColor=#666666;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="30" y="545" width="120" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="eQ1Y" value="&lt;b&gt;Yes&lt;/b&gt;" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#82B366;strokeWidth=2;fontSize=11;fontColor=#1F5C3F;labelBackgroundColor=#FFFFFF;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="q1" target="lv1" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="eQ2Y" value="&lt;b&gt;Yes&lt;/b&gt;(準拠)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#6C8EBF;strokeWidth=2;fontSize=11;fontColor=#1F3864;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="q2" target="q1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="360" y="290" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="eQ2N" value="&lt;b&gt;No&lt;/b&gt;(非準拠: ant継続等)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#B85450;strokeWidth=2;fontSize=10;fontColor=#943634;labelBackgroundColor=#FFFFFF;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="q2" target="nego" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="90" y="205"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="eNegoOK" value="合意" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#6C8EBF;strokeWidth=1.5;fontSize=9;fontColor=#1F3864;labelBackgroundColor=#FFFFFF;exitX=1;exitY=0.25;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="nego" target="q1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="165" y="560"/>
+                            <mxPoint x="165" y="340"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="eNegoNG" value="&lt;b&gt;不調&lt;/b&gt;(個別調整)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#B85450;strokeWidth=2;fontSize=10;fontColor=#943634;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="nego" target="17" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="90" y="885"/>
+                        </Array>
+                        <mxPoint x="180" y="850" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="eQ3Y" value="&lt;b&gt;Yes&lt;/b&gt;" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#82B366;strokeWidth=2;fontSize=11;fontColor=#1F5C3F;labelBackgroundColor=#FFFFFF;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="q3" target="lv2" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="eQ3N" value="&lt;b&gt;No&lt;/b&gt;" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#6C8EBF;strokeWidth=2;fontSize=10;fontColor=#1F3864;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="q3" target="q4" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="eQ4N" value="&lt;b&gt;No&lt;/b&gt;" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#6C8EBF;strokeWidth=2;fontSize=11;fontColor=#1F3864;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="q4" target="q5" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="eQ5Y" value="&lt;b&gt;Yes&lt;/b&gt;" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#D79B00;strokeWidth=2;fontSize=11;fontColor=#B46504;labelBackgroundColor=#FFFFFF;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="q5" target="lv4" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="eQ6N" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#B85450;strokeWidth=2;fontSize=11;fontColor=#943634;labelBackgroundColor=#FFFFFF;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="17" target="lv6" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="560" y="885"/>
+                            <mxPoint x="560" y="885"/>
+                        </Array>
+                        <mxPoint x="490" y="914.93" as="sourcePoint"/>
+                        <mxPoint x="790" y="1004.93" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="2" value="" style="endArrow=none;dashed=1;html=1;dashPattern=1 3;strokeWidth=2;fillColor=#b1ddf0;strokeColor=#10739e;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" target="3">
+                    <mxGeometry width="50" height="50" relative="1" as="geometry">
+                        <mxPoint x="330" y="390" as="sourcePoint"/>
+                        <mxPoint x="520" y="280" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="3" value="ここがNoの場合、納品されたビルド成果物からSBOMを生成し、補完情報として利用する案もアリ（9月末以降スコープ。成果物の形式によってはLv4のSBOMを生成できる可能性もある）" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#b1ddf0;strokeColor=#10739e;" vertex="1" parent="1">
+                    <mxGeometry x="530" y="176" width="220" height="110" as="geometry"/>
+                </mxCell>
+                <mxCell id="4" value="&lt;b&gt;【Lv3】本番環境で稼働しているビルド成果物が利用しているライブラリを限りなくトレース&lt;/b&gt;&lt;div&gt;外部でcdxgenを利用していること以外は行内のSBOM生成ロジックと変わらない&lt;/div&gt;&lt;div&gt;最終的に納品されるSBOMの改ざんの可能性は捨てきれないためLvは下がる&lt;/div&gt;&lt;div&gt;(行内のSBOM生成要件に合わせてcdxgenを利用してもらう必要がある)&lt;br&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#E2F0D9;strokeColor=#82B366;fontSize=11;align=left;spacingLeft=10;" vertex="1" parent="1">
+                    <mxGeometry x="640" y="585" width="480" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="5" value="" style="endArrow=none;dashed=1;html=1;dashPattern=1 3;strokeWidth=2;fillColor=#b1ddf0;strokeColor=#10739e;entryX=0.024;entryY=0.353;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" target="6">
+                    <mxGeometry width="50" height="50" relative="1" as="geometry">
+                        <mxPoint x="320" y="510" as="sourcePoint"/>
+                        <mxPoint x="420" y="520" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="6" value="ロックファイルが手元にあれば行内のSBOM生成要件（SBOMフォーマットやバージョン）に合わせて柔軟にSBOMを再生成したりできるので、まずはロックファイルを持ち込めるか確認する" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#b1ddf0;strokeColor=#10739e;" vertex="1" parent="1">
+                    <mxGeometry x="440" y="485" width="190" height="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="12" value="&lt;b&gt;No&lt;/b&gt;" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#6C8EBF;strokeWidth=2;fontSize=11;fontColor=#1F3864;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" target="q3">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="320" y="380" as="sourcePoint"/>
+                        <mxPoint x="330" y="310" as="targetPoint"/>
+                        <Array as="points">
+                            <mxPoint x="320" y="390"/>
+                            <mxPoint x="320" y="390"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="14" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#6C8EBF;strokeWidth=2;fontSize=11;fontColor=#1F3864;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="start" target="q2">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="330" y="390" as="sourcePoint"/>
+                        <mxPoint x="330" y="430" as="targetPoint"/>
+                        <Array as="points">
+                            <mxPoint x="320" y="150"/>
+                            <mxPoint x="320" y="150"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="15" value="&lt;b&gt;Yes&lt;/b&gt;" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#82B366;strokeWidth=2;fontSize=11;fontColor=#1F5C3F;labelBackgroundColor=#FFFFFF;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="q4" target="4">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="470" y="470" as="sourcePoint"/>
+                        <mxPoint x="650" y="470" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="17" value="外部ベンダー独自にSBOMを生成し、納品するよう依頼する" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+                    <mxGeometry x="215" y="840" width="210" height="90" as="geometry"/>
+                </mxCell>
+                <mxCell id="22" value="&lt;b&gt;SBOM集中討議にて、持ち帰り開発についての精度は割り切りで合意済み（できるだけ高い精度でSBOMを生成する&lt;/b&gt;&lt;b style=&quot;color: rgb(63, 63, 63); background-color: transparent;&quot;&gt;）により、9月末時点でのレベルの下限等は設けない。&lt;/b&gt;&lt;div&gt;&lt;div&gt;&lt;b&gt;ただし、原理的には高レベルである必要があるため。将来的にはレベルの下限を設定するか検討&lt;/b&gt;&lt;/div&gt;&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#8EA9DB;align=left;verticalAlign=top;spacing=10;fontSize=10;" vertex="1" parent="1">
+                    <mxGeometry x="510" y="48" width="470" height="84" as="geometry"/>
+                </mxCell>
+                <mxCell id="24" value="ビルドツール移行が強制である場合はこの矢印を削除" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#b1ddf0;strokeColor=#10739e;" vertex="1" parent="1">
+                    <mxGeometry x="30" y="950" width="190" height="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="25" value="" style="endArrow=none;dashed=1;html=1;dashPattern=1 3;strokeWidth=2;fillColor=#b1ddf0;strokeColor=#10739e;entryX=0.5;entryY=0;entryDx=0;entryDy=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" edge="1" parent="1" target="24">
+                    <mxGeometry width="50" height="50" relative="1" as="geometry">
+                        <mxPoint x="120" y="890" as="sourcePoint"/>
+                        <mxPoint x="240" y="1020" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="26" value="&lt;b&gt;No&lt;/b&gt;" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#6C8EBF;strokeWidth=2;fontSize=11;fontColor=#1F3864;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="q5" target="17">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="330" y="670" as="sourcePoint"/>
+                        <mxPoint x="330" y="730" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="27" value="" style="endArrow=none;dashed=1;html=1;dashPattern=1 3;strokeWidth=2;fillColor=#b1ddf0;strokeColor=#10739e;" edge="1" parent="1">
+                    <mxGeometry width="50" height="50" relative="1" as="geometry">
+                        <mxPoint x="360" y="650" as="sourcePoint"/>
+                        <mxPoint x="430" y="670" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="28" value="外部ベンダーがcdxgenを利用できない場合は、行内のSBOM生成要件を満たし、精度が悪化しないのであれば他ツールでも可" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#b1ddf0;strokeColor=#10739e;" vertex="1" parent="1">
+                    <mxGeometry x="430" y="640" width="190" height="100" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>
