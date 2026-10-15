@@ -1,13 +1,15 @@
-・NexusのConan 2.x（=Nexus VUP）対応
-　　・C/C++からSBOM生成できるようにするため
-　　・現状のSOE部Nexusのバージョンはサポート対象外であり、脆弱性が発見されても修正されないので、本件がなくともVUPは必要なはず。Mythos対応のニーズがあり予算も取れるので、このタイミングで実施したい
-　　・まずは見積もりから
-・SBOM生成パイプラインの継続改善
-    ・trigger APIのエラー検知・ログ確認できるようにする
-　　・ビルド成果物、コンテナイメージでSBOMを補完する
-　　　　・以下はこんな感じでできるかな？のイメージ
+// SBOM の metadata.component.name を指定値に書き換える
+// 使い方: node set-sbom-name.mjs <SBOMファイル> <名前>
+import { readFileSync, writeFileSync } from "node:fs";
 
-　　　　　　・GP内で生成されたビルド成果物、コンテナイメージでSBOMを補完する
-　　　　　　・ビルド成果物、コンテナイメージをArtifactの所定フォルダに入れてもらう
-　　　　　　・ビルド成果物、コンテナイメージのNexusパスを指定してもらって、その最新バージョンを取得する
-　　・retire.jsでSBOMを補完する
+const [file, name] = process.argv.slice(2);
+if (!file || !name) {
+  console.error("使い方: node set-sbom-name.mjs <SBOMファイル> <名前>");
+  process.exit(1);
+}
+const bom = JSON.parse(readFileSync(file, "utf-8"));
+bom.metadata ??= {};
+// metadata.component が無い場合(Gradle 失敗時など)は新しく作る
+bom.metadata.component ??= { type: "application", "bom-ref": `application:${name}` };
+bom.metadata.component.name = name;
+writeFileSync(file, `${JSON.stringify(bom, null, 2)}\n`);
