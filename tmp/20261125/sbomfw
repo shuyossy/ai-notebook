@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>フレームワーク(共通部品)のSBOM管理に関する基本方針(案)</title>
+<style>
+  :root {
+    --ink: #14233b;
+    --ink-soft: #46556b;
+    --page: #eef1f4;
+    --paper: #ffffff;
+    --line: #cbd3dc;
+    --line-soft: #e3e8ee;
+    --adopt: #0f6e5c;
+    --adopt-bg: #e4f2ee;
+    --warn: #a85d0a;
+    --warn-bg: #fbf0df;
+    --fw: #2f5fa8;
+    --fw-bg: #e6eef9;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--page);
+    color: var(--ink);
+    font-family: "Yu Gothic UI", "Yu Gothic", "Hiragino Sans", "Hiragino Kaku Gothic ProN",
+                 "Noto Sans CJK JP", "Noto Sans JP", Meiryo, sans-serif;
+    font-size: 15px;
+    line-height: 1.75;
+  }
+  .sheet {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 40px 44px 56px;
+    background: var(--paper);
+  }
+  p { margin: 0 0 10px; }
+  ul { margin: 0; padding-left: 1.3em; }
+  li { margin-bottom: 4px; }
+  strong { font-weight: 700; }
+
+  /* ---------- 表題 ---------- */
+  .doc-head { border-bottom: 3px solid var(--ink); padding-bottom: 18px; }
+  .doc-meta { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 4px 16px;
+              font-size: 13px; color: var(--ink-soft); }
+  h1 { margin: 10px 0 8px; font-size: 28px; line-height: 1.4; letter-spacing: .01em; }
+  .doc-lead { margin: 0; color: var(--ink-soft); max-width: 46em; }
+
+  /* ---------- 結論 ---------- */
+  .verdict { margin-top: 24px; padding: 22px 26px 24px; background: var(--ink); color: #fff; }
+  .verdict h2 { margin: 0 0 12px; font-size: 15px; font-weight: 700; color: #b9c7da; }
+  .verdict ol { margin: 0; padding: 0; list-style: none; display: grid; gap: 12px; }
+  .verdict li { margin: 0; display: grid; grid-template-columns: 30px 1fr; gap: 12px; align-items: start; }
+  .verdict .no { width: 30px; height: 30px; border: 1.5px solid #7f93b0; border-radius: 50%;
+                 display: grid; place-items: center; font-size: 14px; font-weight: 700; margin-top: 2px; }
+  .verdict .main { font-size: 18px; font-weight: 700; line-height: 1.55; }
+  .verdict .sub { font-size: 14px; color: #c9d4e3; }
+
+  /* ---------- 章 ---------- */
+  section { margin-top: 40px; }
+  h2.sec { margin: 0 0 14px; font-size: 20px; line-height: 1.5; display: grid;
+           grid-template-columns: auto 1fr; gap: 12px; align-items: baseline;
+           padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+  h2.sec .n { font-size: 15px; color: var(--ink-soft); font-weight: 700; }
+  h3 { margin: 0 0 6px; font-size: 16px; line-height: 1.5; }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; align-items: start; }
+  .note { margin-top: 14px; padding: 12px 16px; border-left: 4px solid var(--fw);
+          background: var(--fw-bg); font-size: 14px; }
+  .caption { font-size: 13px; color: var(--ink-soft); margin-top: 6px; }
+
+  /* ---------- 図:現状フロー ---------- */
+  .flow { display: grid; grid-template-columns: 1fr 26px 1fr 26px 1fr 26px 1fr; align-items: stretch; }
+  .node { border: 1.5px solid var(--line); padding: 12px 12px 14px; background: #fafbfc; }
+  .node .ttl { font-weight: 700; font-size: 14px; line-height: 1.45; margin-bottom: 6px; }
+  .node .desc { font-size: 13px; line-height: 1.6; color: var(--ink-soft); }
+  .node.problem { border-color: var(--warn); background: var(--warn-bg); }
+  .node.problem .desc { color: var(--ink); }
+  .arrow { display: grid; place-items: center; }
+  .arrow svg { width: 20px; height: 20px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 5px; }
+  .chip { display: inline-block; padding: 1px 9px; border: 1px solid var(--fw); color: var(--fw);
+          background: #fff; border-radius: 999px; font-size: 12.5px; font-weight: 700; line-height: 1.6; }
+  .chip.q { border-color: var(--warn); color: var(--warn); }
+  .flow-result { margin-top: 12px; padding: 12px 16px; border: 1.5px solid var(--warn);
+                 background: var(--warn-bg); font-size: 14.5px; }
+
+  /* ---------- 表 ---------- */
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 14px; line-height: 1.65; }
+  th, td { border: 1px solid var(--line); padding: 10px 14px; vertical-align: top; text-align: left; }
+  thead th { background: #f3f5f8; font-size: 14.5px; }
+  tbody th { background: #f3f5f8; font-weight: 700; }
+  thead th:first-child { width: 12.5em; }
+  .adopt-col { background: var(--adopt-bg); }
+  thead th.adopt-col { background: var(--adopt); color: #fff; border-color: var(--adopt); }
+  .badge { display: inline-block; margin-left: 8px; padding: 0 9px; background: #fff; color: var(--adopt);
+           border-radius: 3px; font-size: 12.5px; font-weight: 700; line-height: 1.7; vertical-align: 1px; }
+  .mark { font-weight: 700; margin-right: 4px; }
+  .mark.ng { color: var(--warn); }
+  .mark.ok { color: var(--adopt); }
+
+  /* ---------- 図:Javaの例 ---------- */
+  .case { border: 1.5px solid var(--line); padding: 16px 18px 18px; }
+  .case > p { font-size: 14px; color: var(--ink-soft); min-height: 5.3em; }
+  .box { border: 1.5px solid var(--ink); }
+  .box .box-ttl { background: var(--ink); color: #fff; font-size: 13px; font-weight: 700; padding: 3px 12px; }
+  .box.sbom { border-color: var(--adopt); }
+  .box.sbom .box-ttl { background: var(--adopt); }
+  .tree { padding: 10px 12px 12px; display: grid; gap: 6px; }
+  .dep { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center;
+         padding: 5px 10px; border: 1px solid var(--line); background: #fff; font-size: 14px; }
+  .dep .name { font-weight: 700; }
+  .dep .how { font-size: 12.5px; color: var(--ink-soft); text-align: right; }
+  .dep.fw { border-color: var(--fw); background: var(--fw-bg); }
+  .dep.child { margin-left: 26px; position: relative; border-style: dashed; }
+  .dep.child::before { content: ""; position: absolute; left: -15px; top: -7px; width: 14px; height: calc(50% + 7px);
+                       border-left: 1.5px solid var(--line); border-bottom: 1.5px solid var(--line); }
+  .down { display: grid; justify-items: center; font-size: 12.5px; color: var(--ink-soft); padding: 5px 0 3px; line-height: 1.4; }
+  .down svg { width: 20px; height: 20px; }
+  .dep.hit { border-color: var(--adopt); }
+  .dep.hit .how { color: var(--adopt); font-weight: 700; }
+  .common { margin-top: 16px; padding: 14px 18px; background: var(--adopt-bg); border-left: 4px solid var(--adopt); }
+  .common p:last-child { margin-bottom: 0; }
+
+  /* ---------- 今後 ---------- */
+  .plan { display: grid; grid-template-columns: 1fr 1fr; gap: 0; border: 1.5px solid var(--line); }
+  .plan > div { padding: 14px 18px 16px; }
+  .plan > div + div { border-left: 1.5px dashed var(--line); }
+  .plan .when { font-size: 13px; font-weight: 700; color: var(--ink-soft); margin-bottom: 2px; }
+  .ask { margin-top: 16px; padding: 16px 20px; border: 2px solid var(--ink); }
+  .ask h3 { font-size: 15px; color: var(--ink-soft); }
+  .ask p { font-size: 17px; font-weight: 700; line-height: 1.65; margin: 0; }
+
+  @media (max-width: 800px) {
+    .sheet { padding: 24px 18px 40px; }
+    h1 { font-size: 22px; }
+    .cols, .plan { grid-template-columns: 1fr; }
+    .plan > div + div { border-left: 0; border-top: 1.5px dashed var(--line); }
+    .flow { grid-template-columns: 1fr; }
+    .arrow { padding: 4px 0; }
+    .arrow svg { transform: rotate(90deg); }
+    .case > p { min-height: 0; }
+    thead th:first-child { width: 6.5em; }
+  }
+  @media print {
+    body { background: #fff; font-size: 12.5px; }
+    .sheet { max-width: none; padding: 0; }
+    section, .case, .verdict, table, .flow { break-inside: avoid; }
+    .verdict, .box .box-ttl, thead th.adopt-col { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+
+  .verdict li { grid-template-columns: 6.2em 1fr; }
+  .verdict .tag { margin-top: 3px; padding: 1px 0; text-align: center; font-size: 13px; font-weight: 700;
+                  border: 1.5px solid #7f93b0; border-radius: 3px; line-height: 1.7; }
+  .verdict .tag.wait { border-color: #e2b46a; color: #f3d19c; }
+  .status { display: grid; grid-template-columns: auto 1fr; gap: 16px; align-items: start;
+            padding: 16px 20px; border: 1.5px solid var(--warn); background: var(--warn-bg); }
+  .status .pill { padding: 2px 14px; background: var(--warn); color: #fff; font-weight: 700; font-size: 14px; border-radius: 999px; white-space: nowrap; }
+  .status p:last-child { margin-bottom: 0; }
+  .branch { margin-top: 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .branch > div { border: 1.5px solid var(--line); padding: 14px 18px 16px; }
+  .branch .if { font-size: 13px; font-weight: 700; color: var(--ink-soft); }
+  .branch .then { font-size: 17px; font-weight: 700; margin: 4px 0 4px; }
+  .branch .base { border-color: var(--adopt); background: var(--adopt-bg); }
+  .branch .alt { border-color: var(--warn); background: var(--warn-bg); }
+  .branch p { margin: 0; font-size: 14px; }
+  h3.sub { margin: 18px 0 8px; }
+  @media (max-width: 800px) { .branch, .status { grid-template-columns: 1fr; } .verdict li { grid-template-columns: 1fr; gap: 4px; } .verdict .tag { width: 6.2em; } }
+  @media print { .status .pill { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+
+  .now { display: grid; grid-template-columns: 1fr 76px 1.6fr; align-items: stretch; }
+  .now .arrow { font-size: 12.5px; color: var(--ink-soft); align-content: center; justify-items: center; line-height: 1.4; }
+  .know { display: grid; grid-template-columns: 7.5em 1fr; gap: 10px; margin-top: 6px; padding: 6px 10px; font-size: 14px; line-height: 1.6; background: #fff; border: 1px solid var(--line); }
+  .know span { font-weight: 700; font-size: 13px; }
+  .know.ok { border-color: var(--adopt); } .know.ok span { color: var(--adopt); }
+  .know.ng { border-color: var(--warn); background: var(--warn-bg); } .know.ng span { color: var(--warn); }
+  @media (max-width: 800px) { .now { grid-template-columns: 1fr; } .now .arrow { padding: 4px 0; } }
+</style>
+</head>
+<body>
+<div class="sheet">
+
+  <header class="doc-head">
+    <div class="doc-meta">
+      <span>Mythos対応(OSSリスク対策・SBOM導入)</span>
+      <span>2026年11月25日</span>
+    </div>
+    <h1>フレームワーク(共通部品)のSBOM管理に関する基本方針(案)</h1>
+    <p class="doc-lead">「1つの共通部品に対して、バージョンごとに複数のSBOMを管理する必要があるか」というご相談への回答と、今後の対応をまとめます。</p>
+  </header>
+
+  <div class="verdict">
+    <h2>要点</h2>
+    <ol>
+      <li>
+        <span class="tag">回答</span>
+        <div>
+          <div class="main">バージョンごとにSBOMを管理しなくても、問題ないと考えています</div>
+          <div class="sub">ビルドツール移行を進めれば、フレームワークが依存するライブラリは呼び出し側システムのSBOMで検知できるためです。</div>
+        </div>
+      </li>
+      <li>
+        <span class="tag wait">確認中</span>
+        <div>
+          <div class="main">脆弱性スキャンを担うAチームに、この検知方法で問題ないか確認しています</div>
+          <div class="sub">呼び出し側のSBOM経由でフレームワークの脆弱性を検知する、という前提でよいかの確認です。</div>
+        </div>
+      </li>
+      <li>
+        <span class="tag">今後の改善</span>
+        <div>
+          <div class="main">SBOMにバージョン(ブランチ名・タグ名)を記載する対応を、改善バックログに追加します</div>
+          <div class="sub">現状は記載がなく使い勝手がよくないためです。Aチームの回答によっては、最優先での実施をお願いする可能性があります。</div>
+        </div>
+      </li>
+    </ol>
+  </div>
+
+  <!-- 1 -->
+  <section>
+    <h2 class="sec"><span class="n">1</span><span>きっかけとなったご相談と、現状</span></h2>
+    <div class="cols">
+      <div>
+        <p>コンシェルジュの若山さんから、次のご相談をいただきました。</p>
+        <ul>
+          <li>行内共通プラットフォームの共通部品は複数のシステムへ提供しており、<strong>システムごとに利用しているバージョンが異なる</strong>。</li>
+          <li>そのため、1つの共通部品(プロジェクト)に対して、<strong>バージョンごとに複数のSBOM</strong>を管理する必要がある。</li>
+          <li>この場合、SBOMはどのように格納・管理するのがよいか。</li>
+        </ul>
+        <div class="note">
+          フレームワークは分類Iのシステムから呼び出される可能性があるため、分類Iに指定されているものがあります。指定されたフレームワークは、GitLab移行・ビルドツール移行・SBOM生成の対象です。
+        </div>
+      </div>
+      <div>
+        <svg viewBox="0 0 460 232" role="img" aria-label="1つの共通部品の3つのバージョンを、3つのシステムがそれぞれ利用している図" style="width:100%;height:auto;display:block">
+          <defs>
+            <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+              <path d="M0 0 L10 5 L0 10 z" fill="#46556b"/>
+            </marker>
+          </defs>
+          <rect x="1" y="1" width="206" height="230" fill="#e6eef9" stroke="#2f5fa8" stroke-width="1.5"/>
+          <text x="104" y="27" text-anchor="middle" font-size="14" font-weight="700" fill="#14233b">共通部品(1つのプロジェクト)</text>
+          <g font-size="14" font-weight="700" fill="#2f5fa8" text-anchor="middle">
+            <rect x="34" y="46" width="140" height="40" rx="20" fill="#fff" stroke="#2f5fa8" stroke-width="1.5"/>
+            <text x="104" y="71">バージョン 1.0</text>
+            <rect x="34" y="106" width="140" height="40" rx="20" fill="#fff" stroke="#2f5fa8" stroke-width="1.5"/>
+            <text x="104" y="131">バージョン 2.0</text>
+            <rect x="34" y="166" width="140" height="40" rx="20" fill="#fff" stroke="#2f5fa8" stroke-width="1.5"/>
+            <text x="104" y="191">バージョン 3.0</text>
+          </g>
+          <g stroke="#46556b" stroke-width="1.5" marker-end="url(#ah)">
+            <line x1="176" y1="66" x2="316" y2="66"/>
+            <line x1="176" y1="126" x2="316" y2="126"/>
+            <line x1="176" y1="186" x2="316" y2="186"/>
+          </g>
+          <g font-size="12" fill="#46556b" text-anchor="middle">
+            <text x="262" y="59">利用</text>
+            <text x="262" y="119">利用</text>
+            <text x="262" y="179">利用</text>
+          </g>
+          <g font-size="14" font-weight="700" fill="#14233b" text-anchor="middle">
+            <rect x="319" y="46" width="140" height="40" fill="#fafbfc" stroke="#14233b" stroke-width="1.5"/>
+            <text x="389" y="71">システムA</text>
+            <rect x="319" y="106" width="140" height="40" fill="#fafbfc" stroke="#14233b" stroke-width="1.5"/>
+            <text x="389" y="131">システムB</text>
+            <rect x="319" y="166" width="140" height="40" fill="#fafbfc" stroke="#14233b" stroke-width="1.5"/>
+            <text x="389" y="191">システムC</text>
+          </g>
+        </svg>
+        <p class="caption">同じ共通部品でも、システムによって使っているバージョンが違う。</p>
+      </div>
+    </div>
+    <h3 class="sub">現状:フレームワークのSBOMからは「最新バージョンである」ことしか分からない</h3>
+    <div class="now">
+      <div class="node">
+        <div class="ttl">フレームワークのリポジトリ</div>
+        <div class="desc">バージョンはブランチ名・タグ名で管理</div>
+        <div class="chips" style="margin-top:8px">
+          <span class="chip">1.0</span><span class="chip">2.0</span><span class="chip">3.0(最新)</span>
+        </div>
+      </div>
+      <div class="arrow"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M2 10h13M10 4l6 6-6 6" fill="none" stroke="#46556b" stroke-width="2"/></svg><span>SBOM生成</span></div>
+      <div class="node">
+        <div class="ttl">SBOM格納プロジェクトにある、フレームワークのSBOM</div>
+        <div class="know ok"><span>分かること</span>最新バージョンのSBOMである</div>
+        <div class="know ng"><span>分からないこと</span>どのブランチ・タグ(=バージョン)から生成されたか<br>※SBOMにブランチ名・タグ名が記載されていないため</div>
+      </div>
+    </div>
+    <div class="flow-result">
+      このため、システムAが使う 1.0 やシステムBが使う 2.0 のSBOMを、フレームワーク側で管理することは現状できません。<br>
+      <strong>ただし、ビルドツール移行を進めている現在は、呼び出し側のSBOMで検知できます(2章)。</strong>
+    </div>
+  </section>
+
+
+  <section>
+    <h2 class="sec"><span class="n">2</span><span>回答:呼び出し側のSBOMで検知できるため、バージョンごとの管理は不要</span></h2>
+    <p>ビルドツール移行により、フレームワークも呼び出し側システムも、依存するライブラリは pom.xml で管理することを原則としています。そのため、フレームワークが依存するライブラリは、呼び出し側システムのSBOMに記録されます。フレームワークの提供形態は2通りありますが、どちらでも結果は同じです(Javaの例)。</p>
+    <div class="cols" style="margin-top:14px">
+
+      <div class="case">
+        <h3>① ライブラリとして提供されるフレームワーク</h3>
+        <p>呼び出し側は、フレームワークをMavenライブラリとして取り込みます。フレームワークの pom.xml に記載されたライブラリも、あわせて自動的に解決されます。</p>
+        <div class="box">
+          <div class="box-ttl">呼び出し側の pom.xml</div>
+          <div class="tree">
+            <div class="dep fw"><span class="name">フレームワーク 2.0</span><span class="how">依存関係として記載</span></div>
+            <div class="dep child"><span class="name">ライブラリX</span><span class="how">フレームワークの pom.xml に記載</span></div>
+            <div class="dep child"><span class="name">ライブラリY</span><span class="how">フレームワークの pom.xml に記載</span></div>
+          </div>
+        </div>
+        <div class="down">
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2v13M4 10l6 6 6-6" fill="none" stroke="#46556b" stroke-width="2"/></svg>
+          SBOM生成
+        </div>
+        <div class="box sbom">
+          <div class="box-ttl">呼び出し側のSBOM</div>
+          <div class="tree">
+            <div class="dep fw"><span class="name">フレームワーク 2.0</span><span class="how">直接の依存</span></div>
+            <div class="dep hit"><span class="name">ライブラリX</span><span class="how">推移的依存として記録</span></div>
+            <div class="dep hit"><span class="name">ライブラリY</span><span class="how">推移的依存として記録</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="case">
+        <h3>② 参照実装として提供されるフレームワーク</h3>
+        <p>呼び出し側は、参照実装が必要とするライブラリを自分の pom.xml に直接記載します。</p>
+        <div class="box">
+          <div class="box-ttl">呼び出し側の pom.xml</div>
+          <div class="tree">
+            <div class="dep"><span class="name">ライブラリX</span><span class="how">依存関係として直接記載</span></div>
+            <div class="dep"><span class="name">ライブラリY</span><span class="how">依存関係として直接記載</span></div>
+          </div>
+        </div>
+        <div class="down">
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2v13M4 10l6 6 6-6" fill="none" stroke="#46556b" stroke-width="2"/></svg>
+          SBOM生成
+        </div>
+        <div class="box sbom">
+          <div class="box-ttl">呼び出し側のSBOM</div>
+          <div class="tree">
+            <div class="dep hit"><span class="name">ライブラリX</span><span class="how">直接の依存として記録</span></div>
+            <div class="dep hit"><span class="name">ライブラリY</span><span class="how">直接の依存として記録</span></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+    <div class="common">
+      <p><strong>各システムのSBOMをスキャンすれば、そのシステムが実際に使っているバージョンのフレームワークの依存ライブラリを検知できます。</strong></p>
+      <p>システムA・B・Cが別々のバージョンを使っていても、それぞれのSBOMに、それぞれが使っているバージョンの依存ライブラリが載ります。フレームワーク側でバージョンごとのSBOMを持つ必要はありません。フレームワーク自身のSBOMは、他システムと同じく最新バージョンの1つを格納すれば足ります。</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="sec"><span class="n">3</span><span>確認中:Aチームに、この検知方法で問題ないか確認している</span></h2>
+    <div class="status">
+      <span class="pill">確認中</span>
+      <div>
+        <p>2章の整理は、<strong>脆弱性検知を呼び出し側のSBOM経由で行う</strong>ことが前提です。SBOM生成後の脆弱性スキャンはAチームが担当しているため、この前提で問題ないかを別途確認しています。</p>
+        <p>回答が得られ次第、本資料の内容を確定します。</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="sec"><span class="n">4</span><span>今後の改善:SBOMにバージョンを記載する対応を、改善バックログに追加する</span></h2>
+    <p>1章のとおり、現状のSBOMにはブランチ名・タグ名が記載されておらず、どのバージョンから生成されたものかを判別できません。2章のとおり脆弱性検知には支障がありませんが、使い勝手はよくないため、改善バックログに追加します。これはフレームワークに限らず、全システムのSBOMに共通する改善です。</p>
+    <h3 class="sub">対応の優先度は、Aチームの回答で決まります</h3>
+    <div class="branch">
+      <div class="base">
+        <div class="if">呼び出し側のSBOM経由の検知で問題ない場合(現在の想定)</div>
+        <div class="then">改善バックログで管理</div>
+        <p>脆弱性検知には影響しないため、使い勝手の改善として、他の改善項目とあわせて優先度を決めます。</p>
+      </div>
+      <div class="alt">
+        <div class="if">フレームワーク自体のSBOMをバージョンごとにスキャンする必要がある場合</div>
+        <div class="then">最優先での実施をお願いする可能性あり</div>
+        <p>バージョンを判別できないと検知の運用が成り立たないため、SBOMへのバージョン記載が必須になります。</p>
+      </div>
+    </div>
+  </section>
+
+</div>
+</body>
+</html>
